@@ -330,7 +330,6 @@ export class CodeInterpreterTool implements Tool {
 
       const savedFile = await this.fileStorageService.writeFile({
         sourceFile: file.content,
-        mimeType: file.mimeType,
         fileFolder: FileFolder.AgentChat,
         applicationUniversalIdentifier:
           workspaceCustomFlatApplication.universalIdentifier,
