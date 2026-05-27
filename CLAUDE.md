@@ -1,224 +1,202 @@
-# CLAUDE.md
+# CLAUDE.md — Veridian CRM
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> **Ce repo est un fork de `twentyhq/twenty` rebrandé Veridian CRM.**
+>
+> Pour les directives techniques Twenty (commandes Nx, conventions tests, lint,
+> Storybook, archi NestJS), lire **`CLAUDE-TWENTY.md`** dans ce même dossier — il
+> reste la source de vérité pour le **comment ça tourne** côté Twenty upstream.
+>
+> Ce fichier-ci grave les **règles Veridian** : licence, périmètre de travail,
+> intégrations cross-app, conventions agent. Il a **priorité** sur
+> `CLAUDE-TWENTY.md` en cas de conflit.
 
-## Project Overview
+---
 
-Twenty is an open-source CRM built with modern technologies in a monorepo structure. The codebase is organized as an Nx workspace with multiple packages.
+## 1. Contexte produit
 
-## Key Commands
+Veridian CRM est l'app **CRM customisable** de la suite Veridian. Elle vient en
+complément de `veridian-prospection` (cold outbound) et vise les clients qui
+ont besoin d'un CRM méta-modélisé (Object/Field/View dynamiques en DB).
 
-### Development
-```bash
-# Start development environment (frontend + backend + worker)
-yarn start
+Stratégie produit (décidée 2026-05-25, gravée dans `docs/spec/00-VISION.md`) :
 
-# Individual package development
-npx nx start twenty-front     # Start frontend dev server
-npx nx start twenty-server    # Start backend server
-npx nx run twenty-server:worker  # Start background worker
+- 2 produits séparés (Prospection cold + CRM customisable)
+- Fork de Twenty (AGPLv3) + rebrand strict (trademark "Twenty" déposé, on ne le
+  garde nulle part dans l'UI)
+- Migration progressive des features Prospection → CRM (pas de big bang)
+- Moat Veridian = data (996K leads B2B) + service consulting + intégration
+  cross-app, **pas** le code
+
+## 2. Licence — règles absolues
+
+### 🔴 LE PIÈGE PRINCIPAL : les 300 fichiers `/* @license Enterprise */`
+
+Twenty est **dual-licensé fichier par fichier** :
+
+- Par défaut → **AGPLv3** (on peut modifier librement, à condition de publier
+  nos modifs)
+- **Fichiers marqués `/* @license Enterprise */` en tête → licence commerciale
+  Twenty Labs**. On a le droit de les LIRE (ils sont publics sur GitHub) mais
+  PAS de les modifier ni de les redistribuer activés.
+
+**Liste des features EE** (300 fichiers, cf `docs/spec/AUDIT-LIMITE-EE-TWENTY.md`) :
+SSO/SAML, custom domains Cloudflare, Row-Level Security (RLS), JWT key rotation,
+billing v2, audit logs, module `enterprise/` complet.
+
+**Règle de travail** :
+
+1. **Ne jamais modifier** un fichier qui commence par `/* @license Enterprise */`.
+2. **Ne jamais patcher** le check `enterprisePlanService.isValid()` pour
+   débloquer une feature EE — c'est de la contrefaçon.
+3. Si un client demande une feature EE → **réimplémentation clean room** dans
+   un fichier neuf sous AGPL Veridian, jamais en copiant du code EE.
+4. Les fichiers EE peuvent être **laissés inactifs** dans le repo (le check
+   `isValid()` retournera toujours `false` sans clé EE) ou **supprimés** si on
+   préfère un repo plus léger.
+
+### Modifs Veridian autorisées
+
+- ✅ `MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY = Number.MAX_SAFE_INTEGER`
+  (la limite des 5 workspaces est dans du code AGPL, pas EE)
+- ✅ Rebrand UI complet (logo, nom, couleurs, copy, emails)
+- ✅ Suppression / désactivation des packages non utilisés
+- ✅ Ajout de modules custom Veridian dans :
+  - `packages/twenty-server/src/modules/veridian-*/`
+  - `packages/twenty-front/src/modules/veridian-*/`
+- ✅ Intégrations cross-app (Hub auth, Prospection leads, Notifuse emails)
+
+### Obligations AGPL — non négociables
+
+- Publier le code source de notre fork (accessible aux utilisateurs SaaS via
+  un lien "Source code" en footer)
+- Garder le copyright `Twenty.com PBC` dans tous les fichiers d'origine
+- Indiquer clairement que c'est un fork modifié (README + footer SaaS)
+- Nos propres ajouts (`veridian-*/`) sont eux aussi sous AGPLv3
+
+## 3. Périmètre de travail — packages
+
+### Packages **actifs** (qu'on modifie)
+
+| Package | Rôle | Notes |
+|---|---|---|
+| `twenty-server` | Backend NestJS (API GraphQL, auth, DB) | Cœur produit |
+| `twenty-front` | Frontend React (l'app web client) | À rebrand visuellement |
+| `twenty-shared` | Types + utils partagés front/server | Dep des 2 ci-dessus |
+| `twenty-ui` | Design system | À rebrand progressivement (couleurs, typo) |
+| `twenty-emails` | Templates React Email | Probablement à remplacer par appels Notifuse |
+| `twenty-front-component-renderer` | Rendu dynamique de composants | Dep front |
+
+### Packages **ignorés** (ne pas modifier — supprimables jour J)
+
+`twenty-docs`, `twenty-website`, `twenty-apps`, `twenty-sdk`, `twenty-client-sdk`,
+`twenty-companion`, `twenty-e2e-testing`, `twenty-zapier`, `twenty-claude-skills`,
+`twenty-oxlint-rules`, `twenty-cli`, `create-twenty-app`, `twenty-utils`.
+
+Ces packages sont liés au produit Twenty officiel (docs, marketing site, bot
+Discord, marketplace Zapier, etc.). Ils ne servent pas Veridian. Tant qu'on
+n'a pas confirmé qu'ils sont 100% retirables sans casser le build, on les
+laisse intacts.
+
+### Cas spécial : `twenty-docker`
+
+Garder, mais **adapter** : c'est notre point de départ pour notre propre
+compose Veridian CRM (deploy via Dokploy + Traefik prod).
+
+## 4. Stratégie — Twenty standalone, pas d'intégration Hub
+
+**Décision Robert 2026-05-26** : Veridian CRM tourne en **standalone**, sans
+intégration au contrat Hub. Pas de HMAC m2m, pas de provisioning Hub→CRM, pas
+d'`update-plan` webhook, pas de `magic-link` cross-app, pas d'audit log GDPR
+maison, pas de SSO/SAML clean room.
+
+**Raison** : Twenty est conçu pour tourner seul. Il a son propre login
+(email+password + Google OAuth + Microsoft OAuth), son propre admin panel,
+ses propres magic links internes (via `AppToken`), son propre billing
+(qu'on désactive parce qu'on facture autrement), son propre subdomain par
+workspace. Forcer Twenty à se plier au contrat Hub coûterait ~150h-agent
+pour un gain quasi nul à ce stade. On garde Twenty natif.
+
+**Conséquence sur l'archi** :
+
+- L'utilisateur s'inscrit/se logge **directement** sur le CRM Veridian
+  (`crm.veridian.site` ou subdomain par client)
+- Pas d'auth bouncée depuis le Hub
+- Pas de tenant provisionné par le Hub
+- Le billing client = via le canal Veridian habituel (Stripe direct ou
+  facturation manuelle pour les premiers clients consulting), mais **pas
+  via le module billing Twenty interne** (qui est 100% EE)
+
+Les audits `docs/spec/AUDIT-CONFORMITE-HUB.md` et `AUDIT-TWENTY-MICRO.md`
+restent en archive comme **référence si un jour la stratégie évolue**, pas
+comme spec à implémenter.
+
+### Si Robert pivote (futur)
+
+Si un jour l'intégration Hub redevient nécessaire (genre Phase 2 quand le
+CRM aura 5+ clients), réexhumer `AUDIT-CONFORMITE-HUB.md` qui contient le
+plan détaillé (~115-150h-agent, 10 lots L1→L10).
+
+## 5. Conventions de travail agent
+
+### Trunk-based sur `staging` — pas de PR, pas de branche feature
+
+Cf `veridian-platform/CLAUDE.md` §"Règle d'or : trunk-based sur staging".
+
+- Tu travailles **direct sur `staging`** (`git push origin staging`)
+- Tu ne crées **PAS** de branche feature
+- Tu n'ouvres **PAS** de PR
+- Auto-promotion `staging` → `main` après smoke staging vert
+
+### Un agent par app, pas de cross-touch
+
+Tu es l'agent **veridian-crm**. Tu touches **uniquement** ce repo. Si tu vois
+un fix évident dans `veridian-hub`, `veridian-prospection`, `veridian-cms`,
+`notifuse-veridian`, `veridian-analytics`, `veridian-infra` → **tu ne touches
+pas**. Tu déposes un ticket dans le `todo/` du repo cible et tu préviens
+Robert.
+
+### Convention `todo/`
+
+Ce repo a un dossier `todo/` à sa racine :
+
+```
+todo/
+├── YYYY-MM-DD-<slug>.md   ← ticket actif (à la racine)
+├── README.md               ← index
+├── done/                   ← archive
+└── blocked/  (optionnel)   ← en attente externe
 ```
 
-### Testing
-```bash
-# Preferred: run a single test file (fast)
-npx jest path/to/test.test.ts --config=packages/PROJECT/jest.config.mjs
+Au début de chaque session, vérifier `todo/` — c'est ta file d'attente.
 
-# Run all tests for a package
-npx nx test twenty-front      # Frontend unit tests
-npx nx test twenty-server     # Backend unit tests
-npx nx run twenty-server:test:integration:with-db-reset  # Integration tests with DB reset
-# To run an indivual test or a pattern of tests, use the following command:
-cd packages/{workspace} && npx jest "pattern or filename"
+## 6. Spec produit Veridian
 
-# Storybook
-npx nx storybook:build twenty-front
-npx nx storybook:test twenty-front
+Toute la spec produit Veridian (décisions Robert, archi cible, sprint
+decomposition, intégrations) vit dans `docs/spec/` :
 
-# When testing the UI end to end, click on "Continue with Email" and use the prefilled credentials.
-```
+- `00-VISION.md` — vision produit finale (décisions Robert verrouillées)
+- `01-archi-meta-modele.md` — archi Twenty + adaptations Veridian
+- `02-rebrand-checklist.md` — checklist rebrand strict
+- `03-integration-hub-auth.md` — intégration Hub auth
+- `04-module-leads-b2b.md` — pull leads depuis Prospection
+- `05-module-notifuse-mail.md` — push campagnes vers Notifuse
+- `06-deploiement-infra.md` — Dokploy + Traefik + CI/CD
+- `07-sprint-decomposition.md` — Vague 11.1-11.5 (~8 semaines, ~14 agents cumul)
+- `08-questions-ouvertes.md` — questions à trancher avec Robert
+- `AUDIT-TWENTY-DETAIL-P0.md` — 30+ questions techniques d'audit micro
+- `AUDIT-LIMITE-EE-TWENTY.md` — cadre légal AGPL/EE (à lire avant tout)
 
-### Code Quality
-```bash
-# Linting (diff with main - fastest, always prefer this)
-npx nx lint:diff-with-main twenty-front
-npx nx lint:diff-with-main twenty-server
-npx nx lint:diff-with-main twenty-front --configuration=fix  # Auto-fix
+## 7. État au 2026-05-26
 
-# Linting (full project - slower, use only when needed)
-npx nx lint twenty-front
-npx nx lint twenty-server
-
-# Type checking
-npx nx typecheck twenty-front
-npx nx typecheck twenty-server
-
-# Format code
-npx nx fmt twenty-front
-npx nx fmt twenty-server
-```
-
-### Build
-```bash
-# Build packages (twenty-shared must be built first)
-npx nx build twenty-shared
-npx nx build twenty-front
-npx nx build twenty-server
-```
-
-### Database Operations
-```bash
-# Database management
-npx nx database:reset twenty-server         # Reset database
-npx nx run twenty-server:database:init:prod # Initialize database
-npx nx run twenty-server:database:migrate:prod # Run instance commands (fast only)
-
-# Generate an instance command (fast or slow)
-npx nx run twenty-server:database:migrate:generate --name <name> --type <fast|slow>
-```
-
-### Database Inspection (Postgres MCP)
-
-A read-only Postgres MCP server is configured in `.mcp.json`. Use it to:
-- Inspect workspace data, metadata, and object definitions while developing
-- Verify migration results (columns, types, constraints) after running migrations
-- Explore the multi-tenant schema structure (core, metadata, workspace-specific schemas)
-- Debug issues by querying raw data to confirm whether a bug is frontend, backend, or data-level
-- Inspect metadata tables to debug GraphQL schema generation issues
-
-This server is read-only — for write operations (reset, migrations, sync), use the CLI commands above.
-
-### GraphQL
-```bash
-# Generate GraphQL types (run after schema changes)
-npx nx run twenty-front:graphql:generate
-npx nx run twenty-front:graphql:generate --configuration=metadata
-```
-
-## Architecture Overview
-
-### Tech Stack
-- **Frontend**: React 18, TypeScript, Jotai (state management), Linaria (styling), Vite
-- **Backend**: NestJS, TypeORM, PostgreSQL, Redis, GraphQL (with GraphQL Yoga)
-- **Monorepo**: Nx workspace managed with Yarn 4
-
-### Package Structure
-```
-packages/
-├── twenty-front/          # React frontend application
-├── twenty-server/         # NestJS backend API
-├── twenty-ui/             # Shared UI components library
-├── twenty-shared/         # Common types and utilities
-├── twenty-emails/         # Email templates with React Email
-├── twenty-website/    # Next.js marketing website
-├── twenty-docs/           # Documentation website
-├── twenty-zapier/         # Zapier integration
-└── twenty-e2e-testing/    # Playwright E2E tests
-```
-
-### Key Development Principles
-- **Functional components only** (no class components)
-- **Named exports only** (no default exports)
-- **Types over interfaces** (except when extending third-party interfaces)
-- **String literals over enums** (except for GraphQL enums)
-- **No 'any' type allowed** — strict TypeScript enforced
-- **Event handlers preferred over useEffect** for state updates
-- **Props down, events up** — unidirectional data flow
-- **Composition over inheritance**
-- **No abbreviations** in variable names (`user` not `u`, `fieldMetadata` not `fm`)
-
-### Naming Conventions
-- **Variables/functions**: camelCase
-- **Constants**: SCREAMING_SNAKE_CASE
-- **Types/Classes**: PascalCase (suffix component props with `Props`, e.g. `ButtonProps`)
-- **Files/directories**: kebab-case with descriptive suffixes (`.component.tsx`, `.service.ts`, `.entity.ts`, `.dto.ts`, `.module.ts`)
-- **TypeScript generics**: descriptive names (`TData` not `T`)
-
-### File Structure
-- Components under 300 lines, services under 500 lines
-- Components in their own directories with tests and stories
-- Use `index.ts` barrel exports for clean imports
-- Import order: external libraries first, then internal (`@/`), then relative
-
-### Comments
-- Use short-form comments (`//`), not JSDoc blocks
-- Explain WHY (business logic), not WHAT
-- Do not comment obvious code
-- Multi-line comments use multiple `//` lines, not `/** */`
-
-### State Management
-- **Jotai** for global state: atoms for primitive state, selectors for derived state, atom families for dynamic collections
-- Component-specific state with React hooks (`useState`, `useReducer` for complex logic)
-- GraphQL cache managed by Apollo Client
-- Use functional state updates: `setState(prev => prev + 1)`
-
-### Backend Architecture
-- **NestJS modules** for feature organization
-- **TypeORM** for database ORM with PostgreSQL
-- **GraphQL** API with code-first approach
-- **Redis** for caching and session management
-- **BullMQ** for background job processing
-
-### Database & Upgrade Commands
-- **PostgreSQL** as primary database
-- **Redis** for caching and sessions
-- **ClickHouse** for analytics (when enabled)
-- When changing entity files, generate an **instance command** (`database:migrate:generate --name <name> --type <fast|slow>`)
-- **Fast** instance commands handle schema changes; **slow** ones add a `runDataMigration` step for data backfills
-- **Workspace commands** iterate over all active/suspended workspaces for per-workspace upgrades
-- Commands use `@RegisteredInstanceCommand` and `@RegisteredWorkspaceCommand` decorators for automatic discovery
-- Include both `up` and `down` logic in instance commands
-- Never delete or rewrite committed instance command `up`/`down` logic
-- See `packages/twenty-server/docs/UPGRADE_COMMANDS.md` for full documentation
-
-### Utility Helpers
-Use existing helpers from `twenty-shared` instead of manual type guards:
-- `isDefined()`, `isNonEmptyString()`, `isNonEmptyArray()`
-
-## Development Workflow
-
-IMPORTANT: Use Context7 for code generation, setup or configuration steps, or library/API documentation. Automatically use the Context7 MCP tools to resolve library IDs and get library docs without waiting for explicit requests.
-
-### Before Making Changes
-1. Always run linting (`lint:diff-with-main`) and type checking after code changes
-2. Test changes with relevant test suites (prefer single-file test runs)
-3. Ensure instance commands are generated for entity changes (`database:migrate:generate`)
-4. Check that GraphQL schema changes are backward compatible
-5. Run `graphql:generate` after any GraphQL schema changes
-
-### Code Style Notes
-- Use **Linaria** for styling with zero-runtime CSS-in-JS (styled-components pattern)
-- Follow **Nx** workspace conventions for imports
-- Use **Lingui** for internationalization
-- Apply security first, then formatting (sanitize before format)
-
-### Testing Strategy
-- **Test behavior, not implementation** — focus on user perspective
-- **Test pyramid**: 70% unit, 20% integration, 10% E2E
-- Query by user-visible elements (text, roles, labels) over test IDs
-- Use `@testing-library/user-event` for realistic interactions
-- Descriptive test names: "should [behavior] when [condition]"
-- Clear mocks between tests with `jest.clearAllMocks()`
-
-## Dev Environment Setup
-
-All dev environments (Claude Code web, Cursor, local) use one script:
-
-```bash
-bash packages/twenty-utils/setup-dev-env.sh
-```
-
-This handles everything: starts Postgres + Redis (auto-detects local services vs Docker), creates databases, and copies `.env` files. Idempotent — safe to run multiple times.
-
-- `--docker` — force Docker mode (uses `packages/twenty-docker/docker-compose.dev.yml`)
-- `--down` — stop services
-- `--reset` — wipe data and restart fresh
-- **Skip the setup script** for tasks that only read code — architecture questions, code review, documentation, etc.
-
-**Note:** CI workflows (GitHub Actions) manage services via Actions service containers and run setup steps individually — they don't use this script.
-
-## Important Files
-- `nx.json` - Nx workspace configuration with task definitions
-- `tsconfig.base.json` - Base TypeScript configuration
-- `package.json` - Root package with workspace definitions
-- `.cursor/rules/` - Detailed development guidelines and best practices
+- ✅ Fork cloné (`Christ-Roy/veridian-crm`, commit Twenty `1188ea9c`)
+- ✅ Branche `staging` créée (trunk-based)
+- ✅ Audit légal AGPL livré (`docs/spec/AUDIT-LIMITE-EE-TWENTY.md`)
+- ✅ Audit conformité Hub livré (`docs/spec/AUDIT-CONFORMITE-HUB.md`) — **archivé**, stratégie pivotée standalone
+- ✅ Audit Twenty micro livré (`docs/spec/AUDIT-TWENTY-MICRO.md`)
+- ✅ Limite 5 workspaces patchée (`MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY = Number.MAX_SAFE_INTEGER`)
+- ⏳ **Ticket P0 actif** : `todo/2026-05-26-faire-sauter-verrous-twenty.md`
+  - Inventorier les callsites `enterprisePlanService.isValid()` AGPL
+  - Neutraliser le gating pour les features utiles
+  - Désactiver le billing Twenty (proprement, sans toucher au code EE)
+  - Setup admin Robert (`canAccessFullAdminPanel = true`)
+  - Activer mode multi-workspace (`IS_MULTIWORKSPACE_ENABLED=true`)
