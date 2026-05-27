@@ -1,0 +1,184 @@
+# Veridian CRM — staging compose
+#
+# Cible : dev-pub (37.187.199.185), réseau staging-edge, Traefik standalone
+# qui résout les certs via DNS-01 Cloudflare (cf ~/traefik-staging/traefik.yml).
+#
+# Image : ghcr.io/christ-roy/veridian-crm:staging (buildée par
+# .github/workflows/veridian-crm-build-image.yaml depuis Dockerfile.veridian).
+#
+# Adapté depuis ~/Bureau/dokploy-infra/prod/migration-bundle/twenty.yml
+# (variant multi-workspace + billing off) + pattern wildcard de
+# migration-bundle/twenty-wildcard-staging.yml.
+#
+# Différences notables vs archive prod :
+# - Image fork Veridian au lieu de twentycrm/twenty
+# - Domaine crm.staging.veridian.site (+ wildcard *.crm.staging.veridian.site)
+# - IS_BILLING_ENABLED=false → on ne pousse PAS les ENV Stripe
+# - IS_MULTIWORKSPACE_ENABLED=true (multi-tenant)
+# - IS_FREE_ACCESS_ENABLED=true (skip onboarding wizard)
+# - DEFAULT_SUBDOMAIN=app (les workspaces se créent en app-XXX.crm.staging…)
+# - Volumes renommés crm-staging-* (départ propre, pas d'héritage infra_twenty-*)
+# - Network externe staging-edge (cohérent avec Hub/Prospection/Notifuse/CMS)
+# - Redirect Traefik /welcome → hub.staging.veridian.site/signup (signup public
+#   bloqué tant que l'intégration Hub n'est pas câblée)
+
+services:
+  crm-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    networks:
+      - crm-internal
+    environment:
+      POSTGRES_USER: twenty
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: twenty
+    volumes:
+      - crm-staging-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twenty"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  crm-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - crm-internal
+    command: redis-server --save 60 1000 --appendonly yes
+    volumes:
+      - crm-staging-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  crm-server:
+    image: ghcr.io/christ-roy/veridian-crm:staging
+    restart: unless-stopped
+    networks:
+      - staging-edge
+      - crm-internal
+    depends_on:
+      crm-postgres:
+        condition: service_healthy
+      crm-redis:
+        condition: service_healthy
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      NODE_PORT: "3000"
+      SERVER_URL: https://crm.staging.veridian.site
+      FRONTEND_URL: https://crm.staging.veridian.site
+      APP_SECRET: ${TWENTY_APP_SECRET:?TWENTY_APP_SECRET is required}
+      # Multi-tenant : true workspaces multiples, billing off (on facture
+      # par Veridian, pas par Twenty interne).
+      IS_MULTIWORKSPACE_ENABLED: "true"
+      IS_BILLING_ENABLED: "false"
+      IS_FREE_ACCESS_ENABLED: "true"
+      DEFAULT_SUBDOMAIN: app
+      PG_DATABASE_URL: postgres://twenty:${POSTGRES_PASSWORD}@crm-postgres:5432/twenty
+      REDIS_URL: redis://crm-redis:6379
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/.local-storage
+      # SMTP Lark Veridian (cf ~/credentials/.all-creds.env).
+      EMAIL_DRIVER: smtp
+      EMAIL_SMTP_HOST: ${SMTP_HOST}
+      EMAIL_SMTP_PORT: ${SMTP_PORT}
+      EMAIL_SMTP_USER: ${SMTP_USER}
+      EMAIL_SMTP_PASSWORD: ${SMTP_PASS}
+      EMAIL_FROM_ADDRESS: ${SMTP_ADMIN_EMAIL}
+      EMAIL_FROM_NAME: ${SMTP_SENDER_NAME}
+      LOG_LEVELS: error,warn,log
+    volumes:
+      - crm-staging-storage:/app/.local-storage
+    labels:
+      # =====================================================================
+      # Traefik — exposition publique HTTPS via dev-pub.
+      # Le wildcard *.crm.staging.veridian.site est nécessaire car Twenty
+      # multi-workspace crée des subdomains par workspace (app-XXX.crm…).
+      # =====================================================================
+      - "traefik.enable=true"
+      - "traefik.docker.network=staging-edge"
+
+      # --- Router principal (apex + wildcard workspaces) ---
+      - "traefik.http.routers.crm-staging.rule=Host(`crm.staging.veridian.site`) || HostRegexp(`^[a-z0-9-]+\\.crm\\.staging\\.veridian\\.site$`)"
+      - "traefik.http.routers.crm-staging.entrypoints=websecure"
+      - "traefik.http.routers.crm-staging.priority=10"
+      - "traefik.http.routers.crm-staging.tls=true"
+      - "traefik.http.routers.crm-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.crm-staging.tls.domains[0].main=crm.staging.veridian.site"
+      - "traefik.http.routers.crm-staging.tls.domains[0].sans=*.crm.staging.veridian.site"
+      - "traefik.http.routers.crm-staging.service=crm-staging"
+      - "traefik.http.routers.crm-staging.middlewares=crm-staging-headers"
+
+      # --- Router prioritaire : /welcome → redirect vers Hub (signup bloqué)
+      - "traefik.http.routers.crm-staging-welcome.rule=Host(`crm.staging.veridian.site`) && Path(`/welcome`)"
+      - "traefik.http.routers.crm-staging-welcome.entrypoints=websecure"
+      - "traefik.http.routers.crm-staging-welcome.priority=100"
+      - "traefik.http.routers.crm-staging-welcome.tls=true"
+      - "traefik.http.routers.crm-staging-welcome.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.crm-staging-welcome.service=crm-staging"
+      - "traefik.http.routers.crm-staging-welcome.middlewares=crm-staging-redirect-signup"
+
+      # --- Middlewares ---
+      - "traefik.http.middlewares.crm-staging-headers.headers.customrequestheaders.X-Forwarded-Host=crm.staging.veridian.site"
+      - "traefik.http.middlewares.crm-staging-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.crm-staging-redirect-signup.redirectregex.regex=.*"
+      - "traefik.http.middlewares.crm-staging-redirect-signup.redirectregex.replacement=https://hub.staging.veridian.site/signup"
+      - "traefik.http.middlewares.crm-staging-redirect-signup.redirectregex.permanent=true"
+
+      # --- Service ---
+      - "traefik.http.services.crm-staging.loadbalancer.server.port=3000"
+
+  crm-worker:
+    image: ghcr.io/christ-roy/veridian-crm:staging
+    restart: unless-stopped
+    networks:
+      - crm-internal
+    depends_on:
+      crm-postgres:
+        condition: service_healthy
+      crm-redis:
+        condition: service_healthy
+    command: ["yarn", "worker:prod"]
+    environment:
+      NODE_ENV: production
+      SERVER_URL: https://crm.staging.veridian.site
+      FRONTEND_URL: https://crm.staging.veridian.site
+      APP_SECRET: ${TWENTY_APP_SECRET}
+      IS_MULTIWORKSPACE_ENABLED: "true"
+      IS_BILLING_ENABLED: "false"
+      IS_FREE_ACCESS_ENABLED: "true"
+      DEFAULT_SUBDOMAIN: app
+      PG_DATABASE_URL: postgres://twenty:${POSTGRES_PASSWORD}@crm-postgres:5432/twenty
+      REDIS_URL: redis://crm-redis:6379
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/.local-storage
+      EMAIL_DRIVER: smtp
+      EMAIL_SMTP_HOST: ${SMTP_HOST}
+      EMAIL_SMTP_PORT: ${SMTP_PORT}
+      EMAIL_SMTP_USER: ${SMTP_USER}
+      EMAIL_SMTP_PASSWORD: ${SMTP_PASS}
+      EMAIL_FROM_ADDRESS: ${SMTP_ADMIN_EMAIL}
+      EMAIL_FROM_NAME: ${SMTP_SENDER_NAME}
+      LOG_LEVELS: error,warn,log
+      # Le worker ne migre pas la DB ni n'enregistre les crons (le server
+      # s'en charge). On désactive pour éviter une race au boot.
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes:
+      - crm-staging-storage:/app/.local-storage
+
+volumes:
+  crm-staging-db-data:
+  crm-staging-redis-data:
+  crm-staging-storage:
+
+networks:
+  staging-edge:
+    external: true
+  crm-internal:
+    driver: bridge
