@@ -1,0 +1,53 @@
+name: Veridian CRM CI
+
+# Minimal Veridian-side CI for the Twenty fork.
+#
+# We can't depend on the upstream Twenty workflows (ci-server.yaml etc.)
+# because they're gated on `changed-files` matchers tuned for the
+# upstream monorepo and they only trigger on `pull_request`. We run a
+# trunk-based flow (push to `staging`, fast-forward to `main`) so we
+# need our own workflow that fires on `push` too.
+#
+# Scope is intentionally narrow: run the unit tests we care about for
+# the AGPL patches we ship on top of Twenty (today: the lifted
+# workspace cap in sign-in-up.service). We layer Docker build / deploy
+# / E2E in separate workflows later.
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+  pull_request:
+    branches:
+      - staging
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veridian-crm-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  veridian-server-unit:
+    name: twenty-server unit tests (Veridian patches)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: '--max-old-space-size=4096'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        uses: ./.github/actions/yarn-install
+
+      - name: Run sign-in-up service unit tests
+        run: npx nx test twenty-server --testPathPattern=sign-in-up
+
+      - name: Typecheck twenty-server
+        run: npx nx typecheck twenty-server

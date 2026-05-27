@@ -2,6 +2,7 @@ import {
   AuthException,
   AuthExceptionCode,
 } from 'src/engine/core-modules/auth/auth.exception';
+import { MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY } from 'src/engine/core-modules/auth/constants/max-workspaces-without-enterprise-key.constants';
 import { type SignInUpNewUserPayload } from 'src/engine/core-modules/auth/types/signInUp.type';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
 
@@ -301,5 +302,28 @@ describe('SignInUpService workspace-creation policy', () => {
     ).rejects.toMatchObject({
       code: AuthExceptionCode.SIGNUP_DISABLED,
     });
+  });
+});
+
+// Veridian CRM: the upstream Twenty hard cap of 5 workspaces (gating an
+// Enterprise-key paywall) is lifted in our AGPL fork. These tests pin
+// that behavior so any future regression (e.g. a yarn upgrade pulling in
+// a Twenty version that re-introduces the cap) fails CI immediately.
+describe('SignInUpService Veridian workspace cap removal', () => {
+  it('pins MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY to Number.MAX_SAFE_INTEGER', () => {
+    expect(MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('does not throw when creating workspaces well past the upstream cap of 5 without an Enterprise key', async () => {
+    const { service } = createSignInUpServiceForTests();
+
+    // EnterprisePlanService.isValid() is already mocked to false in
+    // createSignInUpServiceForTests, simulating an installation with no
+    // Enterprise key.
+    for (const workspaceCount of [5, 10, 50, 500]) {
+      await expect(
+        (service as any).assertWorkspaceCountWithinLimit(workspaceCount),
+      ).resolves.not.toThrow();
+    }
   });
 });
