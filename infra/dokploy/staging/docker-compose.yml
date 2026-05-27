@@ -70,6 +70,11 @@ services:
     environment:
       NODE_ENV: production
       NODE_PORT: "3000"
+      # Twenty exige un semver strict (cf. IsTwentySemVerValidator). On
+      # surcharge l'APP_VERSION du build (qui contient le short SHA non-semver)
+      # par un format pre-release valide. Le SHA reste accessible via
+      # VERIDIAN_BUILD_SHA / le label OCI de l'image.
+      APP_VERSION: 0.0.0-staging
       SERVER_URL: https://crm.staging.veridian.site
       FRONTEND_URL: https://crm.staging.veridian.site
       APP_SECRET: ${TWENTY_APP_SECRET:?TWENTY_APP_SECRET is required}
@@ -146,6 +151,7 @@ services:
     command: ["yarn", "worker:prod"]
     environment:
       NODE_ENV: production
+      APP_VERSION: 0.0.0-staging
       SERVER_URL: https://crm.staging.veridian.site
       FRONTEND_URL: https://crm.staging.veridian.site
       APP_SECRET: ${TWENTY_APP_SECRET}
