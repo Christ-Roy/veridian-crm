@@ -136,11 +136,19 @@ services:
       - "traefik.http.routers.crm-prod-web.middlewares=redirect-to-https@file"
 
       # --- Router HTTPS principal (apex + subdomains workspaces Twenty) ---
+      # tls.domains[].sans force Traefik à demander à Let's Encrypt un cert
+      # qui couvre EXPLICITEMENT `*.crm.app.veridian.site` via DNS-01 challenge
+      # Cloudflare (déjà configuré côté Traefik resolver "letsencrypt").
+      # Sans ces SANs, Traefik émet un cert par hostname à la demande, mais
+      # les subdomains workspaces (ex: veridian.crm.app.veridian.site) ne
+      # déclenchent rien → fallback "TRAEFIK DEFAULT CERT" auto-signé.
       - "traefik.http.routers.crm-prod-websecure.rule=Host(`crm.app.veridian.site`) || HostRegexp(`{subdomain:[a-z0-9-]+}.crm.app.veridian.site`)"
       - "traefik.http.routers.crm-prod-websecure.entrypoints=websecure"
       - "traefik.http.routers.crm-prod-websecure.priority=10"
       - "traefik.http.routers.crm-prod-websecure.tls=true"
       - "traefik.http.routers.crm-prod-websecure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.crm-prod-websecure.tls.domains[0].main=crm.app.veridian.site"
+      - "traefik.http.routers.crm-prod-websecure.tls.domains[0].sans=*.crm.app.veridian.site"
       - "traefik.http.routers.crm-prod-websecure.service=crm-prod"
 
       # --- Router prioritaire : /welcome → redirect vers Hub (signup
