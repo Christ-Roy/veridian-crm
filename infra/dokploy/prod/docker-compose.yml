@@ -1,0 +1,222 @@
+# Veridian CRM — prod compose (Dokploy)
+#
+# Cible : VPS OVH prod (51.210.7.44), réseau dokploy-network swarm,
+# Traefik Dokploy (cert resolver letsencrypt déjà câblé Dokploy).
+#
+# Image : ghcr.io/christ-roy/veridian-crm:latest (buildée par
+# .github/workflows/veridian-crm-build-image.yaml sur push main).
+#
+# Domaine : crm.app.veridian.site (couvert par wildcard
+# *.app.veridian.site → 51.210.7.44 déjà présent côté DNS Cloudflare).
+#
+# Diff vs staging (~/services/veridian-crm-staging/docker-compose.yml) :
+# - Image :latest au lieu de :staging
+# - Domaine crm.app.veridian.site au lieu de crm.staging.veridian.site
+# - Réseau dokploy-network au lieu de staging-edge
+# - Volumes crm-prod-* (départ propre, pas d'héritage infra_twenty-*)
+# - Resource limits posés (fusible 60% VM cf §1 infra)
+# - Pas de wildcard subdomain TLS spécifique (le cert wildcard
+#   *.app.veridian.site est déjà émis par Traefik Dokploy)
+# - Redirect Traefik /welcome → app.veridian.site/signup (Hub prod)
+
+services:
+  crm-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    networks:
+      - crm-internal
+    environment:
+      POSTGRES_USER: twenty
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: twenty
+    volumes:
+      - crm-prod-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twenty"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.5"
+        reservations:
+          memory: 256M
+          cpus: "0.1"
+
+  crm-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - crm-internal
+    command: redis-server --save 60 1000 --appendonly yes
+    volumes:
+      - crm-prod-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.3"
+        reservations:
+          memory: 32M
+          cpus: "0.05"
+
+  crm-server:
+    image: ghcr.io/christ-roy/veridian-crm:latest
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+      - crm-internal
+    depends_on:
+      crm-postgres:
+        condition: service_healthy
+      crm-redis:
+        condition: service_healthy
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      NODE_PORT: "3000"
+      # Semver strict (cf. IsTwentySemVerValidator).
+      APP_VERSION: 1.0.0
+      SERVER_URL: https://crm.app.veridian.site
+      FRONTEND_URL: https://crm.app.veridian.site
+      APP_SECRET: ${TWENTY_APP_SECRET:?TWENTY_APP_SECRET is required}
+      # Multi-tenant : true workspaces multiples, billing off, signup
+      # accessible via Hub (pas restreint aux admins serveur).
+      IS_MULTIWORKSPACE_ENABLED: "true"
+      IS_BILLING_ENABLED: "false"
+      IS_FREE_ACCESS_ENABLED: "true"
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: "false"
+      DEFAULT_SUBDOMAIN: app
+      PG_DATABASE_URL: postgres://twenty:${POSTGRES_PASSWORD}@crm-postgres:5432/twenty
+      REDIS_URL: redis://crm-redis:6379
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/.local-storage
+      # SMTP Lark Veridian — récupéré depuis ~/credentials/.all-creds.env
+      # côté Robert, posé en ENV Dokploy.
+      EMAIL_DRIVER: smtp
+      EMAIL_SMTP_HOST: ${SMTP_HOST}
+      EMAIL_SMTP_PORT: ${SMTP_PORT}
+      EMAIL_SMTP_USER: ${SMTP_USER}
+      EMAIL_SMTP_PASSWORD: ${SMTP_PASS}
+      EMAIL_FROM_ADDRESS: ${SMTP_ADMIN_EMAIL}
+      EMAIL_FROM_NAME: ${SMTP_SENDER_NAME}
+      LOG_LEVELS: error,warn,log
+    volumes:
+      - crm-prod-storage:/app/.local-storage
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.5"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+    labels:
+      # ====================================================================
+      # Traefik Dokploy — exposition publique HTTPS
+      # Le wildcard *.app.veridian.site est déjà géré côté DNS Cloudflare
+      # (record A → 51.210.7.44 non proxied). Traefik issue les certs via
+      # le resolver "letsencrypt" déjà configuré côté Dokploy.
+      # ====================================================================
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+
+      # --- Router HTTP → redirect HTTPS (middleware redirect-to-https@file
+      # déjà défini côté Traefik Dokploy, cf pattern Hub) ---
+      - "traefik.http.routers.crm-prod-web.rule=Host(`crm.app.veridian.site`) || HostRegexp(`{subdomain:[a-z0-9-]+}.crm.app.veridian.site`)"
+      - "traefik.http.routers.crm-prod-web.entrypoints=web"
+      - "traefik.http.routers.crm-prod-web.middlewares=redirect-to-https@file"
+
+      # --- Router HTTPS principal (apex + subdomains workspaces Twenty) ---
+      - "traefik.http.routers.crm-prod-websecure.rule=Host(`crm.app.veridian.site`) || HostRegexp(`{subdomain:[a-z0-9-]+}.crm.app.veridian.site`)"
+      - "traefik.http.routers.crm-prod-websecure.entrypoints=websecure"
+      - "traefik.http.routers.crm-prod-websecure.priority=10"
+      - "traefik.http.routers.crm-prod-websecure.tls=true"
+      - "traefik.http.routers.crm-prod-websecure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.crm-prod-websecure.service=crm-prod"
+
+      # --- Router prioritaire : /welcome → redirect vers Hub (signup
+      # public Twenty bloqué — tout signup CRM passe par le Hub) ---
+      - "traefik.http.routers.crm-prod-welcome.rule=Host(`crm.app.veridian.site`) && Path(`/welcome`)"
+      - "traefik.http.routers.crm-prod-welcome.entrypoints=websecure"
+      - "traefik.http.routers.crm-prod-welcome.priority=100"
+      - "traefik.http.routers.crm-prod-welcome.tls=true"
+      - "traefik.http.routers.crm-prod-welcome.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.crm-prod-welcome.service=crm-prod"
+      - "traefik.http.routers.crm-prod-welcome.middlewares=crm-prod-redirect-signup"
+
+      # --- Middlewares ---
+      - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.regex=.*"
+      - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.replacement=https://app.veridian.site/signup"
+      - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.permanent=true"
+
+      # --- Service ---
+      - "traefik.http.services.crm-prod.loadbalancer.server.port=3000"
+
+  crm-worker:
+    image: ghcr.io/christ-roy/veridian-crm:latest
+    restart: unless-stopped
+    networks:
+      - crm-internal
+    depends_on:
+      crm-postgres:
+        condition: service_healthy
+      crm-redis:
+        condition: service_healthy
+    command: ["yarn", "worker:prod"]
+    environment:
+      NODE_ENV: production
+      APP_VERSION: 1.0.0
+      SERVER_URL: https://crm.app.veridian.site
+      FRONTEND_URL: https://crm.app.veridian.site
+      APP_SECRET: ${TWENTY_APP_SECRET}
+      IS_MULTIWORKSPACE_ENABLED: "true"
+      IS_BILLING_ENABLED: "false"
+      IS_FREE_ACCESS_ENABLED: "true"
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: "false"
+      DEFAULT_SUBDOMAIN: app
+      PG_DATABASE_URL: postgres://twenty:${POSTGRES_PASSWORD}@crm-postgres:5432/twenty
+      REDIS_URL: redis://crm-redis:6379
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/.local-storage
+      EMAIL_DRIVER: smtp
+      EMAIL_SMTP_HOST: ${SMTP_HOST}
+      EMAIL_SMTP_PORT: ${SMTP_PORT}
+      EMAIL_SMTP_USER: ${SMTP_USER}
+      EMAIL_SMTP_PASSWORD: ${SMTP_PASS}
+      EMAIL_FROM_ADDRESS: ${SMTP_ADMIN_EMAIL}
+      EMAIL_FROM_NAME: ${SMTP_SENDER_NAME}
+      LOG_LEVELS: error,warn,log
+      # Le worker ne migre pas la DB ni n'enregistre les crons (le server
+      # s'en charge). On désactive pour éviter une race au boot.
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes:
+      - crm-prod-storage:/app/.local-storage
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.8"
+        reservations:
+          memory: 256M
+          cpus: "0.1"
+
+volumes:
+  crm-prod-db-data:
+  crm-prod-redis-data:
+  crm-prod-storage:
+
+networks:
+  dokploy-network:
+    external: true
+  crm-internal:
+    driver: bridge
