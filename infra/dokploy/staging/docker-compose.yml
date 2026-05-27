@@ -83,6 +83,10 @@ services:
       IS_MULTIWORKSPACE_ENABLED: "true"
       IS_BILLING_ENABLED: "false"
       IS_FREE_ACCESS_ENABLED: "true"
+      # Permet le signup multi-tenant via Hub. Twenty force par défaut
+      # workspace creation aux admins serveur — on désactive parce que
+      # le Hub orchestre le provisioning (cf billing ticket Hub).
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: "false"
       DEFAULT_SUBDOMAIN: app
       PG_DATABASE_URL: postgres://twenty:${POSTGRES_PASSWORD}@crm-postgres:5432/twenty
       REDIS_URL: redis://crm-redis:6379
