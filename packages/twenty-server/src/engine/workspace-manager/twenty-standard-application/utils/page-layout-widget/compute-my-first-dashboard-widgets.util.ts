@@ -540,7 +540,7 @@ const createOpportunitiesByOwner = ({
 };
 
 // Veridian: stock market TradingView iframe removed from the seed dashboard —
-// it leaked visitor IP/UA to tradingview.com on every dashboard load
+// it leaked visitor IP/UA to a third-party widget host on every load
 // (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
 
 const createDealsCreatedThisMonth = ({
