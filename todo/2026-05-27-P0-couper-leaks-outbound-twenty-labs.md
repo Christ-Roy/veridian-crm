@@ -311,21 +311,22 @@ Créer `docs/spec/AUDIT-OUTBOUND-LEAKS.md` avec :
 
 ---
 
-## ✅ Checklist de fin de ticket
+## ✅ Checklist de fin de ticket (état 2026-06-10, commit `16925b7`)
 
-- [ ] P0-A : `TWENTY_COMPANIES_ENRICHMENT_ENABLED=false` câblé + posé prod (leak domaines clients)
-- [ ] P0-B : `recordInputs/Outputs: false` + `sendDefaultPii: false` sur Sentry + tests (Sentry sans PII)
-- [ ] P0-C : `SearchHelpCenterTool` retiré du module tool + `HELP_CENTER_SEARCH_ENABLED=false` (queries user en clair)
-- [ ] P0-D : Sentry deeper config — voir P0-B (regroupé)
-- [ ] P1-A à P1-D : décision Robert prise (couper / mirror / laisser actif) et appliquée
-- [ ] P1-E : iframe TradingView retirée du dashboard seed
-- [ ] P2 emails : images rebrand Veridian sur R2
-- [ ] P3 : `twenty.com` → `veridian.site` dans `prefill-workflows.util.ts`
-- [ ] Test e2e `no-outbound-leaks.e2e-spec.ts` vert en CI (allowlist stricte : DB, Redis, Brevo, Lark, Telnyx, OAuth Google/MS, Stripe)
-- [ ] Doc `docs/spec/AUDIT-OUTBOUND-LEAKS.md` à jour
-- [ ] Vérification réseau prod : `tcpdump` ou `iptables -L` sur le container server pendant 1h après deploy → 0 connexion vers domaines blacklistés (`twenty-*.com`, `app.twenty.com`, `twenty.com`, `unpkg.com`, `npmjs.org`, `models.dev`, `hub.docker.com/v2/repositories/twentycrm`, `tradingview.com` initiated par seed)
-- [ ] Mise à jour skill `admin-twenty` (`~/.claude/skills/admin-twenty/SKILL.md`) section "🚨 Pièges connus" avec les ENV flags ajoutées
-- [ ] Commit + push staging + auto-promote main + vérif `/healthz` post-deploy
+- [x] P0-A : flag `COMPANIES_ENRICHMENT_ENABLED` (default **false** dans le code — pas besoin d'ENV prod, fail-safe) + test unitaire "0 appel HTTP". Précision d'audit : le vecteur est l'auto-création contacts calendar/messaging (ConnectedAccount), PAS le POST REST direct — l'import batch tunnel n'empruntait pas ce chemin, le patch protège le jour où une boîte Gmail/Outlook est connectée.
+- [x] P0-B : `recordInputs/Outputs: false` + `sendDefaultPii: false` dans `instrument.ts` (en dur)
+- [x] P0-C : guard `HELP_CENTER_SEARCH_ENABLED` (default false) dans `execute()` + spec
+- [x] P0-D : regroupé P0-B + `AI_TELEMETRY_CONFIG.record* = false`
+- [x] P1-A à P1-C : coupés par `MARKETPLACE_REGISTRY_SYNC_ENABLED` (default false) — guards dans marketplace.service + application-upgrade.service ("par défaut couper" du ticket appliqué)
+- [x] P1-D : `AI_MODELS_CATALOG_FETCH_ENABLED` (default false) dans models-dev-catalog.service
+- [x] P1-E : iframe TradingView supprimée du dashboard seed
+- [x] P2 emails : logo self-hosted `crm.app.veridian.site` (pas R2 — l'instance sert déjà l'asset ; rebrandé visuellement à la passe rebrand)
+- [x] P3 : `twenty.com` → `veridian.site` dans `prefill-workflows.util.ts`
+- [ ] Test e2e `no-outbound-leaks.e2e-spec.ts` (nock allowlist) — **DETTE assumée** : remplacé ce sprint par specs unitaires "0 HTTP" (CI) + capture réseau réelle staging (0 paquet pendant créations Company) + vérif tcpdump prod post-deploy
+- [x] Doc `docs/spec/AUDIT-OUTBOUND-LEAKS.md`
+- [ ] Vérification réseau prod post-deploy (tcpdump) — en cours, après le build `:latest` + compose.deploy
+- [x] Skill `admin-twenty` mis à jour (flags + piège UPPER_SNAKE_CASE)
+- [x] Push staging + smoke staging réel (healthz + /metadata + signup 6 étapes + créations Company sous tcpdump : 0 paquet) + promote main `16925b7`
 
 ---
 
