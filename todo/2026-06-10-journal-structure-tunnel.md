@@ -214,8 +214,16 @@ views:
 > cette section sert au scénario giga-test et au cleanup post-test.
 
 - mailingBatch `TEST-gigatest` : id `1f877065-4d3b-4d44-8e11-a7ea0a84f722`
+- 5 Opportunities `TEST-gigatest — <classe>` (stage NEW, pointOfContactId → la Person de test) :
+  google `4ab08526-a90a-4a25-8e87-79e93b0efb34`, microsoft `858e20d4-4b16-496d-9c1a-b6c5b19698ab`,
+  yahoo-aol `d1a43470-0560-471d-81c4-da9a1708d99c`, freemail-fr `1f58ab2d-7656-4eb4-847e-9f85ed893a39`,
+  corporate `2a3efdaf-36a2-43d8-9f5a-68210be87f59`
+- auditSlug des 5 Person = `test-tunnel-<classe>` (simplifiés au format du run E2E,
+  ex-`-gigatest1` abandonné) — c'est le `user_id` que le script E2E envoie à Analytics.
+- Brique d'assertions du run E2E : `veridian-tunnel-de-vente/tunnel-e2e/crm-assertions.mjs`
+  (snapshot/assert score+events+stage, garde-fou fuite, reset complet score+stage+timeline).
 - 5 Person `TEST-gigatest <CLASSE>` (`isTestProspect=true`, rattachées au batch) :
-  - CORPORATE `9848df16-0596-4f36-b8eb-02fda5f9f914` — test-tunnel-corporate@veridian.site (porte aussi le auditSlug de test `testdomain-ab12cd34` du GO PATCH)
+  - CORPORATE `9848df16-0596-4f36-b8eb-02fda5f9f914` — test-tunnel-corporate@veridian.site (le slug `testdomain-ab12cd34` du GO PATCH a été remplacé par le slug E2E)
   - GOOGLE `cc547b88-d9f7-44e8-bcb6-eb154663a62b` — test-tunnel-google@veridian.site
   - MICROSOFT `4b046877-1450-4312-91f5-b5ecbb21f884` — test-tunnel-microsoft@veridian.site
   - YAHOO_AOL `185e9658-e5b3-4132-889e-7a7dcf314ad9` — test-tunnel-yahoo-aol@veridian.site
