@@ -164,3 +164,46 @@ views:
 
 webhooks: []   # volontaire — flux entrant uniquement ; le webhook bridge attendra l'URL réelle (A1)
 ```
+
+## Ajouts 2026-06-10 (giga-test #22 + isolation prospects de test)
+
+### Field ajouté sur `person`
+
+| name (clé IaC) | type | label | id | Rôle |
+|---|---|---|---|---|
+| `isTestProspect` | BOOLEAN (default false) | Prospect de test | `b67deca9-e407-4f7a-aa2b-e35937259866` | isole les prospects du giga-test des vrais prospects |
+
+### Vue "Test tunnel" (TABLE sur person) — observation du giga-test
+
+- viewId : `eb691a57-151f-4975-83ce-84d0e4f21573`, icon IconFlask
+- Colonnes : name, score, providerClass, emails, auditSlug, mailingBatch, doNotContact
+- Tri : `score DESC` ; Filtre : `isTestProspect IS true`
+- Sert le tableau de validation du giga-test (#22) : on y voit les prospects de
+  test progresser en stage/score/events SANS polluer la vue prod.
+
+### Vue "Tunnel de vente" (prod) — filtre ajouté
+
+Filtre supplémentaire `isTestProspect IS false` (en plus de `doNotContact IS false`)
+→ la vue prod ne montre QUE les vrais prospects, jamais ceux du giga-test.
+
+### YAML déclaratif — delta
+
+```yaml
+extendObjects:
+  - nameSingular: person
+    fields:
+      - { name: isTestProspect, type: BOOLEAN, label: Prospect de test, icon: IconFlask, defaultValue: false }
+views:
+  - object: person
+    name: Test tunnel
+    type: TABLE
+    icon: IconFlask
+    fields: [ name, score, providerClass, emails, auditSlug, mailingBatch, doNotContact ]
+    sorts:  [ { field: score, direction: DESC } ]
+    filters: [ { field: isTestProspect, operand: IS, value: "true" } ]
+  # vue "Tunnel de vente" : filtre additionnel
+  - object: person
+    name: Tunnel de vente
+    filters: [ { field: doNotContact, operand: IS, value: "false" },
+               { field: isTestProspect, operand: IS, value: "false" } ]
+```
