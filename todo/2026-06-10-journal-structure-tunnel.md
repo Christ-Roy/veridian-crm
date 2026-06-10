@@ -91,3 +91,76 @@ jamais les changer :
 - Pas d'invitation sales : en attente liste Robert + arbitrage A5
   (workspace Robert vs workspace dédié). Structure 100 % rejouable par IaC
   si A5 = workspace dédié.
+
+## YAML déclaratif (format SPEC-IAC-TWENTY §2 — diff cible pour l'export)
+
+```yaml
+# tunnel-de-vente.workspace.yaml — état CIBLE (capturé du travail manuel 2026-06-10)
+version: 1
+template: tunnel-de-vente
+
+objects:
+  - nameSingular: mailingBatch
+    namePlural: mailingBatches
+    labelSingular: Mailing Batch
+    labelPlural: Mailing
+    icon: IconSend
+    description: Lot d envoi de campagne tunnel de vente (contrat batch §2)
+    fields:
+      - { name: batchId, type: TEXT, label: Batch ID, icon: IconHash }
+      - name: statut
+        type: SELECT
+        label: Statut
+        icon: IconMail
+        options:
+          - { value: PREPARE,        label: Préparé,             color: gray,      position: 0 }
+          - { value: ENVOI_EN_COURS, label: Envoi en cours,      color: blue,      position: 1 }
+          - { value: ENVOYE,         label: Envoyé,              color: green,     position: 2 }
+          - { value: TERMINE,        label: Terminé (suivi clos), color: turquoise, position: 3 }
+
+extendObjects:
+  - nameSingular: person
+    fields:
+      - { name: score,     type: NUMBER,  label: Score tunnel,      icon: IconFlame }
+      - { name: auditSlug, type: TEXT,    label: Audit Slug,        icon: IconLink }
+      - { name: doNotContact, type: BOOLEAN, label: Ne plus contacter, icon: IconBan, defaultValue: false }
+      - name: providerClass
+        type: SELECT
+        label: Provider
+        icon: IconMailCog
+        # ⚠️ values UPPER_SNAKE_CASE imposées par l'API (400 sinon) — labels = canonique contrat §1
+        options:
+          - { value: GOOGLE,      label: google,      color: red,    position: 0 }
+          - { value: MICROSOFT,   label: microsoft,   color: blue,   position: 1 }
+          - { value: YAHOO_AOL,   label: yahoo_aol,   color: purple, position: 2 }
+          - { value: FREEMAIL_FR, label: freemail_fr, color: orange, position: 3 }
+          - { value: CORPORATE,   label: corporate,   color: gray,   position: 4 }
+  - nameSingular: opportunity
+    fields:
+      # field standard `stage` : seules les OPTIONS sont déclarées (labels FR, values stables)
+      - name: stage
+        type: SELECT
+        options:
+          - { value: NEW,       label: À contacter,       color: gray,   position: 0 }
+          - { value: SCREENING, label: Contacté,          color: blue,   position: 1 }
+          - { value: MEETING,   label: Répondu — tiède,   color: orange, position: 2 }
+          - { value: PROPOSAL,  label: Chaud — RDV/négo,  color: red,    position: 3 }
+          - { value: CUSTOMER,  label: Client,            color: green,  position: 4 }
+
+relations:
+  - from: { object: person, field: mailingBatch }
+    to:   { object: mailingBatch }   # côté inverse auto-créé : mailingBatch.prospects
+    type: MANY_TO_ONE
+    label: Batch
+
+views:
+  - object: person
+    name: Tunnel de vente
+    type: TABLE
+    icon: IconFlame
+    fields: [ name, score, providerClass, emails, phones, company, city, auditSlug, mailingBatch, doNotContact ]
+    sorts:  [ { field: score, direction: DESC } ]
+    filters: [ { field: doNotContact, operand: IS, value: "false" } ]
+
+webhooks: []   # volontaire — flux entrant uniquement ; le webhook bridge attendra l'URL réelle (A1)
+```
