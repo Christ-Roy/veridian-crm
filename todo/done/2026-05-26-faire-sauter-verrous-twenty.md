@@ -168,3 +168,27 @@ Twenty stand-alone, modifications surgical.
 - `docs/spec/AUDIT-LIMITE-EE-TWENTY.md` — cadre légal AGPL/EE
 - `docs/spec/AUDIT-CONFORMITE-HUB.md` — archive (référence si un jour on intègre Hub)
 - `docs/spec/AUDIT-TWENTY-MICRO.md` — archi technique Twenty (utile pour comprendre où on touche)
+
+---
+
+## Résolution — 2026-06-10 (agent twenty-crm, sprint tunnel)
+
+**Tâche 2 (inventaire callsites `enterprisePlanService.isValid()`) — FAIT** :
+
+| Callsite | Licence | Feature gatée | Décision |
+|---|---|---|---|
+| `auth/services/sign-in-up.service.ts:462` | AGPL | limite 5 workspaces | ✅ neutralisé (MAX_WORKSPACES → MAX_SAFE_INTEGER, commit `eb4c2df`) |
+| `row-level-permission-predicate/services/*.service.ts` (×2) | **EE** | RLS | ❌ intouchable — reste gated (on ne la veut pas) |
+| `jwt/crons/jobs/rotate-signing-keys.cron.job.ts:29` | **EE** | JWT rotation | ❌ intouchable — cron no-op sans `SIGNING_KEY_ROTATION_DAYS` |
+| `auth/guards/enterprise-features-enabled.guard.ts:25` | **EE** | guard générique EE | ❌ intouchable |
+| `billing/services/billing-subscription.service.ts:190` | **EE** | billing v2 | ❌ intouchable — piloté par `IS_BILLING_ENABLED` (ENV) |
+
+**Conclusion** : aucun autre callsite AGPL à neutraliser. Toutes les features
+nécessaires au SaaS Veridian et au tunnel sont accessibles (multi-workspace
+illimité ✅, signup multi-tenant ✅ via `IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false`).
+Les features EE restent légalement inactives — réimplémentation clean room
+si un client les demande (vague 4).
+
+Tâches 4-6 du ticket : couvertes depuis par le déploiement prod (ENV
+multiworkspace posées, admin Robert promu en base le 2026-05-27, billing
+piloté par ENV). Ticket archivé.

@@ -20,13 +20,13 @@ Veridian CRM est **intégré au Hub avec souplesse via API GraphQL/REST native T
 
 **Cadre légal** : 300 fichiers `@license Enterprise` intouchables. Modifs minimales dans le code AGPL Twenty. Cf `docs/spec/AUDIT-LIMITE-EE-TWENTY.md`.
 
-## Tickets actifs (vague 2 — en cours)
+## Tickets actifs
 
 | Fichier | Sévérité | Description |
 |---|---|---|
-| `2026-05-27-deploy-staging-twenty-fork.md` | 🔴 P0 | Déploiement Twenty fork sur `crm.staging.veridian.site` — Dockerfile + workflow build GHCR + compose Dokploy + DNS Cloudflare + smoke |
-| `2026-05-26-faire-sauter-verrous-twenty.md` | 🟡 P1 (rétrogradé) | Patch limite workspaces ✅ fait. Reste : neutraliser autres callsites AGPL si besoin (à voir à l'usage). Désactivation billing = ENV-only, pas besoin de toucher au code. |
-| `2026-05-27-vague-3-self-service-rebrand-webhook.md` | 🟡 P1 | Vague 3 — UI self-service Hub + rebrand + webhook + déploiement prod. **À déclencher après vague 2 validée terrain.** |
+| `2026-05-27-P0-couper-leaks-outbound-twenty-labs.md` | 🔴 P0 | Leaks outbound vers Twenty Labs/tiers — **patches livrés 2026-06-10** (commit `16925b7`, cf `docs/spec/AUDIT-OUTBOUND-LEAKS.md`). Reste : vérif réseau prod post-deploy + test e2e nock (dette). |
+| `2026-06-10-journal-structure-tunnel.md` | 🟢 P2 | Journal IaC de la structure "Tunnel de vente" (sprint tunnel) — référence pour l'export IaC (SPEC-IAC-TWENTY §5) |
+| `2026-05-27-vague-3-self-service-rebrand-webhook.md` | 🟡 P1 | Vague 3 — UI self-service Hub + rebrand + webhook. **À déclencher après validation terrain.** |
 
 ## Tickets associés (autres repos)
 
@@ -36,6 +36,8 @@ Veridian CRM est **intégré au Hub avec souplesse via API GraphQL/REST native T
 
 ## Archivés
 
+- `done/2026-05-27-deploy-staging-twenty-fork.md` — staging livré 2026-05-27
+- `done/2026-05-26-faire-sauter-verrous-twenty.md` — soldé 2026-06-10 : inventaire complet callsites `isValid()` (1 AGPL neutralisé, 5 EE intouchables), rien d'autre à faire
 - `done/2026-05-26-audit-conformite-contrat-hub.md` — audit Hub livré, archivé (stratégie pivotée 2x : standalone → API-bridge)
 - `done/2026-05-25-audit-twenty-micro-detail.md` — audit technique micro Twenty livré dans `docs/spec/AUDIT-TWENTY-MICRO.md`
 
