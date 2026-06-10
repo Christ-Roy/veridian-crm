@@ -1,0 +1,69 @@
+name: Veridian CRM — Deploy staging
+
+# Déploie la stack staging sur dev-pub après que l'image :staging a été
+# buildée et pushée sur GHCR (chaîne : push staging → Veridian CRM CI →
+# Build & Push Image → CE workflow). Ferme la boucle trunk-based : un
+# push sur staging finit déployé + smoke-testé sans action manuelle.
+
+on:
+  workflow_run:
+    workflows: ['Veridian CRM — Build & Push Image']
+    types: [completed]
+    branches:
+      - staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veridian-crm-staging-deploy
+  cancel-in-progress: false
+
+env:
+  DEV_HOST: 37.187.199.185
+  DEV_USER: ubuntu
+  STACK_DIR: /home/ubuntu/services/veridian-crm-staging
+
+jobs:
+  deploy-staging:
+    name: Deploy crm.staging.veridian.site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'staging')
+
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          [ -z "$SSH_KEY" ] && { echo "::error::secret STAGING_SSH_KEY manquant"; exit 1; }
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          ssh-keyscan -H "$DEV_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Pull image & restart stack
+        run: |
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+            "cd $STACK_DIR && docker compose pull crm-server crm-worker && docker compose up -d"
+
+      - name: Smoke staging
+        run: |
+          # /healthz ment (200 même DB down, piège connu) → on exige aussi
+          # que /metadata réponde au handshake GraphQL (preuve que l'app
+          # parle à Postgres/Redis).
+          for i in $(seq 1 40); do
+            code=$(curl -s -m 8 -o /dev/null -w "%{http_code}" https://crm.staging.veridian.site/healthz || true)
+            if [ "$code" = "200" ]; then break; fi
+            sleep 10
+          done
+          [ "$code" = "200" ] || { echo "::error::healthz=$code après 400s"; exit 1; }
+          gql=$(curl -s -m 10 -X POST https://crm.staging.veridian.site/metadata \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ __typename }"}' -o /dev/null -w "%{http_code}")
+          [ "$gql" = "200" ] || { echo "::error::/metadata=$gql — l'app ne répond pas au GraphQL"; exit 1; }
+          echo "✅ staging up : healthz 200 + /metadata 200"

@@ -147,6 +147,29 @@ Cf `veridian-platform/CLAUDE.md` §"Règle d'or : trunk-based sur staging".
 - Tu n'ouvres **PAS** de PR
 - Auto-promotion `staging` → `main` après smoke staging vert
 
+### Chaîne CI (état 2026-06-10)
+
+```
+push staging
+  → veridian-crm-ci.yaml        (tests unitaires patches Veridian + typecheck)
+  → veridian-crm-build-image    (GHCR :staging + :staging-<sha7>, si CI verte)
+  → veridian-crm-staging-deploy (SSH dev-pub, compose pull/up, smoke healthz + /metadata)
+promotion main (ff)
+  → veridian-crm-ci + build-image (:latest + :<sha7>)
+  → Dokploy autoDeploy (webhook push main) — ⚠️ se déclenche AVANT la fin du
+    build :latest (~30 min) → re-déclencher POST /api/compose.deploy
+    (composeId 8zdqAAD1lkZFVAwuZ5USv) une fois l'image pushée, sinon la prod
+    tourne sur l'ancienne :latest
+```
+
+### Hooks git versionnés (`.githooks/`)
+
+`git config core.hooksPath .githooks` (à faire une fois par clone — déjà fait
+sur le repo local). Le `pre-push` refuse : modification d'un fichier
+`@license Enterprise` (contrefaçon), push d'une branche hors staging/main,
+secrets évidents dans le diff. Pas de husky : pas de `node_modules` en local
+(machine saturée), la batterie complète tourne en CI.
+
 ### Un agent par app, pas de cross-touch
 
 Tu es l'agent **veridian-crm**. Tu touches **uniquement** ce repo. Si tu vois

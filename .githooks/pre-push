@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Pre-push Veridian CRM — garde-fous fork Twenty.
+#
+# Installé via : git config core.hooksPath .githooks
+# (pas de husky ici : le repo tourne sans node_modules en local — la
+# batterie de tests complète vit en CI GitHub, cf veridian-crm-ci.yaml)
+#
+# Garde-fous :
+#  1. LÉGAL — refuse tout push qui modifie un fichier `@license Enterprise`
+#     (contrefaçon, cf docs/spec/AUDIT-LIMITE-EE-TWENTY.md)
+#  2. TRUNK — refuse le push d'une branche autre que staging/main
+#  3. SECRETS — refuse les patterns de credentials évidents dans le diff
+
+set -euo pipefail
+
+remote="$1"
+z40=0000000000000000000000000000000000000000
+
+fail() { echo "❌ pre-push: $1" >&2; exit 1; }
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$z40" ] && continue  # suppression de branche
+
+  branch="${local_ref#refs/heads/}"
+  case "$branch" in
+    staging|main) ;;
+    *) fail "branche '$branch' interdite — trunk-based sur staging uniquement (cf CLAUDE.md)" ;;
+  esac
+
+  if [ "$remote_sha" = "$z40" ]; then
+    range="$local_sha --not --remotes=$remote"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  changed=$(git diff --name-only --diff-filter=ACMR $range -- '*.ts' '*.tsx' 2>/dev/null || true)
+
+  # 1. Fichiers EE intouchables
+  for f in $changed; do
+    if git show "$local_sha:$f" 2>/dev/null | head -3 | grep -q "@license Enterprise"; then
+      fail "le fichier '$f' porte le header '@license Enterprise' — modification INTERDITE (contrefaçon). Cherche un autre angle (ENV gate, guard côté AGPL)."
+    fi
+  done
+
+  # 2. Secrets évidents dans le diff
+  if git diff $range -- . ':(exclude)*.lock' 2>/dev/null \
+    | grep -E "^\+" \
+    | grep -qE "(sk_live_[A-Za-z0-9]{20,}|whsec_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC )?PRIVATE KEY)"; then
+    fail "credential détecté dans le diff (sk_live/whsec/AKIA/clé privée) — retire-le et passe par l'ENV Dokploy / .all-creds.env"
+  fi
+done
+
+echo "✅ pre-push: garde-fous EE/trunk/secrets OK"
