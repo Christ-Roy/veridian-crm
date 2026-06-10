@@ -142,7 +142,7 @@ services:
       # déjà défini côté Traefik Dokploy, cf pattern Hub) ---
       - "traefik.http.routers.crm-prod-web.rule=Host(`crm.app.veridian.site`) || HostRegexp(`{subdomain:[a-z0-9-]+}.crm.app.veridian.site`)"
       - "traefik.http.routers.crm-prod-web.entrypoints=web"
-      - "traefik.http.routers.crm-prod-web.middlewares=redirect-to-https@file,crm-prod-noindex@docker"
+      - "traefik.http.routers.crm-prod-web.middlewares=redirect-to-https@file"
 
       # --- Router HTTPS principal (apex + subdomains workspaces Twenty) ---
       # tls.domains[].sans force Traefik à demander à Let's Encrypt un cert
@@ -159,7 +159,6 @@ services:
       - "traefik.http.routers.crm-prod-websecure.tls.domains[0].main=crm.app.veridian.site"
       - "traefik.http.routers.crm-prod-websecure.tls.domains[0].sans=*.crm.app.veridian.site"
       - "traefik.http.routers.crm-prod-websecure.service=crm-prod"
-      - "traefik.http.routers.crm-prod-websecure.middlewares=crm-prod-noindex@docker"
 
       # --- Router prioritaire : /welcome → redirect vers Hub (signup
       # public Twenty bloqué — tout signup CRM passe par le Hub) ---
@@ -169,13 +168,12 @@ services:
       - "traefik.http.routers.crm-prod-welcome.tls=true"
       - "traefik.http.routers.crm-prod-welcome.tls.certresolver=letsencrypt"
       - "traefik.http.routers.crm-prod-welcome.service=crm-prod"
-      - "traefik.http.routers.crm-prod-welcome.middlewares=crm-prod-redirect-signup,crm-prod-noindex@docker"
+      - "traefik.http.routers.crm-prod-welcome.middlewares=crm-prod-redirect-signup"
 
       # --- Middlewares ---
       - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.regex=.*"
       - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.replacement=https://app.veridian.site/signup"
       - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.permanent=true"
-      - "traefik.http.middlewares.crm-prod-noindex.headers.customresponseheaders.X-Robots-Tag=noindex, nofollow, noarchive"
 
       # --- Service ---
       - "traefik.http.services.crm-prod.loadbalancer.server.port=3000"
