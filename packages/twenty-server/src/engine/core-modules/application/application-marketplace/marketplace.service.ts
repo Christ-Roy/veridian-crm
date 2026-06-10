@@ -41,10 +41,20 @@ export class MarketplaceService {
 
   constructor(private readonly twentyConfigService: TwentyConfigService) {}
 
+  // Veridian: no outbound calls to npmjs.org/unpkg.com unless explicitly
+  // enabled (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
+  private isRegistrySyncEnabled(): boolean {
+    return this.twentyConfigService.get('MARKETPLACE_REGISTRY_SYNC_ENABLED');
+  }
+
   async fetchManifestFromRegistryCdn(
     packageName: string,
     version: string,
   ): Promise<Manifest | null> {
+    if (!this.isRegistrySyncEnabled()) {
+      return null;
+    }
+
     const cdnBaseUrl = this.twentyConfigService.get('APP_REGISTRY_CDN_URL');
     const url = buildRegistryCdnUrl({
       cdnBaseUrl,
@@ -77,6 +87,10 @@ export class MarketplaceService {
     packageName: string,
     version: string,
   ): Promise<string | null> {
+    if (!this.isRegistrySyncEnabled()) {
+      return null;
+    }
+
     const cdnBaseUrl = this.twentyConfigService.get('APP_REGISTRY_CDN_URL');
     const url = buildRegistryCdnUrl({
       cdnBaseUrl,
@@ -107,6 +121,10 @@ export class MarketplaceService {
   }
 
   async fetchAppsFromRegistry(): Promise<RegistryPackageInfo[]> {
+    if (!this.isRegistrySyncEnabled()) {
+      return [];
+    }
+
     const registryUrl = this.twentyConfigService.get('APP_REGISTRY_URL');
 
     try {

@@ -35,6 +35,12 @@ export class ApplicationUpgradeService {
   async checkForUpdates(
     appRegistration: ApplicationRegistrationEntity,
   ): Promise<string | null> {
+    // Veridian: no outbound calls to npm registry unless explicitly enabled
+    // (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
+    if (!this.twentyConfigService.get('MARKETPLACE_REGISTRY_SYNC_ENABLED')) {
+      return null;
+    }
+
     if (appRegistration.sourceType !== ApplicationRegistrationSourceType.NPM) {
       return null;
     }

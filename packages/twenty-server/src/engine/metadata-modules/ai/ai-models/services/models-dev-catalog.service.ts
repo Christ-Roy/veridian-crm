@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { inferAiSdkPackage } from 'twenty-shared/ai';
 
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { MODELS_DEV_API_URL } from 'src/engine/metadata-modules/ai/ai-models/constants/models-dev.const';
 import { type ModelsDevData } from 'src/engine/metadata-modules/ai/ai-models/types/models-dev-data.type';
 
@@ -45,6 +46,8 @@ export class ModelsDevCatalogService {
   private readonly logger = new Logger(ModelsDevCatalogService.name);
   private cache: ModelsDevData | null = null;
   private cacheTimestamp = 0;
+
+  constructor(private readonly twentyConfigService: TwentyConfigService) {}
 
   async getProviderSuggestions(): Promise<ModelsDevProviderSuggestion[]> {
     const data = await this.getCachedData();
@@ -103,6 +106,12 @@ export class ModelsDevCatalogService {
   }
 
   private async getCachedData(): Promise<ModelsDevData | null> {
+    // Veridian: no outbound calls to models.dev unless explicitly enabled
+    // (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
+    if (!this.twentyConfigService.get('AI_MODELS_CATALOG_FETCH_ENABLED')) {
+      return this.cache;
+    }
+
     const now = Date.now();
 
     if (this.cache && now - this.cacheTimestamp < CACHE_TTL_MS) {

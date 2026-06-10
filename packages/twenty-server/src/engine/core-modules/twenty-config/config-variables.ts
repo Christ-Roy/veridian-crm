@@ -1782,6 +1782,46 @@ export class ConfigVariables {
   })
   @IsOptional()
   APP_REGISTRY_TOKEN: string;
+
+  // Veridian outbound privacy flags — default OFF (fail-safe), see
+  // todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md and
+  // docs/spec/AUDIT-OUTBOUND-LEAKS.md
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Enrich newly created companies (name, city, logo) by querying the external twenty-companies.com API. Disabled by default on Veridian CRM: it leaks every company domain to a third party.',
+    type: ConfigVariableType.BOOLEAN,
+  })
+  @IsOptional()
+  COMPANIES_ENRICHMENT_ENABLED = false;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Enable the help center search tool. Disabled by default on Veridian CRM: it forwards user search queries in clear text to twenty-help-search.com or Mintlify.',
+    type: ConfigVariableType.BOOLEAN,
+  })
+  @IsOptional()
+  HELP_CENTER_SEARCH_ENABLED = false;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Enable marketplace registry sync and app version checks against APP_REGISTRY_URL / APP_REGISTRY_CDN_URL. Disabled by default on Veridian CRM: no outbound calls to npmjs.org / unpkg.com.',
+    type: ConfigVariableType.BOOLEAN,
+  })
+  @IsOptional()
+  MARKETPLACE_REGISTRY_SYNC_ENABLED = false;
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description:
+      'Fetch the AI providers/models catalog from models.dev. Disabled by default on Veridian CRM: no outbound calls to models.dev.',
+    type: ConfigVariableType.BOOLEAN,
+  })
+  @IsOptional()
+  AI_MODELS_CATALOG_FETCH_ENABLED = false;
 }
 
 export const validate = (config: Record<string, unknown>): ConfigVariables => {

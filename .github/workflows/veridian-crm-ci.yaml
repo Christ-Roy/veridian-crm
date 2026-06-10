@@ -46,8 +46,8 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/yarn-install
 
-      - name: Run sign-in-up service unit tests
-        run: npx nx test twenty-server --testPathPattern=sign-in-up
+      - name: Run unit tests on Veridian-patched services
+        run: npx nx test twenty-server --testPathPattern="(sign-in-up|create-company\.service)"
 
       - name: Typecheck twenty-server
         run: npx nx typecheck twenty-server

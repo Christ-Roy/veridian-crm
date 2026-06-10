@@ -36,14 +36,16 @@ if (process.env.EXCEPTION_HANDLER_DRIVER === ExceptionHandlerDriver.SENTRY) {
       Sentry.graphqlIntegration(),
       Sentry.postgresIntegration(),
       Sentry.vercelAIIntegration({
-        recordInputs: true,
-        recordOutputs: true,
+        // Veridian: never ship AI prompts/outputs to Sentry
+        recordInputs: false,
+        recordOutputs: false,
       }),
       nodeProfilingIntegration(),
     ],
     tracesSampleRate: 0.1,
     profilesSampleRate: 0.3,
-    sendDefaultPii: true,
+    // Veridian: no user IP/email/headers in Sentry events
+    sendDefaultPii: false,
     debug: process.env.NODE_ENV === NodeEnvironment.DEVELOPMENT,
     beforeSendSpan: (span) => {
       const twentyContext = Sentry.getIsolationScope().getScopeData().contexts

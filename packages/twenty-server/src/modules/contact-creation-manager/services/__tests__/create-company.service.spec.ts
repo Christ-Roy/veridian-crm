@@ -9,6 +9,7 @@ import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
 import { SecureHttpClientService } from 'src/engine/core-modules/secure-http-client/secure-http-client.service';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import {
   type CompanyToCreate,
@@ -19,6 +20,7 @@ describe('CreateCompanyService', () => {
   let service: CreateCompanyService;
   let mockCompanyRepository: any;
   let mockHttpService: any;
+  let mockConfigGet: jest.Mock;
 
   const workspaceId = 'workspace-1';
 
@@ -107,6 +109,11 @@ describe('CreateCompanyService', () => {
       get: jest.fn(),
     };
 
+    // Veridian: enrichment enabled in tests to cover the upstream code path
+    mockConfigGet = jest
+      .fn()
+      .mockImplementation((key: string) => key === 'COMPANIES_ENRICHMENT_ENABLED');
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CreateCompanyService,
@@ -114,6 +121,12 @@ describe('CreateCompanyService', () => {
           provide: SecureHttpClientService,
           useValue: {
             getHttpClient: jest.fn().mockReturnValue(mockHttpService),
+          },
+        },
+        {
+          provide: TwentyConfigService,
+          useValue: {
+            get: mockConfigGet,
           },
         },
         {
@@ -223,6 +236,27 @@ describe('CreateCompanyService', () => {
           }),
         ]),
       );
+    });
+  });
+
+  describe('Veridian: with COMPANIES_ENRICHMENT_ENABLED=false (default)', () => {
+    beforeEach(() => {
+      mockConfigGet.mockReturnValue(false);
+      mockCompanyRepository.find.mockResolvedValue([]);
+      mockCompanyRepository.save.mockResolvedValue([]);
+      mockCompanyRepository.updateMany.mockResolvedValue({ raw: [] });
+    });
+
+    it('should create the company from the domain name without any outbound HTTP call', async () => {
+      await service.createOrRestoreCompanies([companyToCreate1], workspaceId);
+
+      expect(mockHttpService.get).not.toHaveBeenCalled();
+      expect(mockCompanyRepository.save).toHaveBeenCalledWith([
+        {
+          ...inputForCompanyToCreate1,
+          address: { addressCity: '' },
+        },
+      ]);
     });
   });
 

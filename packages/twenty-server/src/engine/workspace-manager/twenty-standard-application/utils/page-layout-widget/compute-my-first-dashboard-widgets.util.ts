@@ -539,41 +539,9 @@ const createOpportunitiesByOwner = ({
   });
 };
 
-const createStockMarketIframe = ({
-  args,
-}: {
-  args: DashboardWidgetBuilderArgs;
-}): FlatPageLayoutWidget => {
-  const configuration = {
-    configurationType: WidgetConfigurationType.IFRAME as const,
-    url: 'https://www.tradingview.com/embed-widget/hotlists/?locale=en',
-  };
-
-  return createStandardPageLayoutWidgetFlatMetadata({
-    ...args,
-    objectMetadataUniversalIdentifier: null,
-    context: {
-      layoutName: 'myFirstDashboard',
-      tabTitle: 'tab1',
-      widgetName: 'stockMarketIframe',
-      title: 'Stock market (Iframe)',
-      type: WidgetType.IFRAME,
-      gridPosition: { row: 12, column: 6, rowSpan: 8, columnSpan: 6 },
-      position: {
-        layoutMode: PageLayoutTabLayoutMode.GRID,
-        row: 12,
-        column: 6,
-        rowSpan: 8,
-        columnSpan: 6,
-      },
-      configuration,
-      universalConfiguration: configuration,
-      objectMetadataId: null,
-      conditionalDisplay: null,
-      conditionalAvailabilityExpression: null,
-    },
-  });
-};
+// Veridian: stock market TradingView iframe removed from the seed dashboard —
+// it leaked visitor IP/UA to tradingview.com on every dashboard load
+// (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
 
 const createDealsCreatedThisMonth = ({
   args,
@@ -722,7 +690,6 @@ export const computeMyFirstDashboardWidgets = (
     createPipelineValueByStage({ args }),
     createRevenueTimeline({ args }),
     createOpportunitiesByOwner({ args }),
-    createStockMarketIframe({ args }),
     createDealsCreatedThisMonth({ args }),
     createDealValueCreatedThisMonth({ args }),
   ];

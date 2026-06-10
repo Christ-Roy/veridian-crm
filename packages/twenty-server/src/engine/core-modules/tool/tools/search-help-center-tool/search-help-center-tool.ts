@@ -27,6 +27,16 @@ export class SearchHelpCenterTool implements Tool {
   ): Promise<ToolOutput> {
     const { query } = parameters;
 
+    // Veridian: disabled by default — forwards user queries in clear text to
+    // twenty-help-search.com / Mintlify (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
+    if (!this.twentyConfigService.get('HELP_CENTER_SEARCH_ENABLED')) {
+      return {
+        success: true,
+        message: 'Help center search is disabled on this instance',
+        result: [],
+      };
+    }
+
     try {
       const MINTLIFY_API_KEY = this.twentyConfigService.get('MINTLIFY_API_KEY');
       const MINTLIFY_SUBDOMAIN =

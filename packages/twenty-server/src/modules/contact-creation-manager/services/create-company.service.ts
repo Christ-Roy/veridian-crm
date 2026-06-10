@@ -11,6 +11,7 @@ import { isDefined, normalizeUrlOrigin } from 'twenty-shared/utils';
 import { type DeepPartial, ILike } from 'typeorm';
 
 import { SecureHttpClientService } from 'src/engine/core-modules/secure-http-client/secure-http-client.service';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
@@ -36,6 +37,7 @@ export class CreateCompanyService {
   constructor(
     private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
     private readonly secureHttpClientService: SecureHttpClientService,
+    private readonly twentyConfigService: TwentyConfigService,
   ) {
     this.httpService = this.secureHttpClientService.getHttpClient({
       baseURL: TWENTY_COMPANIES_BASE_URL,
@@ -249,6 +251,15 @@ export class CreateCompanyService {
     name: string;
     city: string;
   }> {
+    // Veridian: disabled by default — leaks every company domain to
+    // twenty-companies.com (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
+    if (!this.twentyConfigService.get('COMPANIES_ENRICHMENT_ENABLED')) {
+      return {
+        name: getCompanyNameFromDomainName(domainName ?? ''),
+        city: '',
+      };
+    }
+
     try {
       const response = await this.httpService.get(`/${domainName}`);
 
