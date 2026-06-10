@@ -21,10 +21,10 @@ fail() { echo "❌ pre-push: $1" >&2; exit 1; }
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$z40" ] && continue  # suppression de branche
 
-  branch="${local_ref#refs/heads/}"
+  branch="${remote_ref#refs/heads/}"
   case "$branch" in
     staging|main) ;;
-    *) fail "branche '$branch' interdite — trunk-based sur staging uniquement (cf CLAUDE.md)" ;;
+    *) fail "branche distante '$branch' interdite — trunk-based sur staging/main uniquement (cf CLAUDE.md)" ;;
   esac
 
   if [ "$remote_sha" = "$z40" ]; then
