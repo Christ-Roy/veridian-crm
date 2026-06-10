@@ -15,8 +15,20 @@ set -euo pipefail
 
 remote="$1"
 z40=0000000000000000000000000000000000000000
+repo_root="$(git rev-parse --show-toplevel)"
 
 fail() { echo "❌ pre-push: $1" >&2; exit 1; }
+
+# Étage 0 — garde-fou légal partagé avec la CI (single source of truth) :
+# aucun fichier @license Enterprise modifié depuis le fork. Échoue ici, avant
+# la CI. Le script tolère un marker absent (clone shallow) en exit 2 → on ne
+# bloque pas le push local là-dessus, seule une vraie violation (exit 1) bloque.
+if [ -x "$repo_root/scripts/ci/check-ee-integrity.sh" ]; then
+  if ! bash "$repo_root/scripts/ci/check-ee-integrity.sh"; then
+    rc=$?
+    [ "$rc" -eq 1 ] && fail "check-ee-integrity : un fichier Enterprise a été modifié (contrefaçon) ou dépendance toxique"
+  fi
+fi
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$z40" ] && continue  # suppression de branche
