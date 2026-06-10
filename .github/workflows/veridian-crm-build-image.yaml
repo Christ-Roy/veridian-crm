@@ -83,6 +83,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Filet rollback prod : avant d'écraser :latest, l'actuelle est
+      # re-taggée :rollback (manipulation de manifest GHCR, pas de pull).
+      # Rollback = compose.update image :rollback + compose.deploy.
+      - name: Retag current :latest as :rollback (main only)
+        if: contains(steps.ref.outputs.branch, 'main')
+        run: |
+          IMG=ghcr.io/christ-roy/veridian-crm
+          if docker buildx imagetools inspect "$IMG:latest" >/dev/null 2>&1; then
+            docker buildx imagetools create -t "$IMG:rollback" "$IMG:latest"
+            echo "retagged $IMG:latest -> $IMG:rollback"
+          else
+            echo "no :latest yet, skipping rollback tag"
+          fi
+
       - name: Compute tags
         id: tags
         run: |
@@ -132,3 +146,36 @@ jobs:
               echo "  - \`$t\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Étage 2 — scan vulnérabilités de l'image publiée.
+  # V1 : mode RAPPORT (exit-code 0) — le fork hérite des CVE upstream Twenty,
+  # un mode bloquant serait rouge en permanence sans triage préalable.
+  # Passage en bloquant (CRITICAL,HIGH) après triage initial — suivre dans
+  # VERIDIAN-PATCHES.md / todo.
+  trivy-scan:
+    name: Trivy image scan (report)
+    runs-on: ubuntu-latest
+    needs: build-push
+    timeout-minutes: 15
+    steps:
+      - name: Determine image tag to scan
+        id: img
+        run: |
+          BRANCH='${{ github.event.workflow_run.head_branch || github.ref_name }}'
+          case "$BRANCH" in
+            *main*)    echo "tag=latest"  >> "$GITHUB_OUTPUT" ;;
+            *staging*) echo "tag=staging" >> "$GITHUB_OUTPUT" ;;
+            *)         echo "tag=staging" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Run Trivy on published image
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+        with:
+          image-ref: ghcr.io/christ-roy/veridian-crm:${{ steps.img.outputs.tag }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          ignore-unfixed: true
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

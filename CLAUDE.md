@@ -155,12 +155,17 @@ push staging
   → veridian-crm-build-image    (GHCR :staging + :staging-<sha7>, si CI verte)
   → veridian-crm-staging-deploy (SSH dev-pub, compose pull/up, smoke healthz + /metadata)
 promotion main (ff)
-  → veridian-crm-ci + build-image (:latest + :<sha7>)
+  → veridian-crm-ci + build-image (:latest + :<sha7>, l'ancienne :latest
+    est re-taggée :rollback AVANT d'être écrasée) + Trivy scan (rapport)
   → Dokploy autoDeploy (webhook push main) — ⚠️ se déclenche AVANT la fin du
     build :latest (~30 min) → re-déclencher POST /api/compose.deploy
     (composeId 8zdqAAD1lkZFVAwuZ5USv) une fois l'image pushée, sinon la prod
-    tourne sur l'ancienne :latest
+    tourne sur l'ancienne :latest. Vérifier le digest du container après.
 ```
+
+**Rollback prod** : `ghcr.io/christ-roy/veridian-crm:rollback` = la :latest
+précédente. Procédure : éditer l'image du compose en `:rollback` (compose.update)
++ compose.deploy, ou `docker pull :rollback && docker tag` côté serveur.
 
 ### Hooks git versionnés (`.githooks/`)
 
