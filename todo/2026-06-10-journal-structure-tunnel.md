@@ -207,3 +207,20 @@ views:
     filters: [ { field: doNotContact, operand: IS, value: "false" },
                { field: isTestProspect, operand: IS, value: "false" } ]
 ```
+
+## Records synthétiques giga-test (#22 — data, PAS structure IaC)
+
+> Référence opérationnelle. L'IaC ne déclare jamais de records (SPEC-IAC) —
+> cette section sert au scénario giga-test et au cleanup post-test.
+
+- mailingBatch `TEST-gigatest` : id `1f877065-4d3b-4d44-8e11-a7ea0a84f722`
+- 5 Person `TEST-gigatest <CLASSE>` (`isTestProspect=true`, rattachées au batch) :
+  - CORPORATE `9848df16-0596-4f36-b8eb-02fda5f9f914` — test-tunnel-corporate@veridian.site (porte aussi le auditSlug de test `testdomain-ab12cd34` du GO PATCH)
+  - GOOGLE `cc547b88-d9f7-44e8-bcb6-eb154663a62b` — test-tunnel-google@veridian.site
+  - MICROSOFT `4b046877-1450-4312-91f5-b5ecbb21f884` — test-tunnel-microsoft@veridian.site
+  - YAHOO_AOL `185e9658-e5b3-4132-889e-7a7dcf314ad9` — test-tunnel-yahoo-aol@veridian.site
+  - FREEMAIL_FR `18203707-0091-478d-9619-d432ab94897b` — test-tunnel-freemail-fr@veridian.site
+- Alias Lark correspondants actifs (Robert membre) — mailgroup IDs dans le
+  skill `lark` (§Groupes Email existants).
+- Cleanup post-giga-test : soft-delete des 5 Person + du batch TEST, ou les
+  garder pour les tests de régression du tunnel (à arbitrer au gate #11).
