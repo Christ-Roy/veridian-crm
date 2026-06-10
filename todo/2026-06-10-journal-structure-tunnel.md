@@ -208,6 +208,52 @@ views:
                { field: isTestProspect, operand: IS, value: "false" } ]
 ```
 
+## Ajouts 2026-06-11 (vues KANBAN tunnel — V1 DoD §1.1)
+
+Vue KANBAN native (AGPL, `type:KANBAN` + `mainGroupByFieldMetadataId` sur
+`opportunity.stage`). Le commercial voit le funnel en colonnes (À contacter →
+Client) et sait qui rappeler. Créées via `POST /rest/metadata/views`
+(Bearer admin). ⚠️ Le champ s'appelle **`mainGroupByFieldMetadataId`** (pas
+`kanbanFieldMetadataId` qui existe dans le schema mais reste `null`). Twenty
+génère les colonnes (`viewGroups`) à la volée depuis les options du SELECT —
+on ne les pose pas à la main.
+
+| name | viewId | type | groupBy | filtre | agrégat |
+|---|---|---|---|---|---|
+| `Tunnel — Kanban` | `7a22576e-7b1a-4d80-89c3-26e027849083` | KANBAN | `stage` (`6bd6408b…`) | aucun (vue commerciale, tout le funnel) | COUNT |
+| `Tunnel — Kanban TEST` | `ac39bbeb-e915-49e7-8b72-df5307886ad3` | KANBAN | `stage` (`6bd6408b…`) | `name CONTAINS "TEST"` (viewFilter `86447517…`) | COUNT |
+
+- objectMetadataId opportunity = `9c01cdf8-22af-4345-8252-8faa27f0f8f4`,
+  fieldMetadataId `stage` = `6bd6408b-abd6-45ea-8330-59dd1e402573`,
+  fieldMetadataId `opportunity.name` (TEXT) = `84a98fcd-3589-4bab-ac8d-3cd3d6fb1bbe`.
+- ⚠️ **operand viewFilter en UPPER_SNAKE_CASE** (`CONTAINS`, pas `contains` —
+  400/ignoré sinon, même piège que les values SELECT).
+- La vue TEST filtre sur `name CONTAINS "TEST"` → attrape les deux familles de
+  records de test (`TEST-gigatest` ET la 2e famille `test-cycle-*` du cycle E2E
+  delete/recreate) sans toucher aux opportunities réelles.
+- NB : une vue KANBAN seed `By Stage` (`34b31dfa…`) existait déjà sur
+  opportunity (générée à la création du workspace) — laissée intacte, nos vues
+  tunnel sont nommées `Tunnel — *`.
+
+### YAML déclaratif — delta KANBAN
+
+```yaml
+views:
+  - object: opportunity
+    name: Tunnel — Kanban
+    type: KANBAN
+    icon: IconLayoutKanban
+    mainGroupBy: stage          # field SELECT, colonnes = options
+    kanbanAggregateOperation: COUNT
+  - object: opportunity
+    name: Tunnel — Kanban TEST
+    type: KANBAN
+    icon: IconFlask
+    mainGroupBy: stage
+    kanbanAggregateOperation: COUNT
+    filters: [ { field: name, operand: CONTAINS, value: "TEST" } ]
+```
+
 ## Records synthétiques giga-test (#22 — data, PAS structure IaC)
 
 > Référence opérationnelle. L'IaC ne déclare jamais de records (SPEC-IAC) —

@@ -1,6 +1,7 @@
 import { type TimelineActivity } from '@/activities/timeline-activities/types/TimelineActivity';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
+import { isVeridianBridgeScoreNoise } from '@/veridian-tunnel-timeline/utils/filterVeridianBridgeNoise';
 
 export const filterOutInvalidTimelineActivities = (
   timelineActivities: TimelineActivity[],
@@ -30,6 +31,13 @@ export const filterOutInvalidTimelineActivities = (
   );
 
   return timelineActivities.filter((timelineActivity) => {
+    // Veridian patch (AGPL inline, cf VERIDIAN-PATCHES.md) : masque le bruit
+    // des person.updated{score} écrits par le bridge (API key) — voir
+    // filterVeridianBridgeNoise.ts. Les updates humaines restent visibles.
+    if (isVeridianBridgeScoreNoise(timelineActivity)) {
+      return false;
+    }
+
     const diff = timelineActivity.properties?.diff;
     const canSkipValidation = !diff;
 

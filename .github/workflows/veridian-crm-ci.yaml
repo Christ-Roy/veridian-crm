@@ -70,3 +70,27 @@ jobs:
 
       - name: Typecheck twenty-server
         run: npx nx typecheck twenty-server
+
+  # Étage 2bis — patch-survival FRONT. Indispensable : la timeline tunnel
+  # (rendu custom des events email.*/audit.*/score.* + filtre du bruit
+  # bridge) vit dans twenty-front via 3 patchs inline AGPL (cf
+  # VERIDIAN-PATCHES.md). Sans ce job, aucun *.veridian.spec.tsx ne tourne
+  # nulle part → un sync upstream écraserait silencieusement le rendu tunnel.
+  veridian-front-unit:
+    name: twenty-front unit tests + patch-survival (Veridian)
+    runs-on: ubuntu-latest
+    needs: check-ee-integrity
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: '--max-old-space-size=4096'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        uses: ./.github/actions/yarn-install
+
+      - name: Run Veridian front unit tests + patch-survival
+        run: npx nx test twenty-front --testPathPattern="\.veridian\.spec\.(ts|tsx)$"
