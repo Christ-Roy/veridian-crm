@@ -24,8 +24,8 @@ Veridian CRM est **intégré au Hub avec souplesse via API GraphQL/REST native T
 
 | Fichier | Sévérité | Description |
 |---|---|---|
-| `2026-05-27-P0-couper-leaks-outbound-twenty-labs.md` | 🔴 P0 | Leaks outbound vers Twenty Labs/tiers — **patches livrés 2026-06-10** (commit `16925b7`, cf `docs/spec/AUDIT-OUTBOUND-LEAKS.md`). Reste : vérif réseau prod post-deploy + test e2e nock (dette). |
 | `2026-06-10-journal-structure-tunnel.md` | 🟢 P2 | Journal IaC de la structure "Tunnel de vente" (sprint tunnel) — référence pour l'export IaC (SPEC-IAC-TWENTY §5) |
+| `2026-06-10-role-sales-tunnel.md` | 🟡 P1 | Rôle "Sales tunnel" natif AGPL — prêt à câbler dès liste sales Robert |
 | `2026-05-27-vague-3-self-service-rebrand-webhook.md` | 🟡 P1 | Vague 3 — UI self-service Hub + rebrand + webhook. **À déclencher après validation terrain.** |
 
 ## Tickets associés (autres repos)
@@ -36,6 +36,7 @@ Veridian CRM est **intégré au Hub avec souplesse via API GraphQL/REST native T
 
 ## Archivés
 
+- `done/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md` — leaks coupés + EN PROD 2026-06-10 (vérif réseau tcpdump 0 paquet), cf `docs/spec/AUDIT-OUTBOUND-LEAKS.md`
 - `done/2026-05-27-deploy-staging-twenty-fork.md` — staging livré 2026-05-27
 - `done/2026-05-26-faire-sauter-verrous-twenty.md` — soldé 2026-06-10 : inventaire complet callsites `isValid()` (1 AGPL neutralisé, 5 EE intouchables), rien d'autre à faire
 - `done/2026-05-26-audit-conformite-contrat-hub.md` — audit Hub livré, archivé (stratégie pivotée 2x : standalone → API-bridge)
