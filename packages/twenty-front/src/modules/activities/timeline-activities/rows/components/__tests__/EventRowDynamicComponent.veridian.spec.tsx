@@ -20,6 +20,19 @@ jest.mock(
   }),
 );
 
+// Le rendu natif (person.updated → EventRowMainObject → ...Updated) tire
+// useLingui() / EventCard qui exigent des providers i18n/store non montés ici.
+// On l'isole par un marqueur : ce test ne vérifie QUE le routing, pas le rendu
+// natif lui-même (déjà couvert upstream).
+jest.mock(
+  '@/activities/timeline-activities/rows/main-object/components/EventRowMainObject',
+  () => ({
+    EventRowMainObject: () => (
+      <div data-testid="native-main-object">native</div>
+    ),
+  }),
+);
+
 const tunnelEvent = (name: string): TimelineActivity =>
   ({
     id: 'e1',
@@ -49,13 +62,14 @@ describe('EventRowDynamicComponent (Veridian tunnel routing)', () => {
     },
   );
 
-  it('ne capture PAS les events natifs (person.updated ne passe pas par le tunnel)', () => {
-    const { queryByTestId } = render(
+  it('ne capture PAS les events natifs (person.updated → rendu natif, pas tunnel)', () => {
+    const { queryByTestId, getByTestId } = render(
       <EventRowDynamicComponent
         {...baseProps}
         event={tunnelEvent('person.updated')}
       />,
     );
     expect(queryByTestId('veridian-tunnel-row')).not.toBeInTheDocument();
+    expect(getByTestId('native-main-object')).toBeInTheDocument();
   });
 });
