@@ -91,9 +91,11 @@ services:
       # Multi-tenant : true workspaces multiples, billing off, signup
       # accessible via Hub (pas restreint aux admins serveur).
       IS_MULTIWORKSPACE_ENABLED: "true"
-      # Billing Twenty natif activé (vague test 2026-05-27 avec Stripe TEST keys
-      # avant LIVE). Plans PRO/ENTERPRISE Twenty s'activent côté UI.
-      IS_BILLING_ENABLED: "true"
+      # Billing Twenty natif DÉSACTIVÉ (stratégie standalone : on facture par
+      # Veridian, pas par Twenty interne). Le billing gate les workflows natifs
+      # utilisés par le tunnel cold-call → OFF. Ticket P0
+      # todo/2026-05-26-faire-sauter-verrous-twenty.md, go Robert 2026-06-11.
+      IS_BILLING_ENABLED: "false"
       BILLING_STRIPE_API_KEY: ${BILLING_STRIPE_API_KEY}
       BILLING_STRIPE_WEBHOOK_SECRET: ${BILLING_STRIPE_WEBHOOK_SECRET}
       BILLING_PLAN_REQUIRED_LINK: ${BILLING_PLAN_REQUIRED_LINK:-https://app.veridian.site/pricing}
@@ -196,7 +198,8 @@ services:
       FRONTEND_URL: https://crm.app.veridian.site
       APP_SECRET: ${TWENTY_APP_SECRET}
       IS_MULTIWORKSPACE_ENABLED: "true"
-      IS_BILLING_ENABLED: "true"
+      # Billing OFF (idem server — stratégie standalone, ticket P0 verrous-twenty).
+      IS_BILLING_ENABLED: "false"
       BILLING_STRIPE_API_KEY: ${BILLING_STRIPE_API_KEY}
       BILLING_STRIPE_WEBHOOK_SECRET: ${BILLING_STRIPE_WEBHOOK_SECRET}
       IS_FREE_ACCESS_ENABLED: "true"
