@@ -26,9 +26,11 @@ import { DeleteJobsResponseDTO } from 'src/engine/core-modules/admin-panel/dtos/
 import { QueueJobsResponseDTO } from 'src/engine/core-modules/admin-panel/dtos/queue-jobs-response.dto';
 import { RetryJobsResponseDTO } from 'src/engine/core-modules/admin-panel/dtos/retry-jobs-response.dto';
 import { RevokeSigningKeyInput } from 'src/engine/core-modules/admin-panel/dtos/revoke-signing-key.input';
+import { ServerAdminDTO } from 'src/engine/core-modules/admin-panel/dtos/server-admin.dto';
 import { SigningKeyDTO } from 'src/engine/core-modules/admin-panel/dtos/signing-key.dto';
 import { SigningKeysAdminPanelDTO } from 'src/engine/core-modules/admin-panel/dtos/signing-keys-admin-panel.dto';
 import { SystemHealthDTO } from 'src/engine/core-modules/admin-panel/dtos/system-health.dto';
+import { UpdateServerAdminAccessInput } from 'src/engine/core-modules/admin-panel/dtos/update-server-admin-access.input';
 import { UpdateWorkspaceFeatureFlagInput } from 'src/engine/core-modules/admin-panel/dtos/update-workspace-feature-flag.input';
 import { UserLookup } from 'src/engine/core-modules/admin-panel/dtos/user-lookup.dto';
 import { UserLookupInput } from 'src/engine/core-modules/admin-panel/dtos/user-lookup.input';
@@ -41,14 +43,17 @@ import { AdminPanelBillingService } from 'src/engine/core-modules/admin-panel/se
 import { AdminPanelChatService } from 'src/engine/core-modules/admin-panel/services/admin-panel-chat.service';
 import { AdminPanelConfigService } from 'src/engine/core-modules/admin-panel/services/admin-panel-config.service';
 import { AdminPanelSigningKeyService } from 'src/engine/core-modules/admin-panel/services/admin-panel-signing-key.service';
+import { AdminPanelServerAdminService } from 'src/engine/core-modules/admin-panel/services/admin-panel-server-admin.service';
 import { AdminPanelStatisticsService } from 'src/engine/core-modules/admin-panel/services/admin-panel-statistics.service';
 import { AdminPanelUserLookupService } from 'src/engine/core-modules/admin-panel/services/admin-panel-user-lookup.service';
 import { AdminPanelVersionService } from 'src/engine/core-modules/admin-panel/services/admin-panel-version.service';
 import { ApplicationRegistrationVariableDTO } from 'src/engine/core-modules/application/application-registration-variable/dtos/application-registration-variable.dto';
 import { ApplicationRegistrationVariableService } from 'src/engine/core-modules/application/application-registration-variable/application-registration-variable.service';
+import { UpdateApplicationRegistrationVariableInput } from 'src/engine/core-modules/application/application-registration-variable/dtos/update-application-registration-variable.input';
 import { ApplicationRegistrationEntity } from 'src/engine/core-modules/application/application-registration/application-registration.entity';
 import { ApplicationRegistrationService } from 'src/engine/core-modules/application/application-registration/application-registration.service';
 import { AuthGraphqlApiExceptionFilter } from 'src/engine/core-modules/auth/filters/auth-graphql-api-exception.filter';
+import { type AuthContextUser } from 'src/engine/core-modules/auth/types/auth-context.type';
 import { AdminAiModelsDTO } from 'src/engine/core-modules/client-config/client-config.entity';
 import { FeatureFlagException } from 'src/engine/core-modules/feature-flag/feature-flag.exception';
 import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
@@ -59,10 +64,15 @@ import { type MessageQueue } from 'src/engine/core-modules/message-queue/message
 import { type ConfigVariables } from 'src/engine/core-modules/twenty-config/config-variables';
 import { ConfigVariableGraphqlApiExceptionFilter } from 'src/engine/core-modules/twenty-config/filters/config-variable-graphql-api-exception.filter';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { TwoFactorAuthenticationExceptionFilter } from 'src/engine/core-modules/two-factor-authentication/two-factor-authentication-exception.filter';
 import { UsageBreakdownItemDTO } from 'src/engine/core-modules/usage/dtos/usage-breakdown-item.dto';
 import { UsageAnalyticsService } from 'src/engine/core-modules/usage/services/usage-analytics.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
+import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
 import { AdminPanelGuard } from 'src/engine/guards/admin-panel-guard';
+import { AdminPanelOrImpersonateGuard } from 'src/engine/guards/admin-panel-or-impersonate.guard';
+import { NoImpersonationGuard } from 'src/engine/guards/no-impersonation.guard';
 import { ServerLevelImpersonateGuard } from 'src/engine/guards/server-level-impersonate.guard';
 import { SettingsPermissionGuard } from 'src/engine/guards/settings-permission.guard';
 import { UserAuthGuard } from 'src/engine/guards/user-auth.guard';
@@ -88,6 +98,7 @@ import { SetMaintenanceModeInput } from './dtos/set-maintenance-mode.input';
 @AdminResolver()
 @UseFilters(
   AuthGraphqlApiExceptionFilter,
+  TwoFactorAuthenticationExceptionFilter,
   PreventNestToAutoLogGraphqlErrorsFilter,
   ConfigVariableGraphqlApiExceptionFilter,
 )
@@ -99,6 +110,7 @@ import { SetMaintenanceModeInput } from './dtos/set-maintenance-mode.input';
 export class AdminPanelResolver {
   constructor(
     private readonly adminUserLookupService: AdminPanelUserLookupService,
+    private readonly adminServerAdminService: AdminPanelServerAdminService,
     private readonly adminStatisticsService: AdminPanelStatisticsService,
     private readonly adminBillingService: AdminPanelBillingService,
     private readonly adminChatService: AdminPanelChatService,
@@ -122,7 +134,7 @@ export class AdminPanelResolver {
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
   ) {}
 
-  @UseGuards(ServerLevelImpersonateGuard)
+  @UseGuards(AdminPanelOrImpersonateGuard)
   @Query(() => UserLookup)
   async userLookupAdminPanel(
     @Args() userLookupInput: UserLookupInput,
@@ -132,7 +144,7 @@ export class AdminPanelResolver {
     );
   }
 
-  @UseGuards(ServerLevelImpersonateGuard)
+  @UseGuards(AdminPanelOrImpersonateGuard)
   @Query(() => [AdminPanelRecentUserDTO])
   async adminPanelRecentUsers(
     @Args('searchTerm', {
@@ -156,6 +168,29 @@ export class AdminPanelResolver {
     searchTerm: string,
   ): Promise<AdminPanelTopWorkspaceDTO[]> {
     return this.adminStatisticsService.getTopWorkspaces(searchTerm);
+  }
+
+  @UseGuards(AdminPanelGuard, NoImpersonationGuard)
+  @Query(() => [ServerAdminDTO])
+  async getServerAdmins(): Promise<ServerAdminDTO[]> {
+    return this.adminServerAdminService.getServerAdmins();
+  }
+
+  @UseGuards(AdminPanelGuard, NoImpersonationGuard)
+  @Mutation(() => ServerAdminDTO)
+  async updateServerAdminAccess(
+    @Args() input: UpdateServerAdminAccessInput,
+    @AuthUser() actor: AuthContextUser,
+    @AuthWorkspace() workspace: WorkspaceEntity,
+  ): Promise<ServerAdminDTO> {
+    return this.adminServerAdminService.updateServerAdminAccess({
+      actor,
+      actorWorkspaceId: workspace.id,
+      targetUserId: input.userId,
+      canAccessFullAdminPanel: input.canAccessFullAdminPanel,
+      canImpersonate: input.canImpersonate,
+      otp: input.otp,
+    });
   }
 
   @UseGuards(AdminPanelGuard)
@@ -722,6 +757,16 @@ export class AdminPanelResolver {
   ): Promise<ApplicationRegistrationVariableDTO[]> {
     return this.applicationRegistrationVariableService.findVariablesWithObfuscatedValuesGlobal(
       applicationRegistrationId,
+    );
+  }
+
+  @UseGuards(AdminPanelGuard)
+  @Mutation(() => ApplicationRegistrationVariableDTO)
+  async updateAdminApplicationRegistrationVariable(
+    @Args('input') input: UpdateApplicationRegistrationVariableInput,
+  ): Promise<ApplicationRegistrationVariableDTO> {
+    return this.applicationRegistrationVariableService.updateVariableGlobal(
+      input,
     );
   }
 

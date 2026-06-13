@@ -57,6 +57,10 @@ describe('WorkspaceService', () => {
             findOne: jest.fn(),
             softDelete: jest.fn(),
             delete: jest.fn(),
+            manager: {
+              connection: { driver: { options: { type: 'postgres' } } },
+            },
+            metadata: { columns: [] },
           },
         },
         {
@@ -159,6 +163,9 @@ describe('WorkspaceService', () => {
               manager: {
                 delete: jest.fn().mockResolvedValue({ affected: 0 }),
               },
+            }),
+            getRepository: jest.fn().mockReturnValue({
+              find: jest.fn().mockResolvedValue([]),
             }),
           },
         },

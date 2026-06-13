@@ -4,11 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RecordCrudModule } from 'src/engine/core-modules/record-crud/record-crud.module';
 import { TOOL_PROVIDERS } from 'src/engine/core-modules/tool-provider/constants/tool-providers.token';
 import { ActionToolProvider } from 'src/engine/core-modules/tool-provider/providers/action-tool.provider';
-import { DashboardToolProvider } from 'src/engine/core-modules/tool-provider/providers/dashboard-tool.provider';
 import { DatabaseToolProvider } from 'src/engine/core-modules/tool-provider/providers/database-tool.provider';
 import { LogicFunctionToolProvider } from 'src/engine/core-modules/tool-provider/providers/logic-function-tool.provider';
 import { MetadataToolProvider } from 'src/engine/core-modules/tool-provider/providers/metadata-tool.provider';
-import { NativeToolBinderService } from 'src/engine/core-modules/tool-provider/native/native-tool-binder.service';
 import { NavigationMenuItemToolProvider } from 'src/engine/core-modules/tool-provider/providers/navigation-menu-item-tool.provider';
 import { ViewToolProvider } from 'src/engine/core-modules/tool-provider/providers/view-tool.provider';
 import { WebhookToolProvider } from 'src/engine/core-modules/tool-provider/providers/webhook-tool.provider';
@@ -70,10 +68,8 @@ import { ToolRegistryService } from './services/tool-registry.service';
     ToolIndexResolver,
     ToolExecutorService,
     ActionToolProvider,
-    DashboardToolProvider,
     DatabaseToolProvider,
     MetadataToolProvider,
-    NativeToolBinderService,
     NavigationMenuItemToolProvider,
     LogicFunctionToolProvider,
     ViewToolProvider,
@@ -87,7 +83,6 @@ import { ToolRegistryService } from './services/tool-registry.service';
       provide: TOOL_PROVIDERS,
       useFactory: (
         actionProvider: ActionToolProvider,
-        dashboardProvider: DashboardToolProvider,
         databaseProvider: DatabaseToolProvider,
         metadataProvider: MetadataToolProvider,
         logicFunctionProvider: LogicFunctionToolProvider,
@@ -97,7 +92,6 @@ import { ToolRegistryService } from './services/tool-registry.service';
         workflowProvider: WorkflowToolProvider,
       ) => [
         actionProvider,
-        dashboardProvider,
         databaseProvider,
         metadataProvider,
         logicFunctionProvider,
@@ -108,7 +102,6 @@ import { ToolRegistryService } from './services/tool-registry.service';
       ],
       inject: [
         ActionToolProvider,
-        DashboardToolProvider,
         DatabaseToolProvider,
         MetadataToolProvider,
         LogicFunctionToolProvider,
@@ -120,6 +113,6 @@ import { ToolRegistryService } from './services/tool-registry.service';
     },
     ToolRegistryService,
   ],
-  exports: [NativeToolBinderService, ToolRegistryService],
+  exports: [ToolRegistryService],
 })
 export class ToolProviderModule {}

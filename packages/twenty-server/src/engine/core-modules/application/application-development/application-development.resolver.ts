@@ -20,7 +20,6 @@ import { DevelopmentApplicationDTO } from 'src/engine/core-modules/application/a
 import { GenerateApplicationTokenInput } from 'src/engine/core-modules/application/application-development/dtos/generate-application-token.input';
 import { UploadApplicationFileInput } from 'src/engine/core-modules/application/application-development/dtos/upload-application-file.input';
 import { WorkspaceMigrationDTO } from 'src/engine/core-modules/application/application-development/dtos/workspace-migration.dto';
-import { validateFilePath } from 'src/engine/core-modules/file-storage/utils/validate-file-path.util';
 import { ApplicationExceptionFilter } from 'src/engine/core-modules/application/application-exception-filter';
 import { ApplicationSyncService } from 'src/engine/core-modules/application/application-manifest/application-sync.service';
 import { resolveManifestAssetUrls } from 'src/engine/core-modules/application/application-marketplace/utils/resolve-manifest-asset-urls.util';
@@ -34,7 +33,9 @@ import {
 } from 'src/engine/core-modules/application/application.exception';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { ApplicationTokenService } from 'src/engine/core-modules/auth/token/services/application-token.service';
+import { CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
 import { FileStorageService } from 'src/engine/core-modules/file-storage/file-storage.service';
+import { validateFilePath } from 'src/engine/core-modules/file-storage/utils/validate-file-path.util';
 import { FileDTO } from 'src/engine/core-modules/file/dtos/file.dto';
 import { ResolverValidationPipe } from 'src/engine/core-modules/graphql/pipes/resolver-validation.pipe';
 import { SdkClientGenerationService } from 'src/engine/core-modules/sdk-client/sdk-client-generation.service';
@@ -51,6 +52,8 @@ import { streamToBuffer } from 'src/utils/stream-to-buffer';
 
 const APP_DEV_RATE_LIMIT_MAX = 30;
 const APP_DEV_RATE_LIMIT_WINDOW_MS = 30_000;
+
+const APP_SYNC_LOCK_OPTIONS = { ttl: 60_000, ms: 500, maxRetries: 120 };
 
 @UsePipes(ResolverValidationPipe)
 @MetadataResolver()
@@ -71,6 +74,7 @@ export class ApplicationDevelopmentResolver {
     private readonly sdkClientGenerationService: SdkClientGenerationService,
     private readonly twentyConfigService: TwentyConfigService,
     private readonly throttlerService: ThrottlerService,
+    private readonly cacheLockService: CacheLockService,
   ) {}
 
   @Mutation(() => DevelopmentApplicationDTO)
@@ -129,7 +133,7 @@ export class ApplicationDevelopmentResolver {
 
   @Mutation(() => WorkspaceMigrationDTO)
   async syncApplication(
-    @Args() { manifest }: ApplicationInput,
+    @Args() { manifest, dryRun }: ApplicationInput,
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
   ): Promise<WorkspaceMigrationDTO> {
     await this.throttlePerApplication(
@@ -137,6 +141,32 @@ export class ApplicationDevelopmentResolver {
       workspaceId,
     );
 
+    if (dryRun === true) {
+      const { workspaceMigration } =
+        await this.applicationSyncService.synchronizeFromManifest({
+          workspaceId,
+          manifest,
+          dryRun: true,
+        });
+
+      return {
+        applicationUniversalIdentifier:
+          workspaceMigration.applicationUniversalIdentifier,
+        actions: workspaceMigration.actions,
+      };
+    }
+
+    return this.cacheLockService.withLock(
+      () => this.applyManifestSync(manifest, workspaceId),
+      `app-sync:${workspaceId}`,
+      APP_SYNC_LOCK_OPTIONS,
+    );
+  }
+
+  private async applyManifestSync(
+    manifest: ApplicationInput['manifest'],
+    workspaceId: string,
+  ): Promise<WorkspaceMigrationDTO> {
     const applicationRegistrationId = await this.findApplicationRegistrationId(
       manifest.application.universalIdentifier,
     );
@@ -192,7 +222,7 @@ export class ApplicationDevelopmentResolver {
   async uploadApplicationFile(
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
     @Args({ name: 'file', type: () => GraphQLUpload })
-    { createReadStream, mimetype }: FileUpload,
+    { createReadStream }: FileUpload,
     @Args()
     {
       applicationUniversalIdentifier,
@@ -250,7 +280,6 @@ export class ApplicationDevelopmentResolver {
 
     return await this.fileStorageService.writeFile({
       sourceFile: buffer,
-      mimeType: mimetype,
       fileFolder,
       applicationUniversalIdentifier,
       workspaceId,
@@ -303,10 +332,11 @@ export class ApplicationDevelopmentResolver {
         `${serverUrl}/public-assets/${workspaceId}/${applicationId}/${filePath}`,
     );
 
-    await this.applicationRegistrationService.updateFromManifest(
+    await this.applicationRegistrationService.updateFromManifest({
       applicationRegistrationId,
-      manifestWithResolvedUrls,
-    );
+      manifest: manifestWithResolvedUrls,
+      sourceType: ApplicationRegistrationSourceType.LOCAL,
+    });
 
     if (manifest.application.serverVariables) {
       await this.applicationRegistrationVariableService.syncVariableSchemas(

@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-FORK_MARKER="${1:-1188ea9cd5}"
+FORK_MARKER="${1:-76f69efb43}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 

@@ -6,14 +6,14 @@ import { useNavigationDrawerTooltip } from '@/ui/navigation/navigation-drawer/ho
 import { type NavigationDrawerSubItemState } from '@/ui/navigation/navigation-drawer/types/NavigationDrawerSubItemState';
 import { isNavigationDrawerExpandedState } from '@/ui/navigation/states/isNavigationDrawerExpanded';
 import { useIsMobile } from '@/ui/utilities/responsive/hooks/useIsMobile';
-import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
+import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { isNonEmptyString } from '@sniptt/guards';
 import { type ReactNode, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { isDefined } from 'twenty-shared/utils';
-import { Pill } from 'twenty-ui/components';
+import { Pill } from 'twenty-ui-deprecated/components';
 import {
   AppTooltip,
   type IconComponent,
@@ -23,17 +23,16 @@ import {
   TintedIconTile,
   TooltipDelay,
   TooltipPosition,
-} from 'twenty-ui/display';
-import { MenuItemIconBoxContainer } from 'twenty-ui/navigation';
+} from 'twenty-ui-deprecated/display';
 import {
   MOBILE_VIEWPORT,
   ThemeContext,
   themeCssVariables,
-} from 'twenty-ui/theme-constants';
+} from 'twenty-ui-deprecated/theme-constants';
 import {
   type TriggerEventType,
   useMouseDownNavigation,
-} from 'twenty-ui/utilities';
+} from 'twenty-ui-deprecated/utilities';
 const DEFAULT_INDENTATION_LEVEL = 1;
 
 export type NavigationDrawerItemIndentationLevel = 1 | 2;
@@ -53,6 +52,7 @@ export type NavigationDrawerItemProps = {
   onClick?: () => void;
   Icon?: IconComponent | ((props: TablerIconsProps) => JSX.Element);
   iconColor?: string | null;
+  withIconBackground?: boolean;
   active?: boolean;
   modifier?: NavigationDrawerItemModifier;
   rightOptions?: ReactNode;
@@ -162,7 +162,7 @@ const StyledLabelParent = styled.div`
 `;
 
 const StyledItemLabel = styled.span`
-  font-weight: ${themeCssVariables.font.weight.regular};
+  font-weight: ${themeCssVariables.font.weight.medium};
 `;
 
 const StyledItemSecondaryLabel = styled.span`
@@ -201,6 +201,17 @@ const StyledIcon = styled.div`
   flex-shrink: 0;
   justify-content: center;
   margin-right: ${themeCssVariables.spacing[2]};
+`;
+
+const StyledIconBackgroundTile = styled.div`
+  align-items: center;
+  background-color: ${themeCssVariables.background.tertiary};
+  border-radius: ${themeCssVariables.border.radius.md};
+  display: flex;
+  flex-shrink: 0;
+  height: ${themeCssVariables.spacing[6]};
+  justify-content: center;
+  width: ${themeCssVariables.spacing[6]};
 `;
 
 const StyledRightOptionsContainer = styled.div`
@@ -244,6 +255,7 @@ export const NavigationDrawerItem = ({
   indentationLevel = DEFAULT_INDENTATION_LEVEL,
   Icon,
   iconColor,
+  withIconBackground = false,
   to,
   onClick,
   active,
@@ -261,8 +273,9 @@ export const NavigationDrawerItem = ({
   const { theme } = useContext(ThemeContext);
   const isMobile = useIsMobile();
   const isExpanded = useNavigationDrawerExpanded();
-  const [isNavigationDrawerExpanded, setIsNavigationDrawerExpanded] =
-    useAtomState(isNavigationDrawerExpandedState);
+  const setIsNavigationDrawerExpanded = useSetAtomState(
+    isNavigationDrawerExpandedState,
+  );
 
   const { navigationItemId } = useNavigationDrawerTooltip(label, to);
 
@@ -347,13 +360,10 @@ export const NavigationDrawerItem = ({
               <StyledIcon>
                 <TintedIconTile Icon={Icon} color={iconColor} />
               </StyledIcon>
-            ) : (
+            ) : withIconBackground ? (
               <StyledIcon>
-                <MenuItemIconBoxContainer>
+                <StyledIconBackgroundTile>
                   <Icon
-                    style={{
-                      minWidth: theme.icon.size.md,
-                    }}
                     size={theme.icon.size.md}
                     stroke={theme.icon.stroke.md}
                     color={
@@ -362,7 +372,22 @@ export const NavigationDrawerItem = ({
                         : 'currentColor'
                     }
                   />
-                </MenuItemIconBoxContainer>
+                </StyledIconBackgroundTile>
+              </StyledIcon>
+            ) : (
+              <StyledIcon>
+                <Icon
+                  style={{
+                    minWidth: theme.icon.size.md,
+                  }}
+                  size={theme.icon.size.md}
+                  stroke={theme.icon.stroke.md}
+                  color={
+                    showBreadcrumb && !isExpanded
+                      ? theme.font.color.light
+                      : 'currentColor'
+                  }
+                />
               </StyledIcon>
             ))}
 

@@ -25,7 +25,6 @@ import { type CodeExecutionStreamEmitter } from 'src/engine/core-modules/tool-pr
 import { CodeInterpreterService } from 'src/engine/core-modules/code-interpreter/code-interpreter.service';
 import { WorkspaceDomainsService } from 'src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
-import { NativeToolBinderService } from 'src/engine/core-modules/tool-provider/native/native-tool-binder.service';
 import { ToolRegistryService } from 'src/engine/core-modules/tool-provider/services/tool-registry.service';
 import {
   createExecuteToolTool,
@@ -61,7 +60,9 @@ import {
 } from 'src/engine/metadata-modules/ai/ai-chat/utils/inject-cache-breakpoint.util';
 import { AI_TELEMETRY_CONFIG } from 'src/engine/metadata-modules/ai/ai-models/constants/ai-telemetry.const';
 import { AiModelRegistryService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-registry.service';
+import { NativeToolBinderService } from 'src/engine/metadata-modules/ai/ai-models/services/native-tool-binder.service';
 import { type AiModelConfig } from 'src/engine/metadata-modules/ai/ai-models/types/ai-model-config.type';
+import { getNativeModelCapabilities } from 'src/engine/metadata-modules/ai/ai-models/utils/get-native-model-capabilities.util';
 import { SkillService } from 'src/engine/metadata-modules/skill/skill.service';
 
 export type ChatExecutionOptions = {
@@ -163,8 +164,13 @@ export class ChatExecutionService {
       registeredModel.modelId,
     );
 
-    const nativeModelTools = this.nativeToolBinder.bind(registeredModel, {
-      webSearchEnabled: true,
+    // Native and action search may both be bound here; the model picks at runtime.
+    const nativeCapabilities = getNativeModelCapabilities(
+      registeredModel.sdkPackage,
+    );
+    const nativeTools = this.nativeToolBinder.bind(registeredModel, {
+      webSearch: nativeCapabilities?.webSearch === true,
+      twitterSearch: nativeCapabilities?.twitterSearch === true,
     });
 
     // Tools the model can call directly: preloaded registry tools (already
@@ -172,12 +178,12 @@ export class ChatExecutionService {
     // serialized). execute_tool routes discovered tools through the registry.
     const directTools: ToolSet = {
       ...preloadedTools,
-      ...nativeModelTools,
+      ...nativeTools,
     };
 
     const preloadedToolNames = [
       ...Object.keys(preloadedTools),
-      ...Object.keys(nativeModelTools),
+      ...Object.keys(nativeTools),
     ];
 
     // ToolSet is constant for the entire conversation — no mutation.
@@ -282,6 +288,7 @@ export class ChatExecutionService {
     const streamStartedAt = performance.now();
     let stepStartedAt = streamStartedAt;
     let ttftRecorded = false;
+    let stepIndex = 0;
 
     const emitTurnUsageEvent = async (steps: StepResult<ToolSet>[]) => {
       const usage = steps.reduce<LanguageModelUsage>(
@@ -440,6 +447,18 @@ export class ChatExecutionService {
         if (stepHasNoMoreAvailableCredits) {
           hasNoMoreAvailableCredits = true;
         }
+
+        this.logger.log(
+          `[AI_CHAT_TOKENS] step #${++stepIndex} — ` +
+            `toolCallIds=[${step.toolCalls.map((toolCall) => toolCall.toolCallId).join(', ')}]: ` +
+            `outputTokens=${step.usage.outputTokens ?? 0}, ` +
+            `reasoningTokens=${step.usage.outputTokenDetails?.reasoningTokens ?? 0}, ` +
+            `inputTokens(fullContext)=${step.usage.inputTokens ?? 0}, ` +
+            `cacheReadTokens=${step.usage.inputTokenDetails?.cacheReadTokens ?? 0}, ` +
+            `cacheWriteTokens=${step.usage.inputTokenDetails?.cacheWriteTokens ?? 0}, ` +
+            `cacheCreationTokens=${extractCacheCreationTokens(step.providerMetadata)}, ` +
+            `totalTokens=${step.usage.totalTokens ?? 0}`,
+        );
 
         for (const toolResult of step.toolResults) {
           const output = toolResult.output as ToolOutput | undefined;

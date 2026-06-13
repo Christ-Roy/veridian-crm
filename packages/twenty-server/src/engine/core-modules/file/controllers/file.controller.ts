@@ -15,10 +15,6 @@ import { join } from 'path';
 import { Request, Response } from 'express';
 import { FileFolder } from 'twenty-shared/types';
 
-import {
-  FileStorageException,
-  FileStorageExceptionCode,
-} from 'src/engine/core-modules/file-storage/interfaces/file-storage-exception';
 import { validateFilePath } from 'src/engine/core-modules/file-storage/utils/validate-file-path.util';
 import {
   FileException,
@@ -64,17 +60,20 @@ export class FileController {
       );
     }
 
-    const fileStream = await this.fileService
-      .getFileStreamByPath({
+    const fileResponse = await this.fileService
+      .getFilePresignedUrlOrStreamByPath({
         workspaceId,
         applicationId,
         fileFolder: FileFolder.PublicAsset,
         filepath,
       })
       .catch((error) => {
-        this.logger.error('getFileStreamByPath failed unexpectedly', {
-          error,
-        });
+        this.logger.error(
+          'getFilePresignedUrlOrStreamByPath failed unexpectedly',
+          {
+            error,
+          },
+        );
 
         throw new FileException(
           'Error retrieving file',
@@ -82,19 +81,21 @@ export class FileController {
         );
       });
 
-    if (fileStream === null) {
+    if (fileResponse === null) {
       throw new FileException(
         'File not found',
         FileExceptionCode.FILE_NOT_FOUND,
       );
     }
 
-    const { stream, mimeType } = fileStream;
+    if (fileResponse.type === 'redirect') {
+      return res.redirect(fileResponse.presignedUrl);
+    }
 
-    setFileResponseHeaders(res, mimeType);
+    setFileResponseHeaders(res, fileResponse.mimeType);
 
     try {
-      await pipeline(stream, res);
+      await pipeline(fileResponse.stream, res);
     } catch (error) {
       this.logger.error('Public asset stream failed mid-transfer', { error });
 
@@ -117,48 +118,55 @@ export class FileController {
     @Param('fileFolder') fileFolder: SupportedFileFolder,
     @Param('id') fileId: string,
   ) {
-    // oxlint-disable-next-line @typescripttypescript/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     const workspaceId = (req as any)?.workspaceId;
 
-    try {
-      const fileResponse = await this.fileService.getFileResponseById({
+    const fileResponse = await this.fileService
+      .getFilePresignedUrlOrStreamById({
         fileId,
         workspaceId,
         fileFolder,
-      });
+      })
+      .catch((error) => {
+        this.logger.error(
+          'getFilePresignedUrlOrStreamById failed unexpectedly',
+          {
+            error,
+          },
+        );
 
-      if (fileResponse.type === 'redirect') {
-        return res.redirect(fileResponse.presignedUrl);
-      }
-
-      setFileResponseHeaders(res, fileResponse.mimeType);
-
-      fileResponse.stream.on('error', () => {
-        if (!res.headersSent) {
-          res.status(500).send('Error streaming file from storage');
-
-          return;
-        }
-
-        res.destroy();
-      });
-
-      fileResponse.stream.pipe(res);
-    } catch (error) {
-      if (
-        error instanceof FileStorageException &&
-        error.code === FileStorageExceptionCode.FILE_NOT_FOUND
-      ) {
         throw new FileException(
-          'File not found',
-          FileExceptionCode.FILE_NOT_FOUND,
+          'Error retrieving file',
+          FileExceptionCode.INTERNAL_SERVER_ERROR,
+        );
+      });
+
+    if (fileResponse === null) {
+      throw new FileException(
+        'File not found',
+        FileExceptionCode.FILE_NOT_FOUND,
+      );
+    }
+
+    if (fileResponse.type === 'redirect') {
+      return res.redirect(fileResponse.presignedUrl);
+    }
+
+    setFileResponseHeaders(res, fileResponse.mimeType);
+
+    try {
+      await pipeline(fileResponse.stream, res);
+    } catch (error) {
+      this.logger.error('File-by-id stream failed mid-transfer', { error });
+
+      if (!res.headersSent) {
+        throw new FileException(
+          'Error streaming file from storage',
+          FileExceptionCode.INTERNAL_SERVER_ERROR,
         );
       }
 
-      throw new FileException(
-        `Error retrieving file: ${error.message}`,
-        FileExceptionCode.INTERNAL_SERVER_ERROR,
-      );
+      res.destroy();
     }
   }
 }

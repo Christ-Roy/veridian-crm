@@ -148,10 +148,11 @@ const buildFieldMetadataItemFromMarketplaceField = (
   field: ObjectFieldManifest,
 ): FieldMetadataItem => {
   const now = new Date().toISOString();
+  const universalIdentifier = field.universalIdentifier ?? uuidv4();
 
   return {
-    id: field.universalIdentifier ?? uuidv4(),
-    universalIdentifier: field.universalIdentifier ?? uuidv4(),
+    id: universalIdentifier,
+    universalIdentifier,
     name: field.name,
     label: field.label,
     type: (field.type as FieldMetadataType) ?? FieldMetadataType.TEXT,
@@ -162,7 +163,7 @@ const buildFieldMetadataItemFromMarketplaceField = (
     isSystem: false,
     isNullable: true,
     isUnique: false,
-    isUIReadOnly: false,
+    isUIEditable: true,
     createdAt: now,
     updatedAt: now,
     defaultValue: null,
@@ -172,7 +173,7 @@ const buildFieldMetadataItemFromMarketplaceField = (
   };
 };
 
-const buildobjectMetadataItemsFromMarketplaceApp = (
+const buildObjectMetadataItemsFromMarketplaceApp = (
   defaultRole: RoleManifest,
   objectUniversalIdToIdMap: Record<string, string>,
   marketplaceAppObjects: ObjectManifest[],
@@ -243,7 +244,8 @@ const buildobjectMetadataItemsFromMarketplaceApp = (
         isActive: true,
         isSystem: false,
         isSearchable: false,
-        isUIReadOnly: false,
+        isUIEditable: true,
+        isUICreatable: true,
         isLabelSyncedWithName: false,
         labelIdentifierFieldMetadataId: '',
         fields,
@@ -292,7 +294,7 @@ const MarketplaceRoleEffect = ({
           fieldUniversalIdToIdMap,
         ),
         objectMetadataItemsFromMarketplaceApp:
-          buildobjectMetadataItemsFromMarketplaceApp(
+          buildObjectMetadataItemsFromMarketplaceApp(
             defaultRole,
             objectUniversalIdToIdMap,
             marketplaceAppObjects,

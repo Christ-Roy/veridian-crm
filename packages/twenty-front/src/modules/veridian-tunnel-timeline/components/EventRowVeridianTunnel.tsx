@@ -3,7 +3,7 @@ import { styled } from '@linaria/react';
 import { EventRowItem } from '@/activities/timeline-activities/rows/components/EventRowItem';
 import { type TimelineActivity } from '@/activities/timeline-activities/types/TimelineActivity';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme-constants';
+import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
 import { dateLocaleState } from '~/localization/states/dateLocaleState';
 import { beautifyPastDateRelativeToNow } from '~/utils/date-utils';
 

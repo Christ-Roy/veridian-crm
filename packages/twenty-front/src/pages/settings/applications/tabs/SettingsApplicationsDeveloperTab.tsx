@@ -15,7 +15,10 @@ import { useQuery } from '@apollo/client/react';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useContext, useMemo, useState } from 'react';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import {
+  ThemeContext,
+  themeCssVariables,
+} from 'twenty-ui-deprecated/theme-constants';
 import { FeatureFlagKey, SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
 import {
@@ -26,9 +29,9 @@ import {
   IconCopy,
   InlineBanner,
   OverflowingTextWithTooltip,
-} from 'twenty-ui/display';
-import { Button, SearchInput } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
+} from 'twenty-ui-deprecated/display';
+import { Button, SearchInput } from 'twenty-ui-deprecated/input';
+import { Section } from 'twenty-ui-deprecated/layout';
 import {
   type ApplicationRegistrationFragmentFragment,
   FindManyApplicationRegistrationsDocument,
@@ -42,7 +45,6 @@ import {
 import { getApplicationDescriptionSummary } from '~/pages/settings/applications/utils/getApplicationDescriptionSummary';
 import { ApplicationDisplay } from '@/applications/components/ApplicationDisplay';
 import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
-import { SettingsEmailingDomains } from '~/pages/settings/emailing-domains/SettingsEmailingDomains';
 
 const StyledButtonContainer = styled.div`
   display: flex;
@@ -78,9 +80,6 @@ export const SettingsApplicationsDeveloperTab = () => {
 
   const isPublicDomainEnabled = useIsFeatureEnabled(
     FeatureFlagKey.IS_PUBLIC_DOMAIN_ENABLED,
-  );
-  const isEmailingDomainEnabled = useIsFeatureEnabled(
-    FeatureFlagKey.IS_EMAILING_DOMAIN_ENABLED,
   );
 
   const [marketplaceAppSearchTerm, setMarketplaceAppSearchTerm] = useState('');
@@ -177,8 +176,8 @@ export const SettingsApplicationsDeveloperTab = () => {
             <TableRow
               gridTemplateColumns={APPLICATION_TABLE_ROW_GRID_TEMPLATE_COLUMNS}
             >
-              <TableHeader> {t`Name`}</TableHeader>
-              <TableHeader>{''}</TableHeader>
+              <TableHeader>{t`Name`}</TableHeader>
+              <TableHeader>{t`Type`}</TableHeader>
               <TableHeader>{''}</TableHeader>
               <TableHeader />
             </TableRow>
@@ -188,6 +187,7 @@ export const SettingsApplicationsDeveloperTab = () => {
                   <SettingsApplicationTableRow
                     key={registration.id}
                     application={registration}
+                    sourceType={registration.sourceType}
                     action={
                       <IconChevronRight
                         size={theme.icon.size.md}
@@ -201,16 +201,6 @@ export const SettingsApplicationsDeveloperTab = () => {
               })}
             </StyledTableRowsContainer>
           </Table>
-        </Section>
-      )}
-
-      {isEmailingDomainEnabled && (
-        <Section>
-          <H2Title
-            title={t`Emailing Domains`}
-            description={t`Configure and verify domains for emailing from this workspace.`}
-          />
-          <SettingsEmailingDomains />
         </Section>
       )}
 

@@ -1,7 +1,8 @@
 # VERIDIAN-PATCHES.md — registre des patchs inline du fork
 
 > Twenty est un fork upstream (`twentyhq/twenty`, marker de base
-> `1188ea9cd5`). La plupart de nos modifs vivent dans des fichiers neufs ou
+> `76f69efb43`, sync upstream 2026-06-13 ; marker d'origine `1188ea9cd5`,
+> 2026-05-25). La plupart de nos modifs vivent dans des fichiers neufs ou
 > des ENV. Mais quelques patchs sont **inline dans des fichiers upstream
 > AGPL** — un merge de sync upstream peut les écraser silencieusement.
 >
@@ -32,6 +33,19 @@
 | `twenty-front/.../timeline-activities/rows/components/EventRowDynamicComponent.tsx` | early-check `isVeridianTunnelEvent(event.name)` AVANT le switch → délègue le rendu de ligne au module `veridian-tunnel-timeline` (events `email.*`/`audit.*`/`score.*`, sinon ligne vide native) | `EventRowDynamicComponent.veridian.spec.tsx` (route les events tunnel, pas les natifs) |
 | `twenty-front/.../timeline-activities/rows/components/EventIconDynamicComponent.tsx` | early-check symétrique → icône parlante du module tunnel (sinon `Icon123`) | `EventIconDynamicComponent.veridian.spec.tsx` (icône tunnel, natifs intacts) |
 | `twenty-front/.../timeline-activities/utils/filterOutInvalidTimelineActivities.ts` | early-filter `isVeridianBridgeScoreNoise` → masque les `person.updated{score}` écrits par le bridge (API key), garde les updates humaines | `filterVeridianBridgeNoise.veridian.spec.ts` (bruit masqué, humain conservé) |
+
+## Dépendances de nos modules `veridian-*` sur l'UI upstream (à re-vérifier à chaque sync)
+
+> Ce ne sont PAS des patchs inline (fichiers neufs Veridian), mais ils
+> **importent du code upstream** qui peut être renommé/déplacé par un sync —
+> et là aucun test patch-survival ne les couvre, seul le typecheck/build front
+> les révèle. Sync 2026-06-13 : upstream a renommé `twenty-ui` →
+> `twenty-ui-deprecated` (1735 fichiers), on a migré nos imports en conséquence.
+
+| Fichier Veridian (neuf) | Import upstream consommé | Migré le |
+|---|---|---|
+| `veridian-tunnel-timeline/components/EventIconVeridianTunnel.tsx` | icons `twenty-ui-deprecated/display` | 2026-06-13 (`twenty-ui` → `-deprecated`) |
+| `veridian-tunnel-timeline/components/EventRowVeridianTunnel.tsx` | `MOBILE_VIEWPORT`, `themeCssVariables` de `twenty-ui-deprecated/theme-constants` ; `EventRowItem` de `@/activities/timeline-activities/rows/components` | 2026-06-13 |
 
 ## Procédure de sync upstream (quand on bumpe le marker)
 

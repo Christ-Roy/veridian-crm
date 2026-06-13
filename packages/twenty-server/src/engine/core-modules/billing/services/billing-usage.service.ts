@@ -1,18 +1,19 @@
 /* @license Enterprise */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 
 import { isDefined } from 'twenty-shared/utils';
-import { type Repository } from 'typeorm';
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { differenceInDays } from 'date-fns';
 import { ClickHouseService } from 'src/database/clickHouse/clickHouse.service';
 import { formatDateTimeForClickHouse } from 'src/database/clickHouse/clickHouse.util';
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import {
   BillingException,
   BillingExceptionCode,
 } from 'src/engine/core-modules/billing/billing.exception';
+import { NO_BILLING_SUBSCRIPTION } from 'src/engine/core-modules/billing/constants/no-billing-subscription.constant';
 import { type BillingResourceCreditUsageDTO } from 'src/engine/core-modules/billing/dtos/billing-resource-credit-usage.dto';
 import { BillingCustomerEntity } from 'src/engine/core-modules/billing/entities/billing-customer.entity';
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
@@ -27,6 +28,8 @@ import { CacheStorageService } from 'src/engine/core-modules/cache-storage/servi
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { type WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
+import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 
 type UsageSumRow = {
@@ -37,18 +40,19 @@ type UsageSumRow = {
 export class BillingUsageService {
   protected readonly logger = new Logger(BillingUsageService.name);
   constructor(
-    @InjectRepository(BillingCustomerEntity)
-    private readonly billingCustomerRepository: Repository<BillingCustomerEntity>,
+    @InjectWorkspaceScopedRepository(BillingCustomerEntity)
+    private readonly billingCustomerRepository: WorkspaceScopedRepository<BillingCustomerEntity>,
     private readonly billingSubscriptionService: BillingSubscriptionService,
     private readonly twentyConfigService: TwentyConfigService,
     private readonly billingSubscriptionItemService: BillingSubscriptionItemService,
     @InjectCacheStorage(CacheStorageNamespace.EngineBillingUsage)
     private readonly billingUsageCacheStorage: CacheStorageService,
-    @InjectRepository(BillingSubscriptionEntity)
-    private readonly billingSubscriptionRepository: Repository<BillingSubscriptionEntity>,
+    @InjectWorkspaceScopedRepository(BillingSubscriptionEntity)
+    private readonly billingSubscriptionRepository: WorkspaceScopedRepository<BillingSubscriptionEntity>,
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly clickHouseService: ClickHouseService,
     private readonly billingUsageCapService: BillingUsageCapService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   async canFeatureBeUsed(workspaceId: string): Promise<boolean> {
@@ -56,14 +60,14 @@ export class BillingUsageService {
       return true;
     }
 
-    const { billingSubscription } =
+    const { currentBillingSubscription } =
       await this.workspaceCacheService.getOrRecompute(workspaceId, [
-        'billingSubscription',
+        'currentBillingSubscription',
       ]);
 
     return (
-      isDefined(billingSubscription) &&
-      billingSubscription.status !== SubscriptionStatus.Canceled
+      currentBillingSubscription !== NO_BILLING_SUBSCRIPTION &&
+      currentBillingSubscription.status !== SubscriptionStatus.Canceled
     );
   }
 
@@ -123,9 +127,10 @@ export class BillingUsageService {
         ? item.freeTrialQuantity
         : item.creditAmount;
 
-    const billingCustomer = await this.billingCustomerRepository.findOne({
-      where: { workspaceId },
-    });
+    const billingCustomer = await this.billingCustomerRepository.findOne(
+      workspaceId,
+      { where: {} },
+    );
     const rolloverCredits = billingCustomer?.creditBalanceMicro ?? 0;
 
     return {
@@ -199,14 +204,17 @@ export class BillingUsageService {
     workspaceId: string;
     currentPeriodStart: Date | string;
   }): Promise<number> {
-    const subscription = await this.billingSubscriptionRepository.findOne({
-      where: { workspaceId, currentPeriodStart: new Date(currentPeriodStart) },
-      relations: [
-        'billingSubscriptionItems',
-        'billingSubscriptionItems.billingProduct',
-        'billingSubscriptionItems.billingProduct.billingPrices',
-      ],
-    });
+    const subscription = await this.billingSubscriptionRepository.findOne(
+      workspaceId,
+      {
+        where: { currentPeriodStart: new Date(currentPeriodStart) },
+        relations: [
+          'billingSubscriptionItems',
+          'billingSubscriptionItems.billingProduct',
+          'billingSubscriptionItems.billingProduct.billingPrices',
+        ],
+      },
+    );
 
     if (!isDefined(subscription)) {
       throw new BillingException(
@@ -218,9 +226,9 @@ export class BillingUsageService {
     const resourceUsageCap = this.getResourceUsageCap(subscription);
 
     const { creditBalanceMicro: creditBalance } =
-      await this.billingCustomerRepository.findOneOrFail({
+      await this.billingCustomerRepository.findOneOrFail(workspaceId, {
         select: { creditBalanceMicro: true },
-        where: { workspaceId },
+        where: {},
       });
 
     const usage = await this.getCurrentPeriodCreditsUsed(
@@ -281,11 +289,16 @@ export class BillingUsageService {
     workspaceId: string;
     usedCredits: number;
   }): Promise<number> {
-    const {
-      billingSubscription: { currentPeriodStart, currentPeriodEnd },
-    } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
-      'billingSubscription',
-    ]);
+    const { currentBillingSubscription } =
+      await this.workspaceCacheService.getOrRecompute(workspaceId, [
+        'currentBillingSubscription',
+      ]);
+
+    if (currentBillingSubscription === NO_BILLING_SUBSCRIPTION) {
+      return 0;
+    }
+
+    const { currentPeriodStart, currentPeriodEnd } = currentBillingSubscription;
 
     const cachedAvailableCredits = await this.getAvailableCreditsFromCache(
       workspaceId,
@@ -344,10 +357,29 @@ export class BillingUsageService {
       return true;
     }
 
-    const { billingSubscription: subscription } =
+    const workspace = await this.coreEntityCacheService.get(
+      'workspaceEntity',
+      workspaceId,
+    );
+
+    if (
+      isDefined(workspace) &&
+      workspace.activationStatus === WorkspaceActivationStatus.SUSPENDED
+    ) {
+      return false;
+    }
+
+    const { currentBillingSubscription } =
       await this.workspaceCacheService.getOrRecompute(workspaceId, [
-        'billingSubscription',
+        'currentBillingSubscription',
       ]);
+
+    if (currentBillingSubscription === NO_BILLING_SUBSCRIPTION) {
+      return false;
+    }
+
+    const subscription = currentBillingSubscription;
+
     const cached = await this.getAvailableCreditsFromCache(
       subscription.workspaceId,
       subscription.currentPeriodStart,
