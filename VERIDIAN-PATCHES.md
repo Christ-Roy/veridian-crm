@@ -37,15 +37,25 @@
 ## Dépendances de nos modules `veridian-*` sur l'UI upstream (à re-vérifier à chaque sync)
 
 > Ce ne sont PAS des patchs inline (fichiers neufs Veridian), mais ils
-> **importent du code upstream** qui peut être renommé/déplacé par un sync —
-> et là aucun test patch-survival ne les couvre, seul le typecheck/build front
-> les révèle. Sync 2026-06-13 : upstream a renommé `twenty-ui` →
-> `twenty-ui-deprecated` (1735 fichiers), on a migré nos imports en conséquence.
+> **dépendent de la structure des packages upstream** qui peut être
+> renommée/scindée par un sync — et là aucun test patch-survival ne les couvre.
+> Le typecheck/build front les révèle pour le code ; **le build Docker** les
+> révèle pour `Dockerfile.veridian` (CI étage build-image, PAS l'étage CI unit).
+>
+> **Sync 2026-06-13** : upstream a **scindé** l'ancien design-system. Le
+> package `twenty-ui` existe toujours (nouvelle UI), et un **nouveau package
+> `packages/twenty-ui-deprecated/`** (name `twenty-ui-deprecated`) a été créé ;
+> l'essentiel du front (1735 fichiers) importe désormais `twenty-ui-deprecated`.
+> `twenty-front` dépend des **deux** workspaces (`twenty-ui` + `twenty-ui-deprecated`).
+> On a migré nos imports ET ajouté le 2e workspace au `Dockerfile.veridian`
+> (sinon `yarn workspaces focus` → `twenty-ui-deprecated: Workspace not found`,
+> build Docker exit 1).
 
-| Fichier Veridian (neuf) | Import upstream consommé | Migré le |
+| Fichier Veridian (neuf) | Dépendance upstream consommée | Migré le |
 |---|---|---|
-| `veridian-tunnel-timeline/components/EventIconVeridianTunnel.tsx` | icons `twenty-ui-deprecated/display` | 2026-06-13 (`twenty-ui` → `-deprecated`) |
+| `veridian-tunnel-timeline/components/EventIconVeridianTunnel.tsx` | icons `twenty-ui-deprecated/display` | 2026-06-13 |
 | `veridian-tunnel-timeline/components/EventRowVeridianTunnel.tsx` | `MOBILE_VIEWPORT`, `themeCssVariables` de `twenty-ui-deprecated/theme-constants` ; `EventRowItem` de `@/activities/timeline-activities/rows/components` | 2026-06-13 |
+| `Dockerfile.veridian` (fichier custom Veridian, hors arbre upstream) | doit lister TOUS les workspaces du front dans `yarn workspaces focus` + les `COPY package.json` + `COPY` répertoire. Sensible à tout ajout/rename/scission de package upstream. Au sync 2026-06-13 : ajout de `twenty-ui-deprecated` (focus L45 + COPY L38/L106). | 2026-06-13 |
 
 ## Procédure de sync upstream (quand on bumpe le marker)
 
