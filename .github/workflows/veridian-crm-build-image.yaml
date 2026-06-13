@@ -1,29 +1,21 @@
-name: Veridian CRM — Build & Push Image
+name: Veridian CRM — Build & Push Image (DEPRECATED)
 
-# Build l'image Veridian CRM (fork Twenty AGPLv3) et la push sur GHCR.
+# ⚠️ DÉPRÉCIÉ 2026-06-13 — fusionné dans `veridian-crm-ci.yaml` (job build-push).
+# Le trigger `workflow_run` ne s'armait pas de façon fiable depuis staging
+# (branche non-défaut) → chaîne ci→build→deploy cassée. Cf ticket #5 /
+# todo/2026-06-11-piege-workflow-run-branche-non-defaut.md.
+# Conservé en `workflow_dispatch` SEULEMENT comme filet de secours manuel
+# (rebuild d'urgence d'une ref précise). À supprimer une fois le workflow
+# unifié confirmé stable en prod.
 #
-# Stratégie :
-# - Trigger : workflow_run après que `Veridian CRM CI` est passé vert
-#   sur staging ou main (évite de pusher une image qui ne compile pas)
 # - Image runtime : multi-stage Dockerfile.veridian (server + front
 #   bundlé), basée sur Node 24.15 Alpine, exposes :3000
-# - Tags publiés :
-#     - push staging → :staging + :staging-<sha7>
-#     - push main    → :latest + :<sha7>
+# - Tags publiés : staging → :staging + :staging-<sha7> ; main → :latest + :<sha7>
 # - Auth GHCR via GITHUB_TOKEN (permissions packages:write)
-# - Cache buildx via GitHub Actions cache (drastiquement plus rapide
-#   sur les rebuilds incrémentaux)
 
 on:
-  workflow_run:
-    workflows: ['Veridian CRM CI']
-    types: [completed]
-    branches:
-      - staging
-      - main
-  # Permet aussi un trigger manuel depuis l'UI / `gh workflow run` pour
-  # forcer un build (utile quand on ajoute le workflow pour la première
-  # fois et que le CI n'a pas tourné en parallèle).
+  # Trigger auto `workflow_run` RETIRÉ (source du bug). Build auto = désormais
+  # dans veridian-crm-ci.yaml. Ici : dispatch manuel uniquement.
   workflow_dispatch:
     inputs:
       ref:

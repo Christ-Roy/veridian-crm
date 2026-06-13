@@ -1,16 +1,14 @@
-name: Veridian CRM — Deploy staging
+name: Veridian CRM — Deploy staging (DEPRECATED)
 
-# Déploie la stack staging sur dev-pub après que l'image :staging a été
-# buildée et pushée sur GHCR (chaîne : push staging → Veridian CRM CI →
-# Build & Push Image → CE workflow). Ferme la boucle trunk-based : un
-# push sur staging finit déployé + smoke-testé sans action manuelle.
+# ⚠️ DÉPRÉCIÉ 2026-06-13 — fusionné dans `veridian-crm-ci.yaml` (job
+# deploy-staging). Le trigger `workflow_run` ne s'armait pas de façon fiable
+# depuis staging (branche non-défaut). Cf ticket #5. Conservé en
+# `workflow_dispatch` SEULEMENT comme filet de redéploiement manuel d'urgence.
+# À supprimer une fois le workflow unifié confirmé stable en prod.
 
 on:
-  workflow_run:
-    workflows: ['Veridian CRM — Build & Push Image']
-    types: [completed]
-    branches:
-      - staging
+  # Trigger auto `workflow_run` RETIRÉ (source du bug). Deploy auto = désormais
+  # dans veridian-crm-ci.yaml. Ici : dispatch manuel uniquement.
   workflow_dispatch:
 
 permissions:

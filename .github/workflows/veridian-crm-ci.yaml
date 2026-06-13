@@ -1,17 +1,26 @@
 name: Veridian CRM CI
 
-# Minimal Veridian-side CI for the Twenty fork.
+# CI Veridian unifiée pour le fork Twenty — UN SEUL workflow `push`-triggered.
 #
-# We can't depend on the upstream Twenty workflows (ci-server.yaml etc.)
-# because they're gated on `changed-files` matchers tuned for the
-# upstream monorepo and they only trigger on `pull_request`. We run a
-# trunk-based flow (push to `staging`, fast-forward to `main`) so we
-# need our own workflow that fires on `push` too.
+# Pourquoi on n'utilise pas les workflows upstream Twenty : ils sont gated sur
+# des `changed-files` taillés pour le monorepo upstream et ne tournent que sur
+# `pull_request`. Nous sommes trunk-based (push sur `staging`, ff-merge vers
+# `main`), donc on a notre propre workflow qui fire sur `push`.
 #
-# Scope is intentionally narrow: run the unit tests we care about for
-# the AGPL patches we ship on top of Twenty (today: the lifted
-# workspace cap in sign-in-up.service). We layer Docker build / deploy
-# / E2E in separate workflows later.
+# ─── Chaîne complète (fix piège workflow_run, 2026-06-13) ────────────────────
+# AVANT : ci → build-image → staging-deploy reposait sur DEUX maillons
+# `on: workflow_run` qui ne s'arment PAS de façon fiable depuis une branche
+# non-défaut (staging). Cf todo/2026-06-11-piege-workflow-run-branche-non-defaut.md.
+# Résultat : CI verte sur staging mais build + deploy jamais déclenchés.
+#
+# MAINTENANT (option A du ticket) : tout est chaîné en jobs `needs:` dans CE
+# workflow, déclenché par `push`. Zéro `workflow_run`, zéro point de rupture.
+#   check-ee-integrity ─┬─ veridian-server-unit ─┐
+#                       └─ veridian-front-unit  ─┴─ build-push ─┬─ trivy-scan (report)
+#                                                               ├─ deploy-staging (staging)
+#                                                               └─ promote-to-main (staging, [risk:low], opt-in)
+#
+# `workflow_dispatch` reste comme filet pour rebuild/redeploy manuel.
 
 on:
   push:
@@ -22,16 +31,20 @@ on:
     branches:
       - staging
       - main
+  workflow_dispatch:
 
+# contents: write → ff-merge staging→main (job promote-to-main, opt-in)
+# packages: write → push image GHCR (job build-push)
 permissions:
-  contents: read
+  contents: write
+  packages: write
 
 concurrency:
   group: veridian-crm-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Étage 1 — garde-fou LÉGAL : aucun fichier @license Enterprise modifié.
+  # ── Étage 1 — garde-fou LÉGAL : aucun fichier @license Enterprise modifié.
   # Bloquant, rapide, sans dépendances (pas de yarn install).
   check-ee-integrity:
     name: EE integrity (no Enterprise file touched)
@@ -45,6 +58,8 @@ jobs:
       - name: Verify Enterprise files are intact
         run: bash scripts/ci/check-ee-integrity.sh
 
+  # ── Étage 2 — patch-survival SERVER (workspace cap, create-company,
+  # tous les *.veridian.spec). Si un sync upstream écrase un patch, ça casse.
   veridian-server-unit:
     name: twenty-server unit tests + patch-survival (Veridian)
     runs-on: ubuntu-latest
@@ -65,13 +80,28 @@ jobs:
       # create-company (no enrichment leak), et tous les *.veridian.spec
       # (flags defaults, marketplace/help-center guards, ai-telemetry,
       # dashboard sans iframe). Si un sync upstream écrase un patch, ça casse.
+      #
+      # ⚠️ FIX 2026-06-13 (ticket dettes-ui §1) : le séparateur `--` est
+      # OBLIGATOIRE. `nx test <proj> --testPathPattern=…` SANS `--` ne forwarde
+      # PAS l'arg à jest → nx l'ignore silencieusement → TOUTE la suite tourne
+      # (5145 tests server, ~6 min gaspillées/commit). Avec `--`, nx forwarde le
+      # flag à jest (cf doc nx: `nx test <proj> -- --testPathPattern=<...>`).
+      # Repo en jest 29.7.0 → flag SINGULIER `--testPathPattern` (le pluriel
+      # `--testPathPatterns` n'arrive qu'avec jest 30 ; ne PAS l'utiliser ici).
+      #
+      # `--coverage=false` OBLIGATOIRE avec le scope : nx.json force coverage:true
+      # et twenty-front a un coverageThreshold global (47/46/39%). Lancer un
+      # sous-ensemble AVEC coverage ferait chuter le global sous le seuil → job
+      # rouge. Le coverage global n'a aucun sens sur un run patch-survival ciblé ;
+      # on veut juste que NOS specs passent. (C'est pourquoi la suite complète
+      # passait avant : le pattern ignoré gardait le coverage au-dessus du seuil.)
       - name: Run Veridian unit tests + patch-survival
-        run: npx nx test twenty-server --testPathPattern="(sign-in-up|create-company\.service|\.veridian\.spec)"
+        run: npx nx test twenty-server -- --testPathPattern="(sign-in-up|create-company\.service|\.veridian\.spec)" --coverage=false
 
       - name: Typecheck twenty-server
         run: npx nx typecheck twenty-server
 
-  # Étage 2bis — patch-survival FRONT. Indispensable : la timeline tunnel
+  # ── Étage 2bis — patch-survival FRONT. Indispensable : la timeline tunnel
   # (rendu custom des events email.*/audit.*/score.* + filtre du bruit
   # bridge) vit dans twenty-front via 3 patchs inline AGPL (cf
   # VERIDIAN-PATCHES.md). Sans ce job, aucun *.veridian.spec.tsx ne tourne
@@ -92,5 +122,329 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/yarn-install
 
+      # ⚠️ FIX 2026-06-13 (ticket dettes-ui §1) : séparateur `--` obligatoire
+      # (cf job server ci-dessus). Sans lui, nx ignore le pattern → 4964 tests
+      # front tournent au lieu des ~4 specs Veridian. jest 29 → flag singulier.
+      # `--coverage=false` CRITIQUE ici : twenty-front a un coverageThreshold
+      # global (statements 47.3 / lines 45.9 / functions 39.5) et nx force
+      # coverage:true → scoper à 4 specs AVEC coverage = global sous le seuil =
+      # job rouge. On désactive le coverage pour le run patch-survival ciblé.
       - name: Run Veridian front unit tests + patch-survival
-        run: npx nx test twenty-front --testPathPattern="\.veridian\.spec\.(ts|tsx)$"
+        run: npx nx test twenty-front -- --testPathPattern="\.veridian\.spec\.(ts|tsx)$" --coverage=false
+
+  # ── Étage 3 — build & push image GHCR (ex-veridian-crm-build-image.yaml,
+  # fusionné ici en job `needs:`). Ne tourne que sur push staging/main (pas
+  # sur les PR : pas de raison de pusher une image depuis une PR), gated sur
+  # les 3 jobs de test verts.
+  build-push:
+    name: Build & push veridian-crm image
+    runs-on: ubuntu-latest
+    needs: [check-ee-integrity, veridian-server-unit, veridian-front-unit]
+    timeout-minutes: 60
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Filet rollback prod : avant d'écraser :latest, l'actuelle est
+      # re-taggée :rollback (manipulation de manifest GHCR, pas de pull).
+      # Rollback = compose.update image :rollback + compose.deploy.
+      - name: Retag current :latest as :rollback (main only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          IMG=ghcr.io/christ-roy/veridian-crm
+          if docker buildx imagetools inspect "$IMG:latest" >/dev/null 2>&1; then
+            docker buildx imagetools create -t "$IMG:rollback" "$IMG:latest"
+            echo "retagged $IMG:latest -> $IMG:rollback"
+          else
+            echo "no :latest yet, skipping rollback tag"
+          fi
+
+      - name: Compute tags
+        id: tags
+        run: |
+          BRANCH='${{ github.ref_name }}'
+          SHA_SHORT=$(git rev-parse --short=7 HEAD)
+          echo "sha_short=${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+          IMG=ghcr.io/christ-roy/veridian-crm
+          case "$BRANCH" in
+            main)
+              echo "tags=${IMG}:latest,${IMG}:${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+              ;;
+            staging)
+              echo "tags=${IMG}:staging,${IMG}:staging-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              # Manual dispatch sur autre ref : tag dédié pour éviter
+              # d'écraser staging/latest accidentellement.
+              SAFE_BRANCH=$(echo "$BRANCH" | tr '/' '-' | tr -cd 'A-Za-z0-9._-')
+              echo "tags=${IMG}:${SAFE_BRANCH}-${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Build & push image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ./Dockerfile.veridian
+          target: veridian-crm
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            APP_VERSION=${{ steps.tags.outputs.sha_short }}
+            VERIDIAN_BUILD_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=veridian-crm-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=veridian-crm-${{ github.ref_name }}
+          provenance: false
+
+      - name: Summary
+        run: |
+          {
+            echo "## Veridian CRM image published"
+            echo ""
+            echo "- Branch: \`${{ github.ref_name }}\`"
+            echo "- SHA: \`${{ steps.tags.outputs.sha_short }}\`"
+            echo "- Tags:"
+            for t in $(echo "${{ steps.tags.outputs.tags }}" | tr ',' '\n'); do
+              echo "  - \`$t\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Étage 3bis — scan vulnérabilités de l'image publiée.
+  # NON BLOQUANT (exit-code 0) : le fork hérite des CVE upstream Twenty, un
+  # mode bloquant serait rouge en permanence sans triage préalable. Suivi :
+  # todo/2026-06-11-cve-image-base-twenty-trivy.md.
+  trivy-scan:
+    name: Trivy image scan (report)
+    runs-on: ubuntu-latest
+    needs: build-push
+    timeout-minutes: 15
+    steps:
+      - name: Determine image tag to scan
+        id: img
+        run: |
+          case "${{ github.ref_name }}" in
+            main)    echo "tag=latest"  >> "$GITHUB_OUTPUT" ;;
+            staging) echo "tag=staging" >> "$GITHUB_OUTPUT" ;;
+            *)       echo "tag=staging" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Run Trivy on published image
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+        with:
+          image-ref: ghcr.io/christ-roy/veridian-crm:${{ steps.img.outputs.tag }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          ignore-unfixed: true
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Étage 4 — deploy staging (ex-veridian-crm-staging-deploy.yaml, fusionné
+  # ici). Ne tourne que sur push staging (ou dispatch), gated sur l'image
+  # buildée. Ferme la boucle trunk-based : un push sur staging finit déployé
+  # + smoke-testé sans action manuelle.
+  deploy-staging:
+    name: Deploy crm.staging.veridian.site
+    runs-on: ubuntu-latest
+    needs: build-push
+    # 30 min : le smoke peut poller jusqu'à 900s (cold boot Twenty + migrations
+    # workspaces lourdes), + le pull/restart. 15 min coupait avant la fin.
+    timeout-minutes: 30
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/staging')
+    env:
+      DEV_HOST: 37.187.199.185
+      DEV_USER: ubuntu
+      STACK_DIR: /home/ubuntu/services/veridian-crm-staging
+      # Fenêtre de poll healthz/metadata, configurable. 90 × 10s = 900s pour
+      # absorber un cold boot + migrations DB lourdes (vu sur le deploy du
+      # merge upstream : l'app montait juste APRÈS les 400s de l'ancien smoke
+      # → faux négatif "failure" alors que healthz+metadata répondaient ensuite).
+      SMOKE_MAX_ATTEMPTS: '90'
+      SMOKE_INTERVAL_S: '10'
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          [ -z "$SSH_KEY" ] && { echo "::error::secret STAGING_SSH_KEY manquant"; exit 1; }
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          ssh-keyscan -H "$DEV_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Pull image & restart stack
+        run: |
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+            "cd $STACK_DIR && docker compose pull crm-server crm-worker && docker compose up -d"
+
+      # ── Smoke en 2 temps (fix faux négatif cold boot, 2026-06-13) ──────────
+      # Phase 1 : le CONTAINER crm-server est Up et NE crashloop PAS
+      # (RestartCount stable). Détecte tôt un vrai crash (image cassée, ENV
+      # manquante) au lieu d'attendre 900s pour rien.
+      - name: Smoke phase 1 — container up & not crashlooping
+        run: |
+          for i in $(seq 1 30); do
+            read -r state restarts < <(ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+              "cd $STACK_DIR && cid=\$(docker compose ps -q crm-server) && \
+               docker inspect -f '{{.State.Status}} {{.RestartCount}}' \$cid" 2>/dev/null || echo "unknown 0")
+            echo "crm-server: state=$state restartCount=$restarts (try $i/30)"
+            # crashloop = plusieurs restarts en peu de temps → échec net
+            if [ "${restarts:-0}" -ge 3 ]; then
+              echo "::error::crm-server crashloop (RestartCount=$restarts) — image/ENV cassée, on n'attend pas le smoke HTTP"
+              ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+                "cd $STACK_DIR && docker compose logs --tail=80 crm-server" || true
+              exit 1
+            fi
+            [ "$state" = "running" ] && { echo "✓ container running"; break; }
+            sleep 10
+          done
+
+      # Phase 2 : poll HTTP avec fenêtre longue. /healthz ment (200 même DB
+      # down, piège connu) → on EXIGE aussi /metadata 200 (handshake GraphQL =
+      # preuve que l'app parle à Postgres/Redis et que les migrations sont OK).
+      - name: Smoke phase 2 — healthz + /metadata (long window)
+        run: |
+          MAX="${SMOKE_MAX_ATTEMPTS}"; IVL="${SMOKE_INTERVAL_S}"
+          code=""
+          for i in $(seq 1 "$MAX"); do
+            code=$(curl -s -m 8 -o /dev/null -w "%{http_code}" https://crm.staging.veridian.site/healthz || true)
+            if [ "$code" = "200" ]; then break; fi
+            [ $((i % 6)) -eq 0 ] && echo "… healthz=$code (try $i/$MAX, $((i*IVL))s écoulées)"
+            sleep "$IVL"
+          done
+          [ "$code" = "200" ] || { echo "::error::healthz=$code après $((MAX*IVL))s"; exit 1; }
+          # /metadata peut encore renvoyer 5xx quelques secondes après healthz
+          # le temps que la DB soit prête → on lui laisse aussi quelques essais.
+          gql=""
+          for i in $(seq 1 12); do
+            gql=$(curl -s -m 10 -X POST https://crm.staging.veridian.site/metadata \
+              -H "Content-Type: application/json" \
+              -d '{"query":"{ __typename }"}' -o /dev/null -w "%{http_code}" || true)
+            [ "$gql" = "200" ] && break
+            sleep 10
+          done
+          [ "$gql" = "200" ] || { echo "::error::/metadata=$gql — l'app ne répond pas au GraphQL (DB/migrations ?)"; exit 1; }
+          echo "✅ staging up : healthz 200 + /metadata 200"
+
+  # ── Étage 5 — promotion staging → main (OPT-IN, désactivé par défaut).
+  #
+  # ⚠️ NON ACTIF tant que la repo variable `ENABLE_AUTO_PROMOTE` n'est pas
+  # mise à 'true' (Settings → Variables → Actions). Sans elle, ce job est
+  # systématiquement skippé → la promotion reste 100 % manuelle (ff-merge +
+  # push main à la main par l'agent/le lead). On l'a câblé prêt à l'emploi
+  # pour pouvoir basculer en auto d'un seul switch, façon Hub §20, SANS
+  # réécrire la CI. Voir la reco dans le ticket #5 / CLAUDE.md.
+  #
+  # Quand actif, les garde-fous (calqués sur hub-staging.yml, éprouvés) :
+  #   - push sur staging uniquement
+  #   - marker `[risk:low]` DANS LE SUBJECT (1ère ligne) du HEAD commit
+  #   - TOUS les commits du range origin/main..HEAD doivent porter [risk:low]
+  #     (sinon un commit tier 🟡/🔴 intermédiaire passerait en prod sans audit)
+  #   - ff-merge strict (échoue si main a divergé — jamais de force-push)
+  #   - deploy-staging vert requis (needs) = smoke staging OK avant prod
+  promote-to-main:
+    name: Auto-promote staging → main (🟢 risk:low only — opt-in)
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    if: |
+      vars.ENABLE_AUTO_PROMOTE == 'true' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/staging' &&
+      contains(github.event.head_commit.message, '[risk:low]') &&
+      !contains(github.event.head_commit.message, '[skip-prod]') &&
+      !contains(github.event.head_commit.message, '[wip]')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          # PAT prioritaire si branch protection sur main ; GITHUB_TOKEN sinon.
+          token: ${{ secrets.AUTO_PROMOTE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Filtre fin : `[risk:low]` doit être dans le subject (1ère ligne), pas
+      # seulement dans le body. Si absent du subject → skip silencieux (job
+      # reste vert, pas de fausse alerte).
+      - name: Check [risk:low] is in subject line (not just body)
+        id: check_subject
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          SUBJECT=$(echo "$COMMIT_MSG" | head -1)
+          if echo "$SUBJECT" | grep -q '\[risk:low\]'; then
+            echo "in_subject=true" >> "$GITHUB_OUTPUT"
+            echo "✓ Marker [risk:low] dans le subject — auto-promote autorisée"
+          else
+            echo "in_subject=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Marker [risk:low] absent du subject (body uniquement) — promotion non déclenchée."
+            echo "Subject : $SUBJECT"
+          fi
+
+      # Un ff-merge avance main jusqu'au HEAD staging et embarque TOUS les
+      # commits intermédiaires. Si un seul commit du range origin/main..HEAD
+      # n'a pas [risk:low] dans son subject → on skip (un tier 🟡/🔴 ne doit
+      # pas passer en prod sans audit). Calqué sur le fix Hub 2026-05-21.
+      - name: Verify ALL commits in origin/main..HEAD have [risk:low]
+        id: check_range
+        if: steps.check_subject.outputs.in_subject == 'true'
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          MISSING=$(git log origin/main..HEAD --format='%H %s' | \
+            awk '$0 !~ /\[risk:low\]/ { print }' || true)
+          if [ -n "$MISSING" ]; then
+            echo "all_low=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Auto-promote bloquée — commits sans [risk:low] dans origin/main..HEAD :"
+            echo "$MISSING"
+            echo "Le HEAD est [risk:low] mais des commits intermédiaires tier 🟡/🔴+ attendent une reco agent."
+          else
+            echo "all_low=true" >> "$GITHUB_OUTPUT"
+            COUNT=$(git log origin/main..HEAD --oneline | wc -l)
+            echo "✓ Tous les commits du range ($COUNT) portent [risk:low] — auto-promote autorisée"
+          fi
+
+      - name: Fast-forward main to staging
+        if: |
+          steps.check_subject.outputs.in_subject == 'true' &&
+          steps.check_range.outputs.all_low == 'true'
+        env:
+          STAGING_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin main staging
+          git checkout main
+          if ! git merge --ff-only "$STAGING_SHA"; then
+            echo "::error::main a divergé de staging — auto-promotion impossible en ff-only."
+            echo "Corriger : git checkout staging && git merge --ff-only origin/main && git push origin staging"
+            exit 1
+          fi
+          git push origin main
+          echo "✓ main avancé vers $STAGING_SHA (auto-promote). hub-ci équivalent : le push main relance CE workflow sur main (build :latest + retag :rollback)."
