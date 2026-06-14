@@ -47,9 +47,25 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   changed=$(git diff --name-only --diff-filter=ACMR $range -- '*.ts' '*.tsx' 2>/dev/null || true)
 
-  # 1. Fichiers EE intouchables
+  # 1. Fichiers EE intouchables.
+  # Source de vérité légale = marker de fork (défaut de check-ee-integrity.sh) :
+  # on ne flague QUE les fichiers EE dont le CONTENU diffère de leur version au
+  # marker (= vraie modif Veridian). Un merge de sync upstream embarque forcément
+  # des commits upstream qui touchent des fichiers EE — ce n'est PAS notre fait :
+  # le range origin/staging..HEAD les contient, mais leur contenu est identique au
+  # marker (la nouvelle base) → on les ignore. check-ee-integrity (étage 0) reste
+  # le filet exhaustif. Sans ce raffinement, tout merge de sync était bloqué à tort.
+  fork_marker="$(sed -n 's/^FORK_MARKER="\${1:-\([^}]*\)}".*/\1/p' \
+    "$repo_root/scripts/ci/check-ee-integrity.sh" 2>/dev/null)"
   for f in $changed; do
     if git show "$local_sha:$f" 2>/dev/null | head -3 | grep -q "@license Enterprise"; then
+      # Fichier EE présent au marker ET contenu identique au marker → modif upstream
+      # pure embarquée par le merge, pas une contrefaçon Veridian. On laisse passer.
+      if [ -n "$fork_marker" ] \
+         && git cat-file -e "$fork_marker:$f" 2>/dev/null \
+         && git diff --quiet "$fork_marker" "$local_sha" -- "$f" 2>/dev/null; then
+        continue
+      fi
       fail "le fichier '$f' porte le header '@license Enterprise' — modification INTERDITE (contrefaçon). Cherche un autre angle (ENV gate, guard côté AGPL)."
     fi
   done
