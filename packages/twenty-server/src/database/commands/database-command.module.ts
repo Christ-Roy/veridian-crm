@@ -29,6 +29,8 @@ import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-
 import { RotateSigningKeysCronCommand } from 'src/engine/core-modules/jwt/crons/commands/rotate-signing-keys.cron.command';
 import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { PublicDomainModule } from 'src/engine/core-modules/public-domain/public-domain.module';
+// Veridian: cron de vérification des custom domains (clean-room AGPL)
+import { VeridianCustomDomainModule } from 'src/modules/veridian-custom-domain/veridian-custom-domain.module';
 import { TwentyConfigModule } from 'src/engine/core-modules/twenty-config/twenty-config.module';
 import { UpgradeStatusCommand } from 'src/engine/core-modules/upgrade/commands/upgrade-status.command';
 import { UpgradeModule } from 'src/engine/core-modules/upgrade/upgrade.module';
@@ -76,6 +78,7 @@ import { AutomatedTriggerModule } from 'src/modules/workflow/workflow-trigger/au
     WorkspaceMigrationModule,
     TrashCleanupModule,
     PublicDomainModule,
+    VeridianCustomDomainModule,
     EventLogCleanupModule,
     EnterpriseModule,
     TwentyConfigModule,

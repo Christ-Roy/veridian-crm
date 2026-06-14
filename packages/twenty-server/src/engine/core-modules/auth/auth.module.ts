@@ -170,6 +170,9 @@ import { JwtAuthStrategy } from './strategies/jwt.auth.strategy';
     RefreshTokenService,
     CreateMessageChannelService,
     CreateCalendarChannelService,
+    // Veridian: exposés pour le module veridian-sso (SSO SAML/OIDC clean-room AGPL)
+    SignInUpService,
+    AuthService,
   ],
 })
 export class AuthModule {}

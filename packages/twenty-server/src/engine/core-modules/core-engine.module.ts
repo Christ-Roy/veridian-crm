@@ -50,6 +50,9 @@ import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { OpenApiModule } from 'src/engine/core-modules/open-api/open-api.module';
 import { PublicDomainModule } from 'src/engine/core-modules/public-domain/public-domain.module';
+// Veridian: custom domain (white-label) clean-room AGPL — réimplémentation du
+// custom domain Twenty sans le code EE (cf docs/spec/CLEANROOM-CUSTOM-DOMAIN.md)
+import { VeridianCustomDomainModule } from 'src/modules/veridian-custom-domain/veridian-custom-domain.module';
 import { RedisClientModule } from 'src/engine/core-modules/redis-client/redis-client.module';
 import { RedisClientService } from 'src/engine/core-modules/redis-client/redis-client.service';
 import { SearchModule } from 'src/engine/core-modules/search/search.module';
@@ -59,6 +62,8 @@ import { TwentyConfigModule } from 'src/engine/core-modules/twenty-config/twenty
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { UsageModule } from 'src/engine/core-modules/usage/usage.module';
 import { UserModule } from 'src/engine/core-modules/user/user.module';
+import { VeridianAuditLogModule } from 'src/engine/core-modules/veridian-audit-log/veridian-audit-log.module';
+import { VeridianSsoModule } from 'src/engine/core-modules/veridian-sso/veridian-sso.module';
 import { WorkflowApiModule } from 'src/engine/core-modules/workflow/workflow-api.module';
 import { WorkspaceInvitationModule } from 'src/engine/core-modules/workspace-invitation/workspace-invitation.module';
 import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
@@ -109,6 +114,7 @@ import { FileModule } from './file/file.module';
     ApprovedAccessDomainModule,
     EmailingDomainModule,
     PublicDomainModule,
+    VeridianCustomDomainModule,
     CloudflareModule,
     DnsManagerModule,
     WorkflowApiModule,
@@ -158,6 +164,8 @@ import { FileModule } from './file/file.module';
     EventLogsViewerModule,
     PreInstalledAppsModule,
     AppBillingModule,
+    VeridianAuditLogModule,
+    VeridianSsoModule,
   ],
   providers: [
     {
