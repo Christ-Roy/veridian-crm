@@ -48,11 +48,11 @@ export class VeridianAuditLogEntity {
   @Column({ type: 'uuid', nullable: true })
   workspaceId: string | null;
 
-  @Field()
+  @Field(() => String)
   @Column({ type: 'varchar' })
   action: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @Column({ type: 'varchar', nullable: true })
   targetType?: string | null;
 
@@ -72,15 +72,15 @@ export class VeridianAuditLogEntity {
   @Column({ type: 'varchar', default: VeridianAuditLogActorTypeEnum.SYSTEM })
   actorType: VeridianAuditLogActorType;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @Column({ type: 'varchar', nullable: true })
   actorDisplay?: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @Column({ type: 'varchar', nullable: true })
   ipAddress?: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @Column({ type: 'varchar', nullable: true })
   userAgent?: string | null;
 
