@@ -49,11 +49,11 @@ export class VeridianAuditLogEntity {
   workspaceId: string | null;
 
   @Field()
-  @Column()
+  @Column({ type: 'varchar' })
   action: string;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   targetType?: string | null;
 
   @Field(() => UUIDScalarType, { nullable: true })
@@ -73,15 +73,15 @@ export class VeridianAuditLogEntity {
   actorType: VeridianAuditLogActorType;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   actorDisplay?: string | null;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   ipAddress?: string | null;
 
   @Field({ nullable: true })
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   userAgent?: string | null;
 
   @Field(() => GraphQLJSON, { nullable: true })
