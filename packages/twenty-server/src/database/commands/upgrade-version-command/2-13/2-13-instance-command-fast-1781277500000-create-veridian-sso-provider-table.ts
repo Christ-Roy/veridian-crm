@@ -28,6 +28,18 @@ export class CreateVeridianSsoProviderTableFastInstanceCommand
       )`,
     );
 
+    // Veridian: garantir au niveau DB que `type` ne contient que les valeurs de
+    // VeridianSsoProviderType (SAML|OIDC) — l'entité déclare un enum mais la
+    // colonne est varchar ; ce CHECK évite une donnée invalide silencieuse
+    // (une casse erronée provoquerait un 404 silencieux côté TypeORM).
+    // Idempotent : DROP IF EXISTS avant ADD (la table peut préexister en staging).
+    await queryRunner.query(
+      `ALTER TABLE "core"."veridianSsoProvider" DROP CONSTRAINT IF EXISTS "CHK_veridianSsoProvider_type"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "core"."veridianSsoProvider" ADD CONSTRAINT "CHK_veridianSsoProvider_type" CHECK ("type" IN ('SAML', 'OIDC'))`,
+    );
+
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_VERIDIAN_SSO_PROVIDER_WORKSPACE_ID" ON "core"."veridianSsoProvider" ("workspaceId")`,
     );
@@ -41,6 +53,9 @@ export class CreateVeridianSsoProviderTableFastInstanceCommand
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "core"."veridianSsoProvider" DROP CONSTRAINT IF EXISTS "CHK_veridianSsoProvider_type"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "core"."veridianSsoProvider" DROP CONSTRAINT IF EXISTS "FK_veridianSsoProvider_workspaceId"`,
     );

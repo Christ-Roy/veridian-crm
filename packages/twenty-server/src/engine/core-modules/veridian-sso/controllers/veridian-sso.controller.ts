@@ -16,6 +16,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -54,7 +55,7 @@ export class VeridianSsoController {
 
   @Get(':providerId/login')
   async login(
-    @Param('providerId') providerId: string,
+    @Param('providerId', ParseUUIDPipe) providerId: string,
     @Res() res: Response,
   ): Promise<void> {
     const provider =
@@ -104,7 +105,7 @@ export class VeridianSsoController {
 
   @Post(':providerId/acs')
   async samlAcs(
-    @Param('providerId') providerId: string,
+    @Param('providerId', ParseUUIDPipe) providerId: string,
     @Body('SAMLResponse') samlResponse: string,
     @Res() res: Response,
   ): Promise<void> {
@@ -137,7 +138,7 @@ export class VeridianSsoController {
 
   @Get(':providerId/callback')
   async oidcCallback(
-    @Param('providerId') providerId: string,
+    @Param('providerId', ParseUUIDPipe) providerId: string,
     @Query() query: Record<string, string>,
     @Req() req: Request,
     @Res() res: Response,
