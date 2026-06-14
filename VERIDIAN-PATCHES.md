@@ -1,7 +1,8 @@
 # VERIDIAN-PATCHES.md — registre des patchs inline du fork
 
 > Twenty est un fork upstream (`twentyhq/twenty`, marker de base
-> `76f69efb43`, sync upstream 2026-06-13 ; marker d'origine `1188ea9cd5`,
+> `e70776f705`, sync upstream 2026-06-15 ; précédent marker `76f69efb43`,
+> 2026-06-13 ; marker d'origine `1188ea9cd5`,
 > 2026-05-25). La plupart de nos modifs vivent dans des fichiers neufs ou
 > des ENV. Mais quelques patchs sont **inline dans des fichiers upstream
 > AGPL** — un merge de sync upstream peut les écraser silencieusement.
