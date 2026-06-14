@@ -1,6 +1,8 @@
 # UpgradeCommand échoue sur SyncStandardUiCapabilityFlags (isUIEditable sur relation fields)
 
-> **Sévérité** : 🟢 P2 (non bloquant — app fonctionnelle, DB migrée, pas de perte data)
+> **Sévérité** : 🟡 P1 (le sync 2026-06-15 transforme cette dette en régression
+>   RUNTIME bloquante — voir maj 2026-06-15. Sur la PROD actuelle elle reste 🟢
+>   non bloquante, mais elle GATE la promo du sync upstream e70776f705.)
 > **Owner** : agent veridian-crm
 > **Créé** : 2026-06-14
 
@@ -102,3 +104,54 @@ Filets en place si besoin futur :
 Nouvelle image prod : `:latest` digest `sha256:6b82dc1e…085616`, ImageID
 `e042cdd6…`, déployée via compose.deploy (composeId `8zdqAAD1lkZFVAwuZ5USv`)
 après `docker pull` forcé (contournement du piège autoDeploy Dokploy).
+
+## ⚠️ MAJ 2026-06-15 — le sync upstream `e70776f705` AGGRAVE cette dette (régression runtime)
+
+Le sync upstream du 2026-06-15 (29 commits, marker `76f69efb43` → `e70776f705`,
+commit fork `629d99a57a`, image staging digest `dc2acef1…`) embarque les fixes
+upstream censés résoudre cette dette : **#21543** ("write 2.13 UI capability
+flags directly, bypassing validation") + **#21504/#21537** (rename fallout).
+Testé on-premise sur staging — résultat : **NON résolu, et le symptôme empire.**
+
+### Ce qui a changé
+- **Avant (image du 2026-06-14)** : `SyncStandardUiCapabilityFlags` échoue avec
+  `FIELD_MUTATION_NOT_ALLOWED — relation field metadata: isUIEditable`.
+  **Non bloquant** : l'app sert, GraphQL/REST OK.
+- **Après (sync #21543)** : la commande échoue toujours (5/5 workspaces staging,
+  0 completed), mais désormais sur `column ObjectMetadataEntity.isUIReadOnly does
+  not exist`. **ET — bloquant — les requêtes data GraphQL ET REST CASSENT** sur
+  TOUS les workspaces avec la même erreur (`GET /rest/companies` → 400,
+  `query{people}` → QueryFailedError). Vérifié avec un vrai Bearer (JWT API-key
+  forgé via `APP_SECRET`).
+
+### Cause racine (bug cross-version upstream, pas notre fait)
+Le fix #21543 lit le drift via le **cache flat-metadata** (ORM
+`ObjectMetadataEntity`), qui mappe encore `isUIReadOnly` via `@WasRemovedInUpgrade`.
+L'`UpgradeAwareEntityMetadataAdapter` ne masque cette colonne que si le **cursor
+de version du workspace** est assez avancé. Or les workspaces sont **bloqués sur
+`SyncStandardUiCapabilityFlags`** (cursor figé) → l'adapter ne masque pas →
+le SELECT inclut `isUIReadOnly` → crash (la colonne core est déjà renommée en
+`isUIEditable` par la migration instance `RenameIsUiReadOnly…`, completed). C'est
+un **deadlock cross-version**. Upstream documente n'avoir PAS testé ce cas en
+runtime (cf message #21543 : "I could not run a live cross-version repro").
+
+### Comparaison PROD (décisive)
+La PROD tourne l'**ancien** code (SHA `3ccfb46c`, sans #21543) → ses requêtes data
+**marchent** (READ companies → vraies données) malgré le même état d'upgrade
+(4 workspaces failed sur `SyncStandardUiCapabilityFlags`, colonne core déjà
+renommée). ⇒ **Promouvoir le sync casserait la prod** (au reboot, recompute du
+cache flat-metadata avec le nouveau code → même crash). Sync NON promu, prod
+intacte.
+
+### État de la promo
+- Staging déployé sur le sync (`629d99a57a`), **NON promu en main/prod** (tier 🔴
+  + régression bloquante).
+- Backup DB staging pré-sync : `dev-pub:~/backups/crm-staging/crm-staging-presync-20260615-004502.dump`.
+
+### Pistes (clean AGPL — fichier `2-13-…-sync-standard-ui-capability-flags.command.ts` vérifié non-EE)
+1. **Patch clean-room** : lire le drift en **SQL brut** sur `core.fieldMetadata`/
+   `core.objectMetadata` (comme le fait déjà la phase d'écriture du #21543) au
+   lieu de passer par le cache flat-metadata ORM → évite le SELECT `isUIReadOnly`.
+   Couvrir par un `*.veridian.spec`. **Reco privilégiée.**
+2. Faire avancer le cursor des workspaces hors de cette commande (ordering).
+3. Attendre un fix upstream (cross-version non testé en amont) — coûte la dette CVE.
