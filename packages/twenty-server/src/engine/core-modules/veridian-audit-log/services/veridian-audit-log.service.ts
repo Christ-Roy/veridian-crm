@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
+import { type QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 
 import { type VeridianAuditLogEntry } from 'src/engine/core-modules/veridian-audit-log/types/veridian-audit-log-entry.type';
 import { type VeridianAuditLogFindArgs } from 'src/engine/core-modules/veridian-audit-log/types/veridian-audit-log-find-args.type';
@@ -19,8 +20,6 @@ const MAX_PAGE_SIZE = 200;
  */
 @Injectable()
 export class VeridianAuditLogService {
-  private readonly logger = new Logger(VeridianAuditLogService.name);
-
   constructor(
     @InjectRepository(VeridianAuditLogEntity)
     private readonly auditLogRepository: Repository<VeridianAuditLogEntity>,
@@ -52,7 +51,12 @@ export class VeridianAuditLogService {
       occurredAt: entry.occurredAt ? new Date(entry.occurredAt) : null,
     }));
 
-    await this.auditLogRepository.insert(rows);
+    // Cast required because the jsonb columns (context/diff) are typed as
+    // Record objects, which TypeORM's QueryDeepPartialEntity recurses into.
+    // Same pattern as public-domain.service.ts (AGPL).
+    await this.auditLogRepository.insert(
+      rows as QueryDeepPartialEntity<VeridianAuditLogEntity>[],
+    );
   }
 
   /**

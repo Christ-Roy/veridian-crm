@@ -1,5 +1,3 @@
-import { Logger } from '@nestjs/common';
-
 import { Process } from 'src/engine/core-modules/message-queue/decorators/process.decorator';
 import { Processor } from 'src/engine/core-modules/message-queue/decorators/processor.decorator';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
@@ -14,8 +12,6 @@ import { VeridianAuditLogService } from 'src/engine/core-modules/veridian-audit-
  */
 @Processor(MessageQueue.veridianAuditLogQueue)
 export class VeridianAuditLogWriterJob {
-  private readonly logger = new Logger(VeridianAuditLogWriterJob.name);
-
   constructor(
     private readonly veridianAuditLogService: VeridianAuditLogService,
   ) {}
