@@ -79,3 +79,26 @@ ssh prod-pub 'docker logs compose-parse-optical-array-lvh5md-crm-server-1 2>&1 \
 Backup pré-deploy disponible (filet) :
 `prod-pub:/home/ubuntu/backups/crm-prod/crm-prod-twenty-20260614-060749.dump`
 (custom -Fc, restaurable vérifié, sha256 eb93f24001…c48a7).
+
+## Décision (2026-06-14) — promo prod actée RÉUSSIE, pas de rollback
+
+Tranché par le team lead après vérification croisée : **deploy considéré réussi,
+dette ci-dessus tracée pour traitement ultérieur.** Justification :
+
+- Échec **identique au staging** validé "sain 13h+" (même
+  `SyncStandardUiCapabilityFlagsCommand`, upgrade 2.9.0→2.13.0) → pas une
+  régression introduite par la prod.
+- **Impact data nul** : migration de schéma DB réussie, app pleinement
+  fonctionnelle (front HTTP 200, `/graphql` + `/metadata` OK, healthz `ok`),
+  server+worker `rc=0` stables.
+- Un rollback réintroduirait l'ancienne version (perte des 47 CVE corrigées +
+  du merge upstream) **sans rien régler** au souci cosmétique.
+
+Filets en place si besoin futur :
+- Image `:rollback` sur GHCR = l'ancienne `:latest` (digest applicatif
+  `sha256:2f096490…c1c64d`, retaggée au build main avant écrasement).
+- Backup DB pré-deploy ci-dessus.
+
+Nouvelle image prod : `:latest` digest `sha256:6b82dc1e…085616`, ImageID
+`e042cdd6…`, déployée via compose.deploy (composeId `8zdqAAD1lkZFVAwuZ5USv`)
+après `docker pull` forcé (contournement du piège autoDeploy Dokploy).
