@@ -9,20 +9,29 @@ import { BadRequestException } from '@nestjs/common';
 import { VeridianOidcService } from 'src/engine/core-modules/veridian-sso/services/veridian-oidc.service';
 import { type VeridianOidcConfig } from 'src/engine/core-modules/veridian-sso/types/veridian-sso-config.type';
 
-const authorizationUrl = jest.fn();
-const callback = jest.fn();
-const userinfo = jest.fn();
-const ClientMock = jest.fn().mockImplementation(() => ({
-  authorizationUrl,
-  callback,
-  userinfo,
-}));
+// Tout est défini DANS la factory : jest hoiste jest.mock() au top du fichier,
+// la factory ne peut donc pas référencer de variable out-of-scope (sauf préfixe
+// `mock`). On expose les jest.fn() via __mocks pour les piloter dans les tests.
+jest.mock('openid-client', () => {
+  const authorizationUrl = jest.fn();
+  const callback = jest.fn();
+  const userinfo = jest.fn();
+  const ClientMock = jest.fn().mockImplementation(() => ({
+    authorizationUrl,
+    callback,
+    userinfo,
+  }));
 
-jest.mock('openid-client', () => ({
-  Issuer: {
-    discover: jest.fn().mockResolvedValue({ Client: ClientMock }),
-  },
-}));
+  return {
+    Issuer: {
+      discover: jest.fn().mockResolvedValue({ Client: ClientMock }),
+    },
+    __mocks: { authorizationUrl, callback, userinfo, ClientMock },
+  };
+});
+
+const oidcMock = jest.requireMock('openid-client') as any;
+const { authorizationUrl, callback, userinfo, ClientMock } = oidcMock.__mocks;
 
 const CONFIG: VeridianOidcConfig = {
   issuerUrl: 'https://idp.example.com',

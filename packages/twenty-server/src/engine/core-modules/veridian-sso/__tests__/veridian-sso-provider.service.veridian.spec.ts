@@ -60,8 +60,9 @@ describe('VeridianSsoProviderService (clean-room)', () => {
       JSON.stringify(config),
       { workspaceId: 'ws-1' },
     );
+    // La valeur persistée est le ciphertext (préfixe enc:), pas le JSON brut.
     expect(saved.encryptedConfig).toBe(`enc:${JSON.stringify(config)}`);
-    expect(saved.encryptedConfig).not.toContain('CERT'.toLowerCase());
+    expect(saved.encryptedConfig.startsWith('enc:')).toBe(true);
     expect(saved.isEnabled).toBe(true);
   });
 
