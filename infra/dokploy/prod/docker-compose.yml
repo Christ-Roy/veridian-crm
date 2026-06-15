@@ -3,8 +3,12 @@
 # Cible : VPS OVH prod (51.210.7.44), réseau dokploy-network swarm,
 # Traefik Dokploy (cert resolver letsencrypt déjà câblé Dokploy).
 #
-# Image : ghcr.io/christ-roy/veridian-crm:latest (buildée par
-# .github/workflows/veridian-crm-build-image.yaml sur push main).
+# Image : ghcr.io/christ-roy/veridian-crm:${CRM_IMAGE_TAG:-latest}
+# (buildée par .github/workflows/veridian-crm-build-image.yaml sur push
+# main, qui pousse :latest ET :<sha7>). En PROD on PIN le SHA via l'ENV
+# Dokploy CRM_IMAGE_TAG=<sha7> (déploiement déterministe + rollback propre
+# = repointer la var vers le SHA précédent), comme les autres apps Veridian.
+# Fallback :latest si la var n'est pas définie.
 #
 # Domaine : crm.app.veridian.site (couvert par wildcard
 # *.app.veridian.site → 51.210.7.44 déjà présent côté DNS Cloudflare).
@@ -68,7 +72,7 @@ services:
           cpus: "0.05"
 
   crm-server:
-    image: ghcr.io/christ-roy/veridian-crm:latest
+    image: ghcr.io/christ-roy/veridian-crm:${CRM_IMAGE_TAG:-latest}
     restart: unless-stopped
     networks:
       - dokploy-network
@@ -187,7 +191,7 @@ services:
       - "traefik.http.services.crm-prod.loadbalancer.server.port=3000"
 
   crm-worker:
-    image: ghcr.io/christ-roy/veridian-crm:latest
+    image: ghcr.io/christ-roy/veridian-crm:${CRM_IMAGE_TAG:-latest}
     restart: unless-stopped
     networks:
       - crm-internal
