@@ -123,6 +123,16 @@ services:
       EMAIL_SMTP_PASSWORD: ${SMTP_PASS}
       EMAIL_FROM_ADDRESS: ${SMTP_ADMIN_EMAIL}
       EMAIL_FROM_NAME: ${SMTP_SENDER_NAME}
+      # Google OAuth APIs (Gmail readonly/send/compose + Calendar) — projet GCP
+      # dédié veridian-crm-8013, consent screen mode TEST (test users choisis).
+      # Client OAuth Web "Veridian CRM Web". Sert UNIQUEMENT les APIs (pas le
+      # login Google : AUTH_GOOGLE_ENABLED volontairement non posé). Valeurs
+      # dans le champ env Dokploy (CRM_GOOGLE_OAUTH_* du vault .all-creds.env).
+      MESSAGING_PROVIDER_GMAIL_ENABLED: ${MESSAGING_PROVIDER_GMAIL_ENABLED:-false}
+      CALENDAR_PROVIDER_GOOGLE_ENABLED: ${CALENDAR_PROVIDER_GOOGLE_ENABLED:-false}
+      AUTH_GOOGLE_CLIENT_ID: ${AUTH_GOOGLE_CLIENT_ID}
+      AUTH_GOOGLE_CLIENT_SECRET: ${AUTH_GOOGLE_CLIENT_SECRET}
+      AUTH_GOOGLE_APIS_CALLBACK_URL: ${AUTH_GOOGLE_APIS_CALLBACK_URL}
       LOG_LEVELS: error,warn,log
     volumes:
       - crm-prod-storage:/app/.local-storage
@@ -226,6 +236,14 @@ services:
       EMAIL_SMTP_PASSWORD: ${SMTP_PASS}
       EMAIL_FROM_ADDRESS: ${SMTP_ADMIN_EMAIL}
       EMAIL_FROM_NAME: ${SMTP_SENDER_NAME}
+      # Google OAuth APIs — le worker exécute la SYNC mail/calendar (cron
+      # MessagingMessagesImport / CalendarEventsImport) → il a besoin des mêmes
+      # creds que le server. Cf. bloc server ci-dessus.
+      MESSAGING_PROVIDER_GMAIL_ENABLED: ${MESSAGING_PROVIDER_GMAIL_ENABLED:-false}
+      CALENDAR_PROVIDER_GOOGLE_ENABLED: ${CALENDAR_PROVIDER_GOOGLE_ENABLED:-false}
+      AUTH_GOOGLE_CLIENT_ID: ${AUTH_GOOGLE_CLIENT_ID}
+      AUTH_GOOGLE_CLIENT_SECRET: ${AUTH_GOOGLE_CLIENT_SECRET}
+      AUTH_GOOGLE_APIS_CALLBACK_URL: ${AUTH_GOOGLE_APIS_CALLBACK_URL}
       LOG_LEVELS: error,warn,log
       # Le worker ne migre pas la DB ni n'enregistre les crons (le server
       # s'en charge). On désactive pour éviter une race au boot.
