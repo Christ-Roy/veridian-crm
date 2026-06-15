@@ -95,10 +95,25 @@ export class ObjectMetadataEntity
   @Column({ default: true })
   isUIEditable: boolean;
 
-  // Superseded by isUIEditable. Intentionally NOT @WasRemovedInUpgrade: dropping
-  // it in 2.13 would break the previous release's pods mid rolling-deploy, since
-  // they still SELECT it. The WasRemovedInUpgrade<T> type is kept so callers may
-  // omit it; the decorator + physical drop are deferred (core-team-issues#2542).
+  // Superseded by isUIEditable.
+  //
+  // Veridian patch (AGPL inline, cf VERIDIAN-PATCHES.md): upstream intentionally
+  // left this column WITHOUT @WasRemovedInUpgrade — their rationale is a rolling
+  // ArgoCD deploy where previous-release pods still SELECT isUIReadOnly mid-roll
+  // (core-team-issues#2542). But the 2.13 rename instance command
+  // (RENAME_IS_UI_READ_ONLY_TO_IS_UI_EDITABLE) actually DROPS the physical column
+  // (renames it to isUIEditable). Without the decorator, TypeORM keeps SELECTing
+  // a column that no longer exists on every workspace whose upgrade cursor has
+  // passed the rename → `column ObjectMetadataEntity.isUIReadOnly does not exist`
+  // crashes the ORM metadata cache (WorkspaceORMEntityMetadatasCacheService),
+  // which deadlocks SyncStandardUiCapabilityFlags AND breaks every data query
+  // (GraphQL + REST). We do single-container compose deploys (no rolling roll),
+  // so the upstream rolling-deploy concern does not apply: adding the decorator
+  // hides the column once the rename has run, exactly like the isCustom column
+  // above. Ref todo/2026-06-14-upgrade-ui-capability-flags-fail.md.
+  @WasRemovedInUpgrade({
+    upgradeCommandName: RENAME_IS_UI_READ_ONLY_TO_IS_UI_EDITABLE_UPGRADE_COMMAND_NAME,
+  })
   @Column({ type: 'boolean', default: false })
   isUIReadOnly: WasRemovedInUpgrade<boolean>;
 

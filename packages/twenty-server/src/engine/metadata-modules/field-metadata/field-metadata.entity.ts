@@ -129,10 +129,20 @@ export class FieldMetadataEntity<
   @Column({ default: true })
   isUIEditable: boolean;
 
-  // Superseded by isUIEditable. Intentionally NOT @WasRemovedInUpgrade: dropping
-  // it in 2.13 would break the previous release's pods mid rolling-deploy, since
-  // they still SELECT it. The WasRemovedInUpgrade<T> type is kept so callers may
-  // omit it; the decorator + physical drop are deferred (core-team-issues#2542).
+  // Superseded by isUIEditable.
+  //
+  // Veridian patch (AGPL inline, cf VERIDIAN-PATCHES.md): same fix as
+  // ObjectMetadataEntity.isUIReadOnly. Upstream left this column without
+  // @WasRemovedInUpgrade for a rolling ArgoCD deploy concern, but the 2.13 rename
+  // instance command physically drops the column, so TypeORM crashes
+  // (`column FieldMetadataEntity.isUIReadOnly does not exist`) once a workspace's
+  // upgrade cursor passes the rename. We deploy single-container, so adding the
+  // decorator (which hides the column after the rename has run) is safe and
+  // unblocks the cross-version upgrade + all data queries.
+  // Ref todo/2026-06-14-upgrade-ui-capability-flags-fail.md.
+  @WasRemovedInUpgrade({
+    upgradeCommandName: RENAME_IS_UI_READ_ONLY_TO_IS_UI_EDITABLE_UPGRADE_COMMAND_NAME,
+  })
   @Column({ type: 'boolean', default: false })
   isUIReadOnly: WasRemovedInUpgrade<boolean>;
 

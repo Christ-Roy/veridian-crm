@@ -54,45 +54,13 @@ export class SyncStandardUiCapabilityFlagsCommand extends ActiveOrSuspendedWorks
         { workspaceId },
       );
 
-    // Veridian patch (AGPL inline, cf VERIDIAN-PATCHES.md) — read the existing
-    // UI flags with RAW SQL instead of workspaceCacheService.getOrRecompute().
-    // getOrRecompute reads through the ObjectMetadataEntity/FieldMetadataEntity
-    // ORM, which still maps the removed `isUIReadOnly` column via
-    // @WasRemovedInUpgrade. On a workspace whose upgrade cursor is parked on THIS
-    // very command (cross-version upgrade), the UpgradeAwareEntityMetadataAdapter
-    // has not yet hidden that column, so the generated SELECT references
-    // `isUIReadOnly` — which the rename instance command already dropped — and
-    // throws `column ObjectMetadataEntity.isUIReadOnly does not exist`. That
-    // crash is a deadlock: the command can never complete, the cursor never
-    // advances, the column never gets hidden, and every data query that recomputes
-    // the flat-metadata cache crashes the same way (GraphQL + REST). Upstream
-    // #21543 fixed the write path but left this read path on the ORM.
-    // We only consume { id, universalIdentifier, isUICreatable, isUIEditable }
-    // below, so a narrow raw read on the already-migrated columns is sufficient
-    // and side-steps the phantom `isUIReadOnly` SELECT entirely.
-    const existingFlatObjectMetadataMaps = {
-      byUniversalIdentifier: await this.readExistingUiFlagsByUniversalIdentifier<{
-        id: string;
-        universalIdentifier: string;
-        isUICreatable: boolean;
-        isUIEditable: boolean;
-      }>(
-        workspaceId,
-        'objectMetadata',
-        '"id", "universalIdentifier", "isUICreatable", "isUIEditable"',
-      ),
-    };
-    const existingFlatFieldMetadataMaps = {
-      byUniversalIdentifier: await this.readExistingUiFlagsByUniversalIdentifier<{
-        id: string;
-        universalIdentifier: string;
-        isUIEditable: boolean;
-      }>(
-        workspaceId,
-        'fieldMetadata',
-        '"id", "universalIdentifier", "isUIEditable"',
-      ),
-    };
+    const {
+      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+      flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
+    } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
+      'flatObjectMetadataMaps',
+      'flatFieldMetadataMaps',
+    ]);
 
     const { allFlatEntityMaps: standardAllFlatEntityMaps } =
       computeTwentyStandardApplicationAllFlatEntityMaps({
@@ -229,24 +197,18 @@ export class SyncStandardUiCapabilityFlagsCommand extends ActiveOrSuspendedWorks
       await queryRunner.release();
     }
 
-    // The raw writes bypass the metadata cache, so flush the flat maps the app
-    // reads these flags from (after the transaction has committed).
-    // Veridian patch (AGPL inline, cf VERIDIAN-PATCHES.md): use flush() (Redis +
-    // local cache eviction only), NOT invalidateAndRecompute(). The latter
-    // immediately recomputes via the ORM, which — on a workspace whose cursor is
-    // still parked on this command — re-triggers the same phantom `isUIReadOnly`
-    // SELECT and would throw here too. The flags are already persisted; the cache
-    // self-heals on the next getOrRecompute, by which point the cursor has
-    // advanced past the rename and the column is hidden. A cache hiccup must not
-    // fail the upgrade.
+    // The raw writes bypass the metadata cache, so invalidate the flat maps the
+    // app reads these flags from (after the transaction has committed). The
+    // flags are already persisted, so a cache hiccup must not fail the upgrade —
+    // a stale cache self-heals on the next flush / version bump.
     try {
-      await this.workspaceCacheService.flush(workspaceId, [
+      await this.workspaceCacheService.invalidateAndRecompute(workspaceId, [
         'flatObjectMetadataMaps',
         'flatFieldMetadataMaps',
       ]);
     } catch (cacheError) {
       this.logger.warn(
-        `Synced UI capability flags for workspace ${workspaceId} but failed to flush the metadata cache: ${
+        `Synced UI capability flags for workspace ${workspaceId} but failed to invalidate the metadata cache: ${
           cacheError instanceof Error ? cacheError.message : String(cacheError)
         }`,
       );
@@ -255,33 +217,5 @@ export class SyncStandardUiCapabilityFlagsCommand extends ActiveOrSuspendedWorks
     this.logger.log(
       `Successfully synced UI capability flags on ${objectsToUpdate.length} standard object(s) and ${fieldsToUpdate.length} standard field(s) for workspace ${workspaceId}`,
     );
-  }
-
-  // Veridian patch (AGPL inline, cf VERIDIAN-PATCHES.md). Raw read of the UI
-  // capability flags for a workspace's standard metadata, keyed by
-  // universalIdentifier. Deliberately does NOT go through the ORM/flat-metadata
-  // cache: the metadata entities still map the removed `isUIReadOnly` column via
-  // @WasRemovedInUpgrade, and the generated SELECT would reference a column that
-  // the rename instance command already dropped on a workspace whose upgrade
-  // cursor is parked on this very command (see runOnWorkspace for the full
-  // rationale). Only standard (non-custom) rows are synced by this command.
-  private async readExistingUiFlagsByUniversalIdentifier<
-    T extends { universalIdentifier: string },
-  >(
-    workspaceId: string,
-    table: 'objectMetadata' | 'fieldMetadata',
-    columns: string,
-  ): Promise<Record<string, T>> {
-    const rows: T[] = await this.coreDataSource.query(
-      `SELECT ${columns} FROM "core"."${table}"
-       WHERE "workspaceId" = $1 AND "universalIdentifier" IS NOT NULL`,
-      [workspaceId],
-    );
-
-    return rows.reduce<Record<string, T>>((acc, row) => {
-      acc[row.universalIdentifier] = row;
-
-      return acc;
-    }, {});
   }
 }
