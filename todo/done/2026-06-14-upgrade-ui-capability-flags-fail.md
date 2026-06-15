@@ -1,8 +1,8 @@
 # UpgradeCommand échoue sur SyncStandardUiCapabilityFlags (isUIEditable sur relation fields)
 
-> **Sévérité** : 🟡 P1 (le sync 2026-06-15 transforme cette dette en régression
->   RUNTIME bloquante — voir maj 2026-06-15. Sur la PROD actuelle elle reste 🟢
->   non bloquante, mais elle GATE la promo du sync upstream e70776f705.)
+> **Sévérité** : ✅ RÉSOLU 2026-06-15 (sur staging, sync e70776f705 + fix
+>   @WasRemovedInUpgrade). Voir "RÉSOLUTION 2026-06-15" en bas. Reste à valider
+>   au runtime PROD après promo (les workspaces prod ont le même état).
 > **Owner** : agent veridian-crm
 > **Créé** : 2026-06-14
 
@@ -155,3 +155,40 @@ intacte.
    Couvrir par un `*.veridian.spec`. **Reco privilégiée.**
 2. Faire avancer le cursor des workspaces hors de cette commande (ordering).
 3. Attendre un fix upstream (cross-version non testé en amont) — coûte la dette CVE.
+
+## ✅ RÉSOLUTION 2026-06-15 (sur staging, sync e70776f705)
+
+**Vraie cause racine** (trouvée via la stack trace complète, PAS la piste FIELD_MUTATION) :
+le crash venait de `WorkspaceORMEntityMetadatasCacheService.computeForCache`
+(`objectMetadataRepository.find()` / `fieldMetadataRepository.find()`) — le cache
+ORM bas niveau, déclenché par TOUT recompute de metadata (la commande d'upgrade ET
+le runtime app). `object/field-metadata.entity.ts` déclaraient `isUIReadOnly` en
+`@Column` actif mais **sans** `@WasRemovedInUpgrade` (upstream l'avait omis
+volontairement pour un rolling-deploy ArgoCD — commentaire dans le code,
+core-team-issues#2542). Or le rename instance 2.13 DROPPE physiquement la colonne
+→ l'ORM SELECT une colonne morte → `column isUIReadOnly does not exist` → deadlock.
+
+**Fix appliqué (root cause, 2 décorateurs, AGPL)** :
+`@WasRemovedInUpgrade({ upgradeCommandName: RENAME_IS_UI_READ_ONLY_TO_IS_UI_EDITABLE })`
+sur `isUIReadOnly` dans `object-metadata.entity.ts` ET `field-metadata.entity.ts`
+→ l'upgrade-aware adapter masque la colonne dès que le rename a tourné (completed).
+On déploie en single-container compose, donc le risque rolling-deploy upstream ne
+s'applique pas. Couvre tous les chemins ORM d'un coup.
+Test patch-survival : `object-metadata/__tests__/is-ui-read-only-removed-decorator.veridian.spec.ts`.
+(Le 1er essai — lecture SQL brute dans la commande — était insuffisant car le crash
+était ailleurs ; il a été REVERTÉ.)
+
+**Preuve runtime staging** (image `22d2b40f1d`) :
+- Logs adapter : `hidden columns on ObjectMetadataEntity: isCustom,isUIReadOnly`
+  (avant : seulement `isCustom`).
+- `Upgrade summary: 5 workspace(s) succeeded, 0 workspace(s) failed` + `Successfully migrated DB!`
+- DB : `SyncStandardUiCapabilityFlags` = 5 completed (0 fail au dernier boot).
+- CRUD réel via Bearer : READ 200, CREATE 201, READ-BACK ok, DELETE 200, vérif suppression ok.
+- `GET /rest/companies` + `query{companies}` → 200 + données (validé aussi par le lead).
+- tcpdump : 0 leak vers twenty-companies / models.dev / twenty-help-search.
+
+**Reste pour la PROD** : la prod a les MÊMES workspaces bloqués sur
+`SyncStandardUiCapabilityFlags`. Après promo, le fix s'applique au boot (le rename
+est déjà completed en prod), MAIS gate obligatoire = vérifier que
+`GET /rest/companies` PROD répond 200/data APRÈS le deploy (pas juste "migration
+completed"). Backup prod pré-deploy : voir plus haut.
