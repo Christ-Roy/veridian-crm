@@ -161,6 +161,7 @@ services:
       - "traefik.http.routers.crm-prod-websecure.tls.domains[0].main=crm.app.veridian.site"
       - "traefik.http.routers.crm-prod-websecure.tls.domains[0].sans=*.crm.app.veridian.site"
       - "traefik.http.routers.crm-prod-websecure.service=crm-prod"
+      - "traefik.http.routers.crm-prod-websecure.middlewares=crm-prod-noindex"
 
       # --- Router prioritaire : /welcome → redirect vers Hub (signup
       # public Twenty bloqué — tout signup CRM passe par le Hub) ---
@@ -176,6 +177,11 @@ services:
       - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.regex=.*"
       - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.replacement=https://app.veridian.site/signup"
       - "traefik.http.middlewares.crm-prod-redirect-signup.redirectregex.permanent=true"
+      # noindex : crm.app est en DNS-only (non proxied CF) → la règle noindex
+      # Cloudflare de la zone ne s'applique PAS ici. On pose donc le X-Robots-Tag
+      # côté Traefik pour empêcher Google d'indexer le CRM (app auth-protected,
+      # crawlée le 2026-05-29, INDEXING_ALLOWED côté GSC). Posé 2026-06-15.
+      - "traefik.http.middlewares.crm-prod-noindex.headers.customResponseHeaders.X-Robots-Tag=noindex, nofollow, noarchive"
 
       # --- Service ---
       - "traefik.http.services.crm-prod.loadbalancer.server.port=3000"
