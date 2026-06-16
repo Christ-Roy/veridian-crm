@@ -27,27 +27,65 @@ export const VERIDIAN_RECORD_OPEN_DELAY_MS = 5000;
  */
 export const VERIDIAN_FICHE_OUVERTE_AT_FIELD = 'ficheOuverteAt' as const;
 export const VERIDIAN_FICHE_OUVERTE_PAR_FK_FIELD = 'ficheOuverteParId' as const;
+export const VERIDIAN_STATUT_COLD_CALL_FIELD = 'statutColdCall' as const;
+
+/**
+ * Valeurs du SELECT `statutColdCall` impliquées dans la mécanique d'ouverture
+ * (présentes en prod sur Company ET Person, cf metadata 2026-06-17).
+ *
+ * Règle d'or (Robert) : on ne fait PROGRESSER que `A_APPELER → FICHE_OUVERTE`.
+ * On ne RÉGRESSE JAMAIS une fiche déjà travaillée (RAPPELER / EN_DISCUSSION /
+ * QUALIFIE / PAS_INTERESSE / INJOIGNABLE) : la rouvrir ne doit pas la repasser
+ * en "fiche ouverte".
+ */
+export const VERIDIAN_STATUT_A_APPELER = 'A_APPELER' as const;
+export const VERIDIAN_STATUT_FICHE_OUVERTE = 'FICHE_OUVERTE' as const;
 
 export type VeridianRecordOpenInput = {
   [VERIDIAN_FICHE_OUVERTE_AT_FIELD]: string;
   [VERIDIAN_FICHE_OUVERTE_PAR_FK_FIELD]: string;
+  [VERIDIAN_STATUT_COLD_CALL_FIELD]?: typeof VERIDIAN_STATUT_FICHE_OUVERTE;
+};
+
+type BuildRecordOpenInputOptions = {
+  /**
+   * Valeur courante du `statutColdCall` de la fiche, lue au moment de la
+   * confirmation. Si — et SEULEMENT si — elle vaut `A_APPELER`, on fait
+   * progresser le statut vers `FICHE_OUVERTE`. Toute autre valeur (ou
+   * undefined/null) → on ne touche PAS au statut.
+   */
+  currentStatutColdCall?: string | null;
+  /**
+   * Date d'ouverture (par défaut: maintenant). Sérialisée en ISO (format
+   * attendu par un champ DATE_TIME Twenty, cf `isFieldDateTimeValue`).
+   */
+  openedAt?: Date;
 };
 
 /**
  * Construit le payload d'update d'une ouverture confirmée.
  *
+ * Pose toujours `ficheOuverteAt` + `ficheOuverteParId`. N'ajoute
+ * `statutColdCall = FICHE_OUVERTE` que si le statut courant est `A_APPELER`
+ * (progression only, jamais de régression d'une fiche travaillée).
+ *
  * @param workspaceMemberId id du commercial qui ouvre la fiche.
- * @param openedAt          Date d'ouverture (par défaut: maintenant).
- *                          Sérialisée en ISO (format attendu par un champ
- *                          DATE_TIME Twenty, cf `isFieldDateTimeValue`).
  */
 export const buildRecordOpenInput = (
   workspaceMemberId: string,
-  openedAt: Date = new Date(),
-): VeridianRecordOpenInput => ({
-  [VERIDIAN_FICHE_OUVERTE_AT_FIELD]: openedAt.toISOString(),
-  [VERIDIAN_FICHE_OUVERTE_PAR_FK_FIELD]: workspaceMemberId,
-});
+  { currentStatutColdCall, openedAt = new Date() }: BuildRecordOpenInputOptions = {},
+): VeridianRecordOpenInput => {
+  const input: VeridianRecordOpenInput = {
+    [VERIDIAN_FICHE_OUVERTE_AT_FIELD]: openedAt.toISOString(),
+    [VERIDIAN_FICHE_OUVERTE_PAR_FK_FIELD]: workspaceMemberId,
+  };
+
+  if (currentStatutColdCall === VERIDIAN_STATUT_A_APPELER) {
+    input[VERIDIAN_STATUT_COLD_CALL_FIELD] = VERIDIAN_STATUT_FICHE_OUVERTE;
+  }
+
+  return input;
+};
 
 /**
  * Objets sur lesquels la mécanique d'ouverture s'applique (ceux qui portent

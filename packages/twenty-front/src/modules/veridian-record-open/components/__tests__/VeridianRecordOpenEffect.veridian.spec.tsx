@@ -4,9 +4,11 @@ import { VeridianRecordOpenEffect } from '@/veridian-record-open/components/Veri
 import { VERIDIAN_RECORD_OPEN_DELAY_MS } from '@/veridian-record-open/utils/buildRecordOpenInput';
 
 // Veridian (cf VERIDIAN-PATCHES.md) : logique TIMER de la mécanique d'ouverture
-// de fiche. On isole le composant de l'API/auth réels :
+// de fiche. On isole le composant de l'API/auth/store réels :
 //   - useUpdateOneRecord → spy observable
 //   - currentWorkspaceMember → membre de test
+//   - store jotai → renvoie le statutColdCall courant (mutable) pour tester la
+//     progression A_APPELER → FICHE_OUVERTE (et l'absence de régression)
 // puis on pilote le timer 5s avec les fake timers Jest.
 //
 // NB : les variables référencées dans une factory `jest.mock` DOIVENT être
@@ -26,11 +28,39 @@ jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue', () => ({
   useAtomStateValue: () => mockCurrentWorkspaceMember,
 }));
 
+// Statut courant servi par le store jotai (lecture one-shot à la confirmation).
+let mockCurrentStatutColdCall: string | null | undefined = 'A_APPELER';
+
+// Le composant appelle store.get(recordStoreFamilySelector.selectorFamily(...)).
+// On fait renvoyer au selector une clé portant le fieldName, et au store.get le
+// statut courant quand on lit `statutColdCall`.
+jest.mock(
+  '@/object-record/record-store/states/selectors/recordStoreFamilySelector',
+  () => ({
+    recordStoreFamilySelector: {
+      selectorFamily: ({ fieldName }: { fieldName: string }) => ({ fieldName }),
+    },
+  }),
+);
+
+// On garde le vrai jotai (les atoms réels sont créés au chargement de modules
+// voisins, ex currentWorkspaceMemberState) et on n'override QUE useStore.
+jest.mock('jotai', () => ({
+  ...jest.requireActual('jotai'),
+  useStore: () => ({
+    get: (selectorKey: { fieldName: string }) =>
+      selectorKey?.fieldName === 'statutColdCall'
+        ? mockCurrentStatutColdCall
+        : undefined,
+  }),
+}));
+
 describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     mockUpdateOneRecord.mockClear();
     mockCurrentWorkspaceMember = { id: 'wm-99', name: { firstName: 'Robert' } };
+    mockCurrentStatutColdCall = 'A_APPELER';
   });
 
   afterEach(() => {
@@ -72,6 +102,44 @@ describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
     expect(callArg.updateOneRecordInput.ficheOuverteParId).toBe('wm-99');
     expect(typeof callArg.updateOneRecordInput.ficheOuverteAt).toBe('string');
   });
+
+  it('fait progresser le statut A_APPELER → FICHE_OUVERTE', () => {
+    mockCurrentStatutColdCall = 'A_APPELER';
+    render(
+      <VeridianRecordOpenEffect
+        recordId="rec-1"
+        objectNameSingular="company"
+      />,
+    );
+    act(() => {
+      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
+    });
+    expect(
+      mockUpdateOneRecord.mock.calls[0][0].updateOneRecordInput.statutColdCall,
+    ).toBe('FICHE_OUVERTE');
+  });
+
+  it.each(['RAPPELER', 'EN_DISCUSSION', 'QUALIFIE', 'FICHE_OUVERTE', null])(
+    "ne régresse PAS le statut d'une fiche déjà travaillée (%s) — mais horodate quand même",
+    (statut) => {
+      mockCurrentStatutColdCall = statut as string | null;
+      render(
+        <VeridianRecordOpenEffect
+          recordId="rec-1"
+          objectNameSingular="company"
+        />,
+      );
+      act(() => {
+        jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
+      });
+      expect(mockUpdateOneRecord).toHaveBeenCalledTimes(1);
+      const input = mockUpdateOneRecord.mock.calls[0][0].updateOneRecordInput;
+      expect(input).not.toHaveProperty('statutColdCall');
+      // l'horodatage + l'identité du commercial sont posés dans tous les cas
+      expect(input.ficheOuverteParId).toBe('wm-99');
+      expect(typeof input.ficheOuverteAt).toBe('string');
+    },
+  );
 
   it('annule (rien écrit) si la fiche est fermée AVANT 5s (unmount)', () => {
     const { unmount } = render(

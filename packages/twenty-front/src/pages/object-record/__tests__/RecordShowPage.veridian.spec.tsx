@@ -52,11 +52,16 @@ jest.mock(
 );
 
 // Marqueurs neutres pour tout le décor (providers + composants lourds).
-const mockPassThrough =
-  (testId: string) =>
-  ({ children }: { children?: ReactNode }) => (
+// IMPORTANT : déclaration `function` (hoistée) et NON `const` arrow — les
+// factories `jest.mock` ci-dessous l'appellent au CHARGEMENT du module (les
+// Context.Provider sont résolus eagerly quand RecordShowPage est importé). Un
+// `const` serait dans la TDZ au moment de la résolution des mocks hoistés par
+// @swc/jest → `Cannot access 'mockPassThrough' before initialization`.
+function mockPassThrough(testId: string) {
+  return ({ children }: { children?: ReactNode }) => (
     <div data-testid={testId}>{children}</div>
   );
+}
 
 jest.mock('@/side-panel/components/SidePanelToggleButton', () => ({
   SidePanelToggleButton: () => <div />,

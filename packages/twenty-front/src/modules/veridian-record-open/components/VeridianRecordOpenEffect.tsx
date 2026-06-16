@@ -8,19 +8,24 @@
 //     RIEN (= clic par erreur / prospect n'a pas décroché, cf VISION §4.1.3) ;
 //   - si la fiche reste ouverte ≥ 5s → écrit `ficheOuverteAt` + le commercial
 //     dans `ficheOuverteParId` via l'API update (une seule écriture par
-//     ouverture confirmée — idempotence par ref).
+//     ouverture confirmée — idempotence par ref) ; et fait progresser
+//     `statutColdCall` A_APPELER → FICHE_OUVERTE (jamais de régression d'une
+//     fiche déjà travaillée, cf VISION §4.1.2 + garde Robert 2026-06-17).
 //
 // Le composant ne rend rien (return null) — c'est un effet de présence.
 
 import { useEffect, useRef } from 'react';
+import { useStore } from 'jotai';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
+import { recordStoreFamilySelector } from '@/object-record/record-store/states/selectors/recordStoreFamilySelector';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { isDefined } from 'twenty-shared/utils';
 
 import {
   VERIDIAN_RECORD_OPEN_DELAY_MS,
+  VERIDIAN_STATUT_COLD_CALL_FIELD,
   buildRecordOpenInput,
   isVeridianRecordOpenObject,
 } from '@/veridian-record-open/utils/buildRecordOpenInput';
@@ -36,6 +41,10 @@ export const VeridianRecordOpenEffect = ({
 }: VeridianRecordOpenEffectProps) => {
   const { updateOneRecord } = useUpdateOneRecord();
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
+  // Store jotai : lecture ONE-SHOT du statut courant au moment de la
+  // confirmation (pas un abonnement → aucun re-render, pas de re-trigger
+  // de l'effet quand le statut change).
+  const store = useStore();
 
   const workspaceMemberId = currentWorkspaceMember?.id;
 
@@ -76,10 +85,21 @@ export const VeridianRecordOpenEffect = ({
       // Marque AVANT l'appel async pour bloquer tout re-déclenchement concurrent.
       confirmedOpenKeyRef.current = openKey;
 
+      // Lecture one-shot du statut courant à l'instant de la confirmation
+      // (et non au mount) → on tranche la progression avec l'état le plus frais.
+      const currentStatutColdCall = store.get(
+        recordStoreFamilySelector.selectorFamily({
+          recordId,
+          fieldName: VERIDIAN_STATUT_COLD_CALL_FIELD,
+        }),
+      ) as string | null | undefined;
+
       void updateOneRecord({
         objectNameSingular,
         idToUpdate: recordId,
-        updateOneRecordInput: buildRecordOpenInput(workspaceMemberId),
+        updateOneRecordInput: buildRecordOpenInput(workspaceMemberId, {
+          currentStatutColdCall,
+        }),
       }).catch(() => {
         // L'update a échoué → on relâche la garde pour réessayer à la
         // prochaine ouverture confirmée de cette même fiche.
@@ -94,7 +114,7 @@ export const VeridianRecordOpenEffect = ({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [recordId, objectNameSingular, workspaceMemberId, updateOneRecord]);
+  }, [recordId, objectNameSingular, workspaceMemberId, updateOneRecord, store]);
 
   return null;
 };
