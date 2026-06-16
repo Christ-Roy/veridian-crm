@@ -35,6 +35,7 @@
 | `twenty-front/.../timeline-activities/rows/components/EventIconDynamicComponent.tsx` | early-check symétrique → icône parlante du module tunnel (sinon `Icon123`) | `EventIconDynamicComponent.veridian.spec.tsx` (icône tunnel, natifs intacts) |
 | `twenty-front/.../timeline-activities/utils/filterOutInvalidTimelineActivities.ts` | early-filter `isVeridianBridgeScoreNoise` → masque les `person.updated{score}` écrits par le bridge (API key), garde les updates humaines | `filterVeridianBridgeNoise.veridian.spec.ts` (bruit masqué, humain conservé) |
 | `engine/metadata-modules/object-metadata/object-metadata.entity.ts` **et** `engine/metadata-modules/field-metadata/field-metadata.entity.ts` | décorateur `@WasRemovedInUpgrade({upgradeCommandName: RENAME_IS_UI_READ_ONLY_TO_IS_UI_EDITABLE})` ajouté sur `isUIReadOnly` (upstream l'avait volontairement omis pour un rolling-deploy ArgoCD inexistant chez nous). Sans ça, le rename 2.13 droppe la colonne mais l'ORM la SELECT encore → `column isUIReadOnly does not exist` → deadlock cross-version (cf `todo/2026-06-14-upgrade-ui-capability-flags-fail.md`). | `object-metadata/__tests__/is-ui-read-only-removed-decorator.veridian.spec.ts` (le décorateur + son upgradeCommandName présents sur les 2 entities) |
+| `twenty-front/src/pages/object-record/RecordShowPage.tsx` | monte `<VeridianRecordOpenEffect objectNameSingular recordId>` dans la vue pleine page (à côté de `RecordShowPageSSESubscribeEffect`, `isInSidePanel={false}`) → mécanique "ouverture de fiche" (timer 5s → horodate `ficheOuverteAt` + `ficheOuverteParId` ; cf VISION-INSTANCE-TWENTY-CUSTOM §4). Logique 100% dans le module neuf `veridian-record-open`, le patch upstream = 1 import + 1 balise JSX. | `RecordShowPage.veridian.spec.tsx` (l'effet est monté + reçoit objectNameSingular/recordId) |
 
 ## Dépendances de nos modules `veridian-*` sur l'UI upstream (à re-vérifier à chaque sync)
 
@@ -57,6 +58,7 @@
 |---|---|---|
 | `veridian-tunnel-timeline/components/EventIconVeridianTunnel.tsx` | icons `twenty-ui-deprecated/display` | 2026-06-13 |
 | `veridian-tunnel-timeline/components/EventRowVeridianTunnel.tsx` | `MOBILE_VIEWPORT`, `themeCssVariables` de `twenty-ui-deprecated/theme-constants` ; `EventRowItem` de `@/activities/timeline-activities/rows/components` | 2026-06-13 |
+| `veridian-record-open/components/VeridianRecordOpenEffect.tsx` | `useUpdateOneRecord` de `@/object-record/hooks` ; `currentWorkspaceMemberState` de `@/auth/states` ; `useAtomStateValue` de `@/ui/utilities/state/jotai/hooks` ; `isDefined` de `twenty-shared/utils`. Tout rename de ces chemins par un sync casse le typecheck/build front (révélé par CI + build Docker). | 2026-06-17 |
 | `Dockerfile.veridian` (fichier custom Veridian, hors arbre upstream) | doit lister TOUS les workspaces du front dans `yarn workspaces focus` + les `COPY package.json` + `COPY` répertoire. Sensible à tout ajout/rename/scission de package upstream. Au sync 2026-06-13 : ajout de `twenty-ui-deprecated` (focus L45 + COPY L38/L106). | 2026-06-13 |
 
 ## Procédure de sync upstream (quand on bumpe le marker)
