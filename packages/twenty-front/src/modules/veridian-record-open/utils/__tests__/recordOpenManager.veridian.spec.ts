@@ -1,4 +1,4 @@
-import { getDefaultStore } from 'jotai';
+import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 
 import { veridianPendingOpenKeysState } from '@/veridian-record-open/states/veridianPendingOpenKeysState';
 import { VERIDIAN_RECORD_OPEN_DELAY_MS } from '@/veridian-record-open/utils/buildRecordOpenInput';
@@ -17,9 +17,12 @@ import {
 //
 // Tests purs : on pilote le décompte avec les fake timers Jest et on observe
 // (a) l'écriture (callback), (b) le pending atom (Set), (c) l'annulation.
+//
+// Le pending atom est écrit par le manager dans le store CUSTOM de Twenty
+// (`jotaiStore`, celui du <Provider store> — pas le store par défaut). Le test
+// lit donc le même `jotaiStore` pour observer le Set.
 
-const store = getDefaultStore();
-const pendingKeys = () => store.get(veridianPendingOpenKeysState.atom);
+const pendingKeys = () => jotaiStore.get(veridianPendingOpenKeysState.atom);
 
 describe('recordOpenManager (décompte à la fermeture)', () => {
   beforeEach(() => {

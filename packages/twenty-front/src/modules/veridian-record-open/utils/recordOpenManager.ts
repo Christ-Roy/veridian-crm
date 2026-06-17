@@ -22,13 +22,17 @@
 //   3. IDEMPOTENCE (Map openKey → état) : garantir UNE seule écriture par
 //      ouverture confirmée, jamais de double écriture.
 //
-// Accès à l'atom hors React : Twenty n'enveloppe pas l'app d'un `<Provider
-// store>` custom → tous les composants lisent le store jotai PAR DÉFAUT.
-// `getDefaultStore()` (de jotai) rend donc EXACTEMENT le même store que celui
-// que lisent les rows. Le manager écrit l'atom via ce store ; les rows abonnées
-// re-render. (Vérifié : aucun `<Provider store={...}>` dans twenty-front.)
+// Accès à l'atom hors React : ⚠️ Twenty ENVELOPPE l'app d'un `<Provider
+// store={jotaiStore}>` custom (cf `app/components/App.tsx`). Les rows lisent
+// donc l'atom via CE store-là, PAS le store jotai par défaut. Le manager DOIT
+// écrire l'atom dans le MÊME `jotaiStore` (sinon `getDefaultStore()` écrirait
+// dans un store fantôme que personne ne lit → aucune row ne scintillerait —
+// BUG constaté en live staging 2026-06-17 : le décompte/écriture marchaient mais
+// la row ne scintillait jamais). `jotaiStore` est un `let` réassigné par
+// `resetJotaiStore()` au logout → on le lit en LIVE (binding ESM) à chaque accès
+// via `getStore()`, jamais capturé une seule fois.
 
-import { getDefaultStore } from 'jotai';
+import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 
 import { veridianPendingOpenKeysState } from '@/veridian-record-open/states/veridianPendingOpenKeysState';
 import { VERIDIAN_RECORD_OPEN_DELAY_MS } from '@/veridian-record-open/utils/buildRecordOpenInput';
@@ -71,7 +75,10 @@ const scheduledOpens = new Map<string, ScheduledOpen>();
 // Garde d'idempotence des écritures (clé → état).
 const recordOpenGuardState = new Map<string, RecordOpenState>();
 
-const getStore = () => getDefaultStore();
+// Lit le store custom de Twenty en LIVE (le `let` jotaiStore peut être réassigné
+// au logout par resetJotaiStore) → on ne le capture jamais, on le relit à chaque
+// accès.
+const getStore = () => jotaiStore;
 
 const addPendingKey = (openKey: string): void => {
   const store = getStore();
