@@ -10,6 +10,10 @@ import { isRecordTableRowFocusedComponentFamilyState } from '@/object-record/rec
 
 import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+// Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : mécanique "ouverture de fiche"
+import { veridianActiveOpenKeyState } from '@/veridian-record-open/states/veridianActiveOpenKeyState';
+import { buildRecordOpenKey } from '@/veridian-record-open/utils/recordOpenGuard';
 import { forwardRef, type ReactNode } from 'react';
 
 type RecordTableTrProps = {
@@ -50,6 +54,16 @@ export const RecordTableTr = forwardRef<HTMLDivElement, RecordTableTrProps>(
       objectMetadataId: objectMetadataItem.id,
     });
 
+    // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : la ligne s'anime pendant
+    // la fenêtre d'annulation 5s de SA fiche (point (c)). L'`VeridianRecordOpenEffect`
+    // (fiche ouverte en side-panel/pleine page) pose l'openKey actif dans l'atom
+    // global ; on l'égale à celui de cette row pour piloter `data-veridian-record-opening`
+    // (l'animation CSS vit dans `RecordTableRowDiv`). Lecture seule, isolée.
+    const veridianActiveOpenKey = useAtomStateValue(veridianActiveOpenKeyState);
+    const isVeridianRecordOpening =
+      veridianActiveOpenKey ===
+      buildRecordOpenKey(objectMetadataItem.nameSingular, recordId);
+
     return (
       <RecordTableRowContextProvider
         value={{
@@ -74,6 +88,9 @@ export const RecordTableTr = forwardRef<HTMLDivElement, RecordTableTrProps>(
             isRecordTableRowFocused &&
             !isRecordTableRowActive
           }
+          // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : fenêtre d'ouverture
+          // active sur cette fiche → anime la row (CSS dans RecordTableRowDiv).
+          data-veridian-record-opening={isVeridianRecordOpening}
           // oxlint-disable-next-line react/jsx-props-no-spreading
           {...props}
         >

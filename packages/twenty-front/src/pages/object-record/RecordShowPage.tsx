@@ -14,8 +14,6 @@ import { useRecordShowPage } from '@/object-record/record-show/hooks/useRecordSh
 import { computeRecordShowComponentInstanceId } from '@/object-record/record-show/utils/computeRecordShowComponentInstanceId';
 import { PageCardLayout } from '@/ui/layout/page/components/PageCardLayout';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-// Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : mécanique "ouverture de fiche"
-import { VeridianRecordOpenEffect } from '@/veridian-record-open/components/VeridianRecordOpenEffect';
 import { RecordShowPageHeader } from '~/pages/object-record/RecordShowPageHeader';
 import { RecordShowPageTitle } from '~/pages/object-record/RecordShowPageTitle';
 
@@ -75,13 +73,6 @@ export const RecordShowPage = () => {
                 isInSidePanel={false}
               />
               <RecordShowPageSSESubscribeEffect
-                objectNameSingular={objectNameSingular}
-                recordId={objectRecordId}
-              />
-              {/* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : horodate
-                  l'ouverture confirmée d'une fiche (timer 5s) + enregistre le
-                  commercial. Vue pleine page uniquement (pas le side-panel). */}
-              <VeridianRecordOpenEffect
                 objectNameSingular={objectNameSingular}
                 recordId={objectRecordId}
               />
