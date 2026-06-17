@@ -37,13 +37,13 @@ const StyledTr = styled.div<{
   }
 
   /* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : animation de la LIGNE
-     pendant le DÉCOMPTE de confirmation 10s (déclenché à la FERMETURE de la
-     fiche). Quand la fiche de cette row est en décompte (openKey présent dans
-     l'atom global `veridianPendingOpenKeysState` posé par le recordOpenManager),
-     RecordTableTr met data-veridian-record-opening='true' → glow bleu pulsant
-     sur les cellules → invite à re-cliquer pour annuler. S'arrête à la fin du
-     décompte (confirmation) OU à l'annulation (re-clic). Isolé : ne touche que
-     cet état, n'altère pas focused/active. */
+     pendant le DECOMPTE de confirmation 10s (declenche a la FERMETURE de la
+     fiche). Quand la fiche de cette row est en decompte (openKey present dans
+     l atom global veridianPendingOpenKeysState pose par le recordOpenManager),
+     RecordTableTr met data-veridian-record-opening true et glow bleu pulsant
+     sur les cellules pour inviter a re-cliquer (annule). S arrete a la fin du
+     decompte (confirmation) OU a l annulation (re-clic). Isole : ne touche que
+     cet etat, n altere pas focused/active. */
   &[data-veridian-record-opening='true'] {
     div.table-cell,
     div.table-cell-0-0 {
