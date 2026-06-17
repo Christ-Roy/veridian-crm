@@ -105,7 +105,7 @@ describe('buildRecordOpenInput (Veridian record-open)', () => {
     expect(isVeridianRecordOpenObject('')).toBe(false);
   });
 
-  it('le délai de confirmation est de 5 secondes', () => {
-    expect(VERIDIAN_RECORD_OPEN_DELAY_MS).toBe(5000);
+  it('le délai de confirmation (décompte à la fermeture) est de 10 secondes', () => {
+    expect(VERIDIAN_RECORD_OPEN_DELAY_MS).toBe(10000);
   });
 });

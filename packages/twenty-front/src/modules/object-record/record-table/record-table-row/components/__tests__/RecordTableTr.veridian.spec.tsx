@@ -2,15 +2,16 @@ import { render } from '@testing-library/react';
 
 // Veridian PATCH-SURVIVAL (cf VERIDIAN-PATCHES.md) : RecordTableTr DOIT poser
 // `data-veridian-record-opening` sur la row quand l'openKey de SA fiche
-// (`<objectNameSingular>:<recordId>`) est l'openKey actif dans l'atom global
-// `veridianActiveOpenKeyState` (posé par VeridianRecordOpenEffect pendant la
-// fenêtre d'annulation 5s). C'est le point (c) — animation de la LIGNE dans la
-// vue table. Si un sync upstream réécrit RecordTableTr et efface le patch, ce
+// (`<objectNameSingular>:<recordId>`) APPARTIENT au Set de l'atom global
+// `veridianPendingOpenKeysState` (posé par le recordOpenManager pendant le
+// décompte de confirmation 10s, déclenché à la FERMETURE de la fiche). C'est
+// l'animation de la LIGNE dans la vue table (la row scintille → re-cliquer
+// annule). Si un sync upstream réécrit RecordTableTr et efface le patch, ce
 // test casse — pas la prod.
 //
 // On neutralise tout le graphe natif (context table, component-states, contexte
 // row, RecordTableRowDiv) par des marqueurs ; on pilote la valeur de l'atom
-// global via le mock de useAtomStateValue (lecture seule côté row).
+// global (un Set) via le mock de useAtomStateValue (lecture seule côté row).
 
 const mockObjectNameSingular = 'company';
 
@@ -81,14 +82,14 @@ jest.mock(
   '@/object-record/record-table/states/isRecordTableRowFocusedComponentFamilyState',
   () => ({ isRecordTableRowFocusedComponentFamilyState: {} }),
 );
-jest.mock('@/veridian-record-open/states/veridianActiveOpenKeyState', () => ({
-  veridianActiveOpenKeyState: {},
+jest.mock('@/veridian-record-open/states/veridianPendingOpenKeysState', () => ({
+  veridianPendingOpenKeysState: {},
 }));
 
-// Valeur courante de l'atom global pilotable par test (lue par useAtomStateValue).
-let mockActiveOpenKey: string | null = null;
+// Set des clés en décompte, pilotable par test (lu par useAtomStateValue).
+let mockPendingOpenKeys: ReadonlySet<string> = new Set();
 jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue', () => ({
-  useAtomStateValue: () => mockActiveOpenKey,
+  useAtomStateValue: () => mockPendingOpenKeys,
 }));
 
 import { RecordTableTr } from '@/object-record/record-table/record-table-row/components/RecordTableTr';
@@ -100,9 +101,9 @@ const renderRow = () =>
     </RecordTableTr>,
   );
 
-describe('RecordTableTr (Veridian record-open patch-survival — point (c) row)', () => {
-  it("anime la row quand l'openKey actif == celui de la row", () => {
-    mockActiveOpenKey = 'company:rec-1';
+describe('RecordTableTr (Veridian record-open patch-survival — row scintille)', () => {
+  it("anime la row quand son openKey est dans le Set des décomptes en cours", () => {
+    mockPendingOpenKeys = new Set(['company:rec-1']);
     const { getByTestId } = renderRow();
     expect(getByTestId('record-table-row-div')).toHaveAttribute(
       'data-veridian-record-opening',
@@ -110,8 +111,8 @@ describe('RecordTableTr (Veridian record-open patch-survival — point (c) row)'
     );
   });
 
-  it("n'anime PAS la row quand aucune fenêtre n'est active", () => {
-    mockActiveOpenKey = null;
+  it("n'anime PAS la row quand aucun décompte n'est en cours", () => {
+    mockPendingOpenKeys = new Set();
     const { getByTestId } = renderRow();
     expect(getByTestId('record-table-row-div')).not.toHaveAttribute(
       'data-veridian-record-opening',
@@ -119,10 +120,19 @@ describe('RecordTableTr (Veridian record-open patch-survival — point (c) row)'
     );
   });
 
-  it("n'anime PAS la row si la fenêtre active concerne une AUTRE fiche", () => {
-    mockActiveOpenKey = 'company:rec-2';
+  it("n'anime PAS la row si le décompte concerne une AUTRE fiche", () => {
+    mockPendingOpenKeys = new Set(['company:rec-2']);
     const { getByTestId } = renderRow();
     expect(getByTestId('record-table-row-div')).not.toHaveAttribute(
+      'data-veridian-record-opening',
+      'true',
+    );
+  });
+
+  it('anime la row même si PLUSIEURS fiches décomptent en parallèle (Set multi)', () => {
+    mockPendingOpenKeys = new Set(['person:p-9', 'company:rec-1', 'company:rec-2']);
+    const { getByTestId } = renderRow();
+    expect(getByTestId('record-table-row-div')).toHaveAttribute(
       'data-veridian-record-opening',
       'true',
     );

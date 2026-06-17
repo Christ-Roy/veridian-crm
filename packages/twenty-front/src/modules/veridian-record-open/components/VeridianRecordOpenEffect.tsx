@@ -1,56 +1,68 @@
 // Veridian — module AGPL (fork twentyhq/twenty). Mécanique "ouverture de fiche"
 // (cf veridian-tunnel-de-vente/docs/VISION-INSTANCE-TWENTY-CUSTOM.md §4).
 //
-// Composant monté dans la vue d'une fiche (Company/Person) — PLEINE PAGE
-// (RecordShowPage) ET SIDE-PANEL (SidePanelRecordPage). Au mount d'une fiche :
-//   - démarre un timer de 5s + affiche l'indicateur visuel de la FENÊTRE
-//     D'ANNULATION (glow + barre de progression) ;
-//   - si la fiche est refermée / change de recordId AVANT 5s → annule, n'écrit
-//     RIEN, retire l'indicateur (= clic par erreur / prospect n'a pas décroché,
-//     cf VISION §4.1.3) ;
-//   - si la fiche reste ouverte ≥ 5s → écrit `ficheOuverteAt` + le commercial
-//     dans `ficheOuverteParId` via l'API update, et fait progresser
-//     `statutColdCall` A_APPELER → FICHE_OUVERTE (jamais de régression d'une
-//     fiche déjà travaillée, cf VISION §4.1.2 + garde Robert 2026-06-17).
+// NOUVELLE LOGIQUE INVERSÉE (Robert 2026-06-17) : le déclencheur n'est plus
+// l'OUVERTURE mais la FERMETURE de la fiche.
 //
-// DÉ-DOUBLONNAGE side-panel ⟷ pleine page : la même fiche peut être montée 2×
-// SIMULTANÉMENT (un commercial qui ouvre l'aperçu en side-panel PUIS la pleine
-// page). Chaque instance a son timer, mais l'ÉCRITURE est sérialisée par une
-// garde MODULE-LEVEL partagée (`recordOpenGuard`) keyée par
-// `<objectNameSingular>:<recordId>` : la première instance qui confirme réclame
-// la clé, toute autre confirmation concurrente de la même fiche est ignorée. La
-// garde par `useRef` (locale) reste comme court-circuit intra-instance.
+//   1. On OUVRE une fiche (pleine page OU side-panel) → RIEN ne se passe : pas
+//      de timer, pas d'écriture. (Ce composant se monte, c'est tout.)
+//   2. On QUITTE/FERME la fiche (side-panel fermé / changement de recordId /
+//      navigation hors fiche → ce composant se DÉMONTE ou son recordId change)
+//      → c'est À CE MOMENT que démarre un décompte de 10 s (planifié dans le
+//      `recordOpenManager`, MODULE-LEVEL, donc il SURVIT au démontage).
+//   3. Pendant les 10 s : la LIGNE de la fiche scintille dans la vue table
+//      (atom global `veridianPendingOpenKeysState` → `RecordTableTr`).
+//   4. Re-clic sur la fiche pendant les 10 s → `cancelRecordOpen` (déclenché par
+//      le patch de `useOpenRecordFromIndexView`) : décompte annulé, clic
+//      consommé, fiche NON ré-ouverte, reste A_APPELER.
+//   5. 10 s écoulées sans re-clic → écriture confirmée (`ficheOuverteAt` +
+//      `ficheOuverteParId` + progression `statutColdCall` A_APPELER→
+//      FICHE_OUVERTE only, jamais de régression).
 //
-// Le composant rend l'indicateur (overlay absolu) pendant la fenêtre, sinon null.
+// CE COMPOSANT NE REND RIEN (plus d'overlay : l'animation est sur la ROW). Son
+// SEUL rôle : OBSERVER l'ouverture/fermeture pour PLANIFIER le décompte à la
+// fermeture, en capturant dans le callback (qui vit dans le manager, hors React)
+// tout ce dont l'écriture aura besoin : objectNameSingular, recordId,
+// workspaceMemberId, l'API `updateOneRecord` et une lecture ONE-SHOT du statut
+// courant au moment de l'expiration. L'écriture marche donc même quand la fiche
+// (et sa row) ne sont plus montées.
+//
+// DÉTECTION DE LA FERMETURE : on s'appuie sur le cleanup d'un effet keyé sur
+// (recordId, objectNameSingular). Quand le composant se DÉMONTE → fermeture de
+// la fiche courante. Quand son `recordId` CHANGE (X → Y, ex. side-panel qui
+// bascule de fiche) → l'effet rejoue : son cleanup planifie le décompte de la
+// fiche X (fermée), et le nouveau run ne planifie rien (Y vient d'être ouverte ;
+// Y ne déclenchera son décompte qu'à SA propre fermeture).
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from 'jotai';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { recordStoreFamilySelector } from '@/object-record/record-store/states/selectors/recordStoreFamilySelector';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { isDefined } from 'twenty-shared/utils';
 
-import { VeridianRecordOpenIndicator } from '@/veridian-record-open/components/VeridianRecordOpenIndicator';
-import { veridianActiveOpenKeyState } from '@/veridian-record-open/states/veridianActiveOpenKeyState';
 import {
-  VERIDIAN_RECORD_OPEN_DELAY_MS,
   VERIDIAN_STATUT_COLD_CALL_FIELD,
   buildRecordOpenInput,
   isVeridianRecordOpenObject,
 } from '@/veridian-record-open/utils/buildRecordOpenInput';
 import {
   buildRecordOpenKey,
-  claimRecordOpen,
-  confirmRecordOpen,
-  releaseRecordOpen,
-} from '@/veridian-record-open/utils/recordOpenGuard';
+  cancelRecordOpen,
+  scheduleRecordOpen,
+} from '@/veridian-record-open/utils/recordOpenManager';
 
 type VeridianRecordOpenEffectProps = {
   recordId: string;
   objectNameSingular: string;
+};
+
+type WriteDeps = {
+  workspaceMemberId: string | undefined;
+  updateOneRecord: ReturnType<typeof useUpdateOneRecord>['updateOneRecord'];
+  store: ReturnType<typeof useStore>;
 };
 
 export const VeridianRecordOpenEffect = ({
@@ -59,131 +71,86 @@ export const VeridianRecordOpenEffect = ({
 }: VeridianRecordOpenEffectProps) => {
   const { updateOneRecord } = useUpdateOneRecord();
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
-  // Atom global réactif : signale à la LIGNE de la fiche dans la vue table
-  // qu'elle est en fenêtre d'annulation (→ animation de la row, point (c)).
-  const setActiveOpenKey = useSetAtomState(veridianActiveOpenKeyState);
-  // Store jotai : lecture ONE-SHOT du statut courant au moment de la
-  // confirmation (pas un abonnement → aucun re-render, pas de re-trigger
-  // de l'effet quand le statut change).
+  // Store jotai : lecture ONE-SHOT du statut courant AU MOMENT de l'expiration
+  // du décompte (pas un abonnement → aucun re-render).
   const store = useStore();
 
   const workspaceMemberId = currentWorkspaceMember?.id;
 
-  // Garde d'idempotence LOCALE : la clé de la dernière ouverture confirmée par
-  // CETTE instance. Court-circuit rapide (re-render / effet rejoué sans
-  // changement de recordId). La garde module-level couvre le multi-instance.
-  const confirmedOpenKeyRef = useRef<string | null>(null);
-
-  // Fenêtre d'annulation active → affiche l'indicateur. Repasse à false à la
-  // confirmation (5s) OU à l'annulation (cleanup avant 5s).
-  const [isCancellationWindowOpen, setIsCancellationWindowOpen] =
-    useState(false);
-
-  useEffect(() => {
-    // On ne déclenche que sur les objets qui portent les champs d'ouverture
-    // (Company / Person). Autre objet → no-op.
-    if (!isVeridianRecordOpenObject(objectNameSingular)) {
-      return;
-    }
-
-    if (!isDefined(recordId) || recordId === '') {
-      return;
-    }
-
-    if (!isDefined(workspaceMemberId)) {
-      return;
-    }
-
-    const openKey = buildRecordOpenKey(objectNameSingular, recordId);
-
-    // Déjà confirmée pour cette fiche par cette instance → rien.
-    if (confirmedOpenKeyRef.current === openKey) {
-      return;
-    }
-
-    let cancelled = false;
-
-    // Ouvre la fenêtre d'annulation (indicateur visuel des 5s) : overlay local
-    // (side-panel/pleine page) + atom global (anime la row dans la vue table).
-    setIsCancellationWindowOpen(true);
-    setActiveOpenKey(openKey);
-
-    // Remet l'atom global à null SI — et seulement si — c'est toujours notre
-    // clé qui est active (ne pas écraser la fenêtre d'une autre fiche ouverte
-    // entre-temps). L'arrêt de l'animation de la row en découle.
-    const clearActiveOpenKeyIfOurs = () =>
-      setActiveOpenKey((current) => (current === openKey ? null : current));
-
-    const timeoutId = setTimeout(() => {
-      if (cancelled) {
-        return;
-      }
-
-      // Fin de la fenêtre d'annulation → l'indicateur disparaît (local + row).
-      setIsCancellationWindowOpen(false);
-      clearActiveOpenKeyIfOurs();
-
-      // Marque LOCALEMENT avant l'appel async pour bloquer un re-déclenchement
-      // intra-instance.
-      confirmedOpenKeyRef.current = openKey;
-
-      // DÉ-DOUBLONNAGE multi-instance : réclame l'écriture au niveau module.
-      // Si une autre instance (side-panel ⟷ pleine page) a déjà réclamé /
-      // confirmé cette fiche → on n'écrit pas (mais l'indicateur a quand même
-      // signalé la fenêtre, ce qui est le comportement voulu côté UX).
-      if (!claimRecordOpen(openKey)) {
-        return;
-      }
-
-      // Lecture one-shot du statut courant à l'instant de la confirmation
-      // (et non au mount) → on tranche la progression avec l'état le plus frais.
-      const currentStatutColdCall = store.get(
-        recordStoreFamilySelector.selectorFamily({
-          recordId,
-          fieldName: VERIDIAN_STATUT_COLD_CALL_FIELD,
-        }),
-      ) as string | null | undefined;
-
-      void updateOneRecord({
-        objectNameSingular,
-        idToUpdate: recordId,
-        updateOneRecordInput: buildRecordOpenInput(workspaceMemberId, {
-          currentStatutColdCall,
-        }),
-      })
-        .then(() => {
-          confirmRecordOpen(openKey);
-        })
-        .catch(() => {
-          // L'update a échoué → on relâche les deux gardes pour réessayer à la
-          // prochaine ouverture confirmée de cette même fiche.
-          if (confirmedOpenKeyRef.current === openKey) {
-            confirmedOpenKeyRef.current = null;
-          }
-          releaseRecordOpen(openKey);
-        });
-    }, VERIDIAN_RECORD_OPEN_DELAY_MS);
-
-    // Cleanup : fiche refermée / recordId change AVANT 5s → annule, n'écrit
-    // rien, retire l'indicateur (local + row).
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-      setIsCancellationWindowOpen(false);
-      clearActiveOpenKeyIfOurs();
-    };
-  }, [
-    recordId,
-    objectNameSingular,
+  // Ref qui garde toujours la version la PLUS FRAÎCHE des dépendances de
+  // l'écriture. Le cleanup d'effet (= fermeture) la lit pour planifier le
+  // décompte avec les bonnes valeurs SANS rejouer l'effet à chaque changement
+  // de updateOneRecord/store/member (ce qui ré-armerait le décompte à tort).
+  const writeDepsRef = useRef<WriteDeps>({
     workspaceMemberId,
     updateOneRecord,
     store,
-    setActiveOpenKey,
-  ]);
+  });
+  writeDepsRef.current = { workspaceMemberId, updateOneRecord, store };
 
-  if (!isCancellationWindowOpen) {
-    return null;
-  }
+  // Effet keyé sur (recordId, objectNameSingular) UNIQUEMENT : il ne se rejoue
+  // QUE quand la fiche affichée change → son cleanup correspond exactement à une
+  // FERMETURE de la fiche précédente (changement de recordId OU démontage).
+  useEffect(() => {
+    const openedRecordId = recordId;
+    const openedObject = objectNameSingular;
 
-  return <VeridianRecordOpenIndicator />;
+    // À l'OUVERTURE (mount), on ANNULE tout décompte en cours pour CETTE même
+    // fiche. Deux raisons :
+    //   1. STRICT MODE (actif en dev, cf AppRouterProviders) : React joue
+    //      mount → cleanup → mount. Le cleanup spurious planifierait un décompte
+    //      alors que la fiche reste ouverte ; le 2e mount l'annule aussitôt →
+    //      pas de fausse confirmation. (En prod, no-op : rien à annuler.)
+    //   2. RÉOUVERTURE hors index (URL directe, retour arrière, breadcrumb) :
+    //      si la fiche avait été fermée < 10 s avant et qu'on la rouvre par un
+    //      chemin qui NE passe PAS par useOpenRecordFromIndexView, on annule
+    //      quand même son décompte (la fiche est ré-ouverte, pas "confirmée").
+    if (isVeridianRecordOpenObject(openedObject) && isDefined(openedRecordId)) {
+      cancelRecordOpen(buildRecordOpenKey(openedObject, openedRecordId));
+    }
+
+    // Cleanup = FERMETURE de cette fiche → planifie son décompte de 10 s avec
+    // les dépendances d'écriture les plus fraîches disponibles à cet instant.
+    return () => {
+      const {
+        workspaceMemberId: memberId,
+        updateOneRecord: update,
+        store: jotaiStore,
+      } = writeDepsRef.current;
+
+      if (!isVeridianRecordOpenObject(openedObject)) {
+        return;
+      }
+      if (!isDefined(openedRecordId) || openedRecordId === '') {
+        return;
+      }
+      if (!isDefined(memberId)) {
+        return;
+      }
+
+      const openKey = buildRecordOpenKey(openedObject, openedRecordId);
+
+      scheduleRecordOpen(openKey, () => {
+        // Lecture one-shot du statut courant à l'instant de la confirmation → on
+        // tranche la progression avec l'état le plus frais (et non au montage).
+        const currentStatutColdCall = jotaiStore.get(
+          recordStoreFamilySelector.selectorFamily({
+            recordId: openedRecordId,
+            fieldName: VERIDIAN_STATUT_COLD_CALL_FIELD,
+          }),
+        ) as string | null | undefined;
+
+        return update({
+          objectNameSingular: openedObject,
+          idToUpdate: openedRecordId,
+          updateOneRecordInput: buildRecordOpenInput(memberId, {
+            currentStatutColdCall,
+          }),
+        });
+      });
+    };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordId, objectNameSingular]);
+
+  return null;
 };

@@ -1,24 +1,25 @@
+import { StrictMode } from 'react';
 import { act, render } from '@testing-library/react';
 
 import { VeridianRecordOpenEffect } from '@/veridian-record-open/components/VeridianRecordOpenEffect';
 import { VERIDIAN_RECORD_OPEN_DELAY_MS } from '@/veridian-record-open/utils/buildRecordOpenInput';
-import { __resetRecordOpenGuardForTests } from '@/veridian-record-open/utils/recordOpenGuard';
+import { __resetRecordOpenManagerForTests } from '@/veridian-record-open/utils/recordOpenManager';
 
-// Veridian (cf VERIDIAN-PATCHES.md) : logique TIMER + INDICATEUR + DÉ-DOUBLONNAGE
-// de la mécanique d'ouverture de fiche. On isole le composant de
-// l'API/auth/store réels :
+// Veridian (cf VERIDIAN-PATCHES.md) : logique INVERSÉE — le décompte démarre à
+// la FERMETURE de la fiche (démontage / changement de recordId), pas à
+// l'ouverture. On isole le composant de l'API/auth/store réels :
 //   - useUpdateOneRecord → spy observable
 //   - currentWorkspaceMember → membre de test
-//   - store jotai → renvoie le statutColdCall courant (mutable) pour tester la
-//     progression A_APPELER → FICHE_OUVERTE (et l'absence de régression)
-// puis on pilote le timer 5s avec les fake timers Jest.
+//   - store jotai (useStore) → renvoie le statutColdCall courant (mutable) pour
+//     tester la progression A_APPELER → FICHE_OUVERTE (et l'absence de régression)
+// puis on pilote le décompte 10s avec les fake timers Jest.
+//
+// On garde le VRAI recordOpenManager (Map de timers + pending atom réels) : c'est
+// LUI qui mène le décompte hors du cycle de vie React → on prouve ainsi que
+// l'écriture survit au démontage de la fiche. On le réinitialise en beforeEach.
 //
 // NB : les variables référencées dans une factory `jest.mock` DOIVENT être
 // préfixées `mock` (garde-fou jest "out-of-scope variables").
-//
-// NB 2 : la garde de dé-doublonnage est MODULE-LEVEL (un Map partagé) → on la
-// réinitialise en beforeEach, sinon une fiche confirmée dans un test bloquerait
-// l'écriture dans le test suivant (même openKey).
 
 const mockUpdateOneRecord = jest.fn().mockResolvedValue({ id: 'rec-1' });
 
@@ -37,9 +38,6 @@ jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue', () => ({
 // Statut courant servi par le store jotai (lecture one-shot à la confirmation).
 let mockCurrentStatutColdCall: string | null | undefined = 'A_APPELER';
 
-// Le composant appelle store.get(recordStoreFamilySelector.selectorFamily(...)).
-// On fait renvoyer au selector une clé portant le fieldName, et au store.get le
-// statut courant quand on lit `statutColdCall`.
 jest.mock(
   '@/object-record/record-store/states/selectors/recordStoreFamilySelector',
   () => ({
@@ -49,8 +47,8 @@ jest.mock(
   }),
 );
 
-// On garde le vrai jotai (les atoms réels sont créés au chargement de modules
-// voisins, ex currentWorkspaceMemberState) et on n'override QUE useStore.
+// On garde le vrai jotai (le manager utilise getDefaultStore pour le pending
+// atom réel) et on n'override QUE le useStore lu par l'Effect (lecture du statut).
 jest.mock('jotai', () => ({
   ...jest.requireActual('jotai'),
   useStore: () => ({
@@ -61,14 +59,14 @@ jest.mock('jotai', () => ({
   }),
 }));
 
-describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
+describe('VeridianRecordOpenEffect (décompte à la FERMETURE de la fiche)', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     mockUpdateOneRecord.mockClear();
     mockUpdateOneRecord.mockResolvedValue({ id: 'rec-1' });
     mockCurrentWorkspaceMember = { id: 'wm-99', name: { firstName: 'Robert' } };
     mockCurrentStatutColdCall = 'A_APPELER';
-    __resetRecordOpenGuardForTests();
+    __resetRecordOpenManagerForTests();
   });
 
   afterEach(() => {
@@ -76,14 +74,25 @@ describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
     jest.useRealTimers();
   });
 
-  it("n'écrit RIEN avant 5s", () => {
+  it("n'écrit RIEN à l'OUVERTURE (mount) — même après 10s tant que la fiche reste ouverte", () => {
     render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
 
+    act(() => {
+      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS * 2);
+    });
+
+    // La fiche est toujours ouverte (montée) → aucun décompte armé → 0 écriture.
+    expect(mockUpdateOneRecord).not.toHaveBeenCalled();
+  });
+
+  it("n'écrit RIEN immédiatement à la fermeture (décompte pas encore écoulé)", () => {
+    const { unmount } = render(
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
+    );
+
+    unmount(); // fermeture → décompte armé
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS - 1);
     });
@@ -91,18 +100,17 @@ describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
     expect(mockUpdateOneRecord).not.toHaveBeenCalled();
   });
 
-  it('écrit ficheOuverteAt + ficheOuverteParId après ≥5s', () => {
-    render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+  it('écrit ficheOuverteAt + ficheOuverteParId 10s APRÈS la fermeture (survit au démontage)', () => {
+    const { unmount } = render(
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
 
+    unmount(); // la fiche (et sa row) ne sont plus montées…
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
 
+    // …et pourtant le décompte (module-level) a confirmé l'écriture.
     expect(mockUpdateOneRecord).toHaveBeenCalledTimes(1);
     const callArg = mockUpdateOneRecord.mock.calls[0][0];
     expect(callArg.objectNameSingular).toBe('company');
@@ -111,14 +119,12 @@ describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
     expect(typeof callArg.updateOneRecordInput.ficheOuverteAt).toBe('string');
   });
 
-  it('fait progresser le statut A_APPELER → FICHE_OUVERTE', () => {
+  it('fait progresser le statut A_APPELER → FICHE_OUVERTE à la confirmation', () => {
     mockCurrentStatutColdCall = 'A_APPELER';
-    render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+    const { unmount } = render(
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
+    unmount();
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
@@ -131,101 +137,86 @@ describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
     "ne régresse PAS le statut d'une fiche déjà travaillée (%s) — mais horodate quand même",
     (statut) => {
       mockCurrentStatutColdCall = statut as string | null;
-      render(
+      const { unmount } = render(
         <VeridianRecordOpenEffect
           recordId="rec-1"
           objectNameSingular="company"
         />,
       );
+      unmount();
       act(() => {
         jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
       });
       expect(mockUpdateOneRecord).toHaveBeenCalledTimes(1);
       const input = mockUpdateOneRecord.mock.calls[0][0].updateOneRecordInput;
       expect(input).not.toHaveProperty('statutColdCall');
-      // l'horodatage + l'identité du commercial sont posés dans tous les cas
       expect(input.ficheOuverteParId).toBe('wm-99');
       expect(typeof input.ficheOuverteAt).toBe('string');
     },
   );
 
-  it('annule (rien écrit) si la fiche est fermée AVANT 5s (unmount)', () => {
+  it('lit le statut courant À LA CONFIRMATION (one-shot), pas à la fermeture', () => {
+    // À la fermeture le statut est A_APPELER ; il passe à QUALIFIE pendant les
+    // 10s (autre action) → la confirmation doit lire QUALIFIE → pas de régression.
+    mockCurrentStatutColdCall = 'A_APPELER';
     const { unmount } = render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
-
-    act(() => {
-      jest.advanceTimersByTime(2000);
-    });
     unmount();
     act(() => {
+      jest.advanceTimersByTime(5000);
+    });
+    mockCurrentStatutColdCall = 'QUALIFIE';
+    act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
-
-    expect(mockUpdateOneRecord).not.toHaveBeenCalled();
+    const input = mockUpdateOneRecord.mock.calls[0][0].updateOneRecordInput;
+    expect(input).not.toHaveProperty('statutColdCall');
   });
 
-  it("annule l'écriture de l'ancienne fiche si recordId change avant 5s", () => {
+  it('change de recordId (X→Y) → arme le décompte de X (fermée), pas de Y (ouverte)', () => {
     const { rerender } = render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
 
-    act(() => {
-      jest.advanceTimersByTime(2000);
-    });
-
-    // Le commercial saute sur une autre fiche avant les 5s.
+    // Le commercial bascule sur une autre fiche (side-panel) → rec-1 fermée.
     rerender(
-      <VeridianRecordOpenEffect
-        recordId="rec-2"
-        objectNameSingular="company"
-      />,
+      <VeridianRecordOpenEffect recordId="rec-2" objectNameSingular="company" />,
     );
 
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
 
-    // rec-1 ne doit JAMAIS être écrit ; seul rec-2 est confirmé.
+    // Seule rec-1 (fermée) est confirmée ; rec-2 est encore ouverte → rien.
     expect(mockUpdateOneRecord).toHaveBeenCalledTimes(1);
-    expect(mockUpdateOneRecord.mock.calls[0][0].idToUpdate).toBe('rec-2');
+    expect(mockUpdateOneRecord.mock.calls[0][0].idToUpdate).toBe('rec-1');
   });
 
-  it('idempotence : une seule écriture par ouverture confirmée (re-render stable)', () => {
-    const { rerender } = render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+  it('confirme aussi rec-2 quand elle est fermée à son tour', () => {
+    const { rerender, unmount } = render(
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
-
-    act(() => {
-      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
-    });
-    // re-render sans changement de recordId → pas de seconde écriture.
     rerender(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+      <VeridianRecordOpenEffect recordId="rec-2" objectNameSingular="company" />,
     );
     act(() => {
-      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
+      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS); // rec-1 confirmée
+    });
+    unmount(); // rec-2 fermée
+    act(() => {
+      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS); // rec-2 confirmée
     });
 
-    expect(mockUpdateOneRecord).toHaveBeenCalledTimes(1);
+    const ids = mockUpdateOneRecord.mock.calls.map((c) => c[0].idToUpdate);
+    expect(ids).toEqual(['rec-1', 'rec-2']);
   });
 
   it('marche aussi sur person', () => {
-    render(
+    const { unmount } = render(
       <VeridianRecordOpenEffect recordId="p-1" objectNameSingular="person" />,
     );
+    unmount();
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
@@ -236,12 +227,13 @@ describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
   });
 
   it("n'écrit pas sur un objet hors périmètre (opportunity)", () => {
-    render(
+    const { unmount } = render(
       <VeridianRecordOpenEffect
         recordId="o-1"
         objectNameSingular="opportunity"
       />,
     );
+    unmount();
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
@@ -250,124 +242,80 @@ describe('VeridianRecordOpenEffect (timer ouverture de fiche)', () => {
 
   it("n'écrit pas si aucun commercial connecté", () => {
     mockCurrentWorkspaceMember = null;
-    render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
+    const { unmount } = render(
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
+    unmount();
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
     expect(mockUpdateOneRecord).not.toHaveBeenCalled();
   });
 
-  // ── Indicateur visuel de la fenêtre d'annulation (5s) ──────────────────────
-
-  it('affiche l\'indicateur PENDANT la fenêtre 5s puis le retire à la confirmation', () => {
-    const { queryByTestId } = render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
-    );
-
-    // Pendant la fenêtre : l'indicateur est monté.
-    act(() => {
-      jest.advanceTimersByTime(2000);
-    });
-    expect(
-      queryByTestId('veridian-record-open-indicator'),
-    ).toBeInTheDocument();
-
-    // Après confirmation (5s) : l'indicateur disparaît.
-    act(() => {
-      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
-    });
-    expect(
-      queryByTestId('veridian-record-open-indicator'),
-    ).not.toBeInTheDocument();
-  });
-
-  it("retire l'indicateur si la fenêtre est ANNULÉE (unmount avant 5s)", () => {
-    const { queryByTestId, unmount } = render(
-      <VeridianRecordOpenEffect
-        recordId="rec-1"
-        objectNameSingular="company"
-      />,
-    );
-    act(() => {
-      jest.advanceTimersByTime(1000);
-    });
-    expect(
-      queryByTestId('veridian-record-open-indicator'),
-    ).toBeInTheDocument();
-    unmount();
-    // démonté → plus d'indicateur (et aucune écriture, cf test annulation).
-    expect(
-      queryByTestId('veridian-record-open-indicator'),
-    ).not.toBeInTheDocument();
-  });
-
-  it("n'affiche PAS l'indicateur sur un objet hors périmètre", () => {
-    const { queryByTestId } = render(
-      <VeridianRecordOpenEffect
-        recordId="o-1"
-        objectNameSingular="opportunity"
-      />,
-    );
-    act(() => {
-      jest.advanceTimersByTime(1000);
-    });
-    expect(
-      queryByTestId('veridian-record-open-indicator'),
-    ).not.toBeInTheDocument();
-  });
-
-  // ── Dé-doublonnage side-panel ⟷ pleine page (2 instances simultanées) ──────
-
-  it("ne fait QU'UNE écriture quand 2 instances (side-panel + pleine page) montent la MÊME fiche", () => {
-    // Deux instances montées en même temps sur la même fiche (cas réel : aperçu
-    // side-panel + ouverture pleine page). Les deux timers expirent → la garde
-    // module-level ne laisse passer qu'une seule écriture.
+  it("STRICT MODE : mount→cleanup→mount NE produit PAS de fausse confirmation (fiche reste ouverte)", () => {
+    // <StrictMode> rejoue setup→cleanup→setup au montage. Le cleanup spurious
+    // planifierait un décompte alors que la fiche est ENCORE ouverte ; le 2e
+    // setup l'annule (cancelRecordOpen au mount). On vérifie qu'aucune écriture
+    // ne part tant que la fiche reste montée.
     render(
-      <>
+      <StrictMode>
         <VeridianRecordOpenEffect
           recordId="rec-1"
           objectNameSingular="company"
         />
-        <VeridianRecordOpenEffect
-          recordId="rec-1"
-          objectNameSingular="company"
-        />
-      </>,
+      </StrictMode>,
     );
 
     act(() => {
-      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
+      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS * 2);
     });
 
+    expect(mockUpdateOneRecord).not.toHaveBeenCalled();
+  });
+
+  it('STRICT MODE : confirme quand même APRÈS une vraie fermeture (unmount)', () => {
+    const { unmount } = render(
+      <StrictMode>
+        <VeridianRecordOpenEffect
+          recordId="rec-1"
+          objectNameSingular="company"
+        />
+      </StrictMode>,
+    );
+    unmount(); // vraie fermeture (pas de re-mount derrière)
+    act(() => {
+      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
+    });
     expect(mockUpdateOneRecord).toHaveBeenCalledTimes(1);
+    expect(mockUpdateOneRecord.mock.calls[0][0].idToUpdate).toBe('rec-1');
   });
 
-  it('deux fiches DIFFÉRENTES montées en parallèle → une écriture chacune', () => {
-    render(
-      <>
-        <VeridianRecordOpenEffect
-          recordId="rec-1"
-          objectNameSingular="company"
-        />
-        <VeridianRecordOpenEffect recordId="p-1" objectNameSingular="person" />
-      </>,
+  it('réouverture hors index (ré-mount de la MÊME fiche) annule le décompte en cours', () => {
+    // open A → close A (décompte armé) → on ROUVRE A par un chemin hors index
+    // (re-mount de l'Effect pour A) AVANT les 10s → le mount annule le décompte.
+    const { unmount } = render(
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
     );
-
+    unmount(); // close A → décompte armé
+    act(() => {
+      jest.advanceTimersByTime(4000);
+    });
+    // ré-ouverture de A (nouveau mount)
+    const { unmount: unmount2 } = render(
+      <VeridianRecordOpenEffect recordId="rec-1" objectNameSingular="company" />,
+    );
     act(() => {
       jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
     });
+    // Le décompte initial a été annulé par le re-mount → pas d'écriture tant que
+    // A reste ouverte.
+    expect(mockUpdateOneRecord).not.toHaveBeenCalled();
 
-    expect(mockUpdateOneRecord).toHaveBeenCalledTimes(2);
-    const ids = mockUpdateOneRecord.mock.calls.map((c) => c[0].idToUpdate);
-    expect(ids).toContain('rec-1');
-    expect(ids).toContain('p-1');
+    // …et à la VRAIE fermeture suivante, un nouveau décompte confirme.
+    unmount2();
+    act(() => {
+      jest.advanceTimersByTime(VERIDIAN_RECORD_OPEN_DELAY_MS);
+    });
+    expect(mockUpdateOneRecord).toHaveBeenCalledTimes(1);
   });
 });

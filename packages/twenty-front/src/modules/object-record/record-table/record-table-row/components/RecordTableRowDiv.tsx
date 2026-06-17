@@ -37,11 +37,13 @@ const StyledTr = styled.div<{
   }
 
   /* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : animation de la LIGNE
-     pendant la fenêtre d'annulation 5s (point (c)). Quand la fiche de cette row
-     est en cours d'ouverture (atom global posé par VeridianRecordOpenEffect),
+     pendant le DÉCOMPTE de confirmation 10s (déclenché à la FERMETURE de la
+     fiche). Quand la fiche de cette row est en décompte (openKey présent dans
+     l'atom global `veridianPendingOpenKeysState` posé par le recordOpenManager),
      RecordTableTr met data-veridian-record-opening='true' → glow bleu pulsant
-     sur les cellules. S'arrête au démontage de l'attribut (confirmation OU
-     annulation). Isolé : ne touche que cet état, n'altère pas focused/active. */
+     sur les cellules → invite à re-cliquer pour annuler. S'arrête à la fin du
+     décompte (confirmation) OU à l'annulation (re-clic). Isolé : ne touche que
+     cet état, n'altère pas focused/active. */
   &[data-veridian-record-opening='true'] {
     div.table-cell,
     div.table-cell-0-0 {

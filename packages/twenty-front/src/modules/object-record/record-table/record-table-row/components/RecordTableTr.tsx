@@ -12,8 +12,8 @@ import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hoo
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : mécanique "ouverture de fiche"
-import { veridianActiveOpenKeyState } from '@/veridian-record-open/states/veridianActiveOpenKeyState';
-import { buildRecordOpenKey } from '@/veridian-record-open/utils/recordOpenGuard';
+import { veridianPendingOpenKeysState } from '@/veridian-record-open/states/veridianPendingOpenKeysState';
+import { buildRecordOpenKey } from '@/veridian-record-open/utils/recordOpenManager';
 import { forwardRef, type ReactNode } from 'react';
 
 type RecordTableTrProps = {
@@ -54,15 +54,20 @@ export const RecordTableTr = forwardRef<HTMLDivElement, RecordTableTrProps>(
       objectMetadataId: objectMetadataItem.id,
     });
 
-    // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : la ligne s'anime pendant
-    // la fenêtre d'annulation 5s de SA fiche (point (c)). L'`VeridianRecordOpenEffect`
-    // (fiche ouverte en side-panel/pleine page) pose l'openKey actif dans l'atom
-    // global ; on l'égale à celui de cette row pour piloter `data-veridian-record-opening`
-    // (l'animation CSS vit dans `RecordTableRowDiv`). Lecture seule, isolée.
-    const veridianActiveOpenKey = useAtomStateValue(veridianActiveOpenKeyState);
-    const isVeridianRecordOpening =
-      veridianActiveOpenKey ===
-      buildRecordOpenKey(objectMetadataItem.nameSingular, recordId);
+    // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : la ligne SCINTILLE pendant
+    // le décompte de confirmation 10s de SA fiche (déclenché à la FERMETURE).
+    // Le `recordOpenManager` (module-level) ajoute l'openKey de la fiche fermée
+    // à l'atom global `veridianPendingOpenKeysState` (Set) pendant le décompte ;
+    // on teste l'appartenance de l'openKey de cette row pour piloter
+    // `data-veridian-record-opening` (l'animation CSS vit dans `RecordTableRowDiv`).
+    // Lecture seule, isolée. (Set : plusieurs fiches peuvent décompter en
+    // parallèle si on navigue, cf le state.)
+    const veridianPendingOpenKeys = useAtomStateValue(
+      veridianPendingOpenKeysState,
+    );
+    const isVeridianRecordOpening = veridianPendingOpenKeys.has(
+      buildRecordOpenKey(objectMetadataItem.nameSingular, recordId),
+    );
 
     return (
       <RecordTableRowContextProvider
@@ -88,8 +93,9 @@ export const RecordTableTr = forwardRef<HTMLDivElement, RecordTableTrProps>(
             isRecordTableRowFocused &&
             !isRecordTableRowActive
           }
-          // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : fenêtre d'ouverture
-          // active sur cette fiche → anime la row (CSS dans RecordTableRowDiv).
+          // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : décompte de
+          // confirmation en cours sur cette fiche (fermée il y a < 10s) → la row
+          // scintille (CSS dans RecordTableRowDiv) ; re-cliquer dessus annule.
           data-veridian-record-opening={isVeridianRecordOpening}
           // oxlint-disable-next-line react/jsx-props-no-spreading
           {...props}

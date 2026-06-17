@@ -15,6 +15,12 @@ import { useCallback } from 'react';
 import { AppPath } from 'twenty-shared/types';
 import { useIsMobile } from 'twenty-ui-deprecated/utilities';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
+// Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : interception du RE-CLIC pour
+// annuler le décompte d'ouverture SANS ré-ouvrir la fiche.
+import {
+  buildRecordOpenKey,
+  cancelRecordOpen,
+} from '@/veridian-record-open/utils/recordOpenManager';
 
 export const useOpenRecordFromIndexView = () => {
   const { recordIndexId } = useRecordIndexContextOrThrow();
@@ -47,6 +53,17 @@ export const useOpenRecordFromIndexView = () => {
 
   const openRecordFromIndexView = useCallback(
     ({ recordId }: { recordId: string }) => {
+      // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : si cette fiche est en
+      // DÉCOMPTE de confirmation (fermée il y a < 10s, elle scintille), un clic
+      // dessus = le commercial veut ANNULER (fausse manip), PAS la ré-ouvrir.
+      // On consomme le clic : annule le décompte (la row arrête de scintiller,
+      // la fiche reste A_APPELER) et on RETURN sans ouvrir. C'est le SEUL
+      // chokepoint d'ouverture depuis un index (table/board/calendar y passent).
+      const veridianOpenKey = buildRecordOpenKey(objectNameSingular, recordId);
+      if (cancelRecordOpen(veridianOpenKey)) {
+        return;
+      }
+
       const recordIndexOpenRecordIn = store.get(
         recordIndexOpenRecordInState.atom,
       );

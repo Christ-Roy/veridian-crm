@@ -31,10 +31,6 @@ const StyledShowPageRightContainer = styled.div`
   height: 100%;
   justify-content: start;
   overflow: auto;
-  /* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : containing-block pour
-     l'overlay absolu de l'indicateur d'ouverture de fiche (glow + barre 5s).
-     Sans offset → aucun impact de layout sur le rendu natif. */
-  position: relative;
   width: 100%;
 `;
 
@@ -98,15 +94,16 @@ export const PageLayoutRecordPageRenderer = ({
 
       <StyledShowPageRightContainer>
         {/* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : mécanique
-            "ouverture de fiche". Monté ICI (et non dans RecordShowPage) car ce
-            renderer est rendu DANS LES DEUX contextes — pleine page
-            (isInSidePanel=false) ET side-panel (isInSidePanel=true) → un seul
-            point de montage couvre les deux. Timer 5s → horodate ficheOuverteAt
-            + ficheOuverteParId + progression statutColdCall A_APPELER→
-            FICHE_OUVERTE (jamais de régression) ; affiche l'indicateur de la
-            fenêtre d'annulation pendant les 5s. Le dé-doublonnage des écritures
-            entre les 2 instances simultanées est géré par la garde module-level
-            `recordOpenGuard`. Logique 100% dans le module `veridian-record-open`. */}
+            "ouverture de fiche" (logique INVERSÉE — déclencheur = FERMETURE).
+            Monté ICI (et non dans RecordShowPage) car ce renderer est rendu DANS
+            LES DEUX contextes — pleine page (isInSidePanel=false) ET side-panel
+            (isInSidePanel=true) → un seul point de montage couvre les deux. Le
+            composant ne REND RIEN : il OBSERVE l'ouverture/fermeture. À la
+            FERMETURE (démontage / changement de recordId) il planifie dans le
+            `recordOpenManager` (module-level, survit au démontage) un décompte de
+            10s → si non annulé par re-clic, horodate ficheOuverteAt +
+            ficheOuverteParId + progression statutColdCall A_APPELER→FICHE_OUVERTE
+            (jamais de régression). Logique 100% dans `veridian-record-open`. */}
         <VeridianRecordOpenEffect
           objectNameSingular={targetRecordIdentifier.targetObjectNameSingular}
           recordId={targetRecordIdentifier.id}
