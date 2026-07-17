@@ -155,25 +155,38 @@ Cf `veridian-platform/CLAUDE.md` §"Règle d'or : trunk-based sur staging".
 - Tu n'ouvres **PAS** de PR
 - Auto-promotion `staging` → `main` après smoke staging vert
 
-### Chaîne CI (état 2026-06-10)
+### Chaîne CI + déploiement (état 2026-07-17 — migré Dokploy → Nomad)
+
+> 🔴 **Le CRM a été migré de Dokploy vers le cluster Nomad le 2026-07-15.**
+> Il n'y a **plus d'autoDeploy** : l'image est **pinnée sur un SHA** dans le job
+> `~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl`. Runbook complet de
+> redéploiement : **`todo/2026-07-17-runbook-redeploy-nomad.md`**.
 
 ```
 push staging
-  → veridian-crm-ci.yaml        (tests unitaires patches Veridian + typecheck)
-  → veridian-crm-build-image    (GHCR :staging + :staging-<sha7>, si CI verte)
-  → veridian-crm-staging-deploy (SSH dev-pub, compose pull/up, smoke healthz + /metadata)
+  → veridian-crm-ci.yaml     (tests unitaires patches Veridian + typecheck)
+  → veridian-crm-build-image (GHCR :staging + :staging-<sha7>, si CI verte)
 promotion main (ff)
   → veridian-crm-ci + build-image (:latest + :<sha7>, l'ancienne :latest
-    est re-taggée :rollback AVANT d'être écrasée) + Trivy scan (rapport)
-  → Dokploy autoDeploy (webhook push main) — ⚠️ se déclenche AVANT la fin du
-    build :latest (~30 min) → re-déclencher POST /api/compose.deploy
-    (composeId 8zdqAAD1lkZFVAwuZ5USv) une fois l'image pushée, sinon la prod
-    tourne sur l'ancienne :latest. Vérifier le digest du container après.
+    re-taggée :rollback AVANT écrasement) + Trivy scan (rapport)
+
+DÉPLOIEMENT PROD (manuel, plus d'autoDeploy) :
+  1. bump le tag image :<sha7> dans crm.nomad.hcl (crm-server ET crm-worker)
+  2. cd ~/nomad-veridian && git commit  (nomad-v refuse un job non commité)
+  3. nomad-v deploy ~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl
+  4. ~90s de 502 (migrations DB au boot) puis healthz 200 ; twenty doctor
 ```
 
-**Rollback prod** : `ghcr.io/christ-roy/veridian-crm:rollback` = la :latest
-précédente. Procédure : éditer l'image du compose en `:rollback` (compose.update)
-+ compose.deploy, ou `docker pull :rollback && docker tag` côté serveur.
+**Prod tourne sur Nomad** (job `crm`, nœud `ovh-prod`, 4 tasks co-localisés :
+postgres+redis+server+worker). URL `crm.app.veridian.site`, multi-workspace →
+login par subdomain `<slug>.crm.app.veridian.site`. Secrets = Nomad var
+`nomad/jobs/crm`. ⚠️ Le **staging CRM n'est PAS (encore) sur Nomad** — pas de job
+`crm-staging` dans le cluster ; le `veridian-crm-staging-deploy` (SSH dev-pub
+compose) est obsolète.
+
+**Rollback prod** : image `:rollback` sur GHCR = la `:latest` précédente. Remettre
+l'ancien SHA dans le HCL + `nomad-v deploy`, ou pointer l'image sur `:rollback`.
+Détail : runbook ci-dessus.
 
 ### Hooks git versionnés (`.githooks/`)
 
