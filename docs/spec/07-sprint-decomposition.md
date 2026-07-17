@@ -48,7 +48,7 @@ Effort total : ~1 semaine, **3 agents en parallèle**
 
 | Agent | Mission |
 |---|---|
-| L | Compose Dokploy + Traefik + CI/CD cf `06-deploiement-infra.md` |
+| L | Job Nomad (`nomad-v`) + ingress Traefik + CI/CD cf `06-deploiement-infra.md` |
 | M | Backup DB + monitoring + healthcheck |
 | N | Mega battery E2E hard-core ≥ 50 specs cross-features |
 

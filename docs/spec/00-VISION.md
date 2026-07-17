@@ -99,7 +99,7 @@
 - **Branche staging** : `staging` (cohérent avec polyrepo Veridian)
 - **URL prod** : `crm.app.veridian.site`
 - **URL staging** : `crm.staging.veridian.site`
-- **DB** : Postgres dédié `veridian-crm-db` (compose Dokploy séparé)
+- **DB** : Postgres dédié `veridian-crm-db` (job Nomad séparé — cf `/nomad`)
 - **Auth** : custom intégration Hub (replace Twenty native auth)
 - **Billing** : via Hub HMAC (replace Twenty native billing)
 - **Email** : Notifuse pour transactional (replace Twenty native SMTP)
@@ -124,7 +124,7 @@
 | `03-integration-hub-auth.md` | Remplacer Twenty native auth par HMAC Hub Veridian |
 | `04-module-leads-b2b.md` | Pull leads qualifiés depuis Prospection vers le CRM |
 | `05-module-notifuse-mail.md` | Push campagnes depuis le CRM vers Notifuse |
-| `06-deploiement-infra.md` | crm.staging.veridian.site + crm.app.veridian.site (Dokploy compose) |
+| `06-deploiement-infra.md` | crm.staging.veridian.site + crm.app.veridian.site (déploiement Nomad / `nomad-v`) |
 | `07-sprint-decomposition.md` | Découpe en N agents Opus parallèles + ordre des chantiers |
 | `08-questions-ouvertes.md` | Ce qu'il reste à trancher avec Robert avant attaque |
 

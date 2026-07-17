@@ -147,7 +147,7 @@ Le pattern :
 | **Migrations destructives Twenty upstream** | Pin version stable, audit avant rebase upstream |
 | **DDL dynamic + locks Postgres** | Tester les patterns avant prod, monitoring |
 | **Stack NestJS vs Next.js Veridian** | Acceptable. On garde NestJS pour ce produit. Si besoin de service worker, on déploie un Next.js layer devant. |
-| **BullMQ worker container séparé** | Ajout dans Dokploy compose. Pas un blocker (Veridian a déjà ce pattern pour Prospection cron) |
+| **BullMQ worker container séparé** | Task séparée dans le job Nomad `crm`. Pas un blocker (Veridian a déjà ce pattern pour Prospection cron) |
 | **GraphQL recomputed = latence sur create field** | UX bien designée + spinner explicite "Recompute schéma..." |
 | **AGPLv3 viral** | Accepté. Code public dès J1. Pas de dépendance secrète propriétaire. |
 
@@ -162,7 +162,7 @@ Le pattern :
 | R2 storage migration | 2-3 jours (1 agent) |
 | Module veridian-leads (pull Prospection) | 1 semaine (1 agent backend + 1 agent UI port) |
 | Module veridian-mail (push Notifuse) | 3-4 jours (1 agent) |
-| Déploiement Dokploy + Traefik | 2 jours (1 agent infra) |
+| Déploiement job Nomad + ingress Traefik | 2 jours (1 agent infra) |
 | Documentation + tests E2E hard-core | 1 semaine (1 agent) |
 | **TOTAL solo en giga-sprint** | **~6-8 semaines** (~1.5-2 mois cible) |
 

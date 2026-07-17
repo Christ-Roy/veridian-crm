@@ -1,5 +1,14 @@
 # 06 — Déploiement infra Veridian CRM
 
+> ⚠️ OBSOLÈTE (Dokploy décommissionné 2026-07-10) → déploiement = nomad-v / skill /nomad. Bloc historique.
+>
+> Le déploiement réel passe désormais par le cluster HashiCorp Nomad :
+> job `crm` dans `~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl`, piloté par le
+> CLI `nomad-v` (`nomad-v deploy <fichier>`, `nomad-v state`, `nomad-v logs crm`)
+> et le skill `/nomad`. Ingress = Traefik HA (2 instances + DNS multi-A). Le
+> reste de ce fichier décrit l'ancienne cible Dokploy et n'est conservé que
+> comme référence historique.
+
 > Comment on déploie le CRM forké sur l'infra Veridian existante (Dokploy + Traefik staging-edge).
 
 ## Topologie cible

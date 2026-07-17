@@ -108,7 +108,8 @@ laisse intacts.
 ### Cas spécial : `twenty-docker`
 
 Garder, mais **adapter** : c'est notre point de départ pour notre propre
-compose Veridian CRM (deploy via Dokploy + Traefik prod).
+image Veridian CRM (deploy via job Nomad + ingress Traefik — `nomad-v` /
+skill `/nomad`, job `crm` dans `~/nomad-veridian/jobs/saas-prod/`).
 
 ## 4. Stratégie — Twenty standalone, pas d'intégration Hub
 
@@ -165,15 +166,14 @@ push staging
 promotion main (ff)
   → veridian-crm-ci + build-image (:latest + :<sha7>, l'ancienne :latest
     est re-taggée :rollback AVANT d'être écrasée) + Trivy scan (rapport)
-  → Dokploy autoDeploy (webhook push main) — ⚠️ se déclenche AVANT la fin du
-    build :latest (~30 min) → re-déclencher POST /api/compose.deploy
-    (composeId 8zdqAAD1lkZFVAwuZ5USv) une fois l'image pushée, sinon la prod
-    tourne sur l'ancienne :latest. Vérifier le digest du container après.
+  → déploiement prod = job Nomad `crm` via `nomad-v deploy jobs/saas-prod/crm.nomad.hcl`
+    (repo ~/nomad-veridian) UNE FOIS l'image :latest pushée. Skill /nomad.
+    (Ancien flux Dokploy autoDeploy webhook décommissionné 2026-07-10.)
 ```
 
 **Rollback prod** : `ghcr.io/christ-roy/veridian-crm:rollback` = la :latest
-précédente. Procédure : éditer l'image du compose en `:rollback` (compose.update)
-+ compose.deploy, ou `docker pull :rollback && docker tag` côté serveur.
+précédente. Procédure : repointer l'image du job Nomad `crm` sur `:rollback`
+puis `nomad-v deploy` (repo ~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl). Skill /nomad.
 
 ### Hooks git versionnés (`.githooks/`)
 
@@ -216,7 +216,7 @@ decomposition, intégrations) vit dans `docs/spec/` :
 - `03-integration-hub-auth.md` — intégration Hub auth
 - `04-module-leads-b2b.md` — pull leads depuis Prospection
 - `05-module-notifuse-mail.md` — push campagnes vers Notifuse
-- `06-deploiement-infra.md` — Dokploy + Traefik + CI/CD
+- `06-deploiement-infra.md` — déploiement infra (Nomad / `nomad-v`) + CI/CD ⚠️ bloc Dokploy obsolète en tête
 - `07-sprint-decomposition.md` — Vague 11.1-11.5 (~8 semaines, ~14 agents cumul)
 - `08-questions-ouvertes.md` — questions à trancher avec Robert
 - `AUDIT-TWENTY-DETAIL-P0.md` — 30+ questions techniques d'audit micro

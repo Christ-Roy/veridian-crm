@@ -1,5 +1,14 @@
 # Veridian CRM — prod deploy (Dokploy GitOps)
 
+> ⚠️ OBSOLÈTE (Dokploy décommissionné 2026-07-10) → déploiement = nomad-v / skill /nomad. Bloc historique.
+>
+> Le déploiement prod du CRM passe désormais par le cluster HashiCorp Nomad :
+> job `crm` dans `~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl`, piloté par
+> `nomad-v` (`nomad-v deploy`, `nomad-v state`, `nomad-v logs crm`) + skill
+> `/nomad`. Le `docker-compose.yml` de ce dossier et la procédure ci-dessous
+> (compose Dokploy, composeId, webhook autoDeploy) ne sont plus opérants — ils
+> restent ici comme référence historique. Ne RIEN exécuter tel quel.
+
 > Stack prod Twenty fork sur VPS OVH (51.210.7.44), exposée sur
 > `https://crm.app.veridian.site` via Traefik Dokploy.
 
