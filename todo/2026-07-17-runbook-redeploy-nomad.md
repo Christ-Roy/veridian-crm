@@ -77,7 +77,18 @@ nomad-v deploy ~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl
   (cette dernière est `@ValidateIf(AUTH_GOOGLE_ENABLED)` → **requise sinon crash
   au boot**). Callback login = `https://crm.app.veridian.site/auth/google/redirect`.
   ⚠️ Ce redirect_uri doit être whitelisté dans la Google Cloud Console (client
-  `444233324288-bpsac6ia7jurhlghu4kse4qqqbc9eu73`) — sinon `redirect_uri_mismatch`.
+  `444233324288-bpsac6ia7jurhlghu4kse4qqqbc9eu73`, projet `veridian-preprod`,
+  "Veridian CRM Web") — sinon `redirect_uri_mismatch`. Fait le 2026-07-17.
+- 🔴 **APP_SECRET = clé de chiffrement AT-REST** (fallback `ENCRYPTION_KEY`→`APP_SECRET`
+  dans `resolve-encryption-keys`). Il chiffre en DB : la `signingKey` JWT (ES256), les
+  comptes mail connectés, les tokens OAuth. **DOIT rester l'HISTORIQUE Dokploy**
+  (`F3NApX3w…`, Nomad var `APP_SECRET`), PAS un secret frais. Symptôme si mauvais secret :
+  login échoue avec **"No active signing key available to sign asymmetric token"**
+  (`getCurrentSigningKey` ne peut pas déchiffrer la clé → fallback null → throw).
+  Bug vécu 2026-07-17 : le template pointait sur la Nomad var `TWENTY_APP_SECRET`
+  (secret frais généré à la migration) au lieu de `APP_SECRET`. Fix = template
+  `APP_SECRET={{ .APP_SECRET }}`. Si un jour on VEUT roter : mettre l'ancien en
+  `FALLBACK_ENCRYPTION_KEY` pour que les vieilles enveloppes restent déchiffrables.
 - **DB dans l'allocation** : la DB Postgres vit dans le job (volume bind local sur
   ovh-prod). Ne PAS reschedule le stateful ailleurs (le volume ne suit pas le nœud).
   Backups : cron prod → R2 (cf §1 SessionStart infra).
