@@ -32,7 +32,9 @@ describe('VeridianSsoProviderService (clean-room)', () => {
       // Round-trip simulé : préfixe enc: pour vérifier que la config n'est
       // jamais persistée en clair.
       encryptVersioned: jest.fn((value: string) => `enc:${value}`),
-      decryptVersioned: jest.fn((value: string) =>
+      // Upstream (sync 2026-07-18) a renommé `decryptVersioned` →
+      // `decryptVersionedOrThrow` sur SecretEncryptionService (chemin runtime).
+      decryptVersionedOrThrow: jest.fn((value: string) =>
         value.replace(/^enc:/, ''),
       ),
     } as unknown as jest.Mocked<SecretEncryptionService>;
@@ -66,7 +68,7 @@ describe('VeridianSsoProviderService (clean-room)', () => {
     expect(saved.isEnabled).toBe(true);
   });
 
-  it('round-trips the OIDC config through decryptVersioned', async () => {
+  it('round-trips the OIDC config through decryptVersionedOrThrow', async () => {
     const config = {
       issuerUrl: 'https://idp',
       clientId: 'cid',
@@ -80,7 +82,7 @@ describe('VeridianSsoProviderService (clean-room)', () => {
 
     const decrypted = service.getDecryptedOidcConfig(provider);
 
-    expect(secretEncryption.decryptVersioned).toHaveBeenCalledWith(
+    expect(secretEncryption.decryptVersionedOrThrow).toHaveBeenCalledWith(
       provider.encryptedConfig,
       { workspaceId: 'ws-1' },
     );

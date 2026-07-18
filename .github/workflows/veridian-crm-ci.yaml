@@ -81,22 +81,27 @@ jobs:
       # (flags defaults, marketplace/help-center guards, ai-telemetry,
       # dashboard sans iframe). Si un sync upstream écrase un patch, ça casse.
       #
-      # ⚠️ FIX 2026-06-13 (ticket dettes-ui §1) : le séparateur `--` est
-      # OBLIGATOIRE. `nx test <proj> --testPathPattern=…` SANS `--` ne forwarde
-      # PAS l'arg à jest → nx l'ignore silencieusement → TOUTE la suite tourne
-      # (5145 tests server, ~6 min gaspillées/commit). Avec `--`, nx forwarde le
-      # flag à jest (cf doc nx: `nx test <proj> -- --testPathPattern=<...>`).
-      # Repo en jest 29.7.0 → flag SINGULIER `--testPathPattern` (le pluriel
-      # `--testPathPatterns` n'arrive qu'avec jest 30 ; ne PAS l'utiliser ici).
+      # ⚠️ FIX 2026-07-18 (upgrade upstream dcd6683cac → nx bump 22.7.5) : on
+      # passe le pattern de scope comme ARGUMENT POSITIONNEL, plus via
+      # `--testPathPattern=…`. Raison : la version de nx amenée par le merge
+      # (@nx/jest 22.7.5) a réécrit le schéma de l'exécuteur `@nx/jest:jest` —
+      # il ne connaît QUE `--testPathPatterns` (pluriel, tableau, API jest 30) et
+      # DROPPE silencieusement le `--testPathPattern` (singulier) qu'on passait.
+      # Or le repo est en jest 29.7.0 (jest-config 29 ne lit QUE le singulier) :
+      # ni le singulier (droppé par nx) ni le pluriel (ignoré par jest 29) ne
+      # filtrent → TOUTE la suite tournait (828 suites / 6727 tests, ~9 min) et
+      # un test UPSTREAM instable rougissait le job "patch-survival". Le
+      # positionnel, lui, atterrit dans `config._` de jest, que jest 29 traite
+      # nativement comme testPathPattern (regex sur le chemin). Vérifié : 19
+      # suites (sign-in-up + create-company + les *.veridian.spec), pas 828.
       #
       # `--coverage=false` OBLIGATOIRE avec le scope : nx.json force coverage:true
       # et twenty-front a un coverageThreshold global (47/46/39%). Lancer un
       # sous-ensemble AVEC coverage ferait chuter le global sous le seuil → job
       # rouge. Le coverage global n'a aucun sens sur un run patch-survival ciblé ;
-      # on veut juste que NOS specs passent. (C'est pourquoi la suite complète
-      # passait avant : le pattern ignoré gardait le coverage au-dessus du seuil.)
+      # on veut juste que NOS specs passent.
       - name: Run Veridian unit tests + patch-survival
-        run: npx nx test twenty-server -- --testPathPattern="(sign-in-up|create-company\.service|\.veridian\.spec)" --coverage=false
+        run: npx nx test twenty-server -- "(sign-in-up|create-company\.service|\.veridian\.spec)" --coverage=false
 
       - name: Typecheck twenty-server
         run: npx nx typecheck twenty-server
@@ -122,15 +127,16 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/yarn-install
 
-      # ⚠️ FIX 2026-06-13 (ticket dettes-ui §1) : séparateur `--` obligatoire
-      # (cf job server ci-dessus). Sans lui, nx ignore le pattern → 4964 tests
-      # front tournent au lieu des ~4 specs Veridian. jest 29 → flag singulier.
-      # `--coverage=false` CRITIQUE ici : twenty-front a un coverageThreshold
-      # global (statements 47.3 / lines 45.9 / functions 39.5) et nx force
-      # coverage:true → scoper à 4 specs AVEC coverage = global sous le seuil =
-      # job rouge. On désactive le coverage pour le run patch-survival ciblé.
+      # ⚠️ FIX 2026-07-18 (upgrade upstream → nx 22.7.5) : pattern passé en
+      # ARGUMENT POSITIONNEL, plus via `--testPathPattern=…` (cf explication
+      # détaillée au job server ci-dessus — @nx/jest 22 droppe le flag singulier,
+      # jest 29 ignore le pluriel ; le positionnel atterrit dans config._ que
+      # jest 29 traite comme testPathPattern). Vérifié : 12 suites veridian, pas 921.
+      # `--coverage=false` CRITIQUE : twenty-front a un coverageThreshold global
+      # (statements 47.3 / lines 45.9 / functions 39.5) et nx force coverage:true
+      # → scoper AVEC coverage = global sous le seuil = job rouge.
       - name: Run Veridian front unit tests + patch-survival
-        run: npx nx test twenty-front -- --testPathPattern="\.veridian\.spec\.(ts|tsx)$" --coverage=false
+        run: npx nx test twenty-front -- "\.veridian\.spec\.(ts|tsx)$" --coverage=false
 
   # ── Étage 3 — build & push image GHCR (ex-veridian-crm-build-image.yaml,
   # fusionné ici en job `needs:`). Ne tourne que sur push staging/main (pas

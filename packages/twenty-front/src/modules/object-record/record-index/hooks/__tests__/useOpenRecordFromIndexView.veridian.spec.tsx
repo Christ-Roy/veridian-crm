@@ -73,7 +73,14 @@ jest.mock('@/context-store/constants/MainContextStoreInstanceId', () => ({
 jest.mock('~/generated-metadata/graphql', () => ({
   ViewOpenRecordIn: { SIDE_PANEL: 'SIDE_PANEL', RECORD_PAGE: 'RECORD_PAGE' },
 }));
+// Upstream (sync 2026-07-18) a déplacé l'enum `SidePanelPages` dans
+// `twenty-shared/types` ; `sidePanelPageState.ts` (tiré transitivement par le
+// hook) lit `SidePanelPages.CommandMenuDisplay` au chargement du module. Un mock
+// qui n'exporte QUE `AppPath` rend l'enum `undefined` → "suite failed to run".
+// On spread le vrai module (enums purs, sans dép lourde) et on garde le stub
+// AppPath minimal dont le hook a besoin.
 jest.mock('twenty-shared/types', () => ({
+  ...jest.requireActual('twenty-shared/types'),
   AppPath: { RecordShowPage: 'RecordShowPage' },
 }));
 

@@ -105,7 +105,7 @@ export class VeridianSsoProviderService {
 
   /** Déchiffre la config IdP d'un provider donné. */
   getDecryptedConfig(provider: VeridianSsoProviderEntity): VeridianSsoConfig {
-    const plaintext = this.secretEncryptionService.decryptVersioned(
+    const plaintext = this.secretEncryptionService.decryptVersionedOrThrow(
       provider.encryptedConfig as EncryptedString,
       { workspaceId: provider.workspaceId },
     );
