@@ -1,18 +1,27 @@
-// Veridian — module AGPL. Dropdown "Département" du cockpit prospection.
-// L'utilisateur tape un n° de département (ex "75") → pose un filtre
-// `departement CONTAINS "75"` sur la vue courante (TEXT ne supporte pas IS côté
-// query builder Twenty). Entrée ou "Appliquer" pose le filtre ; champ vidé +
-// Appliquer, ou "Réinitialiser" = clear.
+// Veridian — module AGPL (fork twentyhq/twenty). Dropdown "Géographie" du
+// cockpit prospection, à 2 niveaux :
+//   1. RÉGION — on déplie une région pour voir ses départements
+//   2. DÉPARTEMENT — sélection MULTIPLE (checkbox), chaque département coché
+//      pose un filtre `departement CONTAINS <code>` dans un RecordFilterGroup OR
+//      (cf useVeridianProspectionFilters.toggleGeoDept)
+// + saisie LIBRE d'un n° de département en haut (ex "2A", "75") qui l'ajoute à
+//   la sélection — utile pour un code hors liste ou une frappe rapide.
+//
+// La donnée company.departement ne stocke qu'un code 2 chars (ex "31"), donc
+// CONTAINS y équivaut à un equals (aucun faux positif). Le champ region
+// n'existe pas → la table région→départements est statique (utils/frenchDepartments).
 
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { type KeyboardEvent, useEffect, useState } from 'react';
+import { type KeyboardEvent, useMemo, useState } from 'react';
 import {
+  IconChevronDown,
+  IconChevronRight,
   IconMap,
+  IconPlus,
   IconRotate2,
-  IconSearch,
 } from 'twenty-ui-deprecated/display';
-import { MenuItem } from 'twenty-ui-deprecated/navigation';
+import { MenuItem, MenuItemMultiSelect } from 'twenty-ui-deprecated/navigation';
 import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
 
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
@@ -26,6 +35,11 @@ import { isDropdownOpenComponentState } from '@/ui/layout/dropdown/states/isDrop
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 
 import { useVeridianProspectionFilters } from '@/veridian-prospection-filters/hooks/useVeridianProspectionFilters';
+import {
+  FRENCH_REGIONS,
+  formatDeptLabel,
+  normalizeDeptCode,
+} from '@/veridian-prospection-filters/utils/frenchDepartments';
 
 const VERIDIAN_GEO_DROPDOWN_ID = 'veridian-geo-filter-dropdown';
 
@@ -35,7 +49,10 @@ const StyledButtonContent = styled.span`
   gap: ${themeCssVariables.spacing[1]};
 `;
 
-const StyledInputContainer = styled.div`
+const StyledInputRow = styled.div`
+  align-items: center;
+  display: flex;
+  gap: ${themeCssVariables.spacing[1]};
   padding: ${themeCssVariables.spacing[2]};
 `;
 
@@ -55,10 +72,21 @@ const StyledInput = styled.input`
   }
 `;
 
+const StyledRegionHeaderText = styled.span`
+  color: ${themeCssVariables.font.color.secondary};
+  font-size: ${themeCssVariables.font.size.xs};
+  font-weight: ${themeCssVariables.font.weight.semiBold};
+`;
+
+const StyledRegionCount = styled.span`
+  color: ${themeCssVariables.font.color.light};
+  font-weight: ${themeCssVariables.font.weight.regular};
+`;
+
 export const VeridianGeoFilterDropdown = () => {
   const { t } = useLingui();
   const { closeDropdown } = useCloseDropdown();
-  const { applyGeoFilter, clearGeoFilter, activeGeoValue } =
+  const { toggleGeoDept, clearGeoFilter, activeGeoCodes } =
     useVeridianProspectionFilters();
 
   const isDropdownOpen = useAtomComponentStateValue(
@@ -66,33 +94,58 @@ export const VeridianGeoFilterDropdown = () => {
     VERIDIAN_GEO_DROPDOWN_ID,
   );
 
-  const [draft, setDraft] = useState(activeGeoValue ?? '');
+  const [draft, setDraft] = useState('');
+  const [expandedRegionKey, setExpandedRegionKey] = useState<string | null>(
+    null,
+  );
 
-  // Resynchronise le champ quand le filtre change ailleurs (reset de vue, etc.)
-  // ou à la réouverture du dropdown.
-  useEffect(() => {
-    if (isDropdownOpen) {
-      setDraft(activeGeoValue ?? '');
+  const activeCodesSet = useMemo(
+    () => new Set(activeGeoCodes),
+    [activeGeoCodes],
+  );
+
+  const activeCount = activeGeoCodes.length;
+
+  // Nombre de départements actifs par région (badge sur l'entête de région).
+  const activeCountByRegion = useMemo(() => {
+    const counts: Record<string, number> = {};
+    FRENCH_REGIONS.forEach((region) => {
+      counts[region.key] = region.departments.filter((dept) =>
+        activeCodesSet.has(dept.code),
+      ).length;
+    });
+    return counts;
+  }, [activeCodesSet]);
+
+  const submitDraft = () => {
+    const code = normalizeDeptCode(draft);
+    if (code === '' || activeCodesSet.has(code)) {
+      setDraft('');
+      return;
     }
-  }, [isDropdownOpen, activeGeoValue]);
+    toggleGeoDept(code);
+    setDraft('');
+  };
 
-  const submit = () => {
-    applyGeoFilter(draft);
-    closeDropdown(VERIDIAN_GEO_DROPDOWN_ID);
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitDraft();
+    }
   };
 
   const handleClear = () => {
-    setDraft('');
     clearGeoFilter();
+    setDraft('');
     closeDropdown(VERIDIAN_GEO_DROPDOWN_ID);
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      submit();
-    }
-  };
+  const buttonLabel =
+    activeCount === 0
+      ? t`Géographie`
+      : activeCount === 1
+        ? t`Dépt ${activeGeoCodes[0]}`
+        : t`${activeCount} dépts`;
 
   return (
     <Dropdown
@@ -101,43 +154,83 @@ export const VeridianGeoFilterDropdown = () => {
       clickableComponent={
         <StyledHeaderDropdownButton
           isUnfolded={isDropdownOpen}
-          isActive={activeGeoValue !== undefined}
+          isActive={activeCount > 0}
         >
           <StyledButtonContent>
             <IconMap size={14} />
-            {activeGeoValue !== undefined
-              ? t`Dépt ${activeGeoValue}`
-              : t`Département`}
+            {buttonLabel}
           </StyledButtonContent>
         </StyledHeaderDropdownButton>
       }
       dropdownComponents={
         <DropdownContent widthInPixels={GenericDropdownContentWidth.Medium}>
-          <StyledInputContainer>
+          <StyledInputRow>
+            <IconPlus
+              size={14}
+              color={themeCssVariables.font.color.tertiary}
+            />
             <StyledInput
               autoComplete="off"
               autoFocus
               value={draft}
-              placeholder={t`N° de département (ex : 75)`}
+              placeholder={t`N° de département (ex : 75, 2A)`}
               onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={handleKeyDown}
+              onKeyDown={handleDraftKeyDown}
             />
-          </StyledInputContainer>
+          </StyledInputRow>
           <DropdownMenuSeparator />
-          <DropdownMenuItemsContainer>
-            <MenuItem
-              text={t`Appliquer`}
-              LeftIcon={IconSearch}
-              onClick={submit}
-            />
-            {activeGeoValue !== undefined && (
-              <MenuItem
-                text={t`Réinitialiser`}
-                LeftIcon={IconRotate2}
-                onClick={handleClear}
-              />
-            )}
+          <DropdownMenuItemsContainer hasMaxHeight>
+            {FRENCH_REGIONS.map((region) => {
+              const isExpanded = expandedRegionKey === region.key;
+              const regionActiveCount = activeCountByRegion[region.key] ?? 0;
+
+              return (
+                <div key={region.key}>
+                  <MenuItem
+                    text={region.label}
+                    LeftIcon={isExpanded ? IconChevronDown : IconChevronRight}
+                    onClick={() =>
+                      setExpandedRegionKey(isExpanded ? null : region.key)
+                    }
+                    RightComponent={
+                      regionActiveCount > 0 ? (
+                        <StyledRegionCount>
+                          {regionActiveCount}
+                        </StyledRegionCount>
+                      ) : undefined
+                    }
+                  />
+                  {isExpanded &&
+                    region.departments.map((dept) => (
+                      <MenuItemMultiSelect
+                        key={dept.code}
+                        className=""
+                        text={`${dept.code} · ${dept.name}`}
+                        selected={activeCodesSet.has(dept.code)}
+                        onSelectChange={() => toggleGeoDept(dept.code)}
+                      />
+                    ))}
+                </div>
+              );
+            })}
           </DropdownMenuItemsContainer>
+          {activeCount > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <StyledInputRow>
+                <StyledRegionHeaderText>
+                  {activeGeoCodes.map(formatDeptLabel).join(', ')}
+                </StyledRegionHeaderText>
+              </StyledInputRow>
+              <DropdownMenuItemsContainer>
+                <MenuItem
+                  text={t`Tout réinitialiser`}
+                  LeftIcon={IconRotate2}
+                  onClick={handleClear}
+                />
+              </DropdownMenuItemsContainer>
+            </>
+          )}
         </DropdownContent>
       }
     />

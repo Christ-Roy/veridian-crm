@@ -8,18 +8,23 @@
 // boutons d'action rapide.
 
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
+import { useRemoveRecordFilterGroup } from '@/object-record/record-filter-group/hooks/useRemoveRecordFilterGroup';
+import { useUpsertRecordFilterGroup } from '@/object-record/record-filter-group/hooks/useUpsertRecordFilterGroup';
 import { currentRecordFiltersComponentState } from '@/object-record/record-filter/states/currentRecordFiltersComponentState';
 import { type RecordFilter } from '@/object-record/record-filter/types/RecordFilter';
 import { useRemoveRecordFilter } from '@/object-record/record-filter/hooks/useRemoveRecordFilter';
 import { useUpsertRecordFilter } from '@/object-record/record-filter/hooks/useUpsertRecordFilter';
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { RecordFilterGroupLogicalOperator } from 'twenty-shared/types';
 import { getFilterTypeFromFieldType } from 'twenty-shared/utils';
 
+import { normalizeDeptCode } from '@/veridian-prospection-filters/utils/frenchDepartments';
 import {
   VERIDIAN_DEPARTEMENT_FIELD,
   VERIDIAN_EFFECTIFS_FIELD,
   VERIDIAN_FILTER_OPERANDS,
+  VERIDIAN_HAS_MOBILE_FIELD,
   VERIDIAN_HAS_WEBSITE_FIELD,
   VERIDIAN_ICP_FIELD,
   VERIDIAN_SCORE_FIELD,
@@ -27,14 +32,17 @@ import {
   VERIDIAN_SIZE_PRESETS,
   type VeridianScorePresetKey,
   type VeridianSizePresetKey,
-  buildGeoFilterId,
+  buildGeoDeptFilterId,
+  buildGeoGroupId,
   buildIcpFilterId,
+  buildMobileFilterId,
   buildScoreMinFilterId,
   buildSiteFilterId,
   buildSizeMaxFilterId,
   buildSizeMinFilterId,
-  resolveActiveGeoValue,
+  resolveActiveGeoCodes,
   resolveActiveIcpValue,
+  resolveActiveMobileValue,
   resolveActiveScorePresetKey,
   resolveActiveSizePresetKey,
   resolveActiveSiteValue,
@@ -55,6 +63,8 @@ export const useVeridianProspectionFilters = () => {
   // filtre n'était jamais appliqué (bug vécu + fixé 2026-07-18).
   const { upsertRecordFilter } = useUpsertRecordFilter();
   const { removeRecordFilter } = useRemoveRecordFilter();
+  const { upsertRecordFilterGroup } = useUpsertRecordFilterGroup();
+  const { removeRecordFilterGroup } = useRemoveRecordFilterGroup();
 
   const currentRecordFilters = useAtomComponentStateValue(
     currentRecordFiltersComponentState,
@@ -77,6 +87,13 @@ export const useVeridianProspectionFilters = () => {
     VERIDIAN_SCORE_FIELD,
   );
   const icpField = findFieldByName(objectMetadataItem.fields, VERIDIAN_ICP_FIELD);
+  // hasMobile : n'existe PAS aujourd'hui sur company → mobileField undefined →
+  // le toggle Mobile ne se rend pas (pas de bouton mort). Se câble tout seul le
+  // jour où le champ BOOLEAN hasMobile est ajouté via IaC (cf utils).
+  const mobileField = findFieldByName(
+    objectMetadataItem.fields,
+    VERIDIAN_HAS_MOBILE_FIELD,
+  );
 
   // -- État actif (surlignage + toggle) --------------------------------------
   const activeSizePresetKey = effectifsField
@@ -87,9 +104,9 @@ export const useVeridianProspectionFilters = () => {
     ? resolveActiveSiteValue(currentRecordFilters, hasWebsiteField.id)
     : undefined;
 
-  const activeGeoValue = departementField
-    ? resolveActiveGeoValue(currentRecordFilters, departementField.id)
-    : undefined;
+  const activeGeoCodes = departementField
+    ? resolveActiveGeoCodes(currentRecordFilters, departementField.id)
+    : [];
 
   const activeScorePresetKey = scoreField
     ? resolveActiveScorePresetKey(currentRecordFilters, scoreField.id)
@@ -97,6 +114,10 @@ export const useVeridianProspectionFilters = () => {
 
   const activeIcpValue = icpField
     ? resolveActiveIcpValue(currentRecordFilters, icpField.id)
+    : false;
+
+  const activeMobileValue = mobileField
+    ? resolveActiveMobileValue(currentRecordFilters, mobileField.id)
     : false;
 
   // -- Taille (effectifs) ----------------------------------------------------
@@ -173,34 +194,64 @@ export const useVeridianProspectionFilters = () => {
     });
   };
 
-  // -- Département (departement, TEXT → CONTAINS) ----------------------------
+  // -- Géo multi-département (departement, TEXT CONTAINS, en RecordFilterGroup OR)
+  // Un groupe OR + un filtre CONTAINS par département sélectionné. Re-cliquer un
+  // département le retire ; retirer le dernier retire aussi le groupe.
+  //
+  // ⚠️ Limite connue (acceptée) : si l'utilisateur a par ailleurs des filtres
+  // AVANCÉS avec leur propre groupe racine, computeRecordGqlOperationFilter ne
+  // reconnaît qu'UN groupe racine (le premier sans parent). Notre groupe géo,
+  // ajouté après, serait alors ignoré. Le cockpit est un outil de filtre RAPIDE
+  // sur vue simple : cette coexistence est un cas de bord, pas le workflow cible.
   const clearGeoFilter = () => {
     if (!departementField) return;
-    removeRecordFilter({
-      recordFilterId: buildGeoFilterId(departementField.id),
+    activeGeoCodes.forEach((code) => {
+      removeRecordFilter({
+        recordFilterId: buildGeoDeptFilterId(departementField.id, code),
+      });
     });
+    removeRecordFilterGroup(buildGeoGroupId(departementField.id));
   };
 
-  const applyGeoFilter = (rawValue: string) => {
+  const toggleGeoDept = (rawCode: string) => {
     if (!departementField) return;
 
-    const value = rawValue.trim();
+    const code = normalizeDeptCode(rawCode);
+    if (code === '') return;
 
-    // Champ vidé → on efface (toggle off).
-    if (value === '') {
-      clearGeoFilter();
+    const deptFilterId = buildGeoDeptFilterId(departementField.id, code);
+    const isActive = activeGeoCodes.includes(code);
+
+    if (isActive) {
+      removeRecordFilter({ recordFilterId: deptFilterId });
+      // Dernier département retiré → on retire aussi le groupe OR.
+      if (activeGeoCodes.length === 1) {
+        removeRecordFilterGroup(buildGeoGroupId(departementField.id));
+      }
       return;
     }
 
+    const groupId = buildGeoGroupId(departementField.id);
+
+    // Le groupe OR doit exister avant d'y rattacher un filtre. Upsert
+    // idempotent (même id → pas de doublon).
+    upsertRecordFilterGroup({
+      id: groupId,
+      logicalOperator: RecordFilterGroupLogicalOperator.OR,
+      parentRecordFilterGroupId: null,
+    });
+
     upsertRecordFilter({
-      id: buildGeoFilterId(departementField.id),
+      id: deptFilterId,
       fieldMetadataId: departementField.id,
       type: getFilterTypeFromFieldType(departementField.type),
       operand: VERIDIAN_FILTER_OPERANDS.contains,
-      value,
-      displayValue: value,
+      value: code,
+      displayValue: code,
       label: departementField.label,
       subFieldName: null,
+      recordFilterGroupId: groupId,
+      positionInRecordFilterGroup: activeGeoCodes.length,
     });
   };
 
@@ -260,6 +311,33 @@ export const useVeridianProspectionFilters = () => {
     });
   };
 
+  // -- Mobile (hasMobile, BOOLEAN IS true) -----------------------------------
+  // No-op tant que le champ n'existe pas (mobileField undefined). Voir le comment
+  // VERIDIAN_HAS_MOBILE_FIELD dans utils : il faut créer le champ dérivé côté
+  // IaC/scraper. Le toggle est déjà branché pour s'activer sans autre code.
+  const toggleMobileFilter = () => {
+    if (!mobileField) return;
+
+    const filterId = buildMobileFilterId(mobileField.id);
+
+    // Toggle off.
+    if (activeMobileValue) {
+      removeRecordFilter({ recordFilterId: filterId });
+      return;
+    }
+
+    upsertRecordFilter({
+      id: filterId,
+      fieldMetadataId: mobileField.id,
+      type: getFilterTypeFromFieldType(mobileField.type),
+      operand: VERIDIAN_FILTER_OPERANDS.is,
+      value: 'true',
+      displayValue: 'True',
+      label: mobileField.label,
+      subFieldName: null,
+    });
+  };
+
   return {
     // dispo des champs (le cockpit masque un contrôle si son champ manque)
     hasEffectifsField: effectifsField !== undefined,
@@ -267,20 +345,23 @@ export const useVeridianProspectionFilters = () => {
     hasDepartementField: departementField !== undefined,
     hasScoreField: scoreField !== undefined,
     hasIcpField: icpField !== undefined,
+    hasMobileField: mobileField !== undefined,
     // état actif
     activeSizePresetKey,
     activeSiteValue,
-    activeGeoValue,
+    activeGeoCodes,
     activeScorePresetKey,
     activeIcpValue,
+    activeMobileValue,
     // actions
     applySizePreset,
     clearSizeFilter,
     toggleSiteFilter,
-    applyGeoFilter,
+    toggleGeoDept,
     clearGeoFilter,
     applyScoreMin,
     clearScoreFilter,
     toggleIcpFilter,
+    toggleMobileFilter,
   };
 };

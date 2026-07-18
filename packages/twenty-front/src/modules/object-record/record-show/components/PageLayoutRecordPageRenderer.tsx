@@ -14,6 +14,8 @@ import { useAtomFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/use
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : mécanique "ouverture de fiche"
 import { VeridianRecordOpenEffect } from '@/veridian-record-open/components/VeridianRecordOpenEffect';
+// Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : cockpit "fiche prospect"
+import { VeridianProspectCard } from '@/veridian-prospect-card/components/VeridianProspectCard';
 import { styled } from '@linaria/react';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
@@ -107,6 +109,15 @@ export const PageLayoutRecordPageRenderer = ({
         <VeridianRecordOpenEffect
           objectNameSingular={targetRecordIdentifier.targetObjectNameSingular}
           recordId={targetRecordIdentifier.id}
+        />
+        {/* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : cockpit "fiche
+            prospect" rendu EN TÊTE de la fiche (au-dessus du layout Twenty
+            dynamique), pleine page ET side-panel. Gating company DANS le
+            composant (return null sinon) → aucun impact sur les autres objets. */}
+        <VeridianProspectCard
+          recordId={targetRecordIdentifier.id}
+          objectNameSingular={targetRecordIdentifier.targetObjectNameSingular}
+          isInSidePanel={isInSidePanel}
         />
         <StyledContentContainer isInSidePanel={isInSidePanel}>
           <LayoutRenderingProvider

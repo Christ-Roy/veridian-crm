@@ -10,7 +10,7 @@
 
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { IconLink, IconLinkOff } from 'twenty-ui-deprecated/display';
+import { IconLink, IconLinkOff, IconPhone } from 'twenty-ui-deprecated/display';
 import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
 
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
@@ -40,8 +40,11 @@ const VeridianProspectionFilterButtonsContent = () => {
     hasDepartementField,
     hasScoreField,
     hasIcpField,
+    hasMobileField,
     activeSiteValue,
+    activeMobileValue,
     toggleSiteFilter,
+    toggleMobileFilter,
   } = useVeridianProspectionFilters();
 
   return (
@@ -66,6 +69,18 @@ const VeridianProspectionFilterButtonsContent = () => {
             {t`Sans site`}
           </StyledIconButton>
         </>
+      )}
+      {/* Toggle Mobile 06/07 — ne se rend QUE si le champ hasMobile existe sur
+          company (absent aujourd'hui → rien ne s'affiche, pas de bouton mort).
+          Voir VERIDIAN_HAS_MOBILE_FIELD (utils) : câbler le champ dérivé via IaC. */}
+      {hasMobileField && (
+        <StyledIconButton
+          isActive={activeMobileValue}
+          onClick={toggleMobileFilter}
+        >
+          <IconPhone size={14} />
+          {t`Mobile 06/07`}
+        </StyledIconButton>
       )}
     </StyledContainer>
   );

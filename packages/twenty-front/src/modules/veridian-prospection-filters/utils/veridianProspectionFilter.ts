@@ -19,9 +19,26 @@ export const isVeridianProspectionFilterObject = (
 // -- Champs company réels (API names camelCase, cf Settings > Data model) -----
 export const VERIDIAN_EFFECTIFS_FIELD = 'effectifs'; // NUMBER
 export const VERIDIAN_HAS_WEBSITE_FIELD = 'hasWebsite'; // BOOLEAN
-export const VERIDIAN_DEPARTEMENT_FIELD = 'departement'; // TEXT
+export const VERIDIAN_DEPARTEMENT_FIELD = 'departement'; // TEXT (code 2 chars)
 export const VERIDIAN_SCORE_FIELD = 'prospectScore'; // NUMBER
 export const VERIDIAN_ICP_FIELD = 'idealCustomerProfile'; // BOOLEAN
+
+// -- Champ MOBILE : N'EXISTE PAS ENCORE sur company (à créer via IaC) ---------
+// ⚠️ État vérifié live prod (`twenty gql metadata`, 40 champs company) :
+// AUCUN champ téléphone/PHONES sur company. Le legacy "Mobile 06/07" est donc
+// IMPOSSIBLE tel quel — et resterait impossible même avec un champ PHONES :
+//   • l'enum d'opérandes PHONES n'a PAS de STARTS_WITH (que CONTAINS = substring
+//     `%val%`, donc "06" matcherait aussi "01 45 06 12 34") ;
+//   • le moteur stocke le numéro SANS le 0 initial (callingCode séparé), donc
+//     le préfixe "06" n'existe même plus dans la donnée.
+// VOIE PROPRE (à câbler côté scraper/enrichissement, PAS dans ce module) :
+// ajouter sur company un champ BOOLEAN dérivé `hasMobile`, calculé À L'IMPORT
+// (regex ^0?[67] sur le numéro brut). Le cockpit l'expose alors
+// AUTOMATIQUEMENT en toggle (même pattern que hasWebsite / idealCustomerProfile)
+// dès que le champ existe — cf useVeridianProspectionFilters, qui gate
+// l'affichage sur la présence du champ. Tant que le champ n'existe pas, AUCUN
+// bouton mort n'est rendu.
+export const VERIDIAN_HAS_MOBILE_FIELD = 'hasMobile'; // BOOLEAN (à créer via IaC)
 
 // -- Presets de taille (effectifs) -------------------------------------------
 // Un range = deux RecordFilter (GREATER_THAN_OR_EQUAL + LESS_THAN_OR_EQUAL)
@@ -54,14 +71,32 @@ export const buildSizeMaxFilterId = (fieldMetadataId: string): string =>
 export const buildSiteFilterId = (fieldMetadataId: string): string =>
   `veridian-site:${fieldMetadataId}`;
 
-export const buildGeoFilterId = (fieldMetadataId: string): string =>
-  `veridian-geo:${fieldMetadataId}`;
-
 export const buildScoreMinFilterId = (fieldMetadataId: string): string =>
   `veridian-score-min:${fieldMetadataId}`;
 
 export const buildIcpFilterId = (fieldMetadataId: string): string =>
   `veridian-icp:${fieldMetadataId}`;
+
+export const buildMobileFilterId = (fieldMetadataId: string): string =>
+  `veridian-mobile:${fieldMetadataId}`;
+
+// -- Géo MULTI-DÉPARTEMENT : un RecordFilterGroup OR + N filtres CONTAINS ------
+// Le champ `departement` ne stocke qu'UN code par ligne → filtrer plusieurs
+// départements = un OR (impossible en flat-AND : "dept CONTAINS 31 AND dept
+// CONTAINS 32" ne matche rien). On matérialise donc un RecordFilterGroup avec
+// logicalOperator OR, et un RecordFilter `departement CONTAINS <code>` par
+// département sélectionné, chacun rattaché au groupe.
+export const buildGeoGroupId = (fieldMetadataId: string): string =>
+  `veridian-geo-group:${fieldMetadataId}`;
+
+// Id STABLE par (champ, code) → re-cliquer un département TOGGLE (n'empile pas).
+export const buildGeoDeptFilterId = (
+  fieldMetadataId: string,
+  deptCode: string,
+): string => `veridian-geo-dept:${fieldMetadataId}:${deptCode}`;
+
+const geoDeptFilterIdPrefix = (fieldMetadataId: string): string =>
+  `veridian-geo-dept:${fieldMetadataId}:`;
 
 // -- Presets de qualité (prospectScore, borne basse >=) -----------------------
 // Un seul RecordFilter GREATER_THAN_OR_EQUAL par preset (ids stables → toggle).
@@ -130,16 +165,19 @@ export const resolveActiveScorePresetKey = (
   return VERIDIAN_SCORE_PRESETS.find((preset) => preset.min === min)?.key;
 };
 
-// -- Résolution de la valeur "département" active (TEXT, CONTAINS) -------------
-export const resolveActiveGeoValue = (
+// -- Résolution des départements actifs (codes sélectionnés, TEXT CONTAINS) ----
+// On lit les filtres dont l'id porte le préfixe geo-dept du champ et on en
+// extrait le code (partie après le dernier segment stable). Le fieldMetadataId
+// est un UUID sans ':' → le découpage par préfixe est sûr.
+export const resolveActiveGeoCodes = (
   currentFilters: { id: string; value: string }[],
   fieldMetadataId: string,
-): string | undefined => {
-  const geoFilter = currentFilters.find(
-    (filter) => filter.id === buildGeoFilterId(fieldMetadataId),
-  );
-  const value = geoFilter?.value?.trim();
-  return value ? value : undefined;
+): string[] => {
+  const prefix = geoDeptFilterIdPrefix(fieldMetadataId);
+  return currentFilters
+    .filter((filter) => filter.id.startsWith(prefix))
+    .map((filter) => filter.id.slice(prefix.length))
+    .filter((code) => code !== '');
 };
 
 // -- Résolution de l'état "ICP uniquement" actif (BOOLEAN, IS true) -----------
@@ -151,6 +189,18 @@ export const resolveActiveIcpValue = (
     (filter) => filter.id === buildIcpFilterId(fieldMetadataId),
   );
   return icpFilter?.value === 'true';
+};
+
+// -- Résolution de l'état "Mobile" actif (BOOLEAN, IS true) -------------------
+// Ne renvoie true que si le champ hasMobile existe ET que le toggle est posé.
+export const resolveActiveMobileValue = (
+  currentFilters: { id: string; value: string }[],
+  fieldMetadataId: string,
+): boolean => {
+  const mobileFilter = currentFilters.find(
+    (filter) => filter.id === buildMobileFilterId(fieldMetadataId),
+  );
+  return mobileFilter?.value === 'true';
 };
 
 // -- Opérandes de filtre (réexport typé, évite d'importer twenty-shared partout)

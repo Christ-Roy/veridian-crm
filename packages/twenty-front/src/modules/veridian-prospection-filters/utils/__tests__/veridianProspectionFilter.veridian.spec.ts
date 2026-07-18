@@ -1,15 +1,24 @@
 import {
+  DEPARTMENT_BY_CODE,
+  FRENCH_REGIONS,
+  formatDeptLabel,
+  normalizeDeptCode,
+} from '../frenchDepartments';
+import {
   VERIDIAN_SCORE_PRESETS,
   VERIDIAN_SIZE_PRESETS,
-  buildGeoFilterId,
+  buildGeoDeptFilterId,
+  buildGeoGroupId,
   buildIcpFilterId,
+  buildMobileFilterId,
   buildScoreMinFilterId,
   buildSiteFilterId,
   buildSizeMaxFilterId,
   buildSizeMinFilterId,
   isVeridianProspectionFilterObject,
-  resolveActiveGeoValue,
+  resolveActiveGeoCodes,
   resolveActiveIcpValue,
+  resolveActiveMobileValue,
   resolveActiveScorePresetKey,
   resolveActiveSizePresetKey,
   resolveActiveSiteValue,
@@ -21,6 +30,7 @@ describe('veridianProspectionFilter', () => {
   const geoFieldId = 'field-departement-789';
   const scoreFieldId = 'field-prospectScore-abc';
   const icpFieldId = 'field-idealCustomerProfile-def';
+  const mobileFieldId = 'field-hasMobile-ghi';
 
   describe('isVeridianProspectionFilterObject', () => {
     it('ne matche QUE company', () => {
@@ -122,13 +132,25 @@ describe('veridianProspectionFilter', () => {
     });
   });
 
-  describe('ids stables (geo / score / icp)', () => {
+  describe('ids stables (geo / score / icp / mobile)', () => {
     it('sont déterministes par fieldMetadataId', () => {
-      expect(buildGeoFilterId(geoFieldId)).toBe(buildGeoFilterId(geoFieldId));
+      expect(buildGeoGroupId(geoFieldId)).toBe(buildGeoGroupId(geoFieldId));
+      expect(buildGeoDeptFilterId(geoFieldId, '31')).toBe(
+        buildGeoDeptFilterId(geoFieldId, '31'),
+      );
       expect(buildScoreMinFilterId(scoreFieldId)).toBe(
         buildScoreMinFilterId(scoreFieldId),
       );
       expect(buildIcpFilterId(icpFieldId)).toBe(buildIcpFilterId(icpFieldId));
+      expect(buildMobileFilterId(mobileFieldId)).toBe(
+        buildMobileFilterId(mobileFieldId),
+      );
+    });
+
+    it('un id de dépt diffère par code', () => {
+      expect(buildGeoDeptFilterId(geoFieldId, '31')).not.toBe(
+        buildGeoDeptFilterId(geoFieldId, '32'),
+      );
     });
   });
 
@@ -162,19 +184,30 @@ describe('veridianProspectionFilter', () => {
     });
   });
 
-  describe('resolveActiveGeoValue', () => {
-    it('retourne la valeur du département posée', () => {
-      const filters = [{ id: buildGeoFilterId(geoFieldId), value: '75' }];
-      expect(resolveActiveGeoValue(filters, geoFieldId)).toBe('75');
+  describe('resolveActiveGeoCodes (multi-département)', () => {
+    it('extrait les codes des filtres geo-dept du champ', () => {
+      const filters = [
+        { id: buildGeoDeptFilterId(geoFieldId, '31'), value: '31' },
+        { id: buildGeoDeptFilterId(geoFieldId, '2A'), value: '2A' },
+        { id: buildGeoDeptFilterId(geoFieldId, '971'), value: '971' },
+      ];
+      expect(resolveActiveGeoCodes(filters, geoFieldId)).toEqual([
+        '31',
+        '2A',
+        '971',
+      ]);
     });
 
-    it('trim et traite une valeur vide comme absente', () => {
-      const filters = [{ id: buildGeoFilterId(geoFieldId), value: '  ' }];
-      expect(resolveActiveGeoValue(filters, geoFieldId)).toBeUndefined();
+    it('ignore les filtres d’un autre champ ou hors geo', () => {
+      const filters = [
+        { id: buildGeoDeptFilterId('autre-field', '31'), value: '31' },
+        { id: buildSiteFilterId(siteFieldId), value: 'true' },
+      ];
+      expect(resolveActiveGeoCodes(filters, geoFieldId)).toEqual([]);
     });
 
-    it('undefined si aucun filtre geo', () => {
-      expect(resolveActiveGeoValue([], geoFieldId)).toBeUndefined();
+    it('[] si aucun filtre geo', () => {
+      expect(resolveActiveGeoCodes([], geoFieldId)).toEqual([]);
     });
   });
 
@@ -194,5 +227,59 @@ describe('veridianProspectionFilter', () => {
       ).toBe(false);
       expect(resolveActiveIcpValue([], icpFieldId)).toBe(false);
     });
+  });
+
+  describe('resolveActiveMobileValue', () => {
+    it('true seulement si le filtre Mobile vaut "true"', () => {
+      expect(
+        resolveActiveMobileValue(
+          [{ id: buildMobileFilterId(mobileFieldId), value: 'true' }],
+          mobileFieldId,
+        ),
+      ).toBe(true);
+      expect(
+        resolveActiveMobileValue(
+          [{ id: buildMobileFilterId(mobileFieldId), value: 'false' }],
+          mobileFieldId,
+        ),
+      ).toBe(false);
+      expect(resolveActiveMobileValue([], mobileFieldId)).toBe(false);
+    });
+  });
+});
+
+describe('frenchDepartments', () => {
+  it('normalizeDeptCode trim + uppercase (Corse)', () => {
+    expect(normalizeDeptCode('  2a ')).toBe('2A');
+    expect(normalizeDeptCode(' 75 ')).toBe('75');
+    expect(normalizeDeptCode('')).toBe('');
+  });
+
+  it('formatDeptLabel connu vs inconnu', () => {
+    expect(formatDeptLabel('31')).toBe('31 · Haute-Garonne');
+    expect(formatDeptLabel('99')).toBe('99');
+  });
+
+  it('aucun code de département en double sur toutes les régions', () => {
+    const codes = FRENCH_REGIONS.flatMap((region) =>
+      region.departments.map((dept) => dept.code),
+    );
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  it("l'index code→département couvre tous les départements", () => {
+    const codes = FRENCH_REGIONS.flatMap((region) =>
+      region.departments.map((dept) => dept.code),
+    );
+    codes.forEach((code) => {
+      expect(DEPARTMENT_BY_CODE[code]).toBeDefined();
+    });
+  });
+
+  it('inclut la Corse (2A/2B) et les DOM (97x)', () => {
+    expect(DEPARTMENT_BY_CODE['2A']).toBeDefined();
+    expect(DEPARTMENT_BY_CODE['2B']).toBeDefined();
+    expect(DEPARTMENT_BY_CODE['971']).toBeDefined();
+    expect(DEPARTMENT_BY_CODE['976']).toBeDefined();
   });
 });
