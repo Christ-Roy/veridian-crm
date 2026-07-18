@@ -9,7 +9,7 @@ import {
   IconTargetArrow,
   IconTrendingUp,
   IconWorld,
-} from 'twenty-ui-deprecated/display';
+} from 'twenty-ui/icon';
 
 import {
   getVeridianTunnelPresentation,

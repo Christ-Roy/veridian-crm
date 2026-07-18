@@ -51,8 +51,7 @@ export default defineLogicFunction({
 ```
 
 Verfügbare Trigger-Typen:
-* **httpRoute**: Stellt Ihre Funktion unter einem HTTP-Pfad und einer Methode **unter dem Endpunkt `/s/`** bereit:
-> z. B. `path: '/post-card/create'` ist unter `https://your-twenty-server.com/s/post-card/create` aufrufbar
+* **httpRoute**: Stellt Ihre Funktion über einen HTTP-Pfad und eine Methode bereit. Im Anwendungscode den Routenpfad bei Verwendung von `RestApiClient` mit dem Präfix `/s/` versehen; die bereitgestellte URL verwendet als Basis die injizierte `TWENTY_FUNCTIONS_URL` (oder `\<server-url>/s`, wenn diese nicht gesetzt ist).
 
 <Note>
 Um eine routenausgelöste Logikfunktion von einer (headless) Front-Komponente aus aufzurufen, siehe [Aufrufen einer Logikfunktion](/l/de/developers/extend/apps/layout/front-components#calling-a-logic-function).
@@ -60,6 +59,7 @@ Um eine routenausgelöste Logikfunktion von einer (headless) Front-Komponente au
 * **cron**: Führt Ihre Funktion nach Zeitplan mithilfe eines CRON-Ausdrucks aus.
 * **databaseEvent**: Wird bei Lebenszyklusereignissen von Workspace-Objekten ausgeführt. Wenn die Ereignisoperation `updated` ist, können bestimmte zu überwachende Felder im Array `updatedFields` angegeben werden. Wenn das Array undefiniert oder leer ist, löst jede Aktualisierung die Funktion aus.
 > z. B. `person.updated`, `*.created`, `company.*`
+* **serverRoute**: Stellt eine einzelne, registrierungsbezogene HTTP-Route bereit. Eine **Resolver**-Funktion (deklariert mit `serverRouteTriggerSettings`) läuft im Owner-Workspace und gibt den Ziel-Workspace UND die Ziel-Logikfunktion zurück, an die weitergeleitet werden soll; die Plattform führt dann diese **Ziel**-Funktion aus und gibt deren Antwort zurück. Siehe [Server-Route-Trigger](#server-route-trigger).
 
 <Note>
 Sie können eine Funktion auch manuell über die CLI ausführen:
@@ -105,7 +105,7 @@ Der Typ `RoutePayload` hat die folgende Struktur:
   | `body`                       | `object \| null`                                        | Geparster Request-Body (JSON)                                                                                                                                                                                                          | `{ id: 1 }` -> `{ id: 1 }`                                                 |
   | `rawBody`                    | `string \| undefined`                                   | Ursprünglicher UTF-8-Request-Body vor dem JSON-Parsing. Nützlich zur Verifizierung von Webhook-Signaturen im HMAC-Stil (z. B. GitHubs `X-Hub-Signature-256`, Stripe). `undefined`, wenn die Laufzeitumgebung es nicht beibehalten hat. |                                                                            |
   | `isBase64Encoded`            | `boolean`                                               | Gibt an, ob der Body Base64-codiert ist                                                                                                                                                                                                |                                                                            |
-  | `requestContext.http.method` | `string`                                                | HTTP-Methode (GET, POST, PUT, PATCH, DELETE)                                                                                                                                                                                           |                                                                            |
+  | `requestContext.http.method` | `Zeichenkette`                                          | HTTP-Methode (GET, POST, PUT, PATCH, DELETE)                                                                                                                                                                                           |                                                                            |
   | `requestContext.http.path`   | `string`                                                | Rohpfad der Anfrage                                                                                                                                                                                                                    |                                                                            |
 
 
@@ -169,6 +169,127 @@ Aus Sicherheitsgründen sind Antwort-Header auf eine Allowlist beschränkt. Jede
 
 <Note>
 Der Statuscode muss ein gültiger HTTP-Statuscode sein (zwischen 100 und 599). Antwort-Header-Namen werden ohne Beachtung der Groß-/Kleinschreibung verglichen.
+</Note>
+
+#### Server-Route-Trigger
+
+`httpRouteTriggerSettings` stellt eine Funktion unter `/s/` bereit und ermittelt den Workspace aus dem Host der Anfrage — was funktioniert, wenn jeder Workspace seine eigene Domain hat. Drittanbieter hingegen liefern die Ereignisse jedes Mandanten an **eine** URL. Für diesen Fall verwende `serverRouteTriggerSettings`.
+
+Der Trigger besteht aus zwei Teilen:
+
+1. Eine **Resolver**-Logikfunktion – deklariert mit `serverRouteTriggerSettings` – läuft in deinem **Owner-Workspace** (dem Workspace, dem die Anwendungsregistrierung gehört). Sie untersucht die eingehende Anfrage und gibt `{ workspaceId, targetLogicFunctionUniversalIdentifier, payload? }` zurück und wählt dabei *sowohl* den Ziel-Workspace als auch die Zielfunktion aus. Der Resolver ist die einzige Autorisierungsstelle – die URL enthält nur den Bezeichner des Resolvers. **Dies ist der bevorzugte Ort, um Anfragesignaturen zu verifizieren**: Der Resolver läuft vor jeglicher Nebenwirkung, hat Zugriff auf den ursprünglichen `rawBody` und weitergeleitete Header und kann ablehnen, ohne jemals das Ziel zu berühren.
+2. Eine **Target**-Logikfunktion – eine reguläre, Workspace-spezifische Logikfunktion – läuft dann im aufgelösten Workspace mit dem Payload, der vom Resolver zurückgegeben wurde (oder dem ursprünglichen Anfrage-Payload, falls der Resolver ihn nicht transformiert hat). Ihr Rückgabewert wird zur HTTP-Antwort.
+
+```ts src/logic-functions/resolve-server-route.logic-function.ts
+import { createHmac, timingSafeEqual } from 'crypto';
+import { defineLogicFunction } from 'twenty-sdk/define';
+import type { RoutePayload } from 'twenty-sdk/logic-function';
+
+// Runs in the owner workspace. Verifies the request signature, picks
+// which target function should handle the event, and returns the
+// workspace + target the platform should dispatch to.
+const handler = async (event: RoutePayload) => {
+  // Fail closed if the secret isn't configured — never fall back to an
+  // empty key, which would let any caller forge a matching signature.
+  const secret = process.env.GITHUB_WEBHOOK_SECRET;
+
+  if (!secret) {
+    throw new Error('GITHUB_WEBHOOK_SECRET is not configured');
+  }
+
+  const signature = event.headers['x-hub-signature-256'] ?? '';
+  const expected =
+    'sha256=' +
+    createHmac('sha256', secret).update(event.rawBody ?? '').digest('hex');
+
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new Error('invalid signature');
+  }
+
+  const body = (event.body ?? {}) as {
+    metadata?: { twentyWorkspaceId?: string };
+    type?: string;
+  };
+
+  return {
+    workspaceId: body.metadata?.twentyWorkspaceId ?? '',
+    // Route different event types to different target functions.
+    targetLogicFunctionUniversalIdentifier:
+      body.type === 'invoice.paid'
+        ? 'c4e2a9b1-7d4e-4c9a-9f2b-2e1d6a4c8e10' // handle-invoice-paid
+        : 'd5f3b0c2-8e5f-5d0b-a0c3-3f2e7b5d9f21', // handle-other-event
+  };
+};
+
+export default defineLogicFunction({
+  universalIdentifier: 'b3c2f0a1-7d4e-4c9a-9f2b-2e1d6a4c8e10',
+  name: 'resolve-server-route',
+  handler,
+  serverRouteTriggerSettings: {
+    forwardedRequestHeaders: ['x-hub-signature-256'],
+  },
+});
+```
+
+```ts src/logic-functions/handle-invoice-paid.logic-function.ts
+import { defineLogicFunction } from 'twenty-sdk/define';
+import type { RoutePayload } from 'twenty-sdk/logic-function';
+
+// Runs in the resolved workspace. The resolver has already authenticated
+// the request, so this handler can focus on the actual work.
+const handler = async (event: RoutePayload) => {
+  // ...handle the verified event
+  return { received: true };
+};
+
+export default defineLogicFunction({
+  universalIdentifier: 'c4e2a9b1-7d4e-4c9a-9f2b-2e1d6a4c8e10',
+  name: 'handle-invoice-paid',
+  handler,
+});
+```
+
+Der Endpoint ist erreichbar unter:
+
+```
+POST https://your-twenty-server.com/webhooks/server/:resolverLogicFunctionUniversalIdentifier
+```
+
+Der Bezeichner ist der `universalIdentifier` des Resolvers aus deinem Manifest. Registriere diese URL beim Provider.
+
+<Note>
+**Die Anwendung muss beansprucht und im Arbeitsbereich ihres Besitzers installiert werden.** Da der Resolver im **Owner-Arbeitsbereich** ausgeführt wird (dem Arbeitsbereich, der die Anwendungsregistrierung besitzt), funktioniert ein Server-Route-Trigger nur, wenn die Anwendung *beansprucht* wurde – d. h. sie einen Owner-Arbeitsbereich hat – **und** diese Anwendung **im Owner-Arbeitsbereich installiert ist**. Solange beides nicht zutrifft, hat der Resolver keinen Ausführungsort, sodass die Route nicht ausgeführt werden kann. Eine Anwendung, die eine `serverRouteTriggerSettings`-Logikfunktion bereitstellt, kann daher nicht im Marketplace aufgeführt werden, bevor sie beansprucht und im Owner-Arbeitsbereich installiert wurde.
+</Note>
+
+**Resolver-Vertrag.** Der `LogicFunctionConfig`-Typ des SDK erzwingt dies zur Compile-Zeit: Sobald du `serverRouteTriggerSettings` setzt, ist dein Handler darauf beschränkt, `{ workspaceId: string; targetLogicFunctionUniversalIdentifier: string; payload?: object }` (oder ein `Promise` davon) zurückzugeben. Die `workspaceId` muss auf einen Workspace verweisen, in dem die Zielfunktion installiert ist, andernfalls wird die Anfrage mit `404` abgelehnt.
+
+| Feld                                     | Typ                 | Notizen                                                                                  |
+| ---------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
+| `workspaceId`                            | `string`            | UUID des Workspaces, in dem das Ziel ausgeführt wird.                                    |
+| `targetLogicFunctionUniversalIdentifier` | `string`            | `universalIdentifier` der Logikfunktion, die in diesem Workspace aufgerufen werden soll. |
+| `payload`                                | `object` (optional) | Falls gesetzt, ersetzt er den Request-Body, der an das Target gesendet wird.             |
+
+<Warning>
+**Die Signaturverifizierung liegt in deiner Verantwortung – verifiziere im Resolver.** Die Plattform verifiziert Anfragesignaturen nicht. Der Resolver ist der empfohlene Ort dafür: Er läuft zuerst, mit Zugriff auf `event.rawBody` und die Header, die du in `forwardedRequestHeaders` aufgeführt hast, und ein geworfener Fehler (oder eine nicht passende `workspaceId`) stoppt das Dispatching, bevor das Target aufgerufen wird. Wenn du die Verifizierung stattdessen in das Target verschiebst, muss das Target darauf achten, `rawBody` und Header nicht zu verlieren – d. h. der Resolver darf keinen `payload` zurückgeben. Überprüfe immer **vor** jeglicher Nebenwirkung und verwende einen Vergleich in konstanter Zeit.
+</Warning>
+
+Für Anfragesignaturen signieren die meisten Provider mit HMAC-SHA256; die Teile, die sich unterscheiden, sind der Header-Name, die Digest-Codierung und der signierte Payload-String. Einige Beispiele:
+
+| Anbieter                     | Weiterzuleitende Header                                | Signierte Zeichenkette       | Digest                                                    |
+| ---------------------------- | ------------------------------------------------------ | ---------------------------- | --------------------------------------------------------- |
+| Svix (Recall, Resend, Clerk) | `webhook-id`, `webhook-timestamp`, `webhook-signature` | `{id}.{timestamp}.{rawBody}` | base64 (Geheimnis ist base64 nach Entfernen von `whsec_`) |
+| Stripe                       | `stripe-signature`                                     | `{timestamp}.{rawBody}`      | hex                                                       |
+| GitHub                       | `x-hub-signature-256`                                  | `{rawBody}`                  | hex (mit Präfix `sha256=`)                                |
+| Shopify                      | `x-shopify-hmac-sha256`                                | `{rawBody}`                  | base64                                                    |
+| Slack                        | `x-slack-signature`, `x-slack-request-timestamp`       | `v0:{timestamp}:{rawBody}`   | hex (mit Präfix `v0=`)                                    |
+
+Das obige Resolver-Beispiel zeigt bereits den GitHub-HMAC-SHA256-Flow – passe den Header-Namen, die Digest-Codierung und den signierten Payload-String entsprechend dem Provider an, den du integrierst.
+
+<Note>
+Das Target läuft **synchron** und sein Rückgabewert wird zur HTTP-Antwort, sodass Aufrufer deinen Statuscode sehen und bei Nicht-2xx erneut versuchen können. Halte beide Handler schnell – einige Provider (z. B. Slack) laufen nach wenigen Sekunden in ein Timeout. Da der Resolver als öffentlicher Endpoint erreichbar ist, schütze ihn mit Rate-Limiting an deinem Edge.
 </Note>
 
 #### Datenbank-Event-Trigger-Payload
@@ -289,6 +410,10 @@ Logikfunktionen können auf zwei Oberflächen verfügbar gemacht werden, jeweils
 
 Eine Funktion kann sich für eine, die andere oder beide entscheiden. Sie stehen neben `cronTriggerSettings`, `databaseEventTriggerSettings` und `httpRouteTriggerSettings` — gleiches Muster, gleiche Struktur.
 
+<Note>
+**Beziehung zur Code-Aktion im Workflow.** Die integrierte **Code**-Aktion im Workflow-Builder ist selbst eine Logikfunktion – Twenty erstellt für jeden Code-Schritt eine Logikfunktion und stellt deren Editor inline bereit. `workflowActionTriggerSettings` ist die Art und Weise, wie Sie diesen einmaligen Inline-Code in eine **wiederverwendbare** Aktion verwandeln: Definieren Sie die Funktion einmal in Ihrer App, und sie wird in jedem Workflow auswählbar, anstatt in jeden Code-Schritt kopiert zu werden. Siehe die [Code-Aktion](/l/de/user-guide/workflows/capabilities/workflow-actions#code) im Benutzerhandbuch für die Endbenutzeransicht.
+</Note>
+
 ```ts src/logic-functions/enrich-company.logic-function.ts
 import { defineLogicFunction } from 'twenty-sdk/define';
 import { CoreApiClient } from 'twenty-client-sdk/core';
@@ -348,12 +473,123 @@ export default defineLogicFunction({
 });
 ```
 
+Um Ihre Parameter **einmal** zu deklarieren und beide Oberflächen zu bedienen, definieren Sie ein einziges JSON Schema (`InputJsonSchema`) und konvertieren Sie es für die Workflow-Aktion mit `jsonSchemaToInputSchema` aus `twenty-sdk/logic-function`. `toolTriggerSettings.inputSchema` nimmt das JSON Schema direkt, während `workflowActionTriggerSettings.inputSchema` das `InputSchema` von Twenty erwartet:
+
+```ts
+import { defineLogicFunction } from 'twenty-sdk/define';
+import { jsonSchemaToInputSchema, type InputJsonSchema } from 'twenty-sdk/logic-function';
+
+const inputSchema: InputJsonSchema = {
+  type: 'object',
+  properties: {
+    companyName: { type: 'string', label: 'Company name' },
+    domain: { type: 'string', label: 'Domain' },
+  },
+  required: ['companyName'],
+};
+
+export default defineLogicFunction({
+  ...,
+  toolTriggerSettings: { inputSchema },
+  workflowActionTriggerSettings: {
+    label: 'Enrich Company',
+    icon: 'IconBuilding',
+    inputSchema: jsonSchemaToInputSchema(inputSchema),
+  },
+});
+```
+
+##### Ein vollständiges Beispiel für eine Workflow-Aktion
+
+`workflowActionTriggerSettings` akzeptiert vier Felder:
+
+| Feld           | Zweck                                                                                                                                                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `label`        | Name, der für die Aktion in der Schritt-Auswahl des Workflow-Builders angezeigt wird. Standardmäßig der Funktions-`name`.                                                                                                        |
+| `icon`         | Symbol, das neben der Aktion angezeigt wird (ein `tabler-icons`-Name, z. B. `IconBuilding`).                                                                                                                                     |
+| `inputSchema`  | Twentys umfangreiches `InputSchema` – das, was der Builder als konfigurierbare Felder (mit Variablen-Auswählern) rendert. Optional; wird aus dem Handler abgeleitet, wenn es weggelassen wird.                                   |
+| `outputSchema` | Deklariert die Struktur, die der Handler zurückgibt, sodass **nachfolgende Schritte auf seine Ausgabefelder abbilden können**. Optional; ohne dieses Schema wird die Ausgabe als einzelner undurchsichtiger Wert bereitgestellt. |
+
+Alles zusammen – eine Funktion, die als Workflow-Aktion bereitgestellt wird, mit einer deklarierten Ausgabe, damit spätere Schritte auf `taskId` verweisen können:
+
+```ts src/logic-functions/enrich-company.logic-function.ts
+import { defineLogicFunction } from 'twenty-sdk/define';
+import { jsonSchemaToInputSchema, type InputJsonSchema } from 'twenty-sdk/logic-function';
+import { CoreApiClient } from 'twenty-client-sdk/core';
+
+const inputSchema: InputJsonSchema = {
+  type: 'object',
+  properties: {
+    companyName: { type: 'string', label: 'Company name' },
+    domain: { type: 'string', label: 'Domain' },
+  },
+  required: ['companyName'],
+};
+
+const handler = async (params: { companyName: string; domain?: string }) => {
+  const client = new CoreApiClient();
+
+  const result = await client.mutation({
+    createTask: {
+      __args: {
+        data: {
+          title: `Enrich data for ${params.companyName}`,
+          body: `Domain: ${params.domain ?? 'unknown'}`,
+        },
+      },
+      id: true,
+    },
+  });
+
+  // The keys returned here should match the `outputSchema` properties below.
+  return { taskId: result.createTask.id, enriched: true };
+};
+
+export default defineLogicFunction({
+  universalIdentifier: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+  name: 'enrich-company',
+  description: 'Enrich a company record with external data',
+  timeoutSeconds: 10,
+  handler,
+  workflowActionTriggerSettings: {
+    label: 'Enrich Company',
+    icon: 'IconBuilding',
+    inputSchema: jsonSchemaToInputSchema(inputSchema),
+    outputSchema: [
+      {
+        type: 'object',
+        properties: {
+          taskId: { type: 'string' },
+          enriched: { type: 'boolean' },
+        },
+      },
+    ],
+  },
+});
+```
+
+Sobald die App installiert ist, erscheint **Enrich Company** im Aktionswähler des Workflow-Builders. Der Builder rendert `companyName` und `domain` als Eingabefelder (die jeweils Werte aus vorherigen Schritten beziehen können), und nachgelagerte Schritte können auf die `taskId`- und `enriched`-Ausgaben des Schritts verweisen.
+
 <Note>
 **Schreiben Sie eine gute `description`.** KI-Agenten verlassen sich auf das `description`-Feld der Funktion, um zu entscheiden, wann das Tool verwendet werden soll. Seien Sie konkret darin, was das Tool tut und wann es aufgerufen werden soll.
 </Note>
 
 </Accordion>
 </AccordionGroup>
+
+<Note>
+**Runtime-Hilfsfunktionen.** `twenty-sdk/utils` exportiert kleine Runtime-Hilfsfunktionen erneut, sodass Handler niemals direkt aus `twenty-shared` importieren. Zum Beispiel gibt `isDefined(value)` sowohl für `null` als auch für `undefined` den Wert `false` zurück – verwenden Sie es, um optionale Handler-Eingaben sicher einzugrenzen, die zur Laufzeit als `null` ankommen können, selbst wenn sie als `T | undefined` typisiert sind:
+
+```ts
+import { isDefined } from 'twenty-sdk/utils';
+
+const handler = async (params: { parentMessageId?: string }) => {
+  if (isDefined(params.parentMessageId)) {
+    // params.parentMessageId is narrowed to string here
+  }
+};
+```
+</Note>
 
 <Note>
 **Installations-Hooks** – Vorinstallations- und Nachinstallations-Handler – teilen sich diese Laufzeit, werden aber mit ihren eigenen define-Funktionen deklariert und verwenden keine Trigger-Einstellungen. Siehe [Installations-Hooks](/l/de/developers/extend/apps/config/install-hooks) für `definePreInstallLogicFunction` und `definePostInstallLogicFunction`.
@@ -490,12 +726,12 @@ console.log(uploadedFile);
 // { id: '...', path: '...', size: 12345, createdAt: '...', url: 'https://...' }
 ```
 
-| Parameter                          | Typ      | Beschreibung                                                          |
-| ---------------------------------- | -------- | --------------------------------------------------------------------- |
-| `fileBuffer`                       | `Buffer` | Der Rohinhalt der Datei                                               |
-| `filename`                         | `string` | Der Name der Datei (wird für Speicherung und Anzeige verwendet)       |
-| `contentType`                      | `string` | MIME-Typ (standardmäßig `application/octet-stream`, wenn weggelassen) |
-| `fieldMetadataUniversalIdentifier` | `string` | Der `universalIdentifier` des Dateityp-Felds in Ihrem Objekt          |
+| Parameter                          | Typ            | Beschreibung                                                          |
+| ---------------------------------- | -------------- | --------------------------------------------------------------------- |
+| `fileBuffer`                       | `Buffer`       | Der Rohinhalt der Datei                                               |
+| `filename`                         | `string`       | Der Name der Datei (wird für Speicherung und Anzeige verwendet)       |
+| `contentType`                      | `Zeichenkette` | MIME-Typ (standardmäßig `application/octet-stream`, wenn weggelassen) |
+| `fieldMetadataUniversalIdentifier` | `string`       | Der `universalIdentifier` des Dateityp-Felds in Ihrem Objekt          |
 
 Hauptpunkte:
 * Sie verwendet den `universalIdentifier` des Feldes (nicht dessen arbeitsbereichsspezifische ID), sodass Ihr Upload-Code in jedem Arbeitsbereich funktioniert, in dem Ihre App installiert ist.

@@ -14,9 +14,10 @@ import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomState
 import { css } from '@linaria/core';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { useIsMobile } from 'twenty-ui-deprecated/utilities';
-import { AdvancedSettingsToggle } from 'twenty-ui-deprecated/navigation';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { useIsMobile } from 'twenty-ui/utilities';
+import { AdvancedSettingsToggle } from 'twenty-ui/input';
+import { IconSettings } from 'twenty-ui/icon';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { PermissionFlagType } from '~/generated-metadata/graphql';
 
 const StyledAdvancedToggleFixedContent = styled.div<{ isMobile: boolean }>`
@@ -55,7 +56,10 @@ export const SettingsNavigationDrawer = ({
     <NavigationDrawer className={className} title={t`Settings`}>
       {hasAiPermission && (
         <NavigationDrawerFixedContent>
-          <MainNavigationDrawerTabsRow />
+          <MainNavigationDrawerTabsRow
+            NavigationMenuTabIcon={IconSettings}
+            navigationMenuTabLabel={t`Settings`}
+          />
         </NavigationDrawerFixedContent>
       )}
 

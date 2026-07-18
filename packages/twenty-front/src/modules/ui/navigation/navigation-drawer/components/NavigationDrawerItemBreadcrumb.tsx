@@ -1,9 +1,6 @@
 import { type NavigationDrawerSubItemState } from '@/ui/navigation/navigation-drawer/types/NavigationDrawerSubItemState';
 import { styled } from '@linaria/react';
-import {
-  MOBILE_VIEWPORT,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme-constants';
 
 export type NavigationDrawerItemBreadcrumbProps = {
   state?: NavigationDrawerSubItemState;
@@ -15,6 +12,10 @@ const StyledNavigationDrawerItemBreadcrumbContainer = styled.div`
   margin-left: 7.5px;
   margin-right: ${themeCssVariables.spacing[2]};
   width: 9px;
+
+  [data-dnd-dragging] & {
+    display: none;
+  }
 
   @media (max-width: ${MOBILE_VIEWPORT}px) {
     height: ${themeCssVariables.spacing[8]};

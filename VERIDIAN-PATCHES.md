@@ -49,23 +49,28 @@
 > Le typecheck/build front les révèle pour le code ; **le build Docker** les
 > révèle pour `Dockerfile.veridian` (CI étage build-image, PAS l'étage CI unit).
 >
-> **Sync 2026-06-13** : upstream a **scindé** l'ancien design-system. Le
-> package `twenty-ui` existe toujours (nouvelle UI), et un **nouveau package
-> `packages/twenty-ui-deprecated/`** (name `twenty-ui-deprecated`) a été créé ;
-> l'essentiel du front (1735 fichiers) importe désormais `twenty-ui-deprecated`.
-> `twenty-front` dépend des **deux** workspaces (`twenty-ui` + `twenty-ui-deprecated`).
-> On a migré nos imports ET ajouté le 2e workspace au `Dockerfile.veridian`
-> (sinon `yarn workspaces focus` → `twenty-ui-deprecated: Workspace not found`,
-> build Docker exit 1).
+> **Sync 2026-06-13** : upstream avait **scindé** l'ancien design-system en
+> `twenty-ui` (nouvelle UI) + `twenty-ui-deprecated`. On avait migré nos imports
+> vers `twenty-ui-deprecated` et ajouté ce 2e workspace au `Dockerfile.veridian`.
+>
+> **Sync 2026-07-18** : upstream a **SUPPRIMÉ `packages/twenty-ui-deprecated/`**
+> (PR #21596 « Remove twenty-ui-deprecated and migrate frontend to twenty-ui »).
+> On a re-migré tous nos imports veridian vers `twenty-ui` :
+> `twenty-ui-deprecated/display` → `twenty-ui/icon` (les symboles étaient tous
+> des icônes + `IconComponent`), `/navigation` → `twenty-ui/navigation`,
+> `/theme-constants` → `twenty-ui/theme-constants`, `/utilities` (`useIsMobile`)
+> → `twenty-ui/utilities`. Et on a **retiré** `twenty-ui-deprecated` du
+> `Dockerfile.veridian` (focus + les 2 `COPY`) — sinon `COPY` d'un répertoire
+> inexistant → build Docker exit 1.
 
 | Fichier Veridian (neuf) | Dépendance upstream consommée | Migré le |
 |---|---|---|
-| `veridian-tunnel-timeline/components/EventIconVeridianTunnel.tsx` | icons `twenty-ui-deprecated/display` | 2026-06-13 |
-| `veridian-tunnel-timeline/components/EventRowVeridianTunnel.tsx` | `MOBILE_VIEWPORT`, `themeCssVariables` de `twenty-ui-deprecated/theme-constants` ; `EventRowItem` de `@/activities/timeline-activities/rows/components` | 2026-06-13 |
+| `veridian-tunnel-timeline/components/EventIconVeridianTunnel.tsx` | icons `twenty-ui/icon` (ex-`twenty-ui-deprecated/display`, re-migré 2026-07-18) | 2026-06-13 |
+| `veridian-tunnel-timeline/components/EventRowVeridianTunnel.tsx` | `MOBILE_VIEWPORT`, `themeCssVariables` de `twenty-ui/theme-constants` (ex-`twenty-ui-deprecated`, re-migré 2026-07-18) ; `EventRowItem` de `@/activities/timeline-activities/rows/components` | 2026-06-13 |
 | `veridian-record-open/components/VeridianRecordOpenEffect.tsx` | `useUpdateOneRecord` de `@/object-record/hooks` ; `currentWorkspaceMemberState` de `@/auth/states` ; `useAtomStateValue` de `@/ui/utilities/state/jotai/hooks` ; `useStore` de `jotai` + `recordStoreFamilySelector` de `@/object-record/record-store/states/selectors` (lecture one-shot du `statutColdCall` courant à la confirmation) ; `isDefined` de `twenty-shared/utils`. NE REND RIEN : observe l'ouverture/fermeture, planifie le décompte à la FERMETURE via `recordOpenManager`, et annule au (re)mount (garde Strict-Mode + réouverture hors index). Tout rename de ces chemins par un sync casse le typecheck/build front (révélé par CI + build Docker). | 2026-06-17 |
 | `veridian-record-open/utils/recordOpenManager.ts` | ⚠️ `jotaiStore` de `@/ui/utilities/state/jotai/jotaiStore` — écrit le pending atom HORS React dans le store CUSTOM du `<Provider store={jotaiStore}>` de Twenty (cf `app/components/App.tsx`). **PAS `getDefaultStore()`** : Twenty enveloppe l'app d'un store custom, écrire dans le store par défaut = store fantôme que les rows ne lisent pas → aucune row ne scintille (bug live staging 2026-06-17). `jotaiStore` est un `let` réassigné au logout → lu en LIVE. Aussi : `veridianPendingOpenKeysState` + `VERIDIAN_RECORD_OPEN_DELAY_MS`. MANAGER module-level : Map de timers (décompte qui SURVIT au démontage), pending atom (scintillement row), garde d'idempotence (1 écriture/ouverture). Expose `scheduleRecordOpen` / `cancelRecordOpen` / `isRecordOpenPending` / `buildRecordOpenKey`. | 2026-06-17 |
 | `veridian-record-open/states/veridianPendingOpenKeysState.ts` | `createAtomState` de `@/ui/utilities/state/jotai/utils/createAtomState`. Atom global réactif portant le `Set<openKey>` des décomptes en cours (plusieurs en parallèle possibles) → écrit par `recordOpenManager`, lu par `RecordTableTr` (scintillement). | 2026-06-17 |
-| `Dockerfile.veridian` (fichier custom Veridian, hors arbre upstream) | doit lister TOUS les workspaces du front dans `yarn workspaces focus` + les `COPY package.json` + `COPY` répertoire. Sensible à tout ajout/rename/scission de package upstream. Au sync 2026-06-13 : ajout de `twenty-ui-deprecated` (focus L45 + COPY L38/L106). | 2026-06-13 |
+| `Dockerfile.veridian` (fichier custom Veridian, hors arbre upstream) | doit lister TOUS les workspaces du front dans `yarn workspaces focus` + les `COPY package.json` + `COPY` répertoire. Sensible à tout ajout/rename/scission de package upstream. 2026-06-13 : ajout de `twenty-ui-deprecated`. **2026-07-18 : retrait de `twenty-ui-deprecated`** (package supprimé upstream PR #21596) — focus + les 2 `COPY`. | 2026-07-18 |
 
 ## Procédure de sync upstream (quand on bumpe le marker)
 

@@ -1,6 +1,7 @@
 import { FieldActorSource } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { type EntityManager } from 'typeorm';
+import { v5 } from 'uuid';
 
 import { DatabaseEventAction } from 'src/engine/api/graphql/graphql-query-runner/enums/database-event-action';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
@@ -8,19 +9,35 @@ import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { buildObjectIdByNameMaps } from 'src/engine/metadata-modules/flat-object-metadata/utils/build-object-id-by-name-maps.util';
+import { buildPersonSyncSourceFilter } from 'src/engine/workspace-manager/standard-objects-prefill-data/utils/build-person-sync-source-filter.util';
 import { generateFakeObjectRecordEvent } from 'src/modules/workflow/workflow-builder/workflow-schema/utils/generate-fake-object-record-event';
 import { generateObjectRecordFields } from 'src/modules/workflow/workflow-builder/workflow-schema/utils/generate-object-record-fields';
 import { getCreateCompanyWhenAddingNewPersonCodeStepLogicFunctionIds } from 'src/engine/workspace-manager/standard-objects-prefill-data/utils/prefill-workflow-code-step-logic-functions.util';
 
-export const QUICK_LEAD_WORKFLOW_ID = '8b213cac-a68b-4ffe-817a-3ec994e9932d';
-export const QUICK_LEAD_WORKFLOW_VERSION_ID =
-  'ac67974f-c524-4288-9d88-af8515400b68';
-export const CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_WORKFLOW_ID =
-  '887c6c06-fbc5-4b45-8d6b-f7b6b0f40b12';
-export const CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_WORKFLOW_VERSION_ID =
-  '0f276d7e-a950-41ab-ad98-35e80753dc58';
-export const CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_AUTOMATED_TRIGGER_ID =
-  'c54f5990-13a3-4c3b-b75d-df09e7843036';
+const WORKFLOW_PREFILL_ID_NAMESPACE = '8b213cac-a68b-4ffe-817a-3ec994e9932d';
+
+export const getWorkflowPrefillIds = (workspaceId: string) => ({
+  quickLeadWorkflowId: v5(
+    `quickLeadWorkflow:${workspaceId}`,
+    WORKFLOW_PREFILL_ID_NAMESPACE,
+  ),
+  quickLeadWorkflowVersionId: v5(
+    `quickLeadWorkflowVersion:${workspaceId}`,
+    WORKFLOW_PREFILL_ID_NAMESPACE,
+  ),
+  createCompanyWorkflowId: v5(
+    `createCompanyWorkflow:${workspaceId}`,
+    WORKFLOW_PREFILL_ID_NAMESPACE,
+  ),
+  createCompanyWorkflowVersionId: v5(
+    `createCompanyWorkflowVersion:${workspaceId}`,
+    WORKFLOW_PREFILL_ID_NAMESPACE,
+  ),
+  createCompanyAutomatedTriggerId: v5(
+    `createCompanyAutomatedTrigger:${workspaceId}`,
+    WORKFLOW_PREFILL_ID_NAMESPACE,
+  ),
+});
 
 export const prefillWorkflows = async (
   entityManager: EntityManager,
@@ -29,6 +46,14 @@ export const prefillWorkflows = async (
   flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata>,
   flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>,
 ) => {
+  const {
+    quickLeadWorkflowId,
+    quickLeadWorkflowVersionId,
+    createCompanyWorkflowId,
+    createCompanyWorkflowVersionId,
+    createCompanyAutomatedTriggerId,
+  } = getWorkflowPrefillIds(workspaceId);
+
   const {
     extractDomainLogicFunctionId,
     findMatchingCompanyByDomainLogicFunctionId,
@@ -75,6 +100,22 @@ export const prefillWorkflows = async (
     throw new Error('Company domainName field metadata not found');
   }
 
+  const personCreatedByFieldMetadata = Object.values(
+    flatFieldMetadataMaps.byUniversalIdentifier,
+  ).find(
+    (fieldMetadata) =>
+      fieldMetadata?.objectMetadataId === personObjectMetadataId &&
+      fieldMetadata?.name === 'createdBy',
+  );
+
+  if (!isDefined(personCreatedByFieldMetadata)) {
+    throw new Error('Person createdBy field metadata not found');
+  }
+
+  const personSyncSourceFilter = buildPersonSyncSourceFilter({
+    createdByFieldMetadataId: personCreatedByFieldMetadata.id,
+  });
+
   await entityManager
     .createQueryBuilder()
     .insert()
@@ -95,9 +136,9 @@ export const prefillWorkflows = async (
     .orIgnore()
     .values([
       {
-        id: QUICK_LEAD_WORKFLOW_ID,
+        id: quickLeadWorkflowId,
         name: 'Quick Lead',
-        lastPublishedVersionId: QUICK_LEAD_WORKFLOW_VERSION_ID,
+        lastPublishedVersionId: quickLeadWorkflowVersionId,
         statuses: ['ACTIVE'],
         position: 1,
         createdBySource: FieldActorSource.SYSTEM,
@@ -109,10 +150,9 @@ export const prefillWorkflows = async (
         updatedByName: 'System',
       },
       {
-        id: CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_WORKFLOW_ID,
+        id: createCompanyWorkflowId,
         name: 'Create company when adding a new person',
-        lastPublishedVersionId:
-          CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_WORKFLOW_VERSION_ID,
+        lastPublishedVersionId: createCompanyWorkflowVersionId,
         statuses: ['ACTIVE'],
         position: 2,
         createdBySource: FieldActorSource.SYSTEM,
@@ -142,7 +182,7 @@ export const prefillWorkflows = async (
     .orIgnore()
     .values([
       {
-        id: QUICK_LEAD_WORKFLOW_VERSION_ID,
+        id: quickLeadWorkflowVersionId,
         name: 'v1',
         trigger: JSON.stringify({
           name: 'Launch manually',
@@ -337,10 +377,10 @@ export const prefillWorkflows = async (
         ]),
         status: 'ACTIVE',
         position: 1,
-        workflowId: QUICK_LEAD_WORKFLOW_ID,
+        workflowId: quickLeadWorkflowId,
       },
       {
-        id: CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_WORKFLOW_VERSION_ID,
+        id: createCompanyWorkflowVersionId,
         name: 'v1',
         trigger: JSON.stringify({
           name: 'Record is created or updated',
@@ -356,6 +396,7 @@ export const prefillWorkflows = async (
               },
               DatabaseEventAction.UPSERTED,
             ),
+            filter: personSyncSourceFilter,
           },
           nextStepIds: ['c30d7cbe-00e0-4966-bc1a-99b0a11a2cca'],
         }),
@@ -731,7 +772,7 @@ export const prefillWorkflows = async (
         ]),
         status: 'ACTIVE',
         position: 2,
-        workflowId: CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_WORKFLOW_ID,
+        workflowId: createCompanyWorkflowId,
       },
     ])
     .returning('*')
@@ -749,12 +790,13 @@ export const prefillWorkflows = async (
     .orIgnore()
     .values([
       {
-        id: CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_AUTOMATED_TRIGGER_ID,
-        workflowId: CREATE_COMPANY_WHEN_ADDING_NEW_PERSON_WORKFLOW_ID,
+        id: createCompanyAutomatedTriggerId,
+        workflowId: createCompanyWorkflowId,
         type: 'DATABASE_EVENT',
         settings: {
           eventName: 'person.upserted',
           fields: ['emails'],
+          filter: personSyncSourceFilter,
         },
       },
     ])

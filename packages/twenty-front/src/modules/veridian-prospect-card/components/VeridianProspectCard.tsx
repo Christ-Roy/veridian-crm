@@ -24,8 +24,8 @@ import {
   IconPhone,
   IconUsers,
   IconWorld,
-} from 'twenty-ui-deprecated/display';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+} from 'twenty-ui/icon';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { useVeridianProspectCardData } from '@/veridian-prospect-card/hooks/useVeridianProspectCardData';
 import {

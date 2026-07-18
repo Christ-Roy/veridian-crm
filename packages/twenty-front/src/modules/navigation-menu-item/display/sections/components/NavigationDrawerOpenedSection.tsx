@@ -3,7 +3,7 @@ import { NavigationDrawerSectionForObjectMetadataItems } from '@/object-metadata
 import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
 import { useLingui } from '@lingui/react/macro';
 import { isDefined } from 'twenty-shared/utils';
-import { AnimatedExpandableContainer } from 'twenty-ui-deprecated/layout';
+import { AnimatedExpandableContainer } from 'twenty-ui/layout';
 
 export const NavigationDrawerOpenedSection = () => {
   const { t } = useLingui();
@@ -17,15 +17,15 @@ export const NavigationDrawerOpenedSection = () => {
     (item) => item.id === objectMetadataIdForOpenedSection,
   );
 
-  const shouldShowOpenedSection = isDefined(objectMetadataItem);
+  if (!isDefined(objectMetadataItem)) {
+    return null;
+  }
 
   return (
-    <AnimatedExpandableContainer isExpanded={shouldShowOpenedSection}>
+    <AnimatedExpandableContainer isExpanded>
       <NavigationDrawerSectionForObjectMetadataItems
         sectionTitle={t`Opened`}
-        objectMetadataItems={
-          isDefined(objectMetadataItem) ? [objectMetadataItem] : []
-        }
+        objectMetadataItems={[objectMetadataItem]}
       />
     </AnimatedExpandableContainer>
   );

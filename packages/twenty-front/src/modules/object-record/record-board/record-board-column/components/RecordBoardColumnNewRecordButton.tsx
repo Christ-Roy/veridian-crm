@@ -2,17 +2,15 @@ import { useObjectPermissionsForObject } from '@/object-record/hooks/useObjectPe
 import { RecordBoardContext } from '@/object-record/record-board/contexts/RecordBoardContext';
 import { RecordBoardColumnContext } from '@/object-record/record-board/record-board-column/contexts/RecordBoardColumnContext';
 import { hasAnySoftDeleteFilterOnViewComponentSelector } from '@/object-record/record-filter/states/hasAnySoftDeleteFilterOnView';
+import { getFieldMetadataItemGqlFieldName } from '@/object-metadata/utils/getFieldMetadataItemGqlFieldName';
 import { useCreateNewIndexRecord } from '@/object-record/record-table/hooks/useCreateNewIndexRecord';
 import { canCreateRecordsForObjectMetadataItem } from '@/object-record/utils/canCreateRecordsForObjectMetadataItem';
 import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorValue';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { useContext } from 'react';
-import { IconPlus } from 'twenty-ui-deprecated/display';
-import {
-  ThemeContext,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { IconPlus } from 'twenty-ui/icon';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledNewButton = styled.button`
   align-items: center;
@@ -68,7 +66,8 @@ export const RecordBoardColumnNewRecordButton = () => {
       onClick={async () => {
         await createNewIndexRecord({
           position: 'last',
-          [selectFieldMetadataItem.name]: columnDefinition.value,
+          [getFieldMetadataItemGqlFieldName(selectFieldMetadataItem)]:
+            columnDefinition.value,
         });
       }}
     >

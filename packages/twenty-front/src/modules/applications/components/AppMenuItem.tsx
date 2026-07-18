@@ -1,6 +1,7 @@
 import { AppChip } from '@/applications/components/AppChip';
 import { useApplicationChipData } from '@/applications/hooks/useApplicationChipData';
-import { MenuItem } from 'twenty-ui-deprecated/navigation';
+import { type ReactNode } from 'react';
+import { MenuItem } from 'twenty-ui/navigation';
 
 type AppMenuItemProps = {
   applicationId?: string | null;
@@ -8,6 +9,7 @@ type AppMenuItemProps = {
   onClick?: () => void;
   focused?: boolean;
   disabled?: boolean;
+  RightComponent?: ReactNode;
 };
 
 export const AppMenuItem = ({
@@ -16,6 +18,7 @@ export const AppMenuItem = ({
   onClick,
   focused,
   disabled,
+  RightComponent,
 }: AppMenuItemProps) => {
   const { applicationChipData } = useApplicationChipData({
     applicationId,
@@ -32,6 +35,7 @@ export const AppMenuItem = ({
       onClick={onClick}
       focused={focused}
       disabled={disabled}
+      RightComponent={RightComponent}
     />
   );
 };

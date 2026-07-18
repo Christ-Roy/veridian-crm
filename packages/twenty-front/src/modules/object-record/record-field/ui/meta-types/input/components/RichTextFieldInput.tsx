@@ -12,12 +12,9 @@ import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/com
 import { styled } from '@linaria/react';
 import { Suspense, lazy, useContext, useRef } from 'react';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
-import { IconLayoutSidebarLeftCollapse } from 'twenty-ui-deprecated/display';
-import { FloatingIconButton } from 'twenty-ui-deprecated/input';
-import {
-  ThemeContext,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { IconLayoutSidebarLeftCollapse } from 'twenty-ui/icon';
+import { FloatingIconButton } from 'twenty-ui/input';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 const ActivityRichTextEditor = lazy(() =>
   import('@/activities/components/ActivityRichTextEditor').then((module) => ({
@@ -67,7 +64,7 @@ const LoadingSkeleton = () => {
     <SkeletonTheme
       baseColor={theme.background.tertiary}
       highlightColor={theme.background.transparent.lighter}
-      borderRadius={theme.border.radius.sm}
+      borderRadius={themeCssVariables.border.radius.md}
     >
       <Skeleton height={SKELETON_LOADER_HEIGHT_SIZES.standard.s} />
     </SkeletonTheme>

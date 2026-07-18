@@ -4,9 +4,9 @@ import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
 import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
 import { useLingui } from '@lingui/react/macro';
-import { IconDotsVertical, IconTrash } from 'twenty-ui-deprecated/display';
-import { LightIconButton } from 'twenty-ui-deprecated/input';
-import { MenuItem } from 'twenty-ui-deprecated/navigation';
+import { IconDotsVertical, IconTrash } from 'twenty-ui/icon';
+import { LightIconButton } from 'twenty-ui/input';
+import { MenuItem } from 'twenty-ui/navigation';
 import { useMutation, useQuery } from '@apollo/client/react';
 import {
   type PublicDomain,
@@ -39,7 +39,7 @@ export const SettingPublicDomainRowDropdownMenu = ({
       },
       onCompleted: () =>
         enqueueSuccessSnackBar({
-          message: t`Public domain successfully deleted`,
+          message: t`Custom domain successfully deleted`,
         }),
       onError: (error) => enqueueErrorSnackBar({ apolloError: error }),
     });

@@ -1,11 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { createElement } from 'react';
 import { Provider as JotaiProvider } from 'jotai';
-import { v4 } from 'uuid';
 
 import { currentUserState } from '@/auth/states/currentUserState';
 import { currentUserWorkspaceState } from '@/auth/states/currentUserWorkspaceState';
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
+import { billingState } from '@/client-config/states/billingState';
 import { useSetNextOnboardingStatus } from '@/onboarding/hooks/useSetNextOnboardingStatus';
 import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
@@ -14,11 +14,7 @@ import {
   resetJotaiStore,
 } from '@/ui/utilities/state/jotai/jotaiStore';
 
-import {
-  OnboardingStatus,
-  PermissionFlagType,
-  SubscriptionStatus,
-} from '~/generated-metadata/graphql';
+import { OnboardingStatus } from '~/generated-metadata/graphql';
 import {
   mockCurrentWorkspace,
   mockedUserData,
@@ -27,11 +23,19 @@ import {
 const Wrapper = ({ children }: { children: React.ReactNode }) =>
   createElement(JotaiProvider, { store: jotaiStore }, children);
 
+type RenderHooksOptions = {
+  withSubscription?: boolean;
+  isBillingEnabled?: boolean;
+  withOneWorkspaceMember?: boolean;
+};
+
 const renderHooks = (
   onboardingStatus: OnboardingStatus,
-  withCurrentBillingSubscription: boolean,
-  withOneWorkspaceMember = true,
-  permissionFlags = mockedUserData.currentUserWorkspace.permissionFlags,
+  {
+    withSubscription = false,
+    isBillingEnabled = false,
+    withOneWorkspaceMember = true,
+  }: RenderHooksOptions = {},
 ) => {
   const { result } = renderHook(
     () => {
@@ -40,12 +44,14 @@ const renderHooks = (
         currentUserWorkspaceState,
       );
       const setCurrentWorkspace = useSetAtomState(currentWorkspaceState);
+      const setBilling = useSetAtomState(billingState);
       const setNextOnboardingStatus = useSetNextOnboardingStatus();
       return {
         currentUser,
         setCurrentUser,
         setCurrentWorkspace,
         setCurrentUserWorkspace,
+        setBilling,
         setNextOnboardingStatus,
       };
     },
@@ -55,21 +61,18 @@ const renderHooks = (
   );
   act(() => {
     result.current.setCurrentUser({ ...mockedUserData, onboardingStatus });
-    result.current.setCurrentUserWorkspace({
-      ...mockedUserData.currentUserWorkspace,
-      permissionFlags,
-    });
+    result.current.setCurrentUserWorkspace(mockedUserData.currentUserWorkspace);
     result.current.setCurrentWorkspace({
       ...mockCurrentWorkspace,
-      currentBillingSubscription: withCurrentBillingSubscription
-        ? {
-            id: v4(),
-            status: SubscriptionStatus.Active,
-            metadata: {},
-            phases: [],
-          }
-        : undefined,
+      billingSubscriptions: withSubscription
+        ? mockCurrentWorkspace.billingSubscriptions
+        : [],
       workspaceMembersCount: withOneWorkspaceMember ? 1 : 2,
+    });
+    result.current.setBilling({
+      __typename: 'Billing',
+      isBillingEnabled,
+      trialPeriods: [],
     });
   });
   act(() => {
@@ -83,58 +86,70 @@ describe('useSetNextOnboardingStatus', () => {
     resetJotaiStore();
   });
 
-  it('should set next onboarding status for ProfileCreation', () => {
+  it('should sync emails right after workspace activation', () => {
     const nextOnboardingStatus = renderHooks(
-      OnboardingStatus.PROFILE_CREATION,
-      false,
-      true,
+      OnboardingStatus.WORKSPACE_ACTIVATION,
     );
     expect(nextOnboardingStatus).toEqual(OnboardingStatus.SYNC_EMAIL);
   });
 
-  it('should skip SyncEmail when user is not first workspace member', () => {
-    const nextOnboardingStatus = renderHooks(
-      OnboardingStatus.PROFILE_CREATION,
-      false,
-      false,
-    );
-    expect(nextOnboardingStatus).toEqual(OnboardingStatus.COMPLETED);
+  it('should install apps after syncing emails', () => {
+    const nextOnboardingStatus = renderHooks(OnboardingStatus.SYNC_EMAIL);
+    expect(nextOnboardingStatus).toEqual(OnboardingStatus.APPS_INSTALLATION);
   });
 
-  it('should skip SyncEmail when account sync is disabled', () => {
+  it('should create profile after installing apps', () => {
     const nextOnboardingStatus = renderHooks(
-      OnboardingStatus.PROFILE_CREATION,
-      false,
-      true,
-      [PermissionFlagType.WORKSPACE_MEMBERS],
+      OnboardingStatus.APPS_INSTALLATION,
     );
+    expect(nextOnboardingStatus).toEqual(OnboardingStatus.PROFILE_CREATION);
+  });
+
+  it('should invite the team right after profile creation', () => {
+    const nextOnboardingStatus = renderHooks(OnboardingStatus.PROFILE_CREATION);
     expect(nextOnboardingStatus).toEqual(OnboardingStatus.INVITE_TEAM);
   });
 
-  it('should set next onboarding status for SyncEmail', () => {
+  it('should complete after profile creation when more than 1 workspaceMember exist', () => {
     const nextOnboardingStatus = renderHooks(
-      OnboardingStatus.SYNC_EMAIL,
-      false,
-      true,
-    );
-    expect(nextOnboardingStatus).toEqual(OnboardingStatus.INVITE_TEAM);
-  });
-
-  it('should skip invite when more than 1 workspaceMember exist', () => {
-    const nextOnboardingStatus = renderHooks(
-      OnboardingStatus.SYNC_EMAIL,
-      true,
-      false,
+      OnboardingStatus.PROFILE_CREATION,
+      {
+        withOneWorkspaceMember: false,
+      },
     );
     expect(nextOnboardingStatus).toEqual(OnboardingStatus.COMPLETED);
   });
 
-  it('should set next onboarding status for Completed', () => {
+  it('should require a plan after profile creation when billing is enabled and the workspace has no subscription', () => {
     const nextOnboardingStatus = renderHooks(
-      OnboardingStatus.INVITE_TEAM,
-      true,
-      true,
+      OnboardingStatus.PROFILE_CREATION,
+      {
+        withOneWorkspaceMember: false,
+        isBillingEnabled: true,
+        withSubscription: false,
+      },
     );
+    expect(nextOnboardingStatus).toEqual(OnboardingStatus.PLAN_REQUIRED);
+  });
+
+  it('should complete after inviting the team when billing is disabled', () => {
+    const nextOnboardingStatus = renderHooks(OnboardingStatus.INVITE_TEAM);
     expect(nextOnboardingStatus).toEqual(OnboardingStatus.COMPLETED);
+  });
+
+  it('should complete after inviting the team when the workspace already has a subscription', () => {
+    const nextOnboardingStatus = renderHooks(OnboardingStatus.INVITE_TEAM, {
+      isBillingEnabled: true,
+      withSubscription: true,
+    });
+    expect(nextOnboardingStatus).toEqual(OnboardingStatus.COMPLETED);
+  });
+
+  it('should require a plan after inviting the team when billing is enabled and the workspace has no subscription', () => {
+    const nextOnboardingStatus = renderHooks(OnboardingStatus.INVITE_TEAM, {
+      isBillingEnabled: true,
+      withSubscription: false,
+    });
+    expect(nextOnboardingStatus).toEqual(OnboardingStatus.PLAN_REQUIRED);
   });
 });

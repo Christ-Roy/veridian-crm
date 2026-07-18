@@ -1,6 +1,6 @@
+import { FieldMetadataType } from '@/types/FieldMetadataType';
 import { isDefined } from '@/utils';
 import { isObject } from 'class-validator';
-import { FieldMetadataType } from '@/types/FieldMetadataType';
 
 import { CAPTURE_ALL_VARIABLE_TAG_INNER_REGEX } from '../../constants/CaptureAllVariableTagInnerRegex';
 import { parseVariablePath } from '../../utils/variable-path.util';
@@ -10,11 +10,13 @@ import {
   type FindRecordsOutputSchema,
   type FormOutputSchema,
   type IteratorOutputSchema,
+  type ManualTriggerOutputSchema,
   type RecordFieldLeaf,
   type RecordFieldNodeValue,
   type RecordOutputSchemaV2,
   type VariableSearchResult,
 } from '../types/output-schema.type';
+import { isFlattenedArrayOutputSchema } from './flattened-array-output-schema';
 
 const EMPTY_RESULT: VariableSearchResult = {
   variableLabel: undefined,
@@ -26,6 +28,7 @@ const RECORD_STEP_TYPES = [
   'UPDATE_RECORD',
   'DELETE_RECORD',
   'UPSERT_RECORD',
+  'PICK_RECORD',
 ];
 
 const isRecordOutputSchemaV2 = (
@@ -488,6 +491,19 @@ const searchThroughCodeOutputSchema = ({
     return EMPTY_RESULT;
   }
 
+  const parts = parseVariablePath(stripBrackets(rawVariableName));
+
+  if (
+    parts.length === 1 &&
+    isFlattenedArrayOutputSchema(codeOutputSchema as BaseOutputSchemaV2)
+  ) {
+    return {
+      variableLabel: stepName,
+      variablePathLabel: stepName,
+      variableType: FieldMetadataType.ARRAY,
+    };
+  }
+
   return searchThroughBaseOutputSchema({
     stepName,
     baseOutputSchema: codeOutputSchema as BaseOutputSchemaV2,
@@ -586,24 +602,65 @@ const searchThroughManualTriggerOutputSchema = ({
   isFullRecord,
 }: {
   stepName: string;
-  manualTriggerOutputSchema: unknown;
+  manualTriggerOutputSchema: ManualTriggerOutputSchema;
   rawVariableName: string;
   isFullRecord: boolean;
 }): VariableSearchResult => {
-  if (isRecordOutputSchemaV2(manualTriggerOutputSchema)) {
-    return searchThroughRecordOutputSchema({
-      stepName,
-      recordOutputSchema: manualTriggerOutputSchema,
-      rawVariableName,
-      isFullRecord,
+  if (!isDefined(manualTriggerOutputSchema)) {
+    return EMPTY_RESULT;
+  }
+
+  const parts = parseVariablePath(stripBrackets(rawVariableName));
+  const stepId = parts[0];
+  const nodeKey = parts[1];
+  const remainingParts = parts.slice(2);
+  const fieldName = remainingParts[remainingParts.length - 1];
+  const pathSegments = remainingParts.slice(0, -1);
+
+  if (!isDefined(stepId) || !isDefined(nodeKey) || !isDefined(fieldName)) {
+    return EMPTY_RESULT;
+  }
+
+  if (nodeKey === 'payload') {
+    const { payload } = manualTriggerOutputSchema;
+
+    if (!isDefined(payload)) {
+      return EMPTY_RESULT;
+    }
+
+    const payloadStepName = `${stepName} > ${payload.label}`;
+
+    // Single-record triggers nest a record schema, bulk triggers a plain map.
+    if (isRecordOutputSchemaV2(payload.value)) {
+      return searchRecordOutputSchema({
+        stepName: payloadStepName,
+        recordOutputSchema: payload.value,
+        selectedField: fieldName,
+        path: pathSegments,
+        isFullRecord,
+      });
+    }
+
+    return searchBaseOutputSchema({
+      stepName: payloadStepName,
+      baseOutputSchema: payload.value,
+      path: pathSegments,
+      selectedField: fieldName,
     });
   }
 
-  return searchThroughBaseOutputSchema({
-    stepName,
-    baseOutputSchema: manualTriggerOutputSchema as BaseOutputSchemaV2,
-    rawVariableName,
-  });
+  if (nodeKey === 'metadata') {
+    const { metadata } = manualTriggerOutputSchema;
+
+    return searchBaseOutputSchema({
+      stepName: `${stepName} > ${metadata.label}`,
+      baseOutputSchema: metadata.value,
+      path: pathSegments,
+      selectedField: fieldName,
+    });
+  }
+
+  return EMPTY_RESULT;
 };
 
 // Main dispatcher
@@ -635,7 +692,7 @@ export const searchVariableInOutputSchema = ({
   if (stepType === 'MANUAL') {
     return searchThroughManualTriggerOutputSchema({
       stepName,
-      manualTriggerOutputSchema: schema,
+      manualTriggerOutputSchema: schema as ManualTriggerOutputSchema,
       rawVariableName,
       isFullRecord,
     });

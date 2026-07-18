@@ -12,8 +12,8 @@ import {
   IconRotate2,
   IconStar,
   IconTarget,
-} from 'twenty-ui-deprecated/display';
-import { MenuItem } from 'twenty-ui-deprecated/navigation';
+} from 'twenty-ui/icon';
+import { MenuItem } from 'twenty-ui/navigation';
 
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';

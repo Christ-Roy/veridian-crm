@@ -1,6 +1,6 @@
 import { styled } from '@linaria/react';
-import { IconChevronDown } from 'twenty-ui-deprecated/display';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { IconChevronDown } from 'twenty-ui/icon';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 export const StyledContainer = styled.div<{
   isNavigationDrawerExpanded: boolean;
@@ -8,7 +8,7 @@ export const StyledContainer = styled.div<{
 }>`
   align-items: center;
   border: 1px solid transparent;
-  border-radius: ${themeCssVariables.border.radius.sm};
+  border-radius: ${themeCssVariables.border.radius.md};
   box-sizing: border-box;
   color: ${themeCssVariables.font.color.primary};
   cursor: ${({ disabled }) => (disabled ? 'default' : 'pointer')};

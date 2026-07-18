@@ -5,6 +5,11 @@ export const computeOrderedMigrationActions = (
   aggregatedOrchestratorActionsReport: OrchestratorActionsReport,
 ): AllUniversalWorkspaceMigrationAction[] => {
   return [
+    ...aggregatedOrchestratorActionsReport.searchFieldMetadata.delete,
+    ...aggregatedOrchestratorActionsReport.searchFieldMetadata.create,
+    ...aggregatedOrchestratorActionsReport.searchFieldMetadata.update,
+    ///
+
     // Object and fields and indexes
     ...aggregatedOrchestratorActionsReport.index.delete,
     ...aggregatedOrchestratorActionsReport.fieldMetadata.delete,
@@ -18,7 +23,6 @@ export const computeOrderedMigrationActions = (
     ///
 
     // Views
-    ...aggregatedOrchestratorActionsReport.view.delete,
     ...aggregatedOrchestratorActionsReport.view.create,
     ...aggregatedOrchestratorActionsReport.view.update,
     ...aggregatedOrchestratorActionsReport.viewField.delete,
@@ -39,6 +43,7 @@ export const computeOrderedMigrationActions = (
     ...aggregatedOrchestratorActionsReport.viewSort.create,
     ...aggregatedOrchestratorActionsReport.viewSort.update,
     ...aggregatedOrchestratorActionsReport.viewSort.delete,
+    ...aggregatedOrchestratorActionsReport.view.delete,
     ///
 
     // Logic functions
@@ -71,16 +76,13 @@ export const computeOrderedMigrationActions = (
     ...aggregatedOrchestratorActionsReport.fieldPermission.update,
     ///
 
-    // Permission flags
+    // Permission flag definitions and their role assignments.
     ...aggregatedOrchestratorActionsReport.rolePermissionFlag.delete,
-    ...aggregatedOrchestratorActionsReport.rolePermissionFlag.create,
-    ...aggregatedOrchestratorActionsReport.rolePermissionFlag.update,
-    ///
-
-    // Permission flag definitions
     ...aggregatedOrchestratorActionsReport.permissionFlag.delete,
     ...aggregatedOrchestratorActionsReport.permissionFlag.create,
+    ...aggregatedOrchestratorActionsReport.rolePermissionFlag.create,
     ...aggregatedOrchestratorActionsReport.permissionFlag.update,
+    ...aggregatedOrchestratorActionsReport.rolePermissionFlag.update,
     ///
 
     // Agents

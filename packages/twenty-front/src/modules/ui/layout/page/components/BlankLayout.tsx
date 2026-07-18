@@ -1,9 +1,9 @@
 import { styled } from '@linaria/react';
 import { Outlet } from 'react-router-dom';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledLayout = styled.div`
-  background: ${themeCssVariables.background.noisy};
+  background: ${themeCssVariables.background.secondary};
   display: flex;
   flex-direction: column;
   height: 100dvh;

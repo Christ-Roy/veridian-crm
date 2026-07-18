@@ -13,9 +13,6 @@ import {
   createStandardFieldFlatMetadata,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-field-flat-metadata.util';
 import { createStandardRelationFieldFlatMetadata } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-relation-field-flat-metadata.util';
-import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
-import { SEARCH_FIELDS_FOR_CALENDAR_EVENT } from 'src/modules/calendar/common/standard-objects/calendar-event.workspace-entity';
-
 export const buildCalendarEventStandardFlatFieldMetadatas = ({
   now,
   objectName,
@@ -182,12 +179,6 @@ export const buildCalendarEventStandardFlatFieldMetadatas = ({
       icon: 'IconUser',
       isSystem: true,
       isNullable: true,
-      settings: {
-        generatedType: 'STORED',
-        asExpression: getTsVectorColumnExpressionFromFields(
-          SEARCH_FIELDS_FOR_CALENDAR_EVENT,
-        ),
-      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,
@@ -395,48 +386,6 @@ export const buildCalendarEventStandardFlatFieldMetadatas = ({
       icon: 'IconLink',
       isNullable: true,
       isUIEditable: false,
-    },
-    standardObjectMetadataRelatedEntityIds,
-    dependencyFlatEntityMaps,
-    twentyStandardApplicationId,
-    now,
-  }),
-  recordingPreference: createStandardFieldFlatMetadata({
-    objectName,
-    workspaceId,
-    context: {
-      fieldName: 'recordingPreference',
-      type: FieldMetadataType.SELECT,
-      label: i18nLabel(msg`Recording Preference`),
-      description: i18nLabel(
-        msg`Whether to record this event, applied on top of the workspace policy`,
-      ),
-      icon: 'IconSettingsAutomation',
-      isNullable: false,
-      defaultValue: "'AUTO'",
-      options: [
-        {
-          id: '4c4761ce-ffbf-4176-be7f-5cf5257c8bff',
-          value: 'AUTO',
-          label: i18nLabel(msg`Auto`),
-          position: 0,
-          color: 'blue',
-        },
-        {
-          id: '1ae19135-e1a1-4a96-b866-91643622e554',
-          value: 'ON',
-          label: i18nLabel(msg`On`),
-          position: 1,
-          color: 'green',
-        },
-        {
-          id: '8c69a74f-2ab7-4c19-a813-eb0ea3533fd3',
-          value: 'OFF',
-          label: i18nLabel(msg`Off`),
-          position: 2,
-          color: 'gray',
-        },
-      ],
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,

@@ -1,17 +1,15 @@
 import { styled } from '@linaria/react';
-import { useCallback, useContext } from 'react';
-import {
-  ThemeContext,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { useCallback } from 'react';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { RecordBoardColumnHeaderAggregateDropdown } from '@/object-record/record-board/record-board-column/components/RecordBoardColumnHeaderAggregateDropdown';
 import { visibleRecordFieldsComponentSelector } from '@/object-record/record-field/states/visibleRecordFieldsComponentSelector';
+import { RecordGroupChip } from '@/object-record/record-group/components/RecordGroupChip';
 import { useCurrentRecordGroupId } from '@/object-record/record-group/hooks/useCurrentRecordGroupId';
 import { useShouldHideRecordGroup } from '@/object-record/record-group/hooks/useShouldHideRecordGroup';
 import { recordGroupDefinitionFamilyState } from '@/object-record/record-group/states/recordGroupDefinitionFamilyState';
-import { RecordGroupDefinitionType } from '@/object-record/record-group/types/RecordGroupDefinition';
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
+import { recordIndexGroupFieldMetadataItemComponentState } from '@/object-record/record-index/states/recordIndexGroupFieldMetadataComponentState';
 import { RECORD_TABLE_COLUMN_DRAG_AND_DROP_WIDTH } from '@/object-record/record-table/constants/RecordTableColumnDragAndDropWidth';
 import { RECORD_TABLE_ROW_HEIGHT } from '@/object-record/record-table/constants/RecordTableRowHeight';
 import { TABLE_Z_INDEX } from '@/object-record/record-table/constants/TableZIndex';
@@ -37,10 +35,9 @@ import {
   isDefined,
   sumByProperty,
 } from 'twenty-shared/utils';
-import { Tag } from 'twenty-ui-deprecated/components';
-import { IconChevronDown } from 'twenty-ui-deprecated/display';
-import { AnimatedLightIconButton } from 'twenty-ui-deprecated/input';
-import { useIsMobile } from 'twenty-ui-deprecated/utilities';
+import { IconChevronDown } from 'twenty-ui/icon';
+import { AnimatedLightIconButton } from 'twenty-ui/input';
+import { useIsMobile } from 'twenty-ui/utilities';
 
 const StyledTrContainer = styled.div`
   cursor: pointer;
@@ -117,8 +114,6 @@ const StyledRecordTableDragAndDropPlaceholderCell = styled.div`
 `;
 
 export const RecordTableRecordGroupSection = () => {
-  const { theme } = useContext(ThemeContext);
-
   const currentRecordGroupId = useCurrentRecordGroupId();
 
   const shouldHide = useShouldHideRecordGroup(currentRecordGroupId);
@@ -128,6 +123,10 @@ export const RecordTableRecordGroupSection = () => {
   const recordGroupDefinition = useAtomFamilyStateValue(
     recordGroupDefinitionFamilyState,
     currentRecordGroupId,
+  );
+
+  const recordIndexGroupFieldMetadataItem = useAtomComponentStateValue(
+    recordIndexGroupFieldMetadataItemComponentState,
   );
 
   const recordIndexAggregateDisplayValueForGroupValue =
@@ -202,8 +201,7 @@ export const RecordTableRecordGroupSection = () => {
             Icon={IconChevronDown}
             size="small"
             accent="secondary"
-            animate={{ rotate: !isRecordGroupTableSectionToggled ? -90 : 0 }}
-            transition={{ duration: theme.animation.duration.normal }}
+            rotate={!isRecordGroupTableSectionToggled ? -90 : 0}
           />
         </StyledAnimatedLightIconButtonContainer>
       </StyledChevronContainer>
@@ -212,19 +210,10 @@ export const RecordTableRecordGroupSection = () => {
         width={widthOfLabelIdentifierRecordField}
       >
         <StyledTagContainer>
-          <Tag
-            variant={
-              recordGroupDefinition.type !== RecordGroupDefinitionType.NoValue
-                ? 'solid'
-                : 'outline'
-            }
-            color={
-              recordGroupDefinition.type !== RecordGroupDefinitionType.NoValue
-                ? recordGroupDefinition.color
-                : 'transparent'
-            }
-            text={recordGroupDefinition.title}
-            weight="medium"
+          <RecordGroupChip
+            recordGroupDefinition={recordGroupDefinition}
+            fieldMetadataItem={recordIndexGroupFieldMetadataItem}
+            valueTagWeight="medium"
           />
         </StyledTagContainer>
         <RecordBoardColumnHeaderAggregateDropdown

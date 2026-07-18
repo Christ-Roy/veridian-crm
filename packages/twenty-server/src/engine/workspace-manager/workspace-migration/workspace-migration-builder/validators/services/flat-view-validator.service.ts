@@ -1,18 +1,182 @@
 import { msg, t } from '@lingui/core/macro';
 import { type ALL_METADATA_NAME } from 'twenty-shared/metadata';
-import { FieldMetadataType, ViewType } from 'twenty-shared/types';
+import { FieldMetadataType, RelationType, ViewType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
-import { type UniversalFlatView } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-view.type';
+import { isMorphOrRelationUniversalFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-morph-or-relation-flat-field-metadata.util';
 import { ViewExceptionCode } from 'src/engine/metadata-modules/view/exceptions/view.exception';
-import { type FailedFlatEntityValidation } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/types/failed-flat-entity-validation.type';
+import { type AllUniversalFlatEntityMaps } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/all-universal-flat-entity-maps.type';
+import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
+import { type UniversalFlatView } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-view.type';
+import {
+  type FailedFlatEntityValidation,
+  type FlatEntityValidationError,
+} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/types/failed-flat-entity-validation.type';
 import { getEmptyFlatEntityValidationError } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/utils/get-flat-entity-validation-error.util';
 import { type FlatEntityUpdateValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-update-validation-args.type';
 import { type UniversalFlatEntityValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-validation-args.type';
 
 export class FlatViewValidatorService {
   constructor() {}
+
+  private validateCalendarFields({
+    flatView,
+    flatFieldMetadataMaps,
+  }: {
+    flatView: UniversalFlatView;
+    flatFieldMetadataMaps: AllUniversalFlatEntityMaps['flatFieldMetadataMaps'];
+  }): FlatEntityValidationError[] {
+    if (flatView.type !== ViewType.CALENDAR) {
+      return [];
+    }
+
+    const errors: FlatEntityValidationError[] = [];
+
+    if (!isDefined(flatView.calendarLayout)) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar view must have a calendar layout`,
+        userFriendlyMessage: msg`Calendar view must have a calendar layout`,
+      });
+    }
+
+    if (!isDefined(flatView.calendarFieldMetadataUniversalIdentifier)) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar view must have a calendar field`,
+        userFriendlyMessage: msg`Calendar view must have a calendar field`,
+      });
+
+      return errors;
+    }
+
+    const calendarFieldMetadata = findFlatEntityByUniversalIdentifier({
+      universalIdentifier: flatView.calendarFieldMetadataUniversalIdentifier,
+      flatEntityMaps: flatFieldMetadataMaps,
+    });
+
+    if (!isDefined(calendarFieldMetadata)) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar field metadata not found`,
+        userFriendlyMessage: msg`Calendar field not found`,
+      });
+
+      return errors;
+    }
+
+    if (
+      calendarFieldMetadata.objectMetadataUniversalIdentifier !==
+      flatView.objectMetadataUniversalIdentifier
+    ) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar field must belong to the view object`,
+        userFriendlyMessage: msg`Calendar field must belong to the view object`,
+      });
+    }
+
+    const calendarFieldIsDateKind =
+      calendarFieldMetadata.type === FieldMetadataType.DATE ||
+      calendarFieldMetadata.type === FieldMetadataType.DATE_TIME;
+
+    if (!calendarFieldIsDateKind) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar field must be a date or date time field`,
+        userFriendlyMessage: msg`Calendar field must be a date or date time field`,
+      });
+    }
+
+    if (!isDefined(flatView.calendarEndFieldMetadataUniversalIdentifier)) {
+      return errors;
+    }
+
+    if (
+      flatView.calendarEndFieldMetadataUniversalIdentifier ===
+      flatView.calendarFieldMetadataUniversalIdentifier
+    ) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar start and end fields must be different`,
+        userFriendlyMessage: msg`Calendar start and end fields must be different`,
+      });
+
+      return errors;
+    }
+
+    const calendarEndFieldMetadata = findFlatEntityByUniversalIdentifier({
+      universalIdentifier: flatView.calendarEndFieldMetadataUniversalIdentifier,
+      flatEntityMaps: flatFieldMetadataMaps,
+    });
+
+    if (!isDefined(calendarEndFieldMetadata)) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar end field metadata not found`,
+        userFriendlyMessage: msg`Calendar end field not found`,
+      });
+
+      return errors;
+    }
+
+    if (
+      calendarEndFieldMetadata.objectMetadataUniversalIdentifier !==
+      flatView.objectMetadataUniversalIdentifier
+    ) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar end field must belong to the view object`,
+        userFriendlyMessage: msg`Calendar end field must belong to the view object`,
+      });
+    }
+
+    const calendarEndFieldIsDateKind =
+      calendarEndFieldMetadata.type === FieldMetadataType.DATE ||
+      calendarEndFieldMetadata.type === FieldMetadataType.DATE_TIME;
+
+    if (!calendarEndFieldIsDateKind) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar end field must be a date or date time field`,
+        userFriendlyMessage: msg`Calendar end field must be a date or date time field`,
+      });
+    } else if (
+      calendarFieldIsDateKind &&
+      calendarEndFieldMetadata.type !== calendarFieldMetadata.type
+    ) {
+      errors.push({
+        code: ViewExceptionCode.INVALID_VIEW_DATA,
+        message: t`Calendar start and end fields must have the same type`,
+        userFriendlyMessage: msg`Calendar start and end fields must have the same type`,
+      });
+    }
+
+    return errors;
+  }
+
+  private isAllowedKanbanMainGroupByField({
+    mainGroupByFieldMetadata,
+  }: {
+    mainGroupByFieldMetadata: UniversalFlatFieldMetadata;
+  }): boolean {
+    if (mainGroupByFieldMetadata.type === FieldMetadataType.SELECT) {
+      return true;
+    }
+
+    if (
+      !isMorphOrRelationUniversalFlatFieldMetadata(mainGroupByFieldMetadata)
+    ) {
+      return false;
+    }
+
+    return (
+      mainGroupByFieldMetadata.type === FieldMetadataType.RELATION &&
+      mainGroupByFieldMetadata.universalSettings?.relationType ===
+        RelationType.MANY_TO_ONE
+    );
+  }
 
   public validateFlatViewUpdate({
     universalIdentifier,
@@ -104,11 +268,15 @@ export class FlatViewValidatorService {
           message: t`Kanban main group by field metadata not found`,
           userFriendlyMessage: msg`Kanban main group by field metadata not found`,
         });
-      } else if (mainGroupByFieldMetadata.type !== FieldMetadataType.SELECT) {
+      } else if (
+        !this.isAllowedKanbanMainGroupByField({
+          mainGroupByFieldMetadata,
+        })
+      ) {
         validationResult.errors.push({
           code: ViewExceptionCode.INVALID_VIEW_DATA,
-          message: t`Kanban main group by field must be a SELECT field`,
-          userFriendlyMessage: msg`Kanban main group by field must be a select field`,
+          message: t`Kanban main group by field must be a SELECT or a many-to-one relation field`,
+          userFriendlyMessage: msg`Kanban main group by field must be a select or a many-to-one relation field`,
         });
       }
     }
@@ -133,14 +301,25 @@ export class FlatViewValidatorService {
           message: t`Kanban main group by field metadata not found`,
           userFriendlyMessage: msg`Kanban main group by field metadata not found`,
         });
-      } else if (mainGroupByFieldMetadata.type !== FieldMetadataType.SELECT) {
+      } else if (
+        !this.isAllowedKanbanMainGroupByField({
+          mainGroupByFieldMetadata,
+        })
+      ) {
         validationResult.errors.push({
           code: ViewExceptionCode.INVALID_VIEW_DATA,
-          message: t`Kanban main group by field must be a SELECT field`,
-          userFriendlyMessage: msg`Kanban main group by field must be a select field`,
+          message: t`Kanban main group by field must be a SELECT or a many-to-one relation field`,
+          userFriendlyMessage: msg`Kanban main group by field must be a select or a many-to-one relation field`,
         });
       }
     }
+
+    validationResult.errors.push(
+      ...this.validateCalendarFields({
+        flatView: updatedFlatView,
+        flatFieldMetadataMaps,
+      }),
+    );
 
     return validationResult;
   }
@@ -300,14 +479,25 @@ export class FlatViewValidatorService {
           message: t`Kanban main group by field metadata not found`,
           userFriendlyMessage: msg`Kanban main group by field metadata not found`,
         });
-      } else if (mainGroupByFieldMetadata.type !== FieldMetadataType.SELECT) {
+      } else if (
+        !this.isAllowedKanbanMainGroupByField({
+          mainGroupByFieldMetadata,
+        })
+      ) {
         validationResult.errors.push({
           code: ViewExceptionCode.INVALID_VIEW_DATA,
-          message: t`Kanban main group by field must be a SELECT field`,
-          userFriendlyMessage: msg`Kanban main group by field must be a select field`,
+          message: t`Kanban main group by field must be a SELECT or a many-to-one relation field`,
+          userFriendlyMessage: msg`Kanban main group by field must be a select or a many-to-one relation field`,
         });
       }
     }
+
+    validationResult.errors.push(
+      ...this.validateCalendarFields({
+        flatView: flatViewToValidate,
+        flatFieldMetadataMaps,
+      }),
+    );
 
     return validationResult;
   }

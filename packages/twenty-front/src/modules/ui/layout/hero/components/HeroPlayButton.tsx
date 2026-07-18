@@ -1,10 +1,7 @@
 import { styled } from '@linaria/react';
 import { useContext } from 'react';
-import { IconPlayerPlay } from 'twenty-ui-deprecated/display';
-import {
-  ThemeContext,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { IconPlayerPlay } from 'twenty-ui/icon';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 type HeroPlayButtonProps = {
   onClick?: () => void;
@@ -19,6 +16,7 @@ const StyledButton = styled.button`
   border-radius: 50%;
   box-shadow: ${themeCssVariables.boxShadow.strong};
   color: ${themeCssVariables.font.color.tertiary};
+  corner-shape: round;
   cursor: pointer;
   display: inline-flex;
   height: 44px;

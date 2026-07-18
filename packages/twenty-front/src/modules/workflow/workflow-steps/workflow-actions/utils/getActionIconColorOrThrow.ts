@@ -1,6 +1,6 @@
 import { type WorkflowActionType } from '@/workflow/types/Workflow';
 import { assertUnreachable } from 'twenty-shared/utils';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 export const getActionIconColorOrThrow = (
   actionType: WorkflowActionType,
@@ -11,12 +11,14 @@ export const getActionIconColorOrThrow = (
     case 'HTTP_REQUEST':
     case 'SEND_EMAIL':
     case 'DRAFT_EMAIL':
+    case 'CREATE_CALENDAR_EVENT':
       return themeCssVariables.color.red;
     case 'CREATE_RECORD':
     case 'UPDATE_RECORD':
     case 'DELETE_RECORD':
     case 'UPSERT_RECORD':
     case 'FIND_RECORDS':
+    case 'PICK_RECORD':
       return themeCssVariables.font.color.tertiary;
     case 'FORM':
       return themeCssVariables.color.orange;

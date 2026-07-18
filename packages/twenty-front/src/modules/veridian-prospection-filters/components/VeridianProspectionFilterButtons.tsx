@@ -10,8 +10,8 @@
 
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { IconLink, IconLinkOff, IconPhone } from 'twenty-ui-deprecated/display';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { IconLink, IconLinkOff, IconPhone } from 'twenty-ui/icon';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
 import { StyledHeaderDropdownButton } from '@/ui/layout/dropdown/components/StyledHeaderDropdownButton';

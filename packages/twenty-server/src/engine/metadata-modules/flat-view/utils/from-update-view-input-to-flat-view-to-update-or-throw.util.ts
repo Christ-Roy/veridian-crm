@@ -75,6 +75,7 @@ export const fromUpdateViewInputToFlatViewToUpdateOrThrow = ({
     entityApplicationUniversalIdentifier:
       existingFlatViewToUpdate.applicationUniversalIdentifier,
     workspaceCustomApplicationUniversalIdentifier,
+    isSystemSideEffect: existingFlatViewToUpdate.isSystemSideEffect,
   });
 
   const { overrides, updatedEditableProperties } =
@@ -126,6 +127,20 @@ export const fromUpdateViewInputToFlatViewToUpdateOrThrow = ({
 
     flatViewToUpdate.calendarFieldMetadataUniversalIdentifier =
       calendarFieldMetadataUniversalIdentifier;
+  }
+
+  if (updatedEditableProperties.calendarEndFieldMetadataId !== undefined) {
+    const { calendarEndFieldMetadataUniversalIdentifier } =
+      resolveEntityRelationUniversalIdentifiers({
+        metadataName: 'view',
+        foreignKeyValues: {
+          calendarEndFieldMetadataId: mergedRecord.calendarEndFieldMetadataId,
+        },
+        flatEntityMaps: { flatFieldMetadataMaps },
+      });
+
+    flatViewToUpdate.calendarEndFieldMetadataUniversalIdentifier =
+      calendarEndFieldMetadataUniversalIdentifier;
   }
 
   if (updatedEditableProperties.mainGroupByFieldMetadataId !== undefined) {

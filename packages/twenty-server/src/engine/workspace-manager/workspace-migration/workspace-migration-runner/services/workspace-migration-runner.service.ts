@@ -9,10 +9,12 @@ import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
+import { getFlatEntityMapsExceptionContext } from 'src/engine/metadata-modules/flat-entity/utils/get-flat-entity-maps-exception-context.util';
 import { getMetadataFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-flat-entity-maps-key.util';
 import { getMetadataRelatedMetadataNamesForValidation } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-related-metadata-names-for-validation.util';
 import { getMetadataRelatedMetadataNames } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-related-metadata-names.util';
 import { getMetadataSerializedRelationNames } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-serialized-relation-names.util';
+import { createSearchFieldMetadatasByTsVectorFieldIdAccessor } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/create-search-field-metadatas-by-ts-vector-field-id-accessor.util';
 import { FIND_ALL_VIEWS_GRAPHQL_OPERATION } from 'src/engine/metadata-modules/view/constants/find-all-views-graphql-operation.constant';
 import { WorkspaceMetadataVersionService } from 'src/engine/metadata-modules/workspace-metadata-version/services/workspace-metadata-version.service';
 import { WorkspaceCacheStorageService } from 'src/engine/workspace-cache-storage/workspace-cache-storage.service';
@@ -23,6 +25,8 @@ import {
   WorkspaceMigrationRunnerExceptionCode,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/exceptions/workspace-migration-runner.exception';
 import { WorkspaceMigrationRunnerActionHandlerRegistryService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/registry/workspace-migration-runner-action-handler-registry.service';
+import { buildPreallocatedIdByUniversalIdentifierFromActions } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/build-preallocated-id-by-universal-identifier-from-actions.util';
+import { type AfterCommitSideEffect } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/after-commit-side-effect.type';
 import { type MetadataEvent } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/metadata-event';
 
 @Injectable()
@@ -92,20 +96,23 @@ export class WorkspaceMigrationRunnerService {
       flatMapsKeysSet.has('flatFieldPermissionMaps') ||
       flatMapsKeysSet.has('flatRolePermissionFlagMaps');
 
-    if (
-      shouldIncrementMetadataGraphqlSchemaVersion ||
-      shouldInvalidateRoleMapCache ||
-      shouldInvalidateRolesPermissionsCache
-    ) {
+    if (shouldIncrementMetadataGraphqlSchemaVersion) {
+      asyncOperations.push(
+        this.workspaceCacheService.invalidateAndRecompute(workspaceId, [
+          'ORMEntityMetadatas',
+          'graphQLResolverNameMap',
+        ]),
+      );
+    }
+
+    if (shouldInvalidateRoleMapCache || shouldInvalidateRolesPermissionsCache) {
       asyncOperations.push(
         this.workspaceCacheService.invalidateAndRecompute(workspaceId, [
           'rolesPermissions',
           'userWorkspaceRoleMap',
           'flatRoleTargetMaps',
           'apiKeyRoleMap',
-          'ORMEntityMetadatas',
           'flatRoleTargetByAgentIdMaps',
-          'graphQLResolverNameMap',
         ]),
       );
     }
@@ -128,7 +135,7 @@ export class WorkspaceMigrationRunnerService {
     allFlatEntityMapsKeys: (keyof AllFlatEntityMaps)[];
     workspaceId: string;
   }): Promise<void> {
-    this.logger.time(
+    this.logger.perfTime(
       'Runner',
       `Cache invalidation ${allFlatEntityMapsKeys.join()}`,
     );
@@ -161,13 +168,12 @@ export class WorkspaceMigrationRunnerService {
       );
     }
 
-    this.logger.timeEnd(
+    this.logger.perfTimeEnd(
       'Runner',
       `Cache invalidation ${allFlatEntityMapsKeys.join()}`,
     );
   }
 
-  // TODO(install-perf): temporary, remove. Snapshots blocking DB sessions on a fresh connection.
   private async logBlockingDbActivity(): Promise<void> {
     try {
       // Metadata only (no query text) to avoid logging literals from other sessions.
@@ -216,8 +222,8 @@ export class WorkspaceMigrationRunnerService {
       });
     }
 
-    this.logger.time('Runner', 'Total execution');
-    this.logger.time('Runner', 'Initial cache retrieval');
+    this.logger.perfTime('Runner', 'Total execution');
+    this.logger.perfTime('Runner', 'Initial cache retrieval');
 
     const initialCacheRetrievalStart = performance.now();
 
@@ -226,6 +232,17 @@ export class WorkspaceMigrationRunnerService {
     const actionMetadataNames = [
       ...new Set(actions.flatMap((action) => action.metadataName)),
     ];
+
+    const hasSearchVectorRebuildAction = actions.some(
+      (action) =>
+        action.metadataName === 'fieldMetadata' &&
+        action.type === 'update' &&
+        action.rebuildSearchVector === true,
+    );
+
+    const searchVectorRebuildMetadataNames: AllMetadataName[] =
+      hasSearchVectorRebuildAction ? ['index'] : [];
+
     const actionsMetadataAndRelatedMetadataNames: AllMetadataName[] = [
       ...new Set([
         ...actionMetadataNames,
@@ -234,6 +251,7 @@ export class WorkspaceMigrationRunnerService {
         ...actionMetadataNames.flatMap(
           getMetadataRelatedMetadataNamesForValidation,
         ),
+        ...searchVectorRebuildMetadataNames,
       ]),
     ];
     const allFlatEntityMapsKeys = actionsMetadataAndRelatedMetadataNames.map(
@@ -248,12 +266,12 @@ export class WorkspaceMigrationRunnerService {
         flatMapsKeys: allFlatEntityMapsKeys,
       });
 
-    this.logger.timeEnd('Runner', 'Initial cache retrieval');
+    this.logger.perfTimeEnd('Runner', 'Initial cache retrieval');
 
     const initialCacheRetrievalMs =
       performance.now() - initialCacheRetrievalStart;
 
-    this.logger.log(
+    this.logger.perf(
       `[install-perf] Runner initial cache retrieval (getOrRecomputeManyOrAllFlatEntityMaps) took ${initialCacheRetrievalMs.toFixed(1)}ms for ${allFlatEntityMapsKeys.length} flat-maps keys`,
       'Runner',
     );
@@ -278,26 +296,37 @@ export class WorkspaceMigrationRunnerService {
       });
     }
 
-    this.logger.time('Runner', 'Transaction execution');
+    const preallocatedIdByUniversalIdentifierByMetadataName =
+      buildPreallocatedIdByUniversalIdentifierFromActions(actions);
+
+    this.logger.perfTime('Runner', 'Transaction execution');
 
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     const allMetadataEvents: MetadataEvent[] = [];
+    const allAfterCommitSideEffects: AfterCommitSideEffect[] = [];
 
-    // TODO(install-perf): temporary, remove.
     const transactionStart = performance.now();
     let slowestActionMs = 0;
     let slowestActionLabel = 'n/a';
     let actionCount = 0;
 
+    const searchFieldMetadatasByTsVectorFieldIdAccessor =
+      createSearchFieldMetadatasByTsVectorFieldIdAccessor(
+        () => allFlatEntityMaps.flatSearchFieldMetadataMaps,
+      );
+
     try {
-      // TODO(install-perf): temporary, remove. Fail fast on lock waits (< 10s query_timeout) for a clear error.
       await queryRunner.query(`SET LOCAL lock_timeout = '8s'`);
 
       for (const action of actions) {
         const actionStart = performance.now();
-        const { partialOptimisticCache, metadataEvents } =
+        const {
+          partialOptimisticCache,
+          metadataEvents,
+          afterCommitSideEffects,
+        } =
           await this.workspaceMigrationRunnerActionHandlerRegistry.executeActionHandler(
             {
               action,
@@ -307,6 +336,9 @@ export class WorkspaceMigrationRunnerService {
                 allFlatEntityMaps,
                 queryRunner,
                 workspaceId,
+                preallocatedIdByUniversalIdentifierByMetadataName,
+                getSearchFieldMetadatasByTsVectorFieldId:
+                  searchFieldMetadatasByTsVectorFieldIdAccessor.get,
               },
             },
           );
@@ -321,7 +353,7 @@ export class WorkspaceMigrationRunnerService {
         }
 
         if (actionMs > 50) {
-          this.logger.log(
+          this.logger.perf(
             `[install-perf] slow action ${action.type}:${action.metadataName} took ${actionMs.toFixed(1)}ms`,
             'Runner',
           );
@@ -332,7 +364,12 @@ export class WorkspaceMigrationRunnerService {
           ...partialOptimisticCache,
         } as typeof allFlatEntityMaps;
 
+        if (action.metadataName === 'searchFieldMetadata') {
+          searchFieldMetadatasByTsVectorFieldIdAccessor.invalidate();
+        }
+
         allMetadataEvents.push(...metadataEvents);
+        allAfterCommitSideEffects.push(...afterCommitSideEffects);
       }
 
       const commitStart = performance.now();
@@ -342,14 +379,13 @@ export class WorkspaceMigrationRunnerService {
       const commitMs = performance.now() - commitStart;
       const transactionMs = performance.now() - transactionStart;
 
-      this.logger.log(
+      this.logger.perf(
         `[install-perf] Runner transaction summary: ${actionCount} actions, total transaction ${transactionMs.toFixed(1)}ms (commit ${commitMs.toFixed(1)}ms), slowest action ${slowestActionLabel} ${slowestActionMs.toFixed(1)}ms`,
         'Runner',
       );
 
-      this.logger.timeEnd('Runner', 'Transaction execution');
+      this.logger.perfTimeEnd('Runner', 'Transaction execution');
     } catch (error) {
-      // TODO(install-perf): temporary, remove. Logs the real cause + blockers and guards the rollback.
       this.logger.error(
         `[install-perf] migration failed after ${actionCount} action(s): ${
           error instanceof Error ? error.message : String(error)
@@ -409,6 +445,7 @@ export class WorkspaceMigrationRunnerService {
       throw new WorkspaceMigrationRunnerException({
         message: error.message,
         code: WorkspaceMigrationRunnerExceptionCode.INTERNAL_SERVER_ERROR,
+        context: getFlatEntityMapsExceptionContext(error),
       });
     } finally {
       await queryRunner.release();
@@ -431,16 +468,35 @@ export class WorkspaceMigrationRunnerService {
     const postCommitInvalidateMs =
       performance.now() - postCommitInvalidateStart;
 
-    this.logger.log(
+    this.logger.perf(
       `[install-perf] Runner post-commit invalidateCache took ${postCommitInvalidateMs.toFixed(1)}ms for ${allFlatEntityMapsKeys.length} flat-maps keys`,
       'Runner',
     );
+
+    const sideEffectResults = await Promise.allSettled(
+      allAfterCommitSideEffects.map((sideEffect) =>
+        Promise.resolve().then(() => sideEffect.run()),
+      ),
+    );
+
+    sideEffectResults.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        this.logger.warn(
+          `After-commit side effect failed (${allAfterCommitSideEffects[index].description}): ${
+            result.reason instanceof Error
+              ? result.reason.message
+              : String(result.reason)
+          }`,
+          'Runner',
+        );
+      }
+    });
 
     const hasSchemaMetadataChanged =
       allFlatEntityMapsKeys.includes('flatObjectMetadataMaps') ||
       allFlatEntityMapsKeys.includes('flatFieldMetadataMaps');
 
-    this.logger.timeEnd('Runner', 'Total execution');
+    this.logger.perfTimeEnd('Runner', 'Total execution');
 
     return {
       allFlatEntityMaps,

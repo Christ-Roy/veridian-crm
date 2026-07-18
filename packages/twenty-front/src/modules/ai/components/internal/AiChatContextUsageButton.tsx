@@ -3,9 +3,9 @@ import { t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react/macro';
 import { useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { HorizontalSeparator } from 'twenty-ui-deprecated/display';
-import { ProgressBar } from 'twenty-ui-deprecated/feedback';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { HorizontalSeparator } from 'twenty-ui/layout';
+import { ProgressBar } from 'twenty-ui/feedback';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { ContextUsageProgressRing } from '@/ai/components/internal/ContextUsageProgressRing';
 import { agentChatHasMessageComponentSelector } from '@/ai/states/selectors/agentChatHasMessageComponentSelector';
@@ -28,6 +28,7 @@ const StyledContainer = styled.div`
 
 const StyledTrigger = styled.div<{ hasUsage: boolean }>`
   align-items: center;
+  border-radius: ${themeCssVariables.border.radius.md};
   cursor: ${({ hasUsage }) => (hasUsage ? 'pointer' : 'default')};
   display: flex;
   height: 24px;

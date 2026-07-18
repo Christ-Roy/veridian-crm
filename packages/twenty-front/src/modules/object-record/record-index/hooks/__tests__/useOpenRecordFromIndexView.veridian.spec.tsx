@@ -36,7 +36,7 @@ jest.mock('@/side-panel/hooks/useOpenRecordInSidePanel', () => ({
 jest.mock('@/side-panel/hooks/useSidePanelMenu', () => ({
   useSidePanelMenu: () => ({ closeSidePanelMenu: mockCloseSidePanelMenu }),
 }));
-jest.mock('twenty-ui-deprecated/utilities', () => ({ useIsMobile: () => false }));
+jest.mock('twenty-ui/utilities', () => ({ useIsMobile: () => false }));
 jest.mock(
   '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState',
   () => ({ useAtomComponentStateCallbackState: () => ({}) }),

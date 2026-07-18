@@ -15,9 +15,6 @@ import {
   type CreateStandardFieldArgs,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-field-flat-metadata.util';
 import { createStandardRelationFieldFlatMetadata } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-relation-field-flat-metadata.util';
-import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
-import { SEARCH_FIELDS_FOR_TIMELINE_ACTIVITY } from 'src/modules/timeline/standard-objects/timeline-activity.workspace-entity';
-
 export const buildTimelineActivityStandardFlatFieldMetadatas = ({
   now,
   objectName,
@@ -597,12 +594,6 @@ export const buildTimelineActivityStandardFlatFieldMetadatas = ({
       icon: 'IconUser',
       isSystem: true,
       isNullable: true,
-      settings: {
-        generatedType: 'STORED',
-        asExpression: getTsVectorColumnExpressionFromFields(
-          SEARCH_FIELDS_FOR_TIMELINE_ACTIVITY,
-        ),
-      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,

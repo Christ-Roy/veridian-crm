@@ -1,6 +1,7 @@
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { isDDLLockedState } from '@/client-config/states/isDDLLockedState';
 import { useDeleteOneObjectMetadataItem } from '@/object-metadata/hooks/useDeleteOneObjectMetadataItem';
+import { useGetIsMetadataItemCustom } from '@/object-metadata/hooks/useGetIsMetadataItemCustom';
 import { useUpdateOneObjectMetadataItem } from '@/object-metadata/hooks/useUpdateOneObjectMetadataItem';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { isHiddenSystemField } from '@/object-metadata/utils/isHiddenSystemField';
@@ -29,18 +30,14 @@ import { useLingui } from '@lingui/react/macro';
 import { type ReactNode, useContext, useMemo, useState } from 'react';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
-import {
-  IconArchive,
-  IconChevronRight,
-  IconSettings,
-} from 'twenty-ui-deprecated/display';
-import { SearchInput } from 'twenty-ui-deprecated/input';
-import { MenuItemToggle } from 'twenty-ui-deprecated/navigation';
+import { IconArchive, IconChevronRight, IconSettings } from 'twenty-ui/icon';
+import { SearchInput } from 'twenty-ui/input';
+import { MenuItemToggle } from 'twenty-ui/navigation';
 import {
   MOBILE_VIEWPORT,
   ThemeContext,
   themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+} from 'twenty-ui/theme-constants';
 import { GET_SETTINGS_OBJECT_TABLE_METADATA } from '~/pages/settings/data-model/constants/SettingsObjectTableMetadata';
 import type { SettingsObjectTableItem } from '~/pages/settings/data-model/types/SettingsObjectTableItem';
 import { normalizeSearchText } from '~/utils/normalizeSearchText';
@@ -75,13 +72,15 @@ export const SettingsObjectTable = ({
 }) => {
   const { theme } = useContext(ThemeContext);
   const { t } = useLingui();
+  const getIsMetadataItemCustom = useGetIsMetadataItemCustom();
 
   const isAdvancedModeEnabled = useAtomStateValue(isAdvancedModeEnabledState);
   const isDDLLocked = useAtomStateValue(isDDLLockedState);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeactivated, setShowDeactivated] = useState(true);
-  const [showSystemObjects, setShowSystemObjects] = useState(false);
+  const [showSystemObjects, setShowSystemObjects] = useState(true);
+  const shouldShowSystemObjects = isAdvancedModeEnabled && showSystemObjects;
 
   const { deleteOneObjectMetadataItem } = useDeleteOneObjectMetadataItem();
 
@@ -144,13 +143,18 @@ export const SettingsObjectTable = ({
         }
 
         const isSystem = item.objectMetadataItem.isSystem;
-        if (isSystem && !showSystemObjects) {
+        if (isSystem && !shouldShowSystemObjects) {
           return false;
         }
 
         return true;
       }),
-    [sortedObjectSettingsItems, searchTerm, showDeactivated, showSystemObjects],
+    [
+      sortedObjectSettingsItems,
+      searchTerm,
+      showDeactivated,
+      shouldShowSystemObjects,
+    ],
   );
 
   return (
@@ -259,9 +263,9 @@ export const SettingsObjectTable = ({
                           </StyledIconChevronRightContainer>
                         ) : isDDLLocked ? null : (
                           <SettingsObjectInactiveMenuDropDown
-                            isCustomObject={
-                              objectSettingsItem.objectMetadataItem.isCustom
-                            }
+                            isCustomObject={getIsMetadataItemCustom(
+                              objectSettingsItem.objectMetadataItem,
+                            )}
                             objectMetadataItemNamePlural={
                               objectSettingsItem.objectMetadataItem.namePlural
                             }

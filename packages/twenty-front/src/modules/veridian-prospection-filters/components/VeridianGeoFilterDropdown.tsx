@@ -20,9 +20,9 @@ import {
   IconMap,
   IconPlus,
   IconRotate2,
-} from 'twenty-ui-deprecated/display';
-import { MenuItem, MenuItemMultiSelect } from 'twenty-ui-deprecated/navigation';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+} from 'twenty-ui/icon';
+import { MenuItem, MenuItemMultiSelect } from 'twenty-ui/navigation';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';

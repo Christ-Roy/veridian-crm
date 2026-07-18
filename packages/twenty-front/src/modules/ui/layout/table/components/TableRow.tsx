@@ -1,9 +1,6 @@
 import { styled } from '@linaria/react';
 import { Link } from 'react-router-dom';
-import {
-  MOBILE_VIEWPORT,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledTableRow = styled.div<{
   isSelected?: boolean;
@@ -23,7 +20,7 @@ const StyledTableRow = styled.div<{
       : isExpanded === true
         ? themeCssVariables.background.transparent.light
         : 'transparent'};
-  border-radius: ${themeCssVariables.border.radius.sm};
+  border-radius: ${themeCssVariables.border.radius.md};
   cursor: ${({ cursor }) => cursor ?? 'default'};
   display: grid;
   grid-auto-columns: ${({ gridAutoColumns }) => gridAutoColumns ?? '1fr'};

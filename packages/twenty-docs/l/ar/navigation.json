@@ -155,7 +155,33 @@
           "label": "نظرة عامة"
         },
         "apps": {
-          "label": "التطبيقات"
+          "label": "التطبيقات",
+          "groups": {
+            "appsGettingStarted": {
+              "label": "البدء"
+            },
+            "appsTutorial": {
+              "label": "البرنامج التعليمي"
+            },
+            "appsConfig": {
+              "label": "التهيئة"
+            },
+            "appsData": {
+              "label": "بيانات"
+            },
+            "appsLogic": {
+              "label": "المنطق"
+            },
+            "appsLayout": {
+              "label": "التخطيط"
+            },
+            "appsOperations": {
+              "label": "العمليات"
+            },
+            "appsTranslations": {
+              "label": "الترجمات"
+            }
+          }
         },
         "api": {
           "label": "واجهة برمجة التطبيقات"

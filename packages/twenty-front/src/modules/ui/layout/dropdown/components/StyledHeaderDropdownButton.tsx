@@ -1,4 +1,4 @@
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { styled } from '@linaria/react';
 
 type StyledDropdownButtonProps = {
@@ -13,7 +13,7 @@ export const StyledHeaderDropdownButton = styled.button<StyledDropdownButtonProp
       ? themeCssVariables.background.transparent.light
       : themeCssVariables.background.primary};
   border: none;
-  border-radius: ${themeCssVariables.border.radius.sm};
+  border-radius: ${themeCssVariables.border.radius.md};
   color: ${({ isActive }) =>
     isActive
       ? themeCssVariables.color.blue

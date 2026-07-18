@@ -1,11 +1,9 @@
 import { styled } from '@linaria/react';
 import { useContext, useState } from 'react';
 import { isNonEmptyString } from '@sniptt/guards';
-import { Avatar, IconRefresh } from 'twenty-ui-deprecated/display';
-import {
-  ThemeContext,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { Avatar } from 'twenty-ui/data-display';
+import { IconRefresh } from 'twenty-ui/icon';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 type AppConnectionHeaderProps = {
   appLogoUrl?: string | null;
@@ -47,6 +45,7 @@ const StyledLinkIconContainer = styled.div`
   border-radius: ${themeCssVariables.border.radius.rounded};
   box-shadow: ${themeCssVariables.boxShadow.strong};
   color: ${themeCssVariables.font.color.primary};
+  corner-shape: round;
   display: flex;
   flex-shrink: 0;
   height: ${themeCssVariables.spacing[6]};

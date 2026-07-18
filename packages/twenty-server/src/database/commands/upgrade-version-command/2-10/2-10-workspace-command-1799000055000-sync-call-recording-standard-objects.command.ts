@@ -1,17 +1,21 @@
 import { Command } from 'nest-commander';
+import { TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER } from 'twenty-shared/application';
 import {
   STANDARD_OBJECTS,
   STANDARD_PAGE_LAYOUT_UNIVERSAL_IDENTIFIERS,
 } from 'twenty-shared/metadata';
+import { FieldMetadataType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
+import { v4 as uuidv4 } from 'uuid';
 
-import { ActiveOrSuspendedWorkspaceCommandRunner } from 'src/database/commands/command-runners/active-or-suspended-workspace.command-runner';
+import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
 import { buildNavigationCommandMenuItemOperationsOrThrow } from 'src/database/commands/upgrade-version-command/2-10/utils/build-navigation-command-menu-item-operations-or-throw.util';
 import {
   buildCalendarEventFieldRenameUpdates,
   buildCallRecordingObjectRenameUpdates,
+  LEGACY_CALENDAR_EVENT_RECORDING_PREFERENCE_FIELD_UNIVERSAL_IDENTIFIER,
 } from 'src/database/commands/upgrade-version-command/2-10/utils/call-recording-name-collision.util';
 import {
   getExistingOrStandardFlatEntityOrThrow,
@@ -43,7 +47,6 @@ const CALL_RECORDING_OBJECT_METADATA_UNIVERSAL_IDENTIFIERS = [
 
 const CALL_RECORDING_FIELD_METADATA_UNIVERSAL_IDENTIFIERS = [
   ...getUniversalIdentifiers(STANDARD_OBJECTS.callRecording.fields),
-  STANDARD_OBJECTS.calendarEvent.fields.recordingPreference.universalIdentifier,
   STANDARD_OBJECTS.calendarEvent.fields.callRecordings.universalIdentifier,
 ];
 
@@ -92,13 +95,103 @@ const CALL_RECORDING_PAGE_LAYOUT_WIDGET_UNIVERSAL_IDENTIFIERS = [
     .timeline.widgets.timeline.universalIdentifier,
 ];
 
+// Preserves the shipped 2.10 upgrade path after recordingPreference moved out of
+// current standard metadata.
+const buildLegacyCalendarEventRecordingPreferenceFieldMetadata = ({
+  calendarEventObjectMetadata,
+  now,
+  twentyStandardApplicationId,
+  workspaceId,
+}: {
+  calendarEventObjectMetadata: FlatObjectMetadata;
+  now: string;
+  twentyStandardApplicationId: string;
+  workspaceId: string;
+}): FlatFieldMetadata<FieldMetadataType.SELECT> => ({
+  id: uuidv4(),
+  universalIdentifier:
+    LEGACY_CALENDAR_EVENT_RECORDING_PREFERENCE_FIELD_UNIVERSAL_IDENTIFIER,
+  applicationId: twentyStandardApplicationId,
+  workspaceId,
+  objectMetadataId: calendarEventObjectMetadata.id,
+  type: FieldMetadataType.SELECT,
+  name: 'recordingPreference',
+  label: 'Recording Preference',
+  description:
+    'Whether to record this event, applied on top of the workspace policy',
+  icon: 'IconSettingsAutomation',
+  isActive: true,
+  isSystem: false,
+  isSystemSideEffect: false,
+  isNullable: false,
+  isUnique: false,
+  isUIEditable: true,
+  isLabelSyncedWithName: false,
+  overrides: null,
+  defaultValue: "'AUTO'",
+  settings: null,
+  options: [
+    {
+      id: '4c4761ce-ffbf-4176-be7f-5cf5257c8bff',
+      value: 'AUTO',
+      label: 'Auto',
+      position: 0,
+      color: 'blue',
+    },
+    {
+      id: '1ae19135-e1a1-4a96-b866-91643622e554',
+      value: 'ON',
+      label: 'On',
+      position: 1,
+      color: 'green',
+    },
+    {
+      id: '8c69a74f-2ab7-4c19-a813-eb0ea3533fd3',
+      value: 'OFF',
+      label: 'Off',
+      position: 2,
+      color: 'gray',
+    },
+  ],
+  relationTargetFieldMetadataId: null,
+  relationTargetObjectMetadataId: null,
+  morphId: null,
+  viewFieldIds: [],
+  viewFilterIds: [],
+  fieldPermissionIds: [],
+  kanbanAggregateOperationViewIds: [],
+  calendarViewIds: [],
+  calendarEndViewIds: [],
+  mainGroupByFieldMetadataViewIds: [],
+  createdAt: now,
+  updatedAt: now,
+  applicationUniversalIdentifier:
+    TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+  objectMetadataUniversalIdentifier:
+    STANDARD_OBJECTS.calendarEvent.universalIdentifier,
+  relationTargetObjectMetadataUniversalIdentifier: null,
+  relationTargetFieldMetadataUniversalIdentifier: null,
+  viewFilterUniversalIdentifiers: [],
+  viewFieldUniversalIdentifiers: [],
+  fieldPermissionUniversalIdentifiers: [],
+  kanbanAggregateOperationViewUniversalIdentifiers: [],
+  calendarViewUniversalIdentifiers: [],
+  calendarEndViewUniversalIdentifiers: [],
+  mainGroupByFieldMetadataViewUniversalIdentifiers: [],
+  viewSortIds: [],
+  viewSortUniversalIdentifiers: [],
+  searchFieldMetadataIds: [],
+  searchFieldMetadataUniversalIdentifiers: [],
+  universalSettings: null,
+});
+
 @RegisteredWorkspaceCommand('2.10.0', 1799000055000)
 @Command({
   name: 'upgrade:2-10:sync-call-recording-standard-objects',
   description:
     'Create the CallRecording standard metadata in existing workspaces',
 })
-export class SyncCallRecordingStandardObjectsCommand extends ActiveOrSuspendedWorkspaceCommandRunner {
+export class SyncCallRecordingStandardObjectsCommand extends ProvisionedWorkspaceCommandRunner {
   constructor(
     protected readonly workspaceIteratorService: WorkspaceIteratorService,
     private readonly applicationService: ApplicationService,
@@ -200,6 +293,22 @@ export class SyncCallRecordingStandardObjectsCommand extends ActiveOrSuspendedWo
         renamedCollisionObjectMetadatas,
       });
 
+    const legacyCalendarEventRecordingPreferenceFieldMetadata =
+      flatFieldMetadataMaps.byUniversalIdentifier[
+        LEGACY_CALENDAR_EVENT_RECORDING_PREFERENCE_FIELD_UNIVERSAL_IDENTIFIER
+      ];
+    const legacyCalendarEventRecordingPreferenceFieldMetadataToCreate =
+      isDefined(legacyCalendarEventRecordingPreferenceFieldMetadata)
+        ? []
+        : [
+            buildLegacyCalendarEventRecordingPreferenceFieldMetadata({
+              calendarEventObjectMetadata,
+              now,
+              twentyStandardApplicationId: twentyStandardFlatApplication.id,
+              workspaceId,
+            }),
+          ];
+
     const allFlatEntityOperationByMetadataName = {
       objectMetadata: {
         flatEntityToCreate:
@@ -214,14 +323,16 @@ export class SyncCallRecordingStandardObjectsCommand extends ActiveOrSuspendedWo
         flatEntityToUpdate: [],
       },
       fieldMetadata: {
-        flatEntityToCreate:
-          getStandardFlatEntitiesToCreateOrThrow<FlatFieldMetadata>({
+        flatEntityToCreate: [
+          ...getStandardFlatEntitiesToCreateOrThrow<FlatFieldMetadata>({
             standardFlatEntityMaps:
               standardAllFlatEntityMaps.flatFieldMetadataMaps,
             existingFlatEntityMaps: flatFieldMetadataMaps,
             universalIdentifiers:
               CALL_RECORDING_FIELD_METADATA_UNIVERSAL_IDENTIFIERS,
           }),
+          ...legacyCalendarEventRecordingPreferenceFieldMetadataToCreate,
+        ],
         flatEntityToDelete: [],
         flatEntityToUpdate: [],
       },
@@ -379,7 +490,7 @@ export class SyncCallRecordingStandardObjectsCommand extends ActiveOrSuspendedWo
       allFlatEntityOperationByMetadataName,
     } of collisionRenameMigrations) {
       const renameResult =
-        await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
+        await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunLegacyWorkspaceMigration(
           {
             isSystemBuild: true,
             applicationUniversalIdentifier,
@@ -400,7 +511,7 @@ export class SyncCallRecordingStandardObjectsCommand extends ActiveOrSuspendedWo
     }
 
     const validateAndBuildResult =
-      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunLegacyWorkspaceMigration(
         {
           isSystemBuild: true,
           applicationUniversalIdentifier:

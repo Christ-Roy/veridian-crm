@@ -18,8 +18,8 @@ import {
   IconRotate2,
   IconUser,
   IconUsers,
-} from 'twenty-ui-deprecated/display';
-import { MenuItem } from 'twenty-ui-deprecated/navigation';
+} from 'twenty-ui/icon';
+import { MenuItem } from 'twenty-ui/navigation';
 
 import { useVeridianProspectionFilters } from '@/veridian-prospection-filters/hooks/useVeridianProspectionFilters';
 import {

@@ -4,8 +4,8 @@ import { pageLayoutTabSettingsOpenTabIdComponentState } from '@/page-layout/stat
 import { type SingleTabProps } from '@/ui/layout/tab-list/types/SingleTabProps';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { styled } from '@linaria/react';
-import { StyledTabContainer, TabContent } from 'twenty-ui-deprecated/input';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { StyledTabContainer, TabContent } from 'twenty-ui/input';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 type PageLayoutTabListReorderableTabProps = {
   tab: SingleTabProps;
@@ -16,6 +16,7 @@ type PageLayoutTabListReorderableTabProps = {
 };
 
 const StyledTabContentWrapper = styled.div<{ isBeingEdited: boolean }>`
+  border-radius: ${themeCssVariables.border.radius.sm};
   outline: ${({ isBeingEdited }) =>
     isBeingEdited ? `1px solid ${themeCssVariables.color.blue}` : 'none'};
   outline-offset: -1px;

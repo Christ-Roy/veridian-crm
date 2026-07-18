@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider } from 'twenty-ui-deprecated/theme-constants';
+import { ThemeProvider } from 'twenty-ui/theme-constants';
 
 import { ThinkingStepsDisplay } from '@/ai/components/ThinkingStepsDisplay';
 import { type ThinkingStepPart } from '@/ai/utils/thinkingStepPart';
@@ -8,6 +8,14 @@ import { type ThinkingStepPart } from '@/ai/utils/thinkingStepPart';
 jest.mock('~/hooks/useCopyToClipboard', () => ({
   useCopyToClipboard: () => ({
     copyToClipboard: jest.fn(),
+  }),
+}));
+
+jest.mock('@/ai/hooks/useGetToolIndex', () => ({
+  useGetToolIndex: () => ({
+    toolIndex: [],
+    loading: false,
+    error: undefined,
   }),
 }));
 

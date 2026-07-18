@@ -9,6 +9,7 @@ import { RecordTableWidgetContextStoreInitEffect } from '@/object-record/record-
 import { RecordTableWidgetViewLoadEffect } from '@/object-record/record-table-widget/components/RecordTableWidgetViewLoadEffect';
 import { getRecordIndexIdFromObjectNamePluralAndViewId } from '@/object-record/utils/getRecordIndexIdFromObjectNamePluralAndViewId';
 import { ViewComponentInstanceContext } from '@/views/states/contexts/ViewComponentInstanceContext';
+import { isNonEmptyString } from '@sniptt/guards';
 import { type PropsWithChildren, useCallback } from 'react';
 import { AppPath } from 'twenty-shared/types';
 import { getAppPath } from 'twenty-shared/utils';
@@ -17,22 +18,31 @@ type RecordTableWidgetProviderProps = PropsWithChildren<{
   objectNameSingular: string;
   viewId: string;
   widgetId: string;
+  recordLimit?: number;
+  instanceIdSuffix?: string;
 }>;
 
 export const RecordTableWidgetProvider = ({
   objectNameSingular,
   viewId,
   widgetId,
+  recordLimit,
+  instanceIdSuffix,
   children,
 }: RecordTableWidgetProviderProps) => {
   const { objectMetadataItem } = useObjectMetadataItem({
     objectNameSingular,
   });
 
-  const recordIndexId = getRecordIndexIdFromObjectNamePluralAndViewId(
-    objectMetadataItem.namePlural,
-    viewId,
-  );
+  const recordIndexIdWithoutSuffix =
+    getRecordIndexIdFromObjectNamePluralAndViewId(
+      objectMetadataItem.namePlural,
+      viewId,
+    );
+
+  const recordIndexId = isNonEmptyString(instanceIdSuffix)
+    ? `${recordIndexIdWithoutSuffix}-${instanceIdSuffix}`
+    : recordIndexIdWithoutSuffix;
 
   const { objectPermissionsByObjectMetadataId } = useObjectPermissions();
   const objectPermissions = getObjectPermissionsForObject(
@@ -68,7 +78,11 @@ export const RecordTableWidgetProvider = ({
 
   return (
     <ContextStoreComponentInstanceContext.Provider
-      value={{ instanceId: `record-table-widget-${widgetId}` }}
+      value={{
+        instanceId: isNonEmptyString(instanceIdSuffix)
+          ? `record-table-widget-${widgetId}-${instanceIdSuffix}`
+          : `record-table-widget-${widgetId}`,
+      }}
     >
       <RecordTableWidgetContextStoreInitEffect
         objectMetadataItemId={objectMetadataItem.id}
@@ -88,6 +102,7 @@ export const RecordTableWidgetProvider = ({
           labelIdentifierFieldMetadataItem,
           fieldMetadataItemByFieldMetadataItemId,
           fieldDefinitionByFieldMetadataItemId,
+          recordLimit,
         }}
       >
         <ViewComponentInstanceContext.Provider

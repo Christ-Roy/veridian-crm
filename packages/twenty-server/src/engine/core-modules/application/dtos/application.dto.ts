@@ -41,6 +41,11 @@ export class ApplicationDTO {
   logo?: string;
 
   @IsOptional()
+  @IsUUID()
+  @Field(() => UUIDScalarType, { nullable: true })
+  logoFileId?: string;
+
+  @IsOptional()
   @IsString()
   @Field({ nullable: true })
   version?: string;
@@ -86,9 +91,17 @@ export class ApplicationDTO {
   @Field({ nullable: true })
   defaultRoleId?: string;
 
+  /**
+   * @deprecated Custom settings tabs are no longer supported. Kept for
+   * backward compatibility with existing installations; the value is ignored.
+   */
   @IsOptional()
   @IsUUID()
-  @Field(() => UUIDScalarType, { nullable: true })
+  @Field(() => UUIDScalarType, {
+    nullable: true,
+    deprecationReason:
+      'Custom settings tabs are no longer supported. This field is ignored.',
+  })
   settingsCustomTabFrontComponentId?: string;
 
   @IsOptional()

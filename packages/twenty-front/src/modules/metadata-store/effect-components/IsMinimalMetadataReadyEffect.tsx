@@ -8,20 +8,27 @@ import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomState
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 import { useEffect } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { isWorkspaceActiveOrSuspended } from 'twenty-shared/workspace';
+import { isWorkspaceProvisioned } from 'twenty-shared/workspace';
 
 export const IsMinimalMetadataReadyEffect = () => {
   const hasAccessTokenPair = useHasAccessTokenPair();
   const currentUser = useAtomStateValue(currentUserState);
   const currentWorkspace = useAtomStateValue(currentWorkspaceState);
-  const metadataStore = useAtomFamilyStateValue(
+  const metadataStoreObjectMetadataItems = useAtomFamilyStateValue(
     metadataStoreState,
     'objectMetadataItems',
   );
-  // oxlint-disable-next-line twenty/matching-state-variable
+  const metadataStoreFieldMetadataItems = useAtomFamilyStateValue(
+    metadataStoreState,
+    'fieldMetadataItems',
+  );
   const metadataStoreViews = useAtomFamilyStateValue(
     metadataStoreState,
     'views',
+  );
+  const metadataStoreViewFields = useAtomFamilyStateValue(
+    metadataStoreState,
+    'viewFields',
   );
   const setIsMinimalMetadataReady = useSetAtomState(
     isMinimalMetadataReadyState,
@@ -33,10 +40,14 @@ export const IsMinimalMetadataReadyEffect = () => {
       return;
     }
 
-    const hasActiveWorkspace = isWorkspaceActiveOrSuspended(currentWorkspace);
+    const hasProvisionedWorkspace = isWorkspaceProvisioned(currentWorkspace);
 
-    const areObjectsLoaded = metadataStore.status === 'up-to-date';
-    const areViewsLoaded = metadataStoreViews.status === 'up-to-date';
+    const areObjectsLoaded =
+      metadataStoreObjectMetadataItems.status === 'up-to-date' &&
+      metadataStoreFieldMetadataItems.status === 'up-to-date';
+    const areViewsLoaded =
+      metadataStoreViews.status === 'up-to-date' &&
+      metadataStoreViewFields.status === 'up-to-date';
 
     if (!areObjectsLoaded) {
       setIsMinimalMetadataReady(false);
@@ -44,7 +55,7 @@ export const IsMinimalMetadataReadyEffect = () => {
     }
 
     const isReady =
-      isDefined(currentUser) && (!hasActiveWorkspace || areViewsLoaded);
+      isDefined(currentUser) && (!hasProvisionedWorkspace || areViewsLoaded);
 
     if (isReady) {
       setIsMinimalMetadataReady(true);
@@ -53,8 +64,10 @@ export const IsMinimalMetadataReadyEffect = () => {
     hasAccessTokenPair,
     currentUser,
     currentWorkspace,
-    metadataStore.status,
+    metadataStoreObjectMetadataItems.status,
+    metadataStoreFieldMetadataItems.status,
     metadataStoreViews.status,
+    metadataStoreViewFields.status,
     setIsMinimalMetadataReady,
   ]);
 

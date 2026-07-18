@@ -5,7 +5,7 @@ import {
 } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
-import { ActiveOrSuspendedWorkspaceCommandRunner } from 'src/database/commands/command-runners/active-or-suspended-workspace.command-runner';
+import { ProvisionedWorkspaceCommandRunner } from 'src/database/commands/command-runners/provisioned-workspace.command-runner';
 import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/workspace.command-runner';
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
@@ -32,7 +32,7 @@ const DEFAULT_RELATION_TARGET_UNIVERSAL_IDENTIFIERS = new Set<string>(
   description:
     "Re-sync standard objects' default relation field labels/icons (note/task/attachment/timeline) against the source of truth, healing drift such as the Company timelineActivities IconIconTimelineEvent typo.",
 })
-export class FixStandardRelationFieldLabelsIconsCommand extends ActiveOrSuspendedWorkspaceCommandRunner {
+export class FixStandardRelationFieldLabelsIconsCommand extends ProvisionedWorkspaceCommandRunner {
   constructor(
     protected readonly workspaceIteratorService: WorkspaceIteratorService,
     private readonly applicationService: ApplicationService,
@@ -120,7 +120,7 @@ export class FixStandardRelationFieldLabelsIconsCommand extends ActiveOrSuspende
     }
 
     const result =
-      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
+      await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunLegacyWorkspaceMigration(
         {
           allFlatEntityOperationByMetadataName: {
             fieldMetadata: {
@@ -132,12 +132,30 @@ export class FixStandardRelationFieldLabelsIconsCommand extends ActiveOrSuspende
           workspaceId,
           applicationUniversalIdentifier:
             twentyStandardFlatApplication.universalIdentifier,
+          // These default relation fields are system-owned; mutating their
+          // label/icon is only permitted under a system build.
+          isSystemBuild: true,
         },
       );
 
     if (result.status === 'fail') {
+      const failureDetails = Object.values(result.report)
+        .flat()
+        .map((failedValidation) => {
+          const errorMessages = failedValidation.errors
+            .map((error) => `${error.code}: ${error.message}`)
+            .join('; ');
+
+          return `[${failedValidation.metadataName}] ${failedValidation.flatEntityMinimalInformation.universalIdentifier ?? failedValidation.flatEntityMinimalInformation.id ?? 'unknown'} -> ${errorMessages}`;
+        })
+        .join('\n');
+
+      this.logger.error(
+        `Migration build failed for workspace ${workspaceId} while healing standard relation field labels/icons:\n${failureDetails}`,
+      );
+
       throw new Error(
-        `Migration failed for workspace ${workspaceId} while healing standard relation field labels/icons`,
+        `Migration failed for workspace ${workspaceId} while healing standard relation field labels/icons:\n${failureDetails}`,
       );
     }
 

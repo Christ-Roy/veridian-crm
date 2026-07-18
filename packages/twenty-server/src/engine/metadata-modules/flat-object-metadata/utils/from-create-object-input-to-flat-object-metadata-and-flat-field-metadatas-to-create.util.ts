@@ -1,5 +1,7 @@
+import { getFieldUniversalIdentifier } from 'twenty-shared/application';
 import {
   capitalize,
+  isDefined,
   trimAndRemoveDuplicatedWhitespacesFromObjectStringProperties,
 } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
@@ -7,8 +9,7 @@ import { v4 } from 'uuid';
 import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
 import { type CreateObjectInput } from 'src/engine/metadata-modules/object-metadata/dtos/create-object.input';
-import { buildDefaultFlatFieldMetadatasForCustomObject } from 'src/engine/metadata-modules/object-metadata/utils/build-default-flat-field-metadatas-for-custom-object.util';
-import { buildDefaultIndexesForCustomObject } from 'src/engine/metadata-modules/object-metadata/utils/build-default-index-for-custom-object.util';
+import { buildNameFlatFieldMetadataForCustomObject } from 'src/engine/metadata-modules/object-metadata/utils/build-name-flat-field-metadata-for-custom-object.util';
 import { buildDefaultRelationFlatFieldMetadatasForCustomObject } from 'src/engine/metadata-modules/object-metadata/utils/build-default-relation-flat-field-metadatas-for-custom-object.util';
 import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
 import { type UniversalFlatIndexMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-index-metadata.type';
@@ -19,6 +20,7 @@ type FromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCreateArgs 
     createObjectInput: CreateObjectInput;
     flatApplication: FlatApplication;
   } & Pick<AllFlatEntityMaps, 'flatObjectMetadataMaps'>;
+
 export const fromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCreate =
   ({
     createObjectInput: rawCreateObjectInput,
@@ -26,8 +28,8 @@ export const fromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCre
     flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
   }: FromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCreateArgs): {
     flatObjectMetadataToCreate: UniversalFlatObjectMetadata & { id: string };
-    relationTargetFlatFieldMetadataToCreate: UniversalFlatFieldMetadata[];
     flatFieldMetadataToCreateOnObject: UniversalFlatFieldMetadata[];
+    relationTargetFlatFieldMetadataToCreate: UniversalFlatFieldMetadata[];
     flatIndexMetadataToCreate: UniversalFlatIndexMetadata[];
   } => {
     const createObjectInput =
@@ -46,21 +48,14 @@ export const fromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCre
 
     const objectMetadataId = v4();
     const universalIdentifier = createObjectInput.universalIdentifier ?? v4();
-    const defaultFlatFieldForCustomObjectMaps =
-      buildDefaultFlatFieldMetadatasForCustomObject({
-        flatObjectMetadata: {
-          applicationUniversalIdentifier: flatApplication.universalIdentifier,
-          universalIdentifier,
-        },
-        skipNameField: createObjectInput.skipNameField,
-      });
     const createdAt = new Date().toISOString();
 
-    // Use nameField.id if it exists, otherwise use idField.id (for junction tables without name)
-    const nameField = defaultFlatFieldForCustomObjectMaps.fields.nameField;
     const labelIdentifierFieldMetadataUniversalIdentifier =
-      nameField?.universalIdentifier ??
-      defaultFlatFieldForCustomObjectMaps.fields.id.universalIdentifier;
+      getFieldUniversalIdentifier({
+        applicationUniversalIdentifier: flatApplication.universalIdentifier,
+        objectUniversalIdentifier: universalIdentifier,
+        name: createObjectInput.skipNameField ? 'id' : 'name',
+      });
 
     const universalFlatObjectMetadataToCreate: UniversalFlatObjectMetadata & {
       id: string;
@@ -86,7 +81,7 @@ export const fromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCre
       namePlural: createObjectInput.namePlural,
       nameSingular: createObjectInput.nameSingular,
       shortcut: createObjectInput.shortcut ?? null,
-      standardOverrides: null,
+      overrides: null,
       targetTableName: 'DEPRECATED',
       applicationUniversalIdentifier: flatApplication.universalIdentifier,
       fieldUniversalIdentifiers: [],
@@ -94,9 +89,21 @@ export const fromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCre
       fieldPermissionUniversalIdentifiers: [],
       viewUniversalIdentifiers: [],
       indexMetadataUniversalIdentifiers: [],
+      searchFieldMetadataUniversalIdentifiers: [],
       labelIdentifierFieldMetadataUniversalIdentifier,
       imageIdentifierFieldMetadataUniversalIdentifier: null,
     };
+
+    const nameFlatFieldMetadata =
+      createObjectInput.skipNameField === true
+        ? null
+        : buildNameFlatFieldMetadataForCustomObject({
+            flatObjectMetadata: {
+              applicationUniversalIdentifier:
+                flatApplication.universalIdentifier,
+              universalIdentifier,
+            },
+          });
 
     const {
       standardSourceFlatFieldMetadatas,
@@ -108,24 +115,15 @@ export const fromCreateObjectInputToFlatObjectMetadataAndFlatFieldMetadatasToCre
       flatApplication,
     });
 
-    const objectFlatFieldMetadatas: UniversalFlatFieldMetadata[] = [
-      ...Object.values(defaultFlatFieldForCustomObjectMaps.fields),
+    const flatFieldMetadataToCreateOnObject: UniversalFlatFieldMetadata[] = [
+      ...(isDefined(nameFlatFieldMetadata) ? [nameFlatFieldMetadata] : []),
       ...standardSourceFlatFieldMetadatas,
     ];
 
-    const defaultIndexesForCustomObject = buildDefaultIndexesForCustomObject({
-      objectFlatFieldMetadatas,
-      defaultFlatFieldForCustomObjectMaps,
-      flatObjectMetadata: universalFlatObjectMetadataToCreate,
-    });
-
     return {
       flatObjectMetadataToCreate: universalFlatObjectMetadataToCreate,
-      flatIndexMetadataToCreate: [
-        ...Object.values(defaultIndexesForCustomObject.indexes),
-        ...standardTargetFlatIndexMetadatas,
-      ],
+      flatFieldMetadataToCreateOnObject,
       relationTargetFlatFieldMetadataToCreate: standardTargetFlatFieldMetadatas,
-      flatFieldMetadataToCreateOnObject: objectFlatFieldMetadatas,
+      flatIndexMetadataToCreate: standardTargetFlatIndexMetadatas,
     };
   };

@@ -1,11 +1,13 @@
 ---
 title: Impostazioni del dominio
-description: Configura il dominio dello spazio di lavoro, i domini di accesso approvati e i domini pubblici.
+description: Configura il dominio dello spazio di lavoro, i domini di accesso approvati e i domini personalizzati dell'app.
 ---
 
-Configura le impostazioni del dominio in **Impostazioni → Domini**.
+Le impostazioni di dominio si trovano in tre posizioni, a seconda di ciò che stai configurando.
 
 ## Dominio del workspace
+
+Configura in **Impostazioni → Generali → Dominio dello spazio di lavoro**.
 
 Modifica il nome del sottodominio o imposta un dominio personalizzato per il tuo spazio di lavoro.
 
@@ -18,6 +20,8 @@ Modifica il nome del sottodominio o imposta un dominio personalizzato per il tuo
 Per i domini personalizzati, dovrai configurare le impostazioni DNS con il tuo provider del dominio.
 
 ## Domini approvati
+
+Configura in **Impostazioni → Membri → Invita**.
 
 Chiunque abbia un indirizzo email presso questi domini è autorizzato a registrarsi automaticamente per questo spazio di lavoro.
 
@@ -33,15 +37,17 @@ Una volta configurato, chiunque abbia un indirizzo email su quel dominio può un
 Questo è utile per consentire a tutto il tuo team di registrarsi autonomamente, mantenendo lo spazio di lavoro limitato alla tua organizzazione.
 </Note>
 
-## Domini Pubblici
+## Domini personalizzati dell'app
 
-Crea un ambiente di hosting completo e sicuro su questi domini.
+Configura in **Impostazioni → App → la tua app → Impostazioni → URL dell'app**.
 
-### Aggiungi Dominio Pubblico
+Le app che espongono route sul web vengono servite da un URL dedicato, mostrato nella sezione **URL dell'app**. Puoi invece servire un'app da un dominio di tua proprietà.
 
-1. Fai clic su **Aggiungi dominio pubblico**
-2. Inserisci il dominio che desideri utilizzare
+### Aggiungi dominio personalizzato
+
+1. Fai clic su **Aggiungi dominio personalizzato**
+2. Inserisci il dominio che vuoi usare (ad es., `app.yourcompany.com`)
 3. Configura le impostazioni DNS come indicato
 4. Verifica il dominio
 
-I certificati SSL vengono emessi automaticamente per i domini pubblici.
+Solo le route di quell'app sono raggiungibili sul dominio. I certificati SSL vengono emessi automaticamente.

@@ -6,12 +6,13 @@ import { styled } from '@linaria/react';
 import { isNonEmptyString } from '@sniptt/guards';
 import { useState } from 'react';
 import {
+  IconCalendarWeek,
   IconRelationManyToMany,
   IconSparkles,
   type IconComponent,
-} from 'twenty-ui-deprecated/display';
-import { Card } from 'twenty-ui-deprecated/layout';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+} from 'twenty-ui/icon';
+import { Card } from 'twenty-ui/surfaces';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { FeatureFlagKey } from '~/generated-metadata/graphql';
 
 const StyledCardGrid = styled.div`
@@ -29,6 +30,7 @@ const StyledImage = styled.img`
 `;
 
 const labFeatureFlagIcons: Partial<Record<FeatureFlagKey, IconComponent>> = {
+  [FeatureFlagKey.IS_CALENDAR_WEEK_VIEW_ENABLED]: IconCalendarWeek,
   [FeatureFlagKey.IS_JUNCTION_RELATIONS_ENABLED]: IconRelationManyToMany,
   [FeatureFlagKey.IS_SETTINGS_DISCOVERY_HERO_ENABLED]: IconSparkles,
 };

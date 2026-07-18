@@ -2,8 +2,8 @@ import { type WorkflowDiagramStepNodeData } from '@/workflow/workflow-diagram/ty
 import { getWorkflowNodeIconKey } from '@/workflow/workflow-diagram/utils/getWorkflowNodeIconKey';
 import { WorkflowDiagramStepNodeLogicFunctionIcon } from '@/workflow/workflow-diagram/workflow-nodes/components/WorkflowDiagramStepNodeLogicFunctionIcon';
 import { assertUnreachable } from 'twenty-shared/utils';
-import { useIcons } from 'twenty-ui-deprecated/display';
-import { ThemeContext } from 'twenty-ui-deprecated/theme-constants';
+import { useIcons } from 'twenty-ui/icon';
+import { ThemeContext } from 'twenty-ui/theme-constants';
 import { useContext } from 'react';
 
 export const WorkflowDiagramStepNodeIcon = ({
@@ -35,7 +35,8 @@ export const WorkflowDiagramStepNodeIcon = ({
         case 'CODE':
         case 'HTTP_REQUEST':
         case 'SEND_EMAIL':
-        case 'DRAFT_EMAIL': {
+        case 'DRAFT_EMAIL':
+        case 'CREATE_CALENDAR_EVENT': {
           return (
             <Icon
               size={theme.icon.size.md}

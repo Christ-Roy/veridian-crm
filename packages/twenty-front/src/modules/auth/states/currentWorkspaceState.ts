@@ -16,9 +16,11 @@ export type CurrentWorkspace = Pick<
   | 'activationStatus'
   | 'billingSubscriptions'
   | 'billingEntitlements'
+  | 'billingCustomer'
   | 'currentBillingSubscription'
   | 'workspaceMembersCount'
   | 'isPublicInviteLinkEnabled'
+  | 'workspaceDiscoverability'
   | 'isGoogleAuthEnabled'
   | 'isGoogleAuthBypassEnabled'
   | 'isMicrosoftAuthEnabled'
@@ -47,7 +49,7 @@ export type CurrentWorkspace = Pick<
   workspaceCustomApplication: Pick<Application, 'id'> | null;
   installedApplications: Pick<
     Application,
-    'id' | 'name' | 'universalIdentifier' | 'logo'
+    'id' | 'name' | 'universalIdentifier' | 'logo' | 'logoUrl'
   >[];
 };
 

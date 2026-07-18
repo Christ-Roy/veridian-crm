@@ -19,6 +19,7 @@ const TEST_FIELD_ID = uuidv4();
 const TEST_SKILL_ID = uuidv4();
 
 const TEST_OBJECT = buildDefaultObjectManifest({
+  applicationUniversalIdentifier: TEST_APP_ID,
   nameSingular: 'ticket',
   namePlural: 'tickets',
   labelSingular: 'Ticket',
@@ -93,7 +94,7 @@ describe('syncApplication', () => {
         paging: { first: 100 },
       },
       gqlFields:
-        'id nameSingular namePlural labelSingular labelPlural description icon isCustom',
+        'id nameSingular namePlural labelSingular labelPlural description icon',
       expectToFail: false,
     });
 
@@ -109,7 +110,6 @@ describe('syncApplication', () => {
       labelPlural: 'Tickets',
       description: 'A support ticket',
       icon: 'IconTicket',
-      isCustom: true,
     });
 
     const objects = await findManyObjectMetadataWithIndexes({
@@ -173,6 +173,7 @@ describe('syncApplication', () => {
     const updatedFieldId = uuidv4();
 
     const testObject = buildDefaultObjectManifest({
+      applicationUniversalIdentifier: TEST_APP_ID,
       nameSingular: 'ticket',
       namePlural: 'tickets',
       labelSingular: 'Ticket',

@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { EmailThreadMessage } from '@/activities/emails/components/EmailThreadMessage';
 import { type EmailThreadMessageWithSender } from '@/activities/emails/types/EmailThreadMessageWithSender';
 import { t } from '@lingui/core/macro';
-import { IconArrowsVertical } from 'twenty-ui-deprecated/display';
-import { Button } from 'twenty-ui-deprecated/input';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { IconArrowsVertical } from 'twenty-ui/icon';
+import { Button } from 'twenty-ui/input';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledButtonContainer = styled.div`
   border-bottom: 1px solid ${themeCssVariables.border.color.light};
@@ -15,8 +15,10 @@ const StyledButtonContainer = styled.div`
 
 export const EmailThreadIntermediaryMessages = ({
   messages,
+  onDraftClick,
 }: {
   messages: EmailThreadMessageWithSender[];
+  onDraftClick: (message: EmailThreadMessageWithSender) => void;
 }) => {
   const [areMessagesOpen, setAreMessagesOpen] = useState(false);
   const messagesLength = messages.length;
@@ -29,10 +31,8 @@ export const EmailThreadIntermediaryMessages = ({
     messages.map((message) => (
       <EmailThreadMessage
         key={message.id}
-        sender={message.sender}
-        participants={message.messageParticipants}
-        body={message.text}
-        sentAt={message.receivedAt}
+        message={message}
+        onDraftClick={onDraftClick}
       />
     ))
   ) : (

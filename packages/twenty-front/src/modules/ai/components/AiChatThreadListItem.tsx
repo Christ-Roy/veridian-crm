@@ -2,11 +2,8 @@ import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useContext } from 'react';
 import { Key } from 'ts-key-enum';
-import { IconArchive, IconSparkles } from 'twenty-ui-deprecated/display';
-import {
-  ThemeContext,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+import { IconArchive, IconSparkles } from 'twenty-ui/icon';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { AiChatThreadItemMenu } from '@/ai/components/AiChatThreadItemMenu';
 import { AI_CHAT_THREAD_ACTIONS_SURFACE } from '@/ai/constants/AiChatThreadActionsSurface';
@@ -132,6 +129,9 @@ export const AiChatThreadListItem = ({ thread }: AiChatThreadListItemProps) => {
             onFocus={(event) => event.target.select()}
             onBlur={() => commitRename(draftTitle)}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                return;
+              }
               if (event.key === Key.Enter) {
                 event.preventDefault();
                 void commitRename(draftTitle);

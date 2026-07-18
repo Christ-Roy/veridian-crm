@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { buildRegistryCdnUrl } from 'src/engine/core-modules/application/application-marketplace/utils/build-registry-cdn-url.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
+const MAX_REGISTRY_ASSET_SIZE_BYTES = 10 * 1024 * 1024; // 10Mb
+
 export type RegistryPackageInfo = {
   name: string;
   version: string;
@@ -83,10 +85,13 @@ export class MarketplaceService {
     }
   }
 
-  async fetchReadmeFromRegistryCdn(
+  async fetchAssetFromRegistryCdn(
     packageName: string,
     version: string,
-  ): Promise<string | null> {
+    filePath: string,
+  ): Promise<Buffer | null> {
+    // Veridian: no outbound calls to npmjs.org/unpkg.com unless explicitly
+    // enabled (see todo/2026-05-27-P0-couper-leaks-outbound-twenty-labs.md)
     if (!this.isRegistrySyncEnabled()) {
       return null;
     }
@@ -96,24 +101,21 @@ export class MarketplaceService {
       cdnBaseUrl,
       packageName,
       version,
-      filePath: 'README.md',
+      filePath,
     });
 
     try {
-      const { data } = await axios.get(url, {
+      const { data } = await axios.get<ArrayBuffer>(url, {
         headers: { 'User-Agent': 'Twenty-Marketplace' },
-        timeout: 5_000,
-        responseType: 'text',
+        timeout: 10_000,
+        responseType: 'arraybuffer',
+        maxContentLength: MAX_REGISTRY_ASSET_SIZE_BYTES,
       });
 
-      if (!data || data.trim().length === 0) {
-        return null;
-      }
-
-      return data;
+      return Buffer.from(data);
     } catch {
       this.logger.debug(
-        `Could not fetch README from CDN for ${packageName}@${version}`,
+        `Could not fetch asset "${filePath}" from CDN for ${packageName}@${version}`,
       );
 
       return null;

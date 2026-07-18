@@ -1,7 +1,7 @@
 import { FormRawJsonFieldInput } from '@/object-record/record-field/ui/form-types/components/FormRawJsonFieldInput';
 import { type Meta, type StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
-import { getUserDevice } from 'twenty-ui-deprecated/utilities';
+import { getUserDevice } from 'twenty-ui/utilities';
 import { WorkflowStepDecorator } from '~/testing/decorators/WorkflowStepDecorator';
 import { MOCKED_STEP_ID } from '~/testing/mock-data/workflow';
 
@@ -16,6 +16,36 @@ const meta: Meta<typeof FormRawJsonFieldInput> = {
 export default meta;
 
 type Story = StoryObj<typeof FormRawJsonFieldInput>;
+
+export const WithError: Story = {
+  args: {
+    label: 'Body',
+    placeholder: 'Enter valid json',
+    error:
+      'Use only letters, numbers, underscores, dots or hyphens (max 64 characters).',
+    onChange: fn(),
+  },
+  render: (args) => (
+    <div style={{ width: 240 }}>
+      <FormRawJsonFieldInput {...args} />
+      <FormRawJsonFieldInput
+        label="Headers"
+        placeholder="Enter valid json"
+        defaultValue={null}
+        onChange={fn()}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    const error = await canvas.findByText(
+      'Use only letters, numbers, underscores, dots or hyphens (max 64 characters).',
+    );
+
+    expect(error).toBeVisible();
+  },
+};
 
 export const Default: Story = {
   args: {

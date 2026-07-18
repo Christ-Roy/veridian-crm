@@ -18,6 +18,7 @@ import {
   AppTokenEntity,
   AppTokenType,
 } from 'src/engine/core-modules/app-token/app-token.entity';
+import { INVITATION_APP_TOKEN_TYPES } from 'src/engine/core-modules/workspace-invitation/constants/invitation-app-token-types';
 import { ApplicationRegistrationService } from 'src/engine/core-modules/application/application-registration/application-registration.service';
 import { EventLogEmitterService } from 'src/engine/core-modules/event-logs/emit/event-log-emitter.service';
 import { IMPERSONATION_EVENT } from 'src/engine/core-modules/event-logs/emit/events/workspace-event/impersonation/impersonation';
@@ -796,9 +797,10 @@ export class AuthService {
       .where('"appToken"."workspaceId" = :workspaceId', {
         workspaceId: params.currentWorkspace.id,
       })
-      .andWhere('"appToken".type = :type', {
-        type: AppTokenType.InvitationToken,
-      });
+      .andWhere('"appToken".type IN (:...types)', {
+        types: INVITATION_APP_TOKEN_TYPES,
+      })
+      .andWhere('"appToken"."deletedAt" IS NULL');
 
     if ('workspacePersonalInviteToken' in params) {
       qr.andWhere('"appToken".value = :personalInviteToken', {
@@ -951,7 +953,6 @@ export class AuthService {
       workspaceInviteHash,
       workspaceId,
       billingCheckoutSessionState,
-      action,
       locale,
       returnToPath,
     }: MicrosoftRequest['user'] | GoogleRequest['user'],
@@ -959,20 +960,12 @@ export class AuthService {
   ): Promise<string> {
     const email = rawEmail.toLowerCase();
 
-    const availableWorkspacesCount =
-      action === 'list-available-workspaces'
-        ? await this.countAvailableWorkspacesByEmail(email)
-        : 0;
-
     const existingUser =
       await this.userService.findUserByEmailWithWorkspaces(email);
 
-    if (
-      !workspaceId &&
-      !workspaceInviteHash &&
-      action === 'list-available-workspaces' &&
-      availableWorkspacesCount > 1
-    ) {
+    // Route SSO sign-ins through the same create-or-select flow as credentials
+    // instead of landing straight on a workspace subdomain.
+    if (!workspaceId && !workspaceInviteHash) {
       const user =
         existingUser ??
         (await this.signInUpService.signUpWithoutWorkspace(
@@ -981,6 +974,7 @@ export class AuthService {
             lastName,
             email,
             picture,
+            locale,
             isEmailAlreadyVerified: true,
           },
           {
@@ -1014,15 +1008,12 @@ export class AuthService {
       return url.toString();
     }
 
-    const currentWorkspace =
-      action === 'create-new-workspace'
-        ? undefined
-        : await this.findWorkspaceForSignInUp({
-            workspaceId,
-            workspaceInviteHash,
-            email,
-            authProvider,
-          });
+    const currentWorkspace = await this.findWorkspaceForSignInUp({
+      workspaceId,
+      workspaceInviteHash,
+      email,
+      authProvider,
+    });
 
     try {
       const invitation =

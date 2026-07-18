@@ -10,8 +10,8 @@ import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotke
 import { useListenClickOutside } from '@/ui/utilities/pointer-event/hooks/useListenClickOutside';
 import { useRef } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { Button } from 'twenty-ui-deprecated/input';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { Button } from 'twenty-ui/input';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledDialogOverlayBase = styled.div`
   align-items: center;
@@ -29,7 +29,7 @@ const StyledDialogOverlay = motion.create(StyledDialogOverlayBase);
 
 const StyledDialogContainerBase = styled.div`
   background: ${themeCssVariables.background.primary};
-  border-radius: 8px;
+  border-radius: ${themeCssVariables.border.radius.md};
   display: flex;
   flex-direction: column;
   max-width: 320px;

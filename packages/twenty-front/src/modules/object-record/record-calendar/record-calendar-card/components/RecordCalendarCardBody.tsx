@@ -1,3 +1,4 @@
+import { useGetIsMetadataItemFromStandardApplication } from '@/object-metadata/hooks/useGetIsMetadataItemFromStandardApplication';
 import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
 import { isRecordFieldReadOnly } from '@/object-record/read-only/utils/isRecordFieldReadOnly';
 import { StopPropagationContainer } from '@/object-record/record-board/record-board-card/components/StopPropagationContainer';
@@ -17,7 +18,7 @@ import { RecordInlineCell } from '@/object-record/record-inline-cell/components/
 import { getRecordFieldInputInstanceId } from '@/object-record/utils/getRecordFieldInputId';
 import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorValue';
 import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 type RecordCalendarCardBodyProps = {
   recordId: string;
@@ -63,13 +64,17 @@ export const RecordCalendarCardBody = ({
   const setRecordCalendarCardHoverPosition = useSetAtomComponentState(
     recordCalendarCardHoverPositionComponentState,
   );
+  const getIsMetadataItemFromStandardApplication =
+    useGetIsMetadataItemFromStandardApplication();
 
   const handleMouseEnter = (index: number) => {
     setRecordCalendarCardHoverPosition(index);
   };
 
   return (
-    <RecordCardBodyContainer padding={themeCssVariables.spacing[1]}>
+    <RecordCardBodyContainer
+      padding={`0 ${themeCssVariables.spacing[1]} ${themeCssVariables.spacing[1]}`}
+    >
       {visibleRecordFieldsExceptLabelIdentifier.map((recordField, index) => {
         const correspondingFieldDefinition =
           fieldDefinitionByFieldMetadataItemId[recordField.fieldMetadataItemId];
@@ -84,14 +89,17 @@ export const RecordCalendarCardBody = ({
                 isRecordFieldReadOnly: isRecordFieldReadOnly({
                   isRecordReadOnly,
                   isSystemObject: objectMetadataItem.isSystem,
+                  isFieldFromStandardApplication:
+                    getIsMetadataItemFromStandardApplication({
+                      applicationId:
+                        correspondingFieldDefinition.metadata.applicationId,
+                    }),
                   objectPermissions,
                   fieldMetadataItem: {
                     id: recordField.fieldMetadataItemId,
                     isUIEditable:
                       correspondingFieldDefinition.metadata.isUIEditable ??
                       true,
-                    isCustom:
-                      correspondingFieldDefinition.metadata.isCustom ?? false,
                   },
                   fieldDefinition: correspondingFieldDefinition,
                   objectPermissionsByObjectMetadataId,

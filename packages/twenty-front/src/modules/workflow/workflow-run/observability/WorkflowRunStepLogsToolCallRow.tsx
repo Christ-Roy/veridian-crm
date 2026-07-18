@@ -2,7 +2,8 @@ import { styled } from '@linaria/react';
 import { useContext, useState } from 'react';
 import { type AiToolCallLog } from 'twenty-shared/workflow';
 
-import { getToolDisplayMessage } from '@/ai/utils/getToolDisplayMessage';
+import { useToolDisplayContext } from '@/ai/hooks/useToolDisplayContext';
+import { getToolDisplayMessage } from '@/ai/utils/tool-display/get-tool-display-message';
 import { getToolIcon } from '@/ai/utils/getToolIcon';
 import { useLingui } from '@lingui/react/macro';
 import { type JsonValue } from 'type-fest';
@@ -11,13 +12,10 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconCircleX,
-} from 'twenty-ui-deprecated/display';
-import { JsonTree } from 'twenty-ui-deprecated/json-visualizer';
-import { AnimatedExpandableContainer } from 'twenty-ui-deprecated/layout';
-import {
-  ThemeContext,
-  themeCssVariables,
-} from 'twenty-ui-deprecated/theme-constants';
+} from 'twenty-ui/icon';
+import { JsonTree } from 'twenty-ui/json-visualizer';
+import { AnimatedExpandableContainer } from 'twenty-ui/layout';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 import { isDefined } from 'twenty-shared/utils';
 import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
 
@@ -163,11 +161,14 @@ export const WorkflowRunStepLogsToolCallRow = ({
     ? themeCssVariables.color.red
     : themeCssVariables.color.green;
 
-  const displayMessage = getToolDisplayMessage(
-    toolCall.input ?? {},
-    toolCall.toolName,
-    true,
-  );
+  const displayContext = useToolDisplayContext();
+  const displayMessage = getToolDisplayMessage({
+    input: toolCall.input ?? {},
+    toolName: toolCall.toolName,
+    isFinished: true,
+    displayContext,
+    output: toolCall.output,
+  });
 
   return (
     <StyledContainer>

@@ -13,7 +13,7 @@ import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomState
 
 import { isExtendedFileUIPart } from 'twenty-shared/ai';
 import { isDefined } from 'twenty-shared/utils';
-import { themeCssVariables } from 'twenty-ui-deprecated/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { dateLocaleState } from '~/localization/states/dateLocaleState';
 import { beautifyPastDateRelativeToNow } from '~/utils/date-utils';
 
@@ -144,12 +144,14 @@ type AiChatMessageProps = {
   messageId: string;
   isLastMessageStreaming?: boolean;
   error?: AiChatError | undefined;
+  onRetry?: () => void;
 };
 
 export const AiChatMessage = ({
   messageId,
   isLastMessageStreaming = false,
   error,
+  onRetry,
 }: AiChatMessageProps) => {
   const agentChatMessage = useAtomComponentFamilySelectorValue(
     agentChatMessageComponentFamilySelector,
@@ -187,7 +189,7 @@ export const AiChatMessage = ({
           </StyledFilesContainer>
         )}
         {shouldShowError && isDefined(error) && (
-          <AiChatErrorRenderer error={error} />
+          <AiChatErrorRenderer error={error} onRetry={onRetry} />
         )}
       </StyledMessageContainer>
       {agentChatMessage.parts.length > 0 && (
