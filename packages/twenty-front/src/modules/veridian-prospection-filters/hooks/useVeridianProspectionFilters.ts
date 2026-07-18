@@ -46,16 +46,18 @@ const findFieldByName = (
 ): FieldMetadataItem | undefined => fields.find((field) => field.name === name);
 
 export const useVeridianProspectionFilters = () => {
-  const { objectMetadataItem, recordIndexId } = useRecordIndexContextOrThrow();
+  const { objectMetadataItem } = useRecordIndexContextOrThrow();
 
-  // instanceId = recordIndexId (== viewBarInstanceId) : c'est la clé sous
-  // laquelle vit l'atom de filtres de CETTE vue.
-  const { upsertRecordFilter } = useUpsertRecordFilter(recordIndexId);
-  const { removeRecordFilter } = useRemoveRecordFilter(recordIndexId);
+  // ⚠️ PAS d'instanceId explicite : on lit/écrit via le
+  // RecordFiltersComponentInstanceContext AMBIANT (le même que le dropdown de
+  // filtre natif de Twenty, qui appelle useUpsertRecordFilter() sans arg).
+  // Forcer recordIndexId écrivait dans un scope que la query ne relit pas → le
+  // filtre n'était jamais appliqué (bug vécu + fixé 2026-07-18).
+  const { upsertRecordFilter } = useUpsertRecordFilter();
+  const { removeRecordFilter } = useRemoveRecordFilter();
 
   const currentRecordFilters = useAtomComponentStateValue(
     currentRecordFiltersComponentState,
-    recordIndexId,
   ) as RecordFilter[];
 
   const effectifsField = findFieldByName(
