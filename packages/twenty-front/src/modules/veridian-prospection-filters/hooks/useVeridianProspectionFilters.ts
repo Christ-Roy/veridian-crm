@@ -17,14 +17,25 @@ import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/use
 import { getFilterTypeFromFieldType } from 'twenty-shared/utils';
 
 import {
+  VERIDIAN_DEPARTEMENT_FIELD,
   VERIDIAN_EFFECTIFS_FIELD,
   VERIDIAN_FILTER_OPERANDS,
   VERIDIAN_HAS_WEBSITE_FIELD,
+  VERIDIAN_ICP_FIELD,
+  VERIDIAN_SCORE_FIELD,
+  VERIDIAN_SCORE_PRESETS,
   VERIDIAN_SIZE_PRESETS,
+  type VeridianScorePresetKey,
   type VeridianSizePresetKey,
+  buildGeoFilterId,
+  buildIcpFilterId,
+  buildScoreMinFilterId,
   buildSiteFilterId,
   buildSizeMaxFilterId,
   buildSizeMinFilterId,
+  resolveActiveGeoValue,
+  resolveActiveIcpValue,
+  resolveActiveScorePresetKey,
   resolveActiveSizePresetKey,
   resolveActiveSiteValue,
 } from '@/veridian-prospection-filters/utils/veridianProspectionFilter';
@@ -55,6 +66,15 @@ export const useVeridianProspectionFilters = () => {
     objectMetadataItem.fields,
     VERIDIAN_HAS_WEBSITE_FIELD,
   );
+  const departementField = findFieldByName(
+    objectMetadataItem.fields,
+    VERIDIAN_DEPARTEMENT_FIELD,
+  );
+  const scoreField = findFieldByName(
+    objectMetadataItem.fields,
+    VERIDIAN_SCORE_FIELD,
+  );
+  const icpField = findFieldByName(objectMetadataItem.fields, VERIDIAN_ICP_FIELD);
 
   // -- État actif (surlignage + toggle) --------------------------------------
   const activeSizePresetKey = effectifsField
@@ -64,6 +84,18 @@ export const useVeridianProspectionFilters = () => {
   const activeSiteValue = hasWebsiteField
     ? resolveActiveSiteValue(currentRecordFilters, hasWebsiteField.id)
     : undefined;
+
+  const activeGeoValue = departementField
+    ? resolveActiveGeoValue(currentRecordFilters, departementField.id)
+    : undefined;
+
+  const activeScorePresetKey = scoreField
+    ? resolveActiveScorePresetKey(currentRecordFilters, scoreField.id)
+    : undefined;
+
+  const activeIcpValue = icpField
+    ? resolveActiveIcpValue(currentRecordFilters, icpField.id)
+    : false;
 
   // -- Taille (effectifs) ----------------------------------------------------
   const clearSizeFilter = () => {
@@ -139,16 +171,114 @@ export const useVeridianProspectionFilters = () => {
     });
   };
 
+  // -- Département (departement, TEXT → CONTAINS) ----------------------------
+  const clearGeoFilter = () => {
+    if (!departementField) return;
+    removeRecordFilter({
+      recordFilterId: buildGeoFilterId(departementField.id),
+    });
+  };
+
+  const applyGeoFilter = (rawValue: string) => {
+    if (!departementField) return;
+
+    const value = rawValue.trim();
+
+    // Champ vidé → on efface (toggle off).
+    if (value === '') {
+      clearGeoFilter();
+      return;
+    }
+
+    upsertRecordFilter({
+      id: buildGeoFilterId(departementField.id),
+      fieldMetadataId: departementField.id,
+      type: getFilterTypeFromFieldType(departementField.type),
+      operand: VERIDIAN_FILTER_OPERANDS.contains,
+      value,
+      displayValue: value,
+      label: departementField.label,
+      subFieldName: null,
+    });
+  };
+
+  // -- Qualité : score mini (prospectScore, NUMBER >=) -----------------------
+  const clearScoreFilter = () => {
+    if (!scoreField) return;
+    removeRecordFilter({
+      recordFilterId: buildScoreMinFilterId(scoreField.id),
+    });
+  };
+
+  const applyScoreMin = (presetKey: VeridianScorePresetKey) => {
+    if (!scoreField) return;
+
+    // Toggle off si déjà actif.
+    if (activeScorePresetKey === presetKey) {
+      clearScoreFilter();
+      return;
+    }
+
+    const preset = VERIDIAN_SCORE_PRESETS.find((item) => item.key === presetKey);
+    if (!preset) return;
+
+    upsertRecordFilter({
+      id: buildScoreMinFilterId(scoreField.id),
+      fieldMetadataId: scoreField.id,
+      type: getFilterTypeFromFieldType(scoreField.type),
+      operand: VERIDIAN_FILTER_OPERANDS.greaterThanOrEqual,
+      value: String(preset.min),
+      displayValue: String(preset.min),
+      label: scoreField.label,
+      subFieldName: null,
+    });
+  };
+
+  // -- Qualité : ICP uniquement (idealCustomerProfile, BOOLEAN IS true) ------
+  const toggleIcpFilter = () => {
+    if (!icpField) return;
+
+    const filterId = buildIcpFilterId(icpField.id);
+
+    // Toggle off.
+    if (activeIcpValue) {
+      removeRecordFilter({ recordFilterId: filterId });
+      return;
+    }
+
+    upsertRecordFilter({
+      id: filterId,
+      fieldMetadataId: icpField.id,
+      type: getFilterTypeFromFieldType(icpField.type),
+      operand: VERIDIAN_FILTER_OPERANDS.is,
+      value: 'true',
+      displayValue: 'True',
+      label: icpField.label,
+      subFieldName: null,
+    });
+  };
+
   return {
     // dispo des champs (le cockpit masque un contrôle si son champ manque)
     hasEffectifsField: effectifsField !== undefined,
     hasWebsiteField: hasWebsiteField !== undefined,
+    hasDepartementField: departementField !== undefined,
+    hasScoreField: scoreField !== undefined,
+    hasIcpField: icpField !== undefined,
     // état actif
     activeSizePresetKey,
     activeSiteValue,
+    activeGeoValue,
+    activeScorePresetKey,
+    activeIcpValue,
     // actions
     applySizePreset,
     clearSizeFilter,
     toggleSiteFilter,
+    applyGeoFilter,
+    clearGeoFilter,
+    applyScoreMin,
+    clearScoreFilter,
+    toggleIcpFilter,
   };
 };

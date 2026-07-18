@@ -19,6 +19,9 @@ export const isVeridianProspectionFilterObject = (
 // -- Champs company réels (API names camelCase, cf Settings > Data model) -----
 export const VERIDIAN_EFFECTIFS_FIELD = 'effectifs'; // NUMBER
 export const VERIDIAN_HAS_WEBSITE_FIELD = 'hasWebsite'; // BOOLEAN
+export const VERIDIAN_DEPARTEMENT_FIELD = 'departement'; // TEXT
+export const VERIDIAN_SCORE_FIELD = 'prospectScore'; // NUMBER
+export const VERIDIAN_ICP_FIELD = 'idealCustomerProfile'; // BOOLEAN
 
 // -- Presets de taille (effectifs) -------------------------------------------
 // Un range = deux RecordFilter (GREATER_THAN_OR_EQUAL + LESS_THAN_OR_EQUAL)
@@ -50,6 +53,32 @@ export const buildSizeMaxFilterId = (fieldMetadataId: string): string =>
 
 export const buildSiteFilterId = (fieldMetadataId: string): string =>
   `veridian-site:${fieldMetadataId}`;
+
+export const buildGeoFilterId = (fieldMetadataId: string): string =>
+  `veridian-geo:${fieldMetadataId}`;
+
+export const buildScoreMinFilterId = (fieldMetadataId: string): string =>
+  `veridian-score-min:${fieldMetadataId}`;
+
+export const buildIcpFilterId = (fieldMetadataId: string): string =>
+  `veridian-icp:${fieldMetadataId}`;
+
+// -- Presets de qualité (prospectScore, borne basse >=) -----------------------
+// Un seul RecordFilter GREATER_THAN_OR_EQUAL par preset (ids stables → toggle).
+export type VeridianScorePresetKey = 'top' | 'bon' | 'moyen';
+
+export type VeridianScorePreset = {
+  key: VeridianScorePresetKey;
+  label: string;
+  /** score minimum inclus (>=) */
+  min: number;
+};
+
+export const VERIDIAN_SCORE_PRESETS: VeridianScorePreset[] = [
+  { key: 'top', label: 'Top (≥90)', min: 90 },
+  { key: 'bon', label: 'Bon (≥70)', min: 70 },
+  { key: 'moyen', label: 'Moyen (≥50)', min: 50 },
+];
 
 // -- Résolution du preset actif à partir des filtres courants -----------------
 // On lit les bornes posées (via les ids stables) et on retrouve le preset qui
@@ -87,9 +116,47 @@ export const resolveActiveSiteValue = (
   return undefined;
 };
 
+// -- Résolution du preset de qualité actif (prospectScore) --------------------
+export const resolveActiveScorePresetKey = (
+  currentFilters: { id: string; value: string }[],
+  fieldMetadataId: string,
+): VeridianScorePresetKey | undefined => {
+  const minFilter = currentFilters.find(
+    (filter) => filter.id === buildScoreMinFilterId(fieldMetadataId),
+  );
+  if (!minFilter) return undefined;
+
+  const min = Number(minFilter.value);
+  return VERIDIAN_SCORE_PRESETS.find((preset) => preset.min === min)?.key;
+};
+
+// -- Résolution de la valeur "département" active (TEXT, CONTAINS) -------------
+export const resolveActiveGeoValue = (
+  currentFilters: { id: string; value: string }[],
+  fieldMetadataId: string,
+): string | undefined => {
+  const geoFilter = currentFilters.find(
+    (filter) => filter.id === buildGeoFilterId(fieldMetadataId),
+  );
+  const value = geoFilter?.value?.trim();
+  return value ? value : undefined;
+};
+
+// -- Résolution de l'état "ICP uniquement" actif (BOOLEAN, IS true) -----------
+export const resolveActiveIcpValue = (
+  currentFilters: { id: string; value: string }[],
+  fieldMetadataId: string,
+): boolean => {
+  const icpFilter = currentFilters.find(
+    (filter) => filter.id === buildIcpFilterId(fieldMetadataId),
+  );
+  return icpFilter?.value === 'true';
+};
+
 // -- Opérandes de filtre (réexport typé, évite d'importer twenty-shared partout)
 export const VERIDIAN_FILTER_OPERANDS = {
   greaterThanOrEqual: ViewFilterOperand.GREATER_THAN_OR_EQUAL,
   lessThanOrEqual: ViewFilterOperand.LESS_THAN_OR_EQUAL,
   is: ViewFilterOperand.IS,
+  contains: ViewFilterOperand.CONTAINS,
 } as const;

@@ -1,9 +1,16 @@
 import {
+  VERIDIAN_SCORE_PRESETS,
   VERIDIAN_SIZE_PRESETS,
+  buildGeoFilterId,
+  buildIcpFilterId,
+  buildScoreMinFilterId,
   buildSiteFilterId,
   buildSizeMaxFilterId,
   buildSizeMinFilterId,
   isVeridianProspectionFilterObject,
+  resolveActiveGeoValue,
+  resolveActiveIcpValue,
+  resolveActiveScorePresetKey,
   resolveActiveSizePresetKey,
   resolveActiveSiteValue,
 } from '../veridianProspectionFilter';
@@ -11,6 +18,9 @@ import {
 describe('veridianProspectionFilter', () => {
   const fieldId = 'field-effectifs-123';
   const siteFieldId = 'field-hasWebsite-456';
+  const geoFieldId = 'field-departement-789';
+  const scoreFieldId = 'field-prospectScore-abc';
+  const icpFieldId = 'field-idealCustomerProfile-def';
 
   describe('isVeridianProspectionFilterObject', () => {
     it('ne matche QUE company', () => {
@@ -109,6 +119,80 @@ describe('veridianProspectionFilter', () => {
 
     it('retourne undefined si aucun filtre site', () => {
       expect(resolveActiveSiteValue([], siteFieldId)).toBeUndefined();
+    });
+  });
+
+  describe('ids stables (geo / score / icp)', () => {
+    it('sont déterministes par fieldMetadataId', () => {
+      expect(buildGeoFilterId(geoFieldId)).toBe(buildGeoFilterId(geoFieldId));
+      expect(buildScoreMinFilterId(scoreFieldId)).toBe(
+        buildScoreMinFilterId(scoreFieldId),
+      );
+      expect(buildIcpFilterId(icpFieldId)).toBe(buildIcpFilterId(icpFieldId));
+    });
+  });
+
+  describe('presets de qualité (score)', () => {
+    it('top ≥90, bon ≥70, moyen ≥50', () => {
+      expect(VERIDIAN_SCORE_PRESETS.find((p) => p.key === 'top')?.min).toBe(90);
+      expect(VERIDIAN_SCORE_PRESETS.find((p) => p.key === 'bon')?.min).toBe(70);
+      expect(VERIDIAN_SCORE_PRESETS.find((p) => p.key === 'moyen')?.min).toBe(
+        50,
+      );
+    });
+  });
+
+  describe('resolveActiveScorePresetKey', () => {
+    it('retrouve le preset depuis la borne posée', () => {
+      const filters = [
+        { id: buildScoreMinFilterId(scoreFieldId), value: '90' },
+      ];
+      expect(resolveActiveScorePresetKey(filters, scoreFieldId)).toBe('top');
+    });
+
+    it('undefined si aucun preset ne matche exactement', () => {
+      const filters = [
+        { id: buildScoreMinFilterId(scoreFieldId), value: '42' },
+      ];
+      expect(resolveActiveScorePresetKey(filters, scoreFieldId)).toBeUndefined();
+    });
+
+    it('undefined si aucun filtre score', () => {
+      expect(resolveActiveScorePresetKey([], scoreFieldId)).toBeUndefined();
+    });
+  });
+
+  describe('resolveActiveGeoValue', () => {
+    it('retourne la valeur du département posée', () => {
+      const filters = [{ id: buildGeoFilterId(geoFieldId), value: '75' }];
+      expect(resolveActiveGeoValue(filters, geoFieldId)).toBe('75');
+    });
+
+    it('trim et traite une valeur vide comme absente', () => {
+      const filters = [{ id: buildGeoFilterId(geoFieldId), value: '  ' }];
+      expect(resolveActiveGeoValue(filters, geoFieldId)).toBeUndefined();
+    });
+
+    it('undefined si aucun filtre geo', () => {
+      expect(resolveActiveGeoValue([], geoFieldId)).toBeUndefined();
+    });
+  });
+
+  describe('resolveActiveIcpValue', () => {
+    it('true seulement si le filtre ICP vaut "true"', () => {
+      expect(
+        resolveActiveIcpValue(
+          [{ id: buildIcpFilterId(icpFieldId), value: 'true' }],
+          icpFieldId,
+        ),
+      ).toBe(true);
+      expect(
+        resolveActiveIcpValue(
+          [{ id: buildIcpFilterId(icpFieldId), value: 'false' }],
+          icpFieldId,
+        ),
+      ).toBe(false);
+      expect(resolveActiveIcpValue([], icpFieldId)).toBe(false);
     });
   });
 });
