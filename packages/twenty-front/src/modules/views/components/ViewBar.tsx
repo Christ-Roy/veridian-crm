@@ -19,6 +19,10 @@ import { ViewBarRecordFilterEffect } from '@/views/components/ViewBarRecordFilte
 import { ViewBarRecordFilterGroupEffect } from '@/views/components/ViewBarRecordFilterGroupEffect';
 import { ViewBarRecordSortEffect } from '@/views/components/ViewBarRecordSortEffect';
 import { ViewBarFilterDropdownIds } from '@/views/constants/ViewBarFilterDropdownIds';
+/* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : cockpit prospection —
+   boutons de filtre rapides (Taille / Avec-Sans site). Le gating sur l'objet
+   `company` est fait DANS le module (ViewBar est partagé par tous les objets). */
+import { VeridianProspectionFilterButtons } from '@/veridian-prospection-filters/components/VeridianProspectionFilterButtons';
 import { UpdateViewButtonGroup } from './UpdateViewButtonGroup';
 import { ViewBarDetails } from './ViewBarDetails';
 
@@ -71,6 +75,8 @@ export const ViewBar = ({
               <ViewBarFilterDropdown />
             </ObjectFilterDropdownComponentInstanceContext.Provider>
             <ObjectSortDropdownButton />
+            {/* Veridian PATCH INLINE : cockpit prospection (gating company dans le module) */}
+            <VeridianProspectionFilterButtons />
             {optionsDropdownButton}
           </>
         }
