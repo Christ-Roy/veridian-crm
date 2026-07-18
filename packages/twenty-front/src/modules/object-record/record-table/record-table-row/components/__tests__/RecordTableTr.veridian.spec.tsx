@@ -96,7 +96,7 @@ import { RecordTableTr } from '@/object-record/record-table/record-table-row/com
 
 const renderRow = () =>
   render(
-    <RecordTableTr recordId="rec-1" focusIndex={0}>
+    <RecordTableTr recordId="rec-1" focusIndex={0} isDragging={false}>
       <div />
     </RecordTableTr>,
   );

@@ -51,8 +51,12 @@ describe('MarketplaceService (Veridian outbound guard)', () => {
     expect(axios.get).not.toHaveBeenCalled();
   });
 
-  it('fetchReadmeFromRegistryCdn returns null without any HTTP call', async () => {
-    const result = await service.fetchReadmeFromRegistryCdn('pkg', '1.0.0');
+  it('fetchAssetFromRegistryCdn returns null without any HTTP call', async () => {
+    const result = await service.fetchAssetFromRegistryCdn(
+      'pkg',
+      '1.0.0',
+      'README.md',
+    );
 
     expect(result).toBeNull();
     expect(axios.get).not.toHaveBeenCalled();

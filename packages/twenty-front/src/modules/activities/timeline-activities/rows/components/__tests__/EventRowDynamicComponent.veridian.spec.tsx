@@ -39,9 +39,15 @@ const tunnelEvent = (name: string): TimelineActivity =>
     name,
     properties: {},
     linkedObjectMetadataId: null,
-    workspaceMemberId: null,
+    linkedRecordId: null,
+    linkedRecordCachedName: '',
+    workspaceMemberId: '',
+    workspaceMember: undefined,
     createdAt: '2026-06-10T10:00:00.000Z',
-  }) as TimelineActivity;
+    updatedAt: '2026-06-10T10:00:00.000Z',
+    deletedAt: null,
+    __typename: 'TimelineActivity',
+  }) as unknown as TimelineActivity;
 
 const baseProps = {
   labelIdentifierValue: 'Jean Dupont',
