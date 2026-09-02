@@ -121,7 +121,23 @@ RUN if [ -d /app/packages/twenty-front/build ]; then \
 
 FROM node:24.15.0-alpine3.23@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS veridian-crm
 
-RUN apk add --no-cache \
+# === 2026-09-02 === `apk upgrade` AVANT le `apk add`.
+#
+# 🔴 L'image de base est épinglée PAR DIGEST (ci-dessus). C'est bien pour la
+# reproductibilité, mais ça veut dire qu'elle ne recevra JAMAIS de correctif
+# tant que le digest ne change pas : `apk add` installe ce qui manque, il ne
+# remonte pas ce qui est déjà satisfait. Sur cette image, `apk upgrade` est donc
+# le SEUL chemin par lequel un correctif système peut entrer.
+#
+# Et cette couche n'a d'effet que si elle est RÉELLEMENT EXÉCUTÉE : `--no-cache`
+# est une option d'apk, elle ne désactive PAS le cache de couches de buildkit.
+# Avec un digest figé, la clé de cache est stable par construction, donc
+# `cache-from: type=gha` resservait cette couche indéfiniment (mesuré sur
+# notifuse-veridian, run 33254429451 : `RUN apk upgrade … CACHED`). D'où
+# `no-cache-filters: veridian-crm` dans les deux workflows qui construisent ce
+# stage. Ne PAS renommer ce stage sans corriger ces workflows.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache \
     'curl>=8.19.0-r0' \
     'nghttp2-libs>=1.69.0-r0' \
     'postgresql18-client>=18.4-r0' \

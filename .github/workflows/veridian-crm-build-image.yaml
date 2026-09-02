@@ -122,6 +122,15 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.tags.outputs.sha_short }}
             VERIDIAN_BUILD_SHA=${{ github.sha }}
+          # === 2026-09-02 === le stage `veridian-crm` est EXCLU du cache de
+          # couches. `RUN apk upgrade --no-cache` ne se réexécute jamais tant que
+          # sa clé de cache est stable — et ici elle l'est PAR CONSTRUCTION,
+          # puisque l'image de base est épinglée par digest. `--no-cache` est une
+          # option d'apk, pas du cache de couches (mesuré sur notifuse-veridian,
+          # run 33254429451 : `RUN apk upgrade … CACHED`). Sans cette exclusion,
+          # cette image ne recevrait AUCUN correctif système, quel que soit le
+          # nombre de constructions. Les stages de build (yarn, nx) restent cachés.
+          no-cache-filters: veridian-crm
           cache-from: type=gha,scope=veridian-crm-${{ steps.ref.outputs.branch }}
           cache-to: type=gha,mode=max,scope=veridian-crm-${{ steps.ref.outputs.branch }}
           provenance: false
