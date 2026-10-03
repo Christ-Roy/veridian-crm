@@ -1,0 +1,9 @@
+# =============================================================================
+# controles.tsv — ce que veridian-crm contrôle lui-même. Six colonnes, tabulation.
+# Standard : ~/nomad-veridian/standards/controles-portables/CLAUDE.md
+# Joué au push par `gardes pre-push` (palier rapide), à la main par
+# `gardes verifier <palier>`. Trivy et les secrets du diff sortant sont joués
+# par gardes lui-même, ils ne se déclarent pas ici.
+# Palier rapide = l'ancien .githooks/pre-push, migré le 03/10/2026.
+# =============================================================================
+rapide	ee-integrity	.	bash scripts/ci/check-ee-integrity.sh	-	Aucun fichier @license Enterprise (Twenty Labs) modifié depuis le fork, aucun module veridian-* qui en dépend : une modification est une contrefaçon.
