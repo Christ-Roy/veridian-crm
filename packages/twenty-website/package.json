@@ -45,7 +45,7 @@
     "@lingui/conf": "5.9.5",
     "@lingui/format-po": "5.9.5",
     "@lingui/swc-plugin": "^5.11.0",
-    "@opennextjs/cloudflare": "^1.0.0",
+    "@opennextjs/cloudflare": "^1.20.2",
     "@swc/core": "^1.15.11",
     "@swc/jest": "^0.2.39",
     "@types/jest": "^30.0.0",
