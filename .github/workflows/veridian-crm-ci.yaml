@@ -41,7 +41,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
-      - run: node "$(sed -n 's/^yarnPath: //p' .yarnrc.yml)" install --immutable
+      - run: |
+          node "$(sed -n 's/^yarnPath: //p' .yarnrc.yml)" install --immutable
         env:
           YARN_ENABLE_SCRIPTS: 'false'
       - run: bash scripts/ci/patch-survival.sh

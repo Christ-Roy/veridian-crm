@@ -10,6 +10,9 @@
 # Traefik. Pas de Sablier pour l'instant, le passer en scale-to-zero demandera une
 # route @file et un redéploiement de l'ingress.
 #
+# Identité : le Hub seul. Mot de passe coupé par variable, inscription et invitations par
+# le garde HubOnlyIdentityGuard ; les créations passent par /api/tenants/provision.
+#
 # Coupures réseau : TELEMETRY_ENABLED et MARKETPLACE_CATALOG_SYNC_CRON_ENABLED.
 # Contrôle : scripts/ci/capture-sortante.sh, sur le conteneur crm-postgres.
 #
@@ -209,6 +212,10 @@ IS_MULTIWORKSPACE_ENABLED=true
 DEFAULT_SUBDOMAIN=app
 IS_BILLING_ENABLED=false
 IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
+AUTH_PASSWORD_ENABLED=false
+AUTH_MICROSOFT_ENABLED=false
+HUB_LOGIN_URL=https://hub.staging.veridian.site/login
+HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
 MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 AUTH_GOOGLE_ENABLED=false
