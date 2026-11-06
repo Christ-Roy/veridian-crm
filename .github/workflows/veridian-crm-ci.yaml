@@ -37,9 +37,11 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Node 22 et non celui de .nvmrc : le binaire 26 exige libatomic, absente du runner.
+      # Ces specs n'en dépendent pas ; l'image, elle, se construit bien en Node 26.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version-file: .nvmrc
+          node-version: '22'
       - run: |
           node "$(sed -n 's/^yarnPath: //p' .yarnrc.yml)" install --immutable
         env:
