@@ -139,16 +139,18 @@ with sync_playwright() as p:
     page.wait_for_timeout(15000)
     page.screenshot(path=f"{OUT}/1-apres-rebond.png")
     corps = page.inner_text("body")
-    connecte = "Sign in" not in corps[:300] and "Welcome to" not in corps[:300]
+    connecte = "Settings" in corps and "/welcome" not in page.url
     controle("le lien connecte l'utilisateur", connecte, f"{page.url[:70]} | {corps[:90]!r}")
 
-    page2 = ctx.new_context().new_page()
+    autre = nav.new_context(viewport={"width": 1400, "height": 900})
+    autre.on("request", note)
+    page2 = autre.new_page()
     page2.set_default_navigation_timeout(180000)
     page2.goto(lien, wait_until="domcontentloaded")
     page2.wait_for_timeout(12000)
     corps2 = page2.inner_text("body")
-    controle("le lien ne sert qu'une fois", "Banc" not in corps2 and page2.url.count("objects") == 0, page2.url[:90])
-    page2.context.close()
+    controle("le lien ne sert qu'une fois", "Settings" not in corps2, page2.url[:90])
+    autre.close()
 
     racine = f"{urlparse(page.url).scheme}://{urlparse(page.url).hostname}"
     for i in range(8):
