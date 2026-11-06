@@ -586,6 +586,11 @@ export class SignInUpService {
   }): Promise<string | undefined> {
     let uploadedLogoFileId: string | undefined;
 
+    // Veridian : URL vide = logo non déduit, le domaine de l'email ne sort pas.
+    if (!TWENTY_ICONS_BASE_URL) {
+      return;
+    }
+
     try {
       const logoUrl = `${TWENTY_ICONS_BASE_URL}/${getDomainFromEmailOrThrow(email)}`;
       const logoFile =

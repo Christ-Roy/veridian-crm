@@ -7,11 +7,7 @@ export const sanitizeURL = (link: string | null | undefined) => {
     : '';
 };
 
+// Veridian : ne plus envoyer les domaines des sociétés à twenty-icons.com.
 export const getLogoUrlFromDomainName = (
-  domainName?: string,
-): string | undefined => {
-  const sanitizedDomain = sanitizeURL(domainName);
-  return sanitizedDomain
-    ? `https://twenty-icons.com/${sanitizedDomain}`
-    : undefined;
-};
+  _domainName?: string,
+): string | undefined => undefined;

@@ -331,6 +331,14 @@ export class CreateCompanyService {
     name: string;
     city: string;
   }> {
+    // Veridian : URL vide = aucun domaine de contact envoyé à twenty-companies.com.
+    if (!TWENTY_COMPANIES_BASE_URL) {
+      return {
+        name: getCompanyNameFromDomainName(domainName ?? ''),
+        city: '',
+      };
+    }
+
     try {
       const response = await this.httpService.get(`/${domainName}`);
 

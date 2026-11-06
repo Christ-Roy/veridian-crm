@@ -1,1 +1,2 @@
-export const TWENTY_COMPANIES_BASE_URL = 'https://twenty-companies.com';
+// Veridian : vide = aucun appel à twenty-companies.com.
+export const TWENTY_COMPANIES_BASE_URL = '';

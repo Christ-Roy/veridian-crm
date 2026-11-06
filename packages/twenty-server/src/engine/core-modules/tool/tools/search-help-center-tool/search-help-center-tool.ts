@@ -38,6 +38,14 @@ export class SearchHelpCenterTool implements Tool {
   ): Promise<ToolOutput> {
     const { query } = parameters as SearchHelpCenterInput;
 
+    // Veridian : la question de l'utilisateur ne part vers docs.twenty.com que sur demande.
+    if (process.env.HELP_CENTER_SEARCH_ENABLED !== 'true') {
+      return {
+        success: false,
+        message: buildSearchFailedMessage(query),
+      };
+    }
+
     try {
       const httpClient = this.secureHttpClientService.getHttpClient({
         timeout: HELP_CENTER_REQUEST_TIMEOUT_MS,

@@ -1,0 +1,83 @@
+# CI du fork : garde légale, tests patch-survival, image sur nos runners (loi 7).
+# Déclenché par push uniquement : le dépôt est public, aucun pull_request ne doit
+# pouvoir exécuter du code tiers sur un runner auto-hébergé.
+name: veridian-crm-ci
+
+on:
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: veridian-crm-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/christ-roy/veridian-crm
+  BUILDAH_ISOLATION: chroot
+
+jobs:
+  garde-legale:
+    runs-on: [self-hosted, veridian-jit]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - run: bash scripts/ci/check-ee-integrity.sh
+      - if: always()
+        run: git clean -ffdx
+
+  patch-survival:
+    runs-on: [self-hosted, veridian-jit]
+    needs: garde-legale
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && yarn install --immutable
+        env:
+          YARN_ENABLE_SCRIPTS: 'false'
+      - run: bash scripts/ci/patch-survival.sh
+      - if: always()
+        run: git clean -ffdx
+
+  image:
+    runs-on: [self-hosted, veridian-jit, veridian-jit-build]
+    needs: patch-survival
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Connexion à ghcr.io
+        run: |
+          set -euo pipefail
+          printf '%s' '${{ secrets.GITHUB_TOKEN }}' \
+            | buildah login --username '${{ github.actor }}' --password-stdin ghcr.io
+      - name: Construire et pousser
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short=7 HEAD)"
+          BRANCHE='${{ github.ref_name }}'
+          nice -n 19 buildah bud --format docker --target twenty \
+            --build-arg APP_VERSION="2.56.1-veridian-$SHA" \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --tag "$IMAGE:$BRANCHE-$SHA" --file packages/twenty-docker/twenty/Dockerfile .
+          buildah push --digestfile /tmp/digest "$IMAGE:$BRANCHE-$SHA"
+          buildah push "$IMAGE:$BRANCHE-$SHA" "docker://$IMAGE:$BRANCHE"
+          echo "$IMAGE:$BRANCHE-$SHA@$(cat /tmp/digest)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Scan trivy du digest publié (rapport)
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          nice -n 19 trivy image --severity CRITICAL,HIGH --ignore-unfixed --scanners vuln \
+            --exit-code 0 "$IMAGE@$(cat /tmp/digest)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        run: buildah rm --all >/dev/null 2>&1 || true
