@@ -38,11 +38,11 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Node 22 et non celui de .nvmrc : le binaire 26 exige libatomic, absente du runner.
-      # Ces specs n'en dépendent pas ; l'image, elle, se construit bien en Node 26.
+      # Le binaire Node 26 exige libatomic, absente de l'image du runner (qui tourne en root ici).
+      - run: apt-get update -qq && apt-get install -y -qq --no-install-recommends libatomic1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '22'
+          node-version-file: .nvmrc
       - run: |
           node "$(sed -n 's/^yarnPath: //p' .yarnrc.yml)" workspaces focus twenty-monorepo twenty-server twenty-emails twenty-shared twenty-client-sdk
           npx nx run twenty-shared:build
