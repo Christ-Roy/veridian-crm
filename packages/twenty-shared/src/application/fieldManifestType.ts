@@ -1,7 +1,8 @@
+import { type FieldManifestOptions } from '@/application/fieldManifestOptionsType';
+import { type FieldPermissionAction } from '@/application/fieldPermissionActionType';
 import { type SyncableEntityOptions } from '@/application/syncableEntityOptionsType';
 import {
   type FieldMetadataDefaultValue,
-  type FieldMetadataOptions,
   type FieldMetadataType,
   type FieldMetadataUniversalSettings,
   type RelationAndMorphRelationFieldMetadataType,
@@ -18,10 +19,14 @@ type BaseRegularFieldManifest<
   label: string;
   description?: string;
   icon?: string;
-  options?: FieldMetadataOptions<T>;
+  options?: FieldManifestOptions<T>;
   universalSettings?: FieldMetadataUniversalSettings<T>;
   isUIEditable?: boolean;
+  disabledFieldPermissionActions?: FieldPermissionAction[];
   isUnique?: boolean;
+  isLabelSyncedWithName?: boolean;
+  isSearchable?: boolean;
+  isAuditLogged?: boolean;
   objectUniversalIdentifier: string;
 };
 

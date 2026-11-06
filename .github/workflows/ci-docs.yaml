@@ -20,7 +20,12 @@ jobs:
     with:
       files: |
         package.json
+        yarn.lock
+        packages/twenty-ui/**
+        packages/twenty-shared/**
+        .github/workflows/ci-docs.yaml
         packages/twenty-docs/**
+        packages/twenty-server/src/engine/metadata-modules/ai/ai-front-component/constants/generated/ui-documentation.json
 
   docs-lint:
     needs: changed-files-check
@@ -39,3 +44,11 @@ jobs:
       - name: Docs / Lint
         run: npx nx lint twenty-docs
 
+      - name: Docs / Test
+        run: npx nx test twenty-docs
+
+      - name: Docs / Generated UI references
+        run: npx nx check:ui twenty-docs
+
+      - name: Docs / Storybook embeds
+        run: npx nx check:ui-stories twenty-docs

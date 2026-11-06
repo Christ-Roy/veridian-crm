@@ -18,10 +18,12 @@ import {
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { type Manifest } from 'twenty-shared/application';
 import { ApplicationRegistrationVariableEntity } from 'src/engine/core-modules/application/application-registration-variable/application-registration-variable.entity';
+import { ApplicationRegistrationVersionEntity } from 'src/engine/core-modules/application/application-registration-version/application-registration-version.entity';
 import { type ApplicationRegistrationGalleryImage } from 'src/engine/core-modules/application/application-registration/types/application-registration-gallery-image.type';
 import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
 import { FileEntity } from 'src/engine/core-modules/file/entities/file.entity';
 import { WasIntroducedInUpgrade } from 'src/engine/core-modules/upgrade/decorators/was-introduced-in-upgrade.decorator';
+import { type WasRemovedInUpgrade } from 'src/engine/core-modules/upgrade/decorators/was-removed-in-upgrade.decorator';
 import { WasRenamedInUpgrade } from 'src/engine/core-modules/upgrade/decorators/was-renamed-in-upgrade.decorator';
 import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
@@ -85,8 +87,7 @@ export class ApplicationRegistrationEntity {
   @JoinColumn({ name: 'createdByUserId' })
   createdByUser: Relation<UserEntity> | null;
 
-  // Ownership (who can edit). Null for catalog-synced marketplace apps that
-  // have no explicit owner — these are managed via the Admin Panel.
+  // Null for catalog-synced marketplace apps, managed from the Admin Panel
   @Field(() => UUIDScalarType, { nullable: true })
   @Column({ name: 'workspaceId', nullable: true, type: 'uuid' })
   ownerWorkspaceId: string | null;
@@ -121,7 +122,6 @@ export class ApplicationRegistrationEntity {
   @Column({ type: 'boolean', default: false })
   isListed: boolean;
 
-  @Field(() => Boolean)
   @Column({ name: 'isVetted', type: 'boolean', default: false })
   @WasRenamedInUpgrade([
     {
@@ -130,10 +130,9 @@ export class ApplicationRegistrationEntity {
         '2.20.0_RenameIsFeaturedToIsVettedOnApplicationRegistrationFastInstanceCommand_1783527064000',
     },
   ])
-  isVetted: boolean;
+  isVetted: WasRemovedInUpgrade<boolean>;
 
-  // Auto-installed on every new workspace; existing workspaces are
-  // backfilled by the `install-pre-installed-apps` CLI command.
+  // Auto-installed on new workspaces; existing ones are backfilled by the `install-pre-installed-apps` command
   @Field(() => Boolean)
   @Column({ type: 'boolean', default: false })
   isPreInstalled: boolean;
@@ -194,6 +193,14 @@ export class ApplicationRegistrationEntity {
   })
   aboutDescription: string | null;
 
+  // Free text: tiered, per-minute or per-match pricing cannot fit a single rate
+  @Column({ nullable: true, type: 'text' })
+  @WasIntroducedInUpgrade({
+    upgradeCommandName:
+      '2.38.0_AddPricingDescriptionToApplicationRegistrationFastInstanceCommand_1788340844000',
+  })
+  pricingDescription: string | null;
+
   @Column({ nullable: true, type: 'text' })
   @WasIntroducedInUpgrade({
     upgradeCommandName:
@@ -228,6 +235,13 @@ export class ApplicationRegistrationEntity {
     { onDelete: 'CASCADE' },
   )
   variables: Relation<ApplicationRegistrationVariableEntity[]>;
+
+  @OneToMany(
+    () => ApplicationRegistrationVersionEntity,
+    (version) => version.applicationRegistration,
+    { onDelete: 'CASCADE' },
+  )
+  versions: Relation<ApplicationRegistrationVersionEntity[]>;
 
   @Column({ type: 'jsonb', nullable: true })
   @WasIntroducedInUpgrade({

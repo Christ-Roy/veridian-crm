@@ -7,10 +7,11 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
+import { type AgentTrigger } from 'twenty-shared/application';
 import GraphQLJSON from 'graphql-type-json';
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
-import { ModelConfiguration } from 'src/engine/metadata-modules/ai/ai-agent/types/modelConfiguration';
+import { ModelConfiguration } from 'src/engine/metadata-modules/ai/ai-agent/types/model-configuration.type';
 import { type ModelId } from 'src/engine/metadata-modules/ai/ai-models/types/model-id.type';
 
 @ObjectType('Agent')
@@ -52,7 +53,11 @@ export class AgentDTO {
 
   @IsBoolean()
   @Field()
-  isCustom: boolean;
+  isSystem: boolean;
+
+  @IsBoolean()
+  @Field()
+  isActive: boolean;
 
   @HideField()
   workspaceId: string;
@@ -71,6 +76,6 @@ export class AgentDTO {
   @Field(() => GraphQLJSON, { nullable: true })
   modelConfiguration?: ModelConfiguration;
 
-  @Field(() => [String])
-  evaluationInputs: string[];
+  @Field(() => [GraphQLJSON])
+  triggers: AgentTrigger[];
 }

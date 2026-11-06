@@ -12,12 +12,12 @@ import {
 import { getCronTriggerDefaultSettings } from '@/workflow/workflow-trigger/utils/getCronTriggerDefaultSettings';
 import { getTriggerScheduleDescription } from '@/workflow/workflow-trigger/utils/getTriggerScheduleDescription';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { t } from '@lingui/core/macro';
 import { isNumber } from '@sniptt/guards';
 import { useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import { TRIGGER_STEP_ID } from 'twenty-shared/workflow';
-import { dateLocaleState } from '~/localization/states/dateLocaleState';
+import { dateLocaleState } from '@/localization/states/dateLocaleState';
+import { useLingui } from '@lingui/react/macro';
 
 type WorkflowEditTriggerCronFormProps = {
   trigger: WorkflowCronTrigger;
@@ -46,6 +46,7 @@ export const WorkflowEditTriggerCronForm = ({
   trigger,
   triggerOptions,
 }: WorkflowEditTriggerCronFormProps) => {
+  const { t } = useLingui();
   const [errorMessages, setErrorMessages] = useState<FormErrorMessages>({});
   const [errorMessagesVisible, setErrorMessagesVisible] = useState(false);
   const dateLocale = useAtomStateValue(dateLocaleState);
@@ -66,7 +67,10 @@ export const WorkflowEditTriggerCronForm = ({
           label={t`Trigger interval`}
           hint={t`Cron will be triggered at UTC time`}
           defaultValue={trigger.settings.type}
-          options={CRON_TRIGGER_INTERVAL_OPTIONS}
+          options={CRON_TRIGGER_INTERVAL_OPTIONS.map((option) => ({
+            ...option,
+            label: t(option.label),
+          }))}
           readonly={triggerOptions.readonly}
           onChange={(newTriggerType) => {
             if (triggerOptions.readonly === true) {
@@ -157,7 +161,7 @@ export const WorkflowEditTriggerCronForm = ({
                 if (!isNumber(newDay) || newDay <= 0) {
                   setErrorMessages((prev) => ({
                     ...prev,
-                    DAYS_day: t`Invalid day value '${newDay}'. Should be integer greater than 1`,
+                    DAYS_day: t`Invalid day value "${newDay}". Should be integer greater than 1`,
                   }));
                   return;
                 }
@@ -206,7 +210,7 @@ export const WorkflowEditTriggerCronForm = ({
                 if (!isNumber(newHour) || newHour < 0 || newHour > 23) {
                   setErrorMessages((prev) => ({
                     ...prev,
-                    DAYS_hour: t`Invalid hour value '${newHour}'. Should be integer between 0 and 23`,
+                    DAYS_hour: t`Invalid hour value "${newHour}". Should be integer between 0 and 23`,
                   }));
                   return;
                 }
@@ -257,7 +261,7 @@ export const WorkflowEditTriggerCronForm = ({
                 if (!isNumber(newMinute) || newMinute < 0 || newMinute > 59) {
                   setErrorMessages((prev) => ({
                     ...prev,
-                    DAYS_minute: t`Invalid minute value '${newMinute}'. Should be integer between 0 and 59`,
+                    DAYS_minute: t`Invalid minute value "${newMinute}". Should be integer between 0 and 59`,
                   }));
                   return;
                 }
@@ -320,7 +324,7 @@ export const WorkflowEditTriggerCronForm = ({
                 if (!isNumber(newHour) || newHour <= 0) {
                   setErrorMessages((prev) => ({
                     ...prev,
-                    HOURS_hour: t`Invalid hour value '${newHour}'. Should be integer greater than 1`,
+                    HOURS_hour: t`Invalid hour value "${newHour}". Should be integer greater than 1`,
                   }));
                   return;
                 }
@@ -367,7 +371,7 @@ export const WorkflowEditTriggerCronForm = ({
                 if (!isNumber(newMinute) || newMinute < 0 || newMinute > 59) {
                   setErrorMessages((prev) => ({
                     ...prev,
-                    HOURS_minute: t`Invalid minute value '${newMinute}'. Should be integer between 0 and 59`,
+                    HOURS_minute: t`Invalid minute value "${newMinute}". Should be integer between 0 and 59`,
                   }));
                   return;
                 }
@@ -421,7 +425,7 @@ export const WorkflowEditTriggerCronForm = ({
 
                 if (!isNumber(newMinute) || newMinute <= 0) {
                   setErrorMessages({
-                    MINUTES: t`Invalid minute value '${newMinute}'. Should be integer greater than 1`,
+                    MINUTES: t`Invalid minute value "${newMinute}". Should be integer greater than 1`,
                   });
                   return;
                 }

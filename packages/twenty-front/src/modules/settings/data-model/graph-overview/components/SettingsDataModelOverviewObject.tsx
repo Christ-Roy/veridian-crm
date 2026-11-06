@@ -1,6 +1,7 @@
 import { styled } from '@linaria/react';
+import { plural } from '@lingui/core/macro';
 import { type Node, type NodeProps } from '@xyflow/react';
-import { useContext, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
@@ -17,7 +18,7 @@ import '@xyflow/react/dist/style.css';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 import { IconChevronDown, IconChevronUp } from 'twenty-ui/icon';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 
 type SettingsDataModelOverviewObjectNode = Node<
   EnrichedObjectMetadataItem,
@@ -109,7 +110,7 @@ const StyledObjectLinkContainer = styled.div`
 export const SettingsDataModelOverviewObject = ({
   data: objectMetadataItem,
 }: SettingsDataModelOverviewObjectProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
   const { formatNumber } = useNumberFormat();
   const [otherFieldsExpanded, setOtherFieldsExpanded] = useState(false);
 
@@ -168,7 +169,12 @@ export const SettingsDataModelOverviewObject = ({
               ) : (
                 <IconChevronDown size={theme.icon.size.md} />
               )}
-              <StyledCardRowText>{countNonRelation} fields</StyledCardRowText>
+              <StyledCardRowText>
+                {plural(countNonRelation, {
+                  one: '# field',
+                  other: '# fields',
+                })}
+              </StyledCardRowText>
             </StyledCardRowOther>
             {otherFieldsExpanded &&
               fields

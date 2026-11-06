@@ -1,5 +1,5 @@
-import { type DropResult, type ResponderProvided } from '@hello-pangea/dnd';
-
+import { DraggableListRow } from '@/ui/layout/draggable-list/components/DraggableListRow';
+import { ApplicationStackIcon } from '@/applications/components/ApplicationStackIcon';
 import { useGetFieldMetadataItemByIdOrThrow } from '@/object-metadata/hooks/useGetFieldMetadataItemById';
 import { getLabelIdentifierFieldMetadataItem } from '@/object-metadata/utils/getLabelIdentifierFieldMetadataItem';
 import { useObjectOptionsForBoard } from '@/object-record/object-options-dropdown/hooks/useObjectOptionsForBoard';
@@ -9,18 +9,20 @@ import { useChangeRecordFieldVisibility } from '@/object-record/record-field/hoo
 import { visibleRecordFieldsComponentSelector } from '@/object-record/record-field/states/visibleRecordFieldsComponentSelector';
 import { DraggableItem } from '@/ui/layout/draggable-list/components/DraggableItem';
 import { DraggableList } from '@/ui/layout/draggable-list/components/DraggableList';
+import { type DraggableListDropResult } from '@/ui/layout/draggable-list/types/DraggableListDropResult';
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
-import { dropdownYPositionComponentState } from '@/ui/layout/dropdown/states/internal/dropdownYPositionComponentState';
 import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorValue';
-import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { ViewType } from '@/views/types/ViewType';
 import { useContext } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { IconEyeOff, useIcons } from 'twenty-ui/icon';
-import { MenuItemDraggable } from 'twenty-ui/navigation';
+import { LightIconButton } from 'twenty-ui/components/input';
+import { IconEyeOff } from 'twenty-ui/icon';
+import { useIcons } from 'twenty-ui/icon/provider';
 import { sortByProperty } from '~/utils/array/sortByProperty';
+import { useLingui } from '@lingui/react/macro';
 
 export const ViewFieldsVisibleDropdownSection = () => {
+  const { t } = useLingui();
   const { viewType, objectMetadataItem, recordIndexId } = useContext(
     ObjectOptionsDropdownContext,
   );
@@ -51,10 +53,6 @@ export const ViewFieldsVisibleDropdownSection = () => {
       ? handleBoardFieldVisibilityChange
       : changeRecordFieldVisibility;
 
-  const handleDragEnd = (result: DropResult, provided: ResponderProvided) => {
-    handleReorderFields(result, provided);
-  };
-
   const { getIcon } = useIcons();
 
   const fieldMetadataItemLabelIdentifier =
@@ -78,21 +76,34 @@ export const ViewFieldsVisibleDropdownSection = () => {
     )
     .toSorted(sortByProperty('position'));
 
-  const dropdownYPosition = useAtomComponentStateValue(
-    dropdownYPositionComponentState,
-  );
+  const handleDragEnd = (result: DraggableListDropResult) => {
+    if (!isDefined(result.destination)) {
+      return;
+    }
+
+    handleReorderFields({
+      recordFieldToMove: draggableRecordFields[result.source.index],
+      targetRecordField: draggableRecordFields[result.destination.index],
+    });
+  };
 
   return (
     <>
       <DropdownMenuItemsContainer>
         {fieldMetadataItemLabelIdentifier && (
-          <MenuItemDraggable
-            LeftIcon={getIcon(fieldMetadataItemLabelIdentifier.icon)}
-            text={fieldMetadataItemLabelIdentifier.label}
-            accent="placeholder"
-            gripMode="always"
+          <DraggableListRow
+            startIcon={
+              <ApplicationStackIcon
+                Icon={getIcon(fieldMetadataItemLabelIdentifier.icon)}
+                applicationId={fieldMetadataItemLabelIdentifier.applicationId}
+              />
+            }
+            isMuted
+            dragHandleVisibility="always"
             isDragDisabled
-          />
+          >
+            {fieldMetadataItemLabelIdentifier.label}
+          </DraggableListRow>
         )}
         {draggableRecordFields.length > 0 && (
           <DraggableList
@@ -100,10 +111,6 @@ export const ViewFieldsVisibleDropdownSection = () => {
             draggableItems={
               <>
                 {draggableRecordFields.map((recordField, index) => {
-                  const fieldIndex =
-                    index +
-                    (isDefined(fieldMetadataItemLabelIdentifier) ? 1 : 0);
-
                   const { fieldMetadataItem } = getFieldMetadataItemByIdOrThrow(
                     recordField.fieldMetadataItemId,
                   );
@@ -112,28 +119,34 @@ export const ViewFieldsVisibleDropdownSection = () => {
                     <DraggableItem
                       key={recordField.fieldMetadataItemId}
                       draggableId={recordField.fieldMetadataItemId}
-                      index={fieldIndex + 1}
-                      isInsideScrollableContainer
-                      containerOffsetY={dropdownYPosition}
+                      index={index}
                       itemComponent={
-                        <MenuItemDraggable
+                        <DraggableListRow
                           key={recordField.fieldMetadataItemId}
-                          LeftIcon={getIcon(fieldMetadataItem.icon)}
-                          iconButtons={[
-                            {
-                              Icon: IconEyeOff,
-                              onClick: () => {
+                          startIcon={
+                            <ApplicationStackIcon
+                              Icon={getIcon(fieldMetadataItem.icon)}
+                              applicationId={fieldMetadataItem.applicationId}
+                            />
+                          }
+                          actions={
+                            <LightIconButton
+                              aria-label={t`Hide field`}
+                              onClick={() => {
                                 handleChangeFieldVisibility({
                                   fieldMetadataId:
                                     recordField.fieldMetadataItemId,
                                   isVisible: false,
                                 });
-                              },
-                            },
-                          ]}
-                          text={fieldMetadataItem.label}
-                          gripMode="always"
-                        />
+                              }}
+                            >
+                              <IconEyeOff />
+                            </LightIconButton>
+                          }
+                          dragHandleVisibility="always"
+                        >
+                          {fieldMetadataItem.label}
+                        </DraggableListRow>
                       }
                     />
                   );

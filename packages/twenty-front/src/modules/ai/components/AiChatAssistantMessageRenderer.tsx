@@ -1,21 +1,36 @@
+import { AiChatFrontComponentToolPreview } from '@/ai/components/AiChatFrontComponentToolPreview';
 import { AiChatCompactionIndicator } from '@/ai/components/AiChatCompactionIndicator';
 import { AiChatInitialLoadingIndicator } from '@/ai/components/AiChatInitialLoadingIndicator';
 import { CodeExecutionDisplay } from '@/ai/components/CodeExecutionDisplay';
-import { RoutingStatusDisplay } from '@/ai/components/RoutingStatusDisplay';
 import { ThinkingStepsDisplay } from '@/ai/components/ThinkingStepsDisplay';
 
+import { AiChatFormStatusRenderer } from '@/ai/components/AiChatFormStatusRenderer';
 import { AiChatQuestionStatusRenderer } from '@/ai/components/AiChatQuestionStatusRenderer';
-import { LazyMarkdownRenderer } from '@/ai/components/LazyMarkdownRenderer';
-import { ToolStepRenderer } from '@/ai/components/ToolStepRenderer';
+import { AiChatToolCallApprovalStatusRenderer } from '@/ai/components/AiChatToolCallApprovalStatusRenderer';
+import { AiChatToolWidget } from '@/ai/components/AiChatToolWidget';
+import { LazyMarkdownContent } from '@/ai/components/LazyMarkdownRenderer';
+import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
+import { FeatureFlagKey } from '~/generated-metadata/graphql';
+import { useFrontComponentIdByToolName } from '@/ai/hooks/useFrontComponentIdByToolName';
+import { getEffectiveToolName } from '@/ai/utils/getEffectiveToolName';
+import { shouldToolPartRenderStandalone } from '@/ai/utils/shouldToolPartRenderStandalone';
 import { groupContiguousThinkingStepParts } from '@/ai/utils/groupContiguousThinkingStepParts';
-import { isCodeInterpreterToolPart } from '@/ai/utils/isCodeInterpreterToolPart';
+import { isEmptyReasoningPart } from '@/ai/utils/isEmptyReasoningPart';
+import { isHiddenCompleteWorkspaceSetupToolPart } from '@/ai/utils/isHiddenCompleteWorkspaceSetupToolPart';
 import { styled } from '@linaria/react';
 import { getToolName, isToolUIPart } from 'ai';
 import {
+  ASK_QUESTION_TOOL_NAME,
   ASK_QUESTIONS_TOOL_NAME,
   type ExtendedUIMessagePart,
+  isNoReplyToolPart,
+  isSucceededCompleteWorkspaceSetupToolPart,
+  PREVIEW_FRONT_COMPONENT_TOOL_NAME,
+  PROPOSE_TOOL_CALL_TOOL_NAME,
+  REQUEST_FORM_TOOL_NAME,
 } from 'twenty-shared/ai';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { isDefined } from 'twenty-shared/utils';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 const StyledMessagePartsContainer = styled.div`
   display: flex;
@@ -25,16 +40,25 @@ const StyledMessagePartsContainer = styled.div`
 
 const MessagePartRenderer = ({
   part,
+  frontComponentIdByToolName,
   isStreaming,
+  isUserMessage,
 }: {
   part: ExtendedUIMessagePart;
+  frontComponentIdByToolName: Map<string, string>;
   isStreaming: boolean;
+  isUserMessage?: boolean;
 }) => {
+  const displayMode = isUserMessage ? 'bubble' : 'chat';
+
   switch (part.type) {
     case 'text':
-      return <LazyMarkdownRenderer text={part.text} />;
-    case 'data-routing-status':
-      return <RoutingStatusDisplay data={part.data} />;
+      return (
+        <LazyMarkdownContent
+          text={part.text}
+          displayMode={isDefined(isUserMessage) ? displayMode : 'default'}
+        />
+      );
     case 'data-compaction':
       return <AiChatCompactionIndicator />;
     case 'data-code-execution':
@@ -52,7 +76,10 @@ const MessagePartRenderer = ({
       );
     default:
       if (isToolUIPart(part)) {
-        if (getToolName(part) === ASK_QUESTIONS_TOOL_NAME) {
+        if (
+          getToolName(part) === ASK_QUESTION_TOOL_NAME ||
+          getToolName(part) === ASK_QUESTIONS_TOOL_NAME
+        ) {
           return (
             <AiChatQuestionStatusRenderer
               toolPart={part}
@@ -61,7 +88,44 @@ const MessagePartRenderer = ({
           );
         }
 
-        return <ToolStepRenderer toolPart={part} isStreaming={isStreaming} />;
+        if (getToolName(part) === PROPOSE_TOOL_CALL_TOOL_NAME) {
+          return (
+            <AiChatToolCallApprovalStatusRenderer
+              toolPart={part}
+              isStreaming={isStreaming}
+            />
+          );
+        }
+
+        if (getToolName(part) === REQUEST_FORM_TOOL_NAME) {
+          return (
+            <AiChatFormStatusRenderer
+              toolPart={part}
+              isStreaming={isStreaming}
+            />
+          );
+        }
+
+        if (getEffectiveToolName(part) === PREVIEW_FRONT_COMPONENT_TOOL_NAME) {
+          return (
+            <AiChatFrontComponentToolPreview
+              toolPart={part}
+              isStreaming={isStreaming}
+            />
+          );
+        }
+
+        const frontComponentId = frontComponentIdByToolName.get(
+          getEffectiveToolName(part),
+        );
+
+        return isDefined(frontComponentId) ? (
+          <AiChatToolWidget
+            toolPart={part}
+            frontComponentId={frontComponentId}
+            isStreaming={isStreaming}
+          />
+        ) : null;
       }
       return null;
   }
@@ -70,24 +134,77 @@ const MessagePartRenderer = ({
 export const AiChatAssistantMessageRenderer = ({
   messageParts,
   isLastMessageStreaming,
+  isUserMessage,
   hasError,
+  shouldHideThinkingSteps = false,
+  workDurationMs,
 }: {
   messageParts: ExtendedUIMessagePart[];
   isLastMessageStreaming: boolean;
+  isUserMessage?: boolean;
   hasError?: boolean;
+  shouldHideThinkingSteps?: boolean;
+  workDurationMs?: number | null;
 }) => {
+  const frontComponentIdByToolName = useFrontComponentIdByToolName();
+  const isFrontComponentPreviewEnabled = useIsFeatureEnabled(
+    FeatureFlagKey.IS_AI_CHAT_COMPONENT_BUILDER_ENABLED,
+  );
+
   const hasCodeExecutionData = messageParts.some(
     (part) => part.type === 'data-code-execution',
+  );
+  const hasSucceededCompleteWorkspaceSetupToolPart = messageParts.some(
+    isSucceededCompleteWorkspaceSetupToolPart,
   );
   const filteredParts = messageParts.filter(
     (part) =>
       part.type !== 'data-thread-title' &&
-      !(hasCodeExecutionData && isCodeInterpreterToolPart(part)),
+      !isEmptyReasoningPart(part) &&
+      !isHiddenCompleteWorkspaceSetupToolPart(part) &&
+      !isNoReplyToolPart(part) &&
+      !(
+        hasCodeExecutionData &&
+        isToolUIPart(part) &&
+        getEffectiveToolName(part) === 'code_interpreter'
+      ),
   );
-  const renderItems = groupContiguousThinkingStepParts(filteredParts);
+  const groupedRenderItems = groupContiguousThinkingStepParts(
+    filteredParts,
+    (part) =>
+      isToolUIPart(part) &&
+      shouldToolPartRenderStandalone({
+        toolPart: part,
+        frontComponentId: frontComponentIdByToolName.get(
+          getEffectiveToolName(part),
+        ),
+        isFrontComponentPreviewEnabled,
+      }),
+  );
+  const renderItemsWithoutThinkingSteps = groupedRenderItems.filter(
+    (renderItem) => renderItem.type !== 'thinking-steps',
+  );
+  // Falling back to the steps keeps a finished message from rendering as an empty entry
+  const renderItems =
+    shouldHideThinkingSteps &&
+    (isLastMessageStreaming || renderItemsWithoutThinkingSteps.length > 0)
+      ? renderItemsWithoutThinkingSteps
+      : groupedRenderItems;
+
+  const lastRenderItemIndex = renderItems.length - 1;
+  // the duration covers the whole message, so only the steps right before the final answer carry it
+  const lastThinkingStepsRenderItemIndex = renderItems.findLastIndex(
+    (renderItem) => renderItem.type === 'thinking-steps',
+  );
 
   if (!renderItems.length && !hasError) {
-    return <AiChatInitialLoadingIndicator />;
+    const hasOnlyHiddenReasoning =
+      !isLastMessageStreaming && messageParts.some(isEmptyReasoningPart);
+
+    return hasSucceededCompleteWorkspaceSetupToolPart ||
+      hasOnlyHiddenReasoning ? null : (
+      <AiChatInitialLoadingIndicator />
+    );
   }
 
   return (
@@ -99,20 +216,24 @@ export const AiChatAssistantMessageRenderer = ({
               key={index}
               parts={renderItem.parts}
               isLastMessageStreaming={isLastMessageStreaming}
-              hasAssistantTextResponseStarted={renderItems
-                .slice(index + 1)
-                .some(
-                  (nextRenderItem) =>
-                    nextRenderItem.type === 'part' &&
-                    nextRenderItem.part.type === 'text' &&
-                    nextRenderItem.part.text.trim().length > 0,
-                )}
+              isTrailingWhileStreaming={
+                isLastMessageStreaming &&
+                !hasError &&
+                index === lastRenderItemIndex
+              }
+              workDurationMs={
+                index === lastThinkingStepsRenderItemIndex
+                  ? workDurationMs
+                  : null
+              }
             />
           ) : (
             <MessagePartRenderer
               key={index}
               part={renderItem.part}
+              frontComponentIdByToolName={frontComponentIdByToolName}
               isStreaming={isLastMessageStreaming}
+              isUserMessage={isUserMessage}
             />
           ),
         )}

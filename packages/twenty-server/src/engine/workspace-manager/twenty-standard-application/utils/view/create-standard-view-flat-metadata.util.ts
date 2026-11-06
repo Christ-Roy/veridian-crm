@@ -1,4 +1,5 @@
 import { isDefined } from 'class-validator';
+import { DEFAULT_VIEW_GROUP_LOAD_LIMIT } from 'twenty-shared/constants';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import {
   type AggregateOperations,
@@ -23,7 +24,6 @@ export type CreateStandardViewOptions<O extends AllStandardObjectName> = {
   position: number;
   icon: string;
   isCompact?: boolean;
-  isCustom?: boolean;
   openRecordIn?: ViewOpenRecordIn;
   kanbanAggregateOperation?: AggregateOperations | null;
   kanbanAggregateOperationFieldName?: AllStandardObjectFieldName<O>;
@@ -52,7 +52,6 @@ export const createStandardViewFlatMetadata = <
     position,
     icon,
     isCompact = false,
-    isCustom = false,
     openRecordIn = ViewOpenRecordIn.SIDE_PANEL,
     kanbanAggregateOperation = null,
     kanbanAggregateOperationFieldName,
@@ -146,13 +145,13 @@ export const createStandardViewFlatMetadata = <
     icon,
     position,
     isCompact,
-    isCustom,
     openRecordIn,
     kanbanAggregateOperation,
     kanbanAggregateOperationFieldMetadataId,
     mainGroupByFieldMetadataId,
     shouldHideEmptyGroups: false,
     kanbanColumnWidth: null,
+    groupLoadLimit: DEFAULT_VIEW_GROUP_LOAD_LIMIT,
     calendarLayout: null,
     calendarFieldMetadataId,
     calendarEndFieldMetadataId,
@@ -174,7 +173,9 @@ export const createStandardViewFlatMetadata = <
     viewGroupUniversalIdentifiers: [],
     viewFilterGroupIds: [],
     viewFilterGroupUniversalIdentifiers: [],
+    navigationMenuItemIds: [],
     viewSortIds: [],
+    navigationMenuItemUniversalIdentifiers: [],
     viewSortUniversalIdentifiers: [],
     createdAt: now,
     updatedAt: now,

@@ -4,7 +4,7 @@ import {
 } from '~/generated-metadata/graphql';
 import { SETTINGS_BILLING_PLAN_PRICE_FALLBACKS } from '@/settings/billing/constants/SettingsBillingPlanPriceFallbacks';
 import { useBaseLicensedPriceByPlanKeyAndInterval } from '@/settings/billing/hooks/useBaseLicensedPriceByPlanKeyAndInterval';
-import { type SettingsBillingPlanPrices } from '@/settings/billing/types/settingsBillingPlanComparison.type';
+import { type SettingsBillingPlanPrices } from '@/settings/billing/types/SettingsBillingPlanComparison';
 
 export const useFormatPrices = () => {
   const { getBaseLicensedPriceByPlanKeyAndInterval } =
@@ -29,28 +29,21 @@ export const useFormatPrices = () => {
     }
   };
 
-  const formatPrices: SettingsBillingPlanPrices = {
-    [BillingPlanKey.ENTERPRISE]: {
-      [SubscriptionInterval.Year]: getFormattedPrice(
-        BillingPlanKey.ENTERPRISE,
-        SubscriptionInterval.Year,
-      ),
-      [SubscriptionInterval.Month]: getFormattedPrice(
-        BillingPlanKey.ENTERPRISE,
-        SubscriptionInterval.Month,
-      ),
-    },
-    [BillingPlanKey.PRO]: {
-      [SubscriptionInterval.Year]: getFormattedPrice(
-        BillingPlanKey.PRO,
-        SubscriptionInterval.Year,
-      ),
-      [SubscriptionInterval.Month]: getFormattedPrice(
-        BillingPlanKey.PRO,
-        SubscriptionInterval.Month,
-      ),
-    },
-  };
+  const formatPrices = Object.fromEntries(
+    Object.values(BillingPlanKey).map((planKey) => [
+      planKey,
+      {
+        [SubscriptionInterval.Year]: getFormattedPrice(
+          planKey,
+          SubscriptionInterval.Year,
+        ),
+        [SubscriptionInterval.Month]: getFormattedPrice(
+          planKey,
+          SubscriptionInterval.Month,
+        ),
+      },
+    ]),
+  ) as SettingsBillingPlanPrices;
 
   return {
     formatPrices,

@@ -1,3 +1,4 @@
+import { putFileToUploadTarget } from '@/file/utils/putFileToUploadTarget';
 import { useApolloClient, useMutation } from '@apollo/client/react';
 import { isDefined } from 'twenty-shared/utils';
 import {
@@ -6,6 +7,7 @@ import {
   type FileFolder,
   type FileWithSignedUrl,
 } from '~/generated-metadata/graphql';
+import { useLingui } from '@lingui/react/macro';
 
 type DirectFileUploadOptions = {
   fileFolder: FileFolder;
@@ -14,6 +16,7 @@ type DirectFileUploadOptions = {
 };
 
 export const useDirectFileUpload = () => {
+  const { t } = useLingui();
   const apolloClient = useApolloClient();
   const [createFileUpload] = useMutation(CreateFileUploadDocument, {
     client: apolloClient,
@@ -22,10 +25,10 @@ export const useDirectFileUpload = () => {
     client: apolloClient,
   });
 
-  const uploadFile = async (
+  const createFileUploadAndPutFile = async (
     file: File,
     { fileFolder, fieldMetadataId, signal }: DirectFileUploadOptions,
-  ): Promise<FileWithSignedUrl> => {
+  ): Promise<{ fileId: string }> => {
     const createResult = await createFileUpload({
       variables: {
         filename: file.name,
@@ -38,33 +41,33 @@ export const useDirectFileUpload = () => {
     const uploadTarget = createResult?.data?.createFileUpload;
 
     if (!isDefined(uploadTarget)) {
-      throw new Error('Failed to initiate file upload');
+      throw new Error(t`Failed to initiate file upload`);
     }
 
-    const putResponse = await fetch(uploadTarget.uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': uploadTarget.contentType },
-      body: file,
-      credentials: 'omit',
-      signal,
-    });
+    await putFileToUploadTarget({ file, uploadTarget, signal });
 
-    if (!putResponse.ok) {
-      throw new Error(`File upload failed with status ${putResponse.status}`);
-    }
+    return { fileId: uploadTarget.fileId };
+  };
+
+  const uploadFile = async (
+    file: File,
+    options: DirectFileUploadOptions,
+  ): Promise<FileWithSignedUrl> => {
+    const { fileId } = await createFileUploadAndPutFile(file, options);
 
     const completeResult = await completeFileUpload({
-      variables: { fileId: uploadTarget.fileId },
+      variables: { fileId },
+      context: { fetchOptions: { signal: options.signal } },
     });
 
     const uploadedFile = completeResult?.data?.completeFileUpload;
 
     if (!isDefined(uploadedFile)) {
-      throw new Error('Failed to finalize file upload');
+      throw new Error(t`Failed to finalize file upload`);
     }
 
     return uploadedFile;
   };
 
-  return { uploadFile };
+  return { uploadFile, createFileUploadAndPutFile };
 };

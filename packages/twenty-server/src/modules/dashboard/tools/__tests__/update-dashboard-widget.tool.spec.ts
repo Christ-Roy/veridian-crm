@@ -1,8 +1,11 @@
-import { AggregateOperations, ViewFilterOperand } from 'twenty-shared/types';
+import {
+  AggregateOperations,
+  PageLayoutTabLayoutMode,
+  ViewFilterOperand,
+  WidgetType,
+} from 'twenty-shared/types';
 
 import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
-import { WidgetType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-type.enum';
-import { type DashboardToolDependencies } from 'src/modules/dashboard/tools/types/dashboard-tool-dependencies.type';
 import { createUpdateDashboardWidgetTool } from 'src/modules/dashboard/tools/update-dashboard-widget.tool';
 
 const WORKSPACE_ID = '20202020-aaaa-4d02-bf25-6aeccf7ea419';
@@ -51,7 +54,13 @@ const buildDeps = () => ({
       id: WIDGET_ID,
       title: 'Widget',
       type: WidgetType.GRAPH,
-      gridPosition: { row: 0, column: 0, rowSpan: 4, columnSpan: 4 },
+      position: {
+        layoutMode: PageLayoutTabLayoutMode.GRID,
+        row: 0,
+        column: 0,
+        rowSpan: 4,
+        columnSpan: 4,
+      },
       configuration: updateData.configuration,
     })),
   },
@@ -64,13 +73,7 @@ const buildDeps = () => ({
 });
 
 const createTool = (deps: ReturnType<typeof buildDeps>) =>
-  createUpdateDashboardWidgetTool(
-    deps as unknown as Pick<
-      DashboardToolDependencies,
-      'pageLayoutWidgetService' | 'flatEntityMapsCacheService'
-    >,
-    { workspaceId: WORKSPACE_ID },
-  );
+  createUpdateDashboardWidgetTool(deps, { workspaceId: WORKSPACE_ID });
 
 describe('update_dashboard_widget tool', () => {
   it('resolves filter field names using the existing widget object when the object is not changed', async () => {

@@ -1,3 +1,4 @@
+import { ApplicationStackIcon } from '@/applications/components/ApplicationStackIcon';
 import { useActiveFieldMetadataItems } from '@/object-metadata/hooks/useActiveFieldMetadataItems';
 import { useObjectOptionsForBoard } from '@/object-record/object-options-dropdown/hooks/useObjectOptionsForBoard';
 import { ObjectOptionsDropdownContext } from '@/object-record/object-options-dropdown/states/contexts/ObjectOptionsDropdownContext';
@@ -7,10 +8,14 @@ import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/Drop
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { ViewType } from '@/views/types/ViewType';
 import { useContext } from 'react';
-import { IconEye, useIcons } from 'twenty-ui/icon';
-import { MenuItem } from 'twenty-ui/navigation';
+import { LightIconButton } from 'twenty-ui/components/input';
+import { IconEye } from 'twenty-ui/icon';
+import { useIcons } from 'twenty-ui/icon/provider';
+import { ListItem } from 'twenty-ui/primitives/navigation';
+import { useLingui } from '@lingui/react/macro';
 
 export const ViewFieldsHiddenDropdownSection = () => {
+  const { t } = useLingui();
   const { viewType, objectMetadataItem, recordIndexId } = useContext(
     ObjectOptionsDropdownContext,
   );
@@ -56,21 +61,30 @@ export const ViewFieldsHiddenDropdownSection = () => {
         {availableFieldMetadataItemsToShow.length > 0 &&
           availableFieldMetadataItemsToShow.map((fieldMetadataItem) => {
             return (
-              <MenuItem
+              <ListItem
                 key={fieldMetadataItem.id}
-                LeftIcon={getIcon(fieldMetadataItem.icon)}
-                iconButtons={[
-                  {
-                    Icon: IconEye,
-                    onClick: () =>
+                startIcon={
+                  <ApplicationStackIcon
+                    Icon={getIcon(fieldMetadataItem.icon)}
+                    applicationId={fieldMetadataItem.applicationId}
+                  />
+                }
+                actions={
+                  <LightIconButton
+                    aria-label={t`Show field`}
+                    onClick={() =>
                       handleChangeFieldVisibility({
                         fieldMetadataId: fieldMetadataItem.id,
                         isVisible: true,
-                      }),
-                  },
-                ]}
-                text={fieldMetadataItem.label}
-              />
+                      })
+                    }
+                  >
+                    <IconEye />
+                  </LightIconButton>
+                }
+              >
+                {fieldMetadataItem.label}
+              </ListItem>
             );
           })}
       </DropdownMenuItemsContainer>

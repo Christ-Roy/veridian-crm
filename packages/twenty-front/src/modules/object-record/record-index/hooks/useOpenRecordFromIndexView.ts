@@ -1,37 +1,28 @@
 import { useSidePanelMenu } from '@/side-panel/hooks/useSidePanelMenu';
 import { useOpenRecordInSidePanel } from '@/side-panel/hooks/useOpenRecordInSidePanel';
-import { sidePanelPageState } from '@/side-panel/states/sidePanelPageState';
+import { sidePanelPageInfoSelector } from '@/side-panel/states/sidePanelPageInfoSelector';
 import { MAIN_CONTEXT_STORE_INSTANCE_ID } from '@/context-store/constants/MainContextStoreInstanceId';
 import { contextStoreRecordShowParentViewComponentState } from '@/context-store/states/contextStoreRecordShowParentViewComponentState';
 import { currentRecordFilterGroupsComponentState } from '@/object-record/record-filter-group/states/currentRecordFilterGroupsComponentState';
 import { currentRecordFiltersComponentState } from '@/object-record/record-filter/states/currentRecordFiltersComponentState';
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
-import { recordIndexOpenRecordInState } from '@/object-record/record-index/states/recordIndexOpenRecordInState';
+import { useResolveOpenRecordIn } from '@/object-record/record-index/hooks/useResolveOpenRecordIn';
 import { currentRecordSortsComponentState } from '@/object-record/record-sort/states/currentRecordSortsComponentState';
-import { canOpenObjectInSidePanel } from '@/object-record/utils/canOpenObjectInSidePanel';
 import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
-import { ViewOpenRecordIn } from '~/generated-metadata/graphql';
+import { useWorkspaceSurface } from '@/ui/layout/hooks/useWorkspaceSurface';
 import { useStore } from 'jotai';
 import { useCallback } from 'react';
-import { AppPath, SidePanelPages } from 'twenty-shared/types';
-import { useIsMobile } from 'twenty-ui/utilities';
+import { AppPath, OpenRecordIn, SidePanelPages } from 'twenty-shared/types';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
-// Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : interception du RE-CLIC pour
-// annuler le décompte d'ouverture SANS ré-ouvrir la fiche.
-import {
-  buildRecordOpenKey,
-  cancelRecordOpen,
-} from '@/veridian-record-open/utils/recordOpenManager';
 
 export const useOpenRecordFromIndexView = () => {
-  const { recordIndexId } = useRecordIndexContextOrThrow();
-
-  const { objectNameSingular } = useRecordIndexContextOrThrow();
+  const { recordIndexId, objectNameSingular } = useRecordIndexContextOrThrow();
 
   const navigate = useNavigateApp();
   const { openRecordInSidePanel } = useOpenRecordInSidePanel();
+  const workspaceSurface = useWorkspaceSurface();
 
-  const isMobile = useIsMobile();
+  const openRecordIn = useResolveOpenRecordIn(objectNameSingular);
 
   const currentRecordFilters = useAtomComponentStateCallbackState(
     currentRecordFiltersComponentState,
@@ -54,53 +45,59 @@ export const useOpenRecordFromIndexView = () => {
 
   const openRecordFromIndexView = useCallback(
     ({ recordId }: { recordId: string }) => {
-      // Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : si cette fiche est en
-      // DÉCOMPTE de confirmation (fermée il y a < 10s, elle scintille), un clic
-      // dessus = le commercial veut ANNULER (fausse manip), PAS la ré-ouvrir.
-      // On consomme le clic : annule le décompte (la row arrête de scintiller,
-      // la fiche reste A_APPELER) et on RETURN sans ouvrir. C'est le SEUL
-      // chokepoint d'ouverture depuis un index (table/board/calendar y passent).
-      const veridianOpenKey = buildRecordOpenKey(objectNameSingular, recordId);
-      if (cancelRecordOpen(veridianOpenKey)) {
-        return;
-      }
-
-      const recordIndexOpenRecordIn = store.get(
-        recordIndexOpenRecordInState.atom,
-      );
-
       const parentViewFilters = store.get(currentRecordFilters);
 
       const parentViewSorts = store.get(currentRecordSorts);
 
       const parentViewFilterGroups = store.get(currentRecordFilterGroups);
 
-      store.set(
-        contextStoreRecordShowParentViewComponentState.atomFamily({
-          instanceId: MAIN_CONTEXT_STORE_INSTANCE_ID,
-        }),
-        {
-          parentViewComponentId: recordIndexId,
-          parentViewObjectNameSingular: objectNameSingular,
-          parentViewFilterGroups,
-          parentViewFilters,
-          parentViewSorts,
-        },
-      );
+      const parentView = {
+        parentViewComponentId: recordIndexId,
+        parentViewObjectNameSingular: objectNameSingular,
+        parentViewFilterGroups,
+        parentViewFilters,
+        parentViewSorts,
+      };
 
-      if (
-        !isMobile &&
-        recordIndexOpenRecordIn === ViewOpenRecordIn.SIDE_PANEL &&
-        canOpenObjectInSidePanel(objectNameSingular)
-      ) {
-        openRecordInSidePanel({
+      // Related lists read this from their own surface's store, so set it on the destination.
+      const setParentViewOn = (instanceId: string) =>
+        store.set(
+          contextStoreRecordShowParentViewComponentState.atomFamily({
+            instanceId,
+          }),
+          parentView,
+        );
+
+      if (workspaceSurface.type === 'side-panel') {
+        const destinationSurfaceInstanceId = openRecordInSidePanel({
+          recordId,
+          objectNameSingular,
+          resetNavigationStack: false,
+        });
+
+        setParentViewOn(
+          destinationSurfaceInstanceId ?? MAIN_CONTEXT_STORE_INSTANCE_ID,
+        );
+
+        return;
+      }
+
+      if (openRecordIn === OpenRecordIn.SIDE_PANEL) {
+        const sidePanelPageInstanceId = openRecordInSidePanel({
           recordId,
           objectNameSingular,
           resetNavigationStack: true,
         });
+
+        setParentViewOn(
+          sidePanelPageInstanceId ?? MAIN_CONTEXT_STORE_INSTANCE_ID,
+        );
       } else {
+        setParentViewOn(MAIN_CONTEXT_STORE_INSTANCE_ID);
+
         const isSidePanelAiChat =
-          store.get(sidePanelPageState.atom) === SidePanelPages.AskAI;
+          store.get(sidePanelPageInfoSelector.atom).page ===
+          SidePanelPages.AskAI;
 
         if (!isSidePanelAiChat) {
           closeSidePanelMenu();
@@ -120,9 +117,10 @@ export const useOpenRecordFromIndexView = () => {
       objectNameSingular,
       navigate,
       openRecordInSidePanel,
-      isMobile,
+      openRecordIn,
       closeSidePanelMenu,
       store,
+      workspaceSurface.type,
     ],
   );
 

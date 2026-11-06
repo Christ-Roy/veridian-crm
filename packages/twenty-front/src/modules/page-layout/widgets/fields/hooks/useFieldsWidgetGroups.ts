@@ -7,9 +7,11 @@ import {
   type FieldsWidgetGroup,
   type FieldsWidgetGroupField,
 } from '@/page-layout/widgets/fields/types/FieldsWidgetGroup';
+import { useFieldsWidgetFields } from '@/page-layout/widgets/fields/hooks/useFieldsWidgetFields';
 import { buildDefaultFieldsWidgetGroups } from '@/page-layout/widgets/fields/utils/buildDefaultFieldsWidgetGroups';
 import { filterDraftGroupsForDisplay } from '@/page-layout/widgets/fields/utils/filterDraftGroupsForDisplay';
 import { useViewById } from '@/views/hooks/useViewById';
+import { useLingui } from '@lingui/react/macro';
 import { useMemo } from 'react';
 import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
 
@@ -35,6 +37,9 @@ export const useFieldsWidgetGroups = ({
   const workspaceCustomApplicationId =
     currentWorkspace?.workspaceCustomApplication?.id;
 
+  const visibleFields = useFieldsWidgetFields(objectMetadataItem);
+  const { i18n } = useLingui();
+
   const { groups, displayMode } = useMemo<{
     groups: FieldsWidgetGroup[];
     displayMode: FieldsWidgetDisplayMode;
@@ -43,9 +48,7 @@ export const useFieldsWidgetGroups = ({
       return { groups: [], displayMode: 'grouped' };
     }
 
-    const activeFields = objectMetadataItem.fields.filter(
-      (field) => field.isActive,
-    );
+    const activeFields = visibleFields.filter((field) => field.isActive);
 
     if (isDefined(view) && isNonEmptyArray(view.viewFieldGroups)) {
       const sortedGroups = view.viewFieldGroups.toSorted(
@@ -140,7 +143,7 @@ export const useFieldsWidgetGroups = ({
     return {
       groups: filterDraftGroupsForDisplay(
         buildDefaultFieldsWidgetGroups({
-          fields: objectMetadataItem.fields,
+          fields: visibleFields,
           labelIdentifierFieldMetadataItemId:
             labelIdentifierFieldMetadataItem?.id,
           workspaceCustomApplicationId,
@@ -150,10 +153,13 @@ export const useFieldsWidgetGroups = ({
     };
   }, [
     objectMetadataItem,
+    visibleFields,
     labelIdentifierFieldMetadataItem,
     view,
     viewId,
     workspaceCustomApplicationId,
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    i18n.locale,
   ]);
 
   return {

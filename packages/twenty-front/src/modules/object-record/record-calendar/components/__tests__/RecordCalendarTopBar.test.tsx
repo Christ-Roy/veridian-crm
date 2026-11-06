@@ -1,26 +1,29 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { enUS } from 'date-fns/locale';
 import { Temporal } from 'temporal-polyfill';
+import { type ButtonProps } from 'twenty-ui/primitives/input';
 
 import { RecordCalendarTopBar } from '@/object-record/record-calendar/components/RecordCalendarTopBar';
+import { recordCalendarSelectedDateComponentState } from '@/object-record/record-calendar/states/recordCalendarSelectedDateComponentState';
+import { recordIndexCalendarLayoutComponentState } from '@/object-record/record-index/states/recordIndexCalendarLayoutComponentState';
 import { ViewCalendarLayout } from '~/generated-metadata/graphql';
 
 const mockSetRecordCalendarSelectedDate = jest.fn();
 const mockSetRecordIndexCalendarLayout = jest.fn();
 const mockUpdateCurrentView = jest.fn();
 const mockUseAtomComponentState = jest.fn();
-const mockUseAtomState = jest.fn();
 const mockUseAtomStateValue = jest.fn();
-const mockUseRecordCalendarWeekDaysRange = jest.fn();
+const mockUseRecordCalendarDaysRange = jest.fn();
 
 jest.mock('@/localization/hooks/useDateTimeFormat', () => ({
   useDateTimeFormat: jest.fn(() => ({ timeZone: 'UTC' })),
 }));
 jest.mock(
-  '@/object-record/record-calendar/week/hooks/useRecordCalendarWeekDaysRange',
+  '@/object-record/record-calendar/hooks/useRecordCalendarDaysRange',
   () => ({
-    useRecordCalendarWeekDaysRange: (...args: unknown[]) =>
-      mockUseRecordCalendarWeekDaysRange(...args),
+    useRecordCalendarDaysRange: (...args: unknown[]) =>
+      mockUseRecordCalendarDaysRange(...args),
   }),
 );
 jest.mock(
@@ -34,8 +37,20 @@ jest.mock(
   }),
 );
 jest.mock('@/ui/input/components/Select', () => ({
-  Select: ({ options }: { options: { label: string; value: string }[] }) => (
-    <select data-testid="layout-select">
+  Select: ({
+    options,
+    value,
+    onChange,
+  }: {
+    options: { label: string; value: ViewCalendarLayout }[];
+    value: ViewCalendarLayout;
+    onChange: (value: ViewCalendarLayout) => void;
+  }) => (
+    <select
+      data-testid="layout-select"
+      value={value}
+      onChange={(event) => onChange(event.target.value as ViewCalendarLayout)}
+    >
       {options.map(({ label, value }) => (
         <option key={value} value={value}>
           {label}
@@ -51,10 +66,6 @@ jest.mock('@/ui/input/components/SelectControl', () => ({
     selectedOption: { label: string };
   }) => <span data-testid="selected-date">{selectedOption.label}</span>,
 }));
-jest.mock('@/ui/layout/dropdown/components/Dropdown', () => ({
-  Dropdown: ({ clickableComponent }: { clickableComponent: React.ReactNode }) =>
-    clickableComponent,
-}));
 jest.mock('@/ui/layout/dropdown/hooks/useCloseDropdown', () => ({
   useCloseDropdown: jest.fn(() => ({ closeDropdown: jest.fn() })),
 }));
@@ -68,9 +79,6 @@ jest.mock('@/ui/utilities/state/jotai/hooks/useAtomComponentState', () => ({
   useAtomComponentState: (...args: unknown[]) =>
     mockUseAtomComponentState(...args),
 }));
-jest.mock('@/ui/utilities/state/jotai/hooks/useAtomState', () => ({
-  useAtomState: (...args: unknown[]) => mockUseAtomState(...args),
-}));
 jest.mock('@/ui/utilities/state/jotai/hooks/useAtomStateValue', () => ({
   useAtomStateValue: (...args: unknown[]) => mockUseAtomStateValue(...args),
 }));
@@ -79,21 +87,14 @@ jest.mock('@/views/hooks/useUpdateCurrentView', () => ({
     updateCurrentView: mockUpdateCurrentView,
   })),
 }));
-jest.mock('@/workspace/hooks/useIsFeatureEnabled', () => ({
-  useIsFeatureEnabled: jest.fn(() => true),
-}));
-jest.mock('twenty-ui/input', () => ({
+jest.mock('twenty-ui/primitives/input', () => ({
   Button: ({
-    ariaLabel,
+    'aria-label': ariaLabel,
+    children,
     onClick,
-    title,
-  }: {
-    ariaLabel?: string;
-    onClick: () => void;
-    title?: string;
-  }) => (
+  }: Pick<ButtonProps, 'aria-label' | 'children' | 'onClick'>) => (
     <button aria-label={ariaLabel} onClick={onClick}>
-      {title}
+      {children}
     </button>
   ),
 }));
@@ -101,21 +102,27 @@ jest.mock('twenty-ui/input', () => ({
 describe('RecordCalendarTopBar', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseAtomComponentState.mockReturnValue([
-      Temporal.PlainDate.from('2026-07-15'),
-      mockSetRecordCalendarSelectedDate,
-    ]);
-    mockUseAtomState.mockReturnValue([
-      ViewCalendarLayout.DAY,
-      mockSetRecordIndexCalendarLayout,
-    ]);
+    mockUseAtomComponentState.mockImplementation((state: unknown) => {
+      if (state === recordIndexCalendarLayoutComponentState) {
+        return [ViewCalendarLayout.DAY, mockSetRecordIndexCalendarLayout];
+      }
+
+      if (state === recordCalendarSelectedDateComponentState) {
+        return [
+          Temporal.PlainDate.from('2026-07-15'),
+          mockSetRecordCalendarSelectedDate,
+        ];
+      }
+
+      return [undefined, jest.fn()];
+    });
     mockUseAtomStateValue.mockReturnValue({
       locale: 'en-US',
       localeCatalog: enUS,
     });
-    mockUseRecordCalendarWeekDaysRange.mockReturnValue({
-      firstDayOfWeek: Temporal.PlainDate.from('2026-07-13'),
-      lastDayOfWeek: Temporal.PlainDate.from('2026-07-19'),
+    mockUseRecordCalendarDaysRange.mockReturnValue({
+      firstDay: Temporal.PlainDate.from('2026-07-13'),
+      lastDay: Temporal.PlainDate.from('2026-07-19'),
     });
   });
 
@@ -130,7 +137,7 @@ describe('RecordCalendarTopBar', () => {
         screen.getByTestId('layout-select').querySelectorAll('option'),
       ).map((option) => option.textContent),
     ).toEqual(['Day', 'Week', 'Month']);
-    expect(screen.queryByTestId('time-zone')).not.toBeInTheDocument();
+    expect(screen.getByTestId('time-zone')).toBeInTheDocument();
   });
 
   it('navigates the Day layout one day at a time', () => {
@@ -147,5 +154,19 @@ describe('RecordCalendarTopBar', () => {
       2,
       Temporal.PlainDate.from('2026-07-16'),
     );
+  });
+
+  it('persists a week selection from the top bar', async () => {
+    const user = userEvent.setup();
+    render(<RecordCalendarTopBar />);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'WEEK');
+
+    expect(mockSetRecordIndexCalendarLayout).toHaveBeenCalledWith(
+      ViewCalendarLayout.WEEK,
+    );
+    expect(mockUpdateCurrentView).toHaveBeenCalledWith({
+      calendarLayout: ViewCalendarLayout.WEEK,
+    });
   });
 });

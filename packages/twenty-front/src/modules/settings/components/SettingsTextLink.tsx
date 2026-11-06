@@ -1,7 +1,8 @@
+import { Button } from 'twenty-ui/primitives/input';
 import { css, cx } from '@linaria/core';
 import { type MouseEventHandler, type ReactNode } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 type SettingsTextLinkVariant = 'primary' | 'secondary';
 
@@ -92,14 +93,16 @@ export const SettingsTextLink = ({
   }
 
   return (
-    <button
-      className={textLinkClassName}
+    <Button
+      variant="link"
+      size="sm"
+      className={className}
       disabled={props.disabled ?? false}
       onClick={props.onClick}
       title={title}
       type="button"
     >
       {children}
-    </button>
+    </Button>
   );
 };

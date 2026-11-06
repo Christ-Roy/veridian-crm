@@ -15,6 +15,7 @@ import { type FlatRoleTarget } from 'src/engine/metadata-modules/flat-role-targe
 
 export type FromCreateAgentInputToFlatAgentArgs = {
   createAgentInput: CreateAgentInput;
+  isSystem: boolean;
   workspaceId: string;
   flatApplication: FlatApplication;
   flatRoleMaps: AllFlatEntityMaps['flatRoleMaps'];
@@ -22,6 +23,7 @@ export type FromCreateAgentInputToFlatAgentArgs = {
 
 export const fromCreateAgentInputToFlatAgent = ({
   createAgentInput: rawCreateAgentInput,
+  isSystem,
   workspaceId,
   flatApplication,
   flatRoleMaps,
@@ -50,12 +52,14 @@ export const fromCreateAgentInputToFlatAgent = ({
     modelId: createAgentInput.modelId,
     responseFormat: createAgentInput.responseFormat ?? { type: 'text' },
     workspaceId,
-    isCustom: true,
+    isSystem,
+    isActive: true,
+    overrides: null,
     universalIdentifier: v4(),
     applicationId: flatApplication.id,
     applicationUniversalIdentifier: flatApplication.universalIdentifier,
     modelConfiguration: createAgentInput.modelConfiguration ?? null,
-    evaluationInputs: createAgentInput.evaluationInputs ?? [],
+    triggers: createAgentInput.triggers ?? [],
     createdAt,
     updatedAt: createdAt,
     deletedAt: null,
@@ -77,7 +81,12 @@ export const fromCreateAgentInputToFlatAgent = ({
       roleUniversalIdentifier,
       userWorkspaceId: null,
       agentId,
+      agentUniversalIdentifier: flatAgentToCreate.universalIdentifier,
       apiKeyId: null,
+      webhookId: null,
+      webhookUniversalIdentifier: null,
+      targetApplicationId: null,
+      targetApplicationUniversalIdentifier: null,
       createdAt,
       updatedAt: createdAt,
       universalIdentifier: v4(),

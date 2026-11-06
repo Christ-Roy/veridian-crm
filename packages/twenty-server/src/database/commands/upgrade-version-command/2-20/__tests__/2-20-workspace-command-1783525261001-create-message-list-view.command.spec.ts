@@ -1,11 +1,12 @@
+import { Test } from '@nestjs/testing';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 
-import { type WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
+import { WorkspaceIteratorService } from 'src/database/commands/command-runners/workspace-iterator.service';
 import { CreateMessageListViewCommand } from 'src/database/commands/upgrade-version-command/2-20/2-20-workspace-command-1783525261001-create-message-list-view.command';
-import { type ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
-import { type WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import { type WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
+import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
 
 jest.mock(
   'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant',
@@ -23,9 +24,14 @@ const STANDARD_APPLICATION = {
 const LIST = STANDARD_OBJECTS.messageList;
 const LIST_VIEW_UNIVERSAL_IDENTIFIER =
   LIST.views.allMessageLists.universalIdentifier;
-const LIST_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = Object.values(
-  LIST.views.allMessageLists.viewFields,
-).map((viewField) => viewField.universalIdentifier);
+const LIST_VIEW_FIELD_UNIVERSAL_IDENTIFIERS = [
+  LIST.views.allMessageLists.viewFields.name.universalIdentifier,
+  LIST.views.allMessageLists.viewFields.members.universalIdentifier,
+  LIST.views.allMessageLists.viewFields.campaigns.universalIdentifier,
+  LIST.views.allMessageLists.viewFields.createdAt.universalIdentifier,
+];
+const DESCRIPTION_VIEW_FIELD_UNIVERSAL_IDENTIFIER =
+  LIST.views.allMessageLists.viewFields.description.universalIdentifier;
 
 const buildByUniversalIdentifierMap = (universalIdentifiers: string[]) => ({
   byUniversalIdentifier: Object.fromEntries(
@@ -42,7 +48,7 @@ describe('CreateMessageListViewCommand', () => {
   let getOrRecomputeMock: jest.Mock;
   let validateBuildAndRunWorkspaceMigrationMock: jest.Mock;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
 
     findApplicationMock = jest.fn().mockResolvedValue({
@@ -58,26 +64,40 @@ describe('CreateMessageListViewCommand', () => {
         flatViewMaps: buildByUniversalIdentifierMap([
           LIST_VIEW_UNIVERSAL_IDENTIFIER,
         ]),
-        flatViewFieldMaps: buildByUniversalIdentifierMap(
-          LIST_VIEW_FIELD_UNIVERSAL_IDENTIFIERS,
-        ),
+        flatViewFieldMaps: buildByUniversalIdentifierMap([
+          ...LIST_VIEW_FIELD_UNIVERSAL_IDENTIFIERS,
+          DESCRIPTION_VIEW_FIELD_UNIVERSAL_IDENTIFIER,
+        ]),
       },
     });
 
-    command = new CreateMessageListViewCommand(
-      {} as WorkspaceIteratorService,
-      {
-        findWorkspaceTwentyStandardAndCustomApplicationOrThrow:
-          findApplicationMock,
-      } as unknown as ApplicationService,
-      {
-        getOrRecompute: getOrRecomputeMock,
-      } as unknown as WorkspaceCacheService,
-      {
-        validateBuildAndRunWorkspaceMigration:
-          validateBuildAndRunWorkspaceMigrationMock,
-      } as unknown as WorkspaceMigrationValidateBuildAndRunService,
-    );
+    const module = await Test.createTestingModule({
+      providers: [
+        CreateMessageListViewCommand,
+        { provide: WorkspaceIteratorService, useValue: {} },
+        {
+          provide: ApplicationService,
+          useValue: {
+            findWorkspaceTwentyStandardAndCustomApplicationOrThrow:
+              findApplicationMock,
+          },
+        },
+        {
+          provide: WorkspaceCacheService,
+          useValue: {
+            getOrRecompute: getOrRecomputeMock,
+          },
+        },
+        {
+          provide: WorkspaceMigrationValidateBuildAndRunService,
+          useValue: {
+            validateBuildAndRunWorkspaceMigration:
+              validateBuildAndRunWorkspaceMigrationMock,
+          },
+        },
+      ],
+    }).compile();
+    command = module.get(CreateMessageListViewCommand);
   });
 
   const runOnWorkspace = (dryRun = false) =>
@@ -110,6 +130,7 @@ describe('CreateMessageListViewCommand', () => {
     await runOnWorkspace();
 
     expect(validateBuildAndRunWorkspaceMigrationMock).toHaveBeenCalledWith({
+      shouldDeferActions: false,
       isSystemBuild: true,
       workspaceId: WORKSPACE_ID,
       applicationUniversalIdentifier: STANDARD_APPLICATION.universalIdentifier,
@@ -138,6 +159,22 @@ describe('CreateMessageListViewCommand', () => {
       validateBuildAndRunWorkspaceMigrationMock.mock.calls[0][0]
         .allFlatEntityOperationByMetadataName.viewField.flatEntityToCreate,
     ).toHaveLength(LIST_VIEW_FIELD_UNIVERSAL_IDENTIFIERS.length);
+  });
+
+  it('leaves the description column to the 2.39 command', async () => {
+    mockWorkspaceCache({});
+
+    await runOnWorkspace();
+
+    const createdViewFieldUniversalIdentifiers =
+      validateBuildAndRunWorkspaceMigrationMock.mock.calls[0][0].allFlatEntityOperationByMetadataName.viewField.flatEntityToCreate.map(
+        ({ universalIdentifier }: { universalIdentifier: string }) =>
+          universalIdentifier,
+      );
+
+    expect(createdViewFieldUniversalIdentifiers).not.toContain(
+      DESCRIPTION_VIEW_FIELD_UNIVERSAL_IDENTIFIER,
+    );
   });
 
   it('creates missing view fields when the view already exists', async () => {

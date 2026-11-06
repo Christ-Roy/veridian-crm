@@ -1,251 +1,60 @@
-# CLAUDE.md — Veridian CRM
+# CLAUDE.md
 
-> ## 🔴 Règle d'or Veridian — zéro contournement (gravée Robert 2026-06-10)
-> **Interdit absolu** : cron bricolé, SQLite/store parallèle, job maison pour
-> ÉVITER l'API ou la DB réelle de l'app. On travaille AVEC le vrai système :
-> coder propre → tester staging → fixer la logique → MAJ DB staging si besoin
-> → test lourd → push prod. Un blocage (accès, credential) se débloque via le
-> lead, il ne se contourne pas. Détail : CLAUDE.md racine veridian-platform.
+Twenty is an open-source CRM — an Nx / Yarn 4 monorepo. Main packages: `twenty-front` (React 18, Jotai, Linaria, Vite), `twenty-server` (NestJS, TypeORM, PostgreSQL, Redis, GraphQL), `twenty-shared` (isomorphic types/utils), `twenty-ui`, `twenty-sdk` (application definitions and runtime), `twenty-cli` (standalone CLI), `twenty-e2e-testing` (Playwright).
 
+Match the surrounding code — the adjacent files in the directory you are editing beat any written rule, including for file naming, which varies by area.
 
-> **Ce repo est un fork de `twentyhq/twenty` rebrandé Veridian CRM.**
->
-> Pour les directives techniques Twenty (commandes Nx, conventions tests, lint,
-> Storybook, archi NestJS), lire **`CLAUDE-TWENTY.md`** dans ce même dossier — il
-> reste la source de vérité pour le **comment ça tourne** côté Twenty upstream.
->
-> Ce fichier-ci grave les **règles Veridian** : licence, périmètre de travail,
-> intégrations cross-app, conventions agent. Il a **priorité** sur
-> `CLAUDE-TWENTY.md` en cas de conflit.
+## House rules
 
----
+Where this repo differs from your defaults:
 
-## 1. Contexte produit
+- Short-form `//` comments, never JSDoc blocks; comment only WHY (a constraint the code cannot express, still true for a reader who never saw your change), never WHAT.
+- Types over interfaces (except when extending third-party interfaces); string literals over enums (except GraphQL enums); no `any`; descriptive generics (`TData`, not `T`).
+- Named exports only. Functional components only.
+- Prefer event handlers over `useEffect` for state updates.
+- No abbreviations in names (`fieldMetadata`, not `fm`); constants in SCREAMING_SNAKE_CASE; component props types suffixed `Props`.
+- Use existing guards and helpers before writing your own: `isDefined`, `isNonEmptyArray`, `isPlainObject`, … from `twenty-shared/utils`; `isNonEmptyString`, `isString`, `isNull`, `isObject`, … from `@sniptt/guards`. Reimplementing an existing util is the most common AI-authored defect here.
+- Lingui for user-facing strings, `doNotTranslate()` from `twenty-shared/i18n` for text that must stay as written (error diagnostics, protocol tokens); Linaria (zero-runtime, styled-components pattern) for twenty-front styling.
+- For Twenty product concepts, consult `packages/twenty-ui/src/icon/icon-dictionary.md` and use the canonical icon.
+- Import icons from `twenty-ui/icon`, never directly from `@tabler/icons-react`; action and status concepts should use their action or status icons.
+- Test behavior, not implementation: query by user-visible text/roles, `@testing-library/user-event` for interactions.
 
-Veridian CRM est l'app **CRM customisable** de la suite Veridian. Elle vient en
-complément de `veridian-prospection` (cold outbound) et vise les clients qui
-ont besoin d'un CRM méta-modélisé (Object/Field/View dynamiques en DB).
+## Comment sparingly
 
-Stratégie produit (décidée 2026-05-25, gravée dans `docs/spec/00-VISION.md`) :
+Most code is self-explanatory and a comment on it is just noise — cognitive overhead to read and maintenance debt to keep accurate. Only comment code that is genuinely unintuitive or complex: a non-obvious why , a workaround, a subtle invariant, a deliberate deviation from the obvious approach. Do not narrate what the code does — the code already says that. When a comment truly earns its place, keep it as terse as possible. This overrides matching the surrounding file's comment density. Write lean even in a verbose file.
 
-- 2 produits séparés (Prospection cold + CRM customisable)
-- Fork de Twenty (AGPLv3) + rebrand strict (trademark "Twenty" déposé, on ne le
-  garde nulle part dans l'UI)
-- Migration progressive des features Prospection → CRM (pas de big bang)
-- Moat Veridian = data (996K leads B2B) + service consulting + intégration
-  cross-app, **pas** le code
+Two or three lines, and a hard ceiling of five. "Terse" is not relative: much of this repo predates the rule and carries paragraph-length comments, so a file you are editing is not evidence of the standard — it is usually the thing the rule exists to stop spreading. If the why will not fit in five lines, the explanation belongs in a module docstring, a README or an ADR, and the comment is one line pointing there.
 
-## 2. Licence — règles absolues
+The same ceiling applies to a comment's neighbours: do not restate one fact in the Dockerfile, the manifest and the code that reads it. Put it once, where a reader hits it first, and let the others be silent.
 
-### 🔴 LE PIÈGE PRINCIPAL : les 300 fichiers `/* @license Enterprise */`
+Docstrings carry the what and the design; they are not exempt from terseness, but they are the right home for anything a comment is too small to hold.
 
-Twenty est **dual-licensé fichier par fichier** :
+## Commands
 
-- Par défaut → **AGPLv3** (on peut modifier librement, à condition de publier
-  nos modifs)
-- **Fichiers marqués `/* @license Enterprise */` en tête → licence commerciale
-  Twenty Labs**. On a le droit de les LIRE (ils sont publics sur GitHub) mais
-  PAS de les modifier ni de les redistribuer activés.
+```bash
+bash packages/twenty-utils/setup-dev-env.sh   # Postgres/Redis + DB init; only for tasks needing a running app
+yarn start                                    # front + server + worker
 
-**Liste des features EE** (300 fichiers, cf `docs/spec/AUDIT-LIMITE-EE-TWENTY.md`) :
-SSO/SAML, custom domains Cloudflare, Row-Level Security (RLS), JWT key rotation,
-billing v2, audit logs, module `enterprise/` complet.
+npx jest path/to/file.spec.ts --config=packages/<pkg>/jest.config.mjs   # single test file (preferred)
+npx vitest run --root packages/twenty-ui --project unit <file>          # twenty-ui runs on vitest, not jest
+npx nx test twenty-server                     # package unit tests (same for twenty-front, ...)
+npx nx run twenty-server:test:integration:with-db-reset
+npx nx storybook:build twenty-front && npx nx storybook:test twenty-front
 
-**Règle de travail** :
-
-1. **Ne jamais modifier** un fichier qui commence par `/* @license Enterprise */`.
-2. **Ne jamais patcher** le check `enterprisePlanService.isValid()` pour
-   débloquer une feature EE — c'est de la contrefaçon.
-3. Si un client demande une feature EE → **réimplémentation clean room** dans
-   un fichier neuf sous AGPL Veridian, jamais en copiant du code EE.
-4. Les fichiers EE peuvent être **laissés inactifs** dans le repo (le check
-   `isValid()` retournera toujours `false` sans clé EE) ou **supprimés** si on
-   préfère un repo plus léger.
-
-### Modifs Veridian autorisées
-
-- ✅ `MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY = Number.MAX_SAFE_INTEGER`
-  (la limite des 5 workspaces est dans du code AGPL, pas EE)
-- ✅ Rebrand UI complet (logo, nom, couleurs, copy, emails)
-- ✅ Suppression / désactivation des packages non utilisés
-- ✅ Ajout de modules custom Veridian dans :
-  - `packages/twenty-server/src/modules/veridian-*/`
-  - `packages/twenty-front/src/modules/veridian-*/`
-- ✅ Intégrations cross-app (Hub auth, Prospection leads, Notifuse emails)
-
-### Obligations AGPL — non négociables
-
-- Publier le code source de notre fork (accessible aux utilisateurs SaaS via
-  un lien "Source code" en footer)
-- Garder le copyright `Twenty.com PBC` dans tous les fichiers d'origine
-- Indiquer clairement que c'est un fork modifié (README + footer SaaS)
-- Nos propres ajouts (`veridian-*/`) sont eux aussi sous AGPLv3
-
-## 3. Périmètre de travail — packages
-
-### Packages **actifs** (qu'on modifie)
-
-| Package | Rôle | Notes |
-|---|---|---|
-| `twenty-server` | Backend NestJS (API GraphQL, auth, DB) | Cœur produit |
-| `twenty-front` | Frontend React (l'app web client) | À rebrand visuellement |
-| `twenty-shared` | Types + utils partagés front/server | Dep des 2 ci-dessus |
-| `twenty-ui` | Design system | À rebrand progressivement (couleurs, typo) |
-| `twenty-emails` | Templates React Email | Probablement à remplacer par appels Notifuse |
-| `twenty-front-component-renderer` | Rendu dynamique de composants | Dep front |
-
-### Packages **ignorés** (ne pas modifier — supprimables jour J)
-
-`twenty-docs`, `twenty-website`, `twenty-apps`, `twenty-sdk`, `twenty-client-sdk`,
-`twenty-companion`, `twenty-e2e-testing`, `twenty-zapier`, `twenty-claude-skills`,
-`twenty-oxlint-rules`, `twenty-cli`, `create-twenty-app`, `twenty-utils`.
-
-Ces packages sont liés au produit Twenty officiel (docs, marketing site, bot
-Discord, marketplace Zapier, etc.). Ils ne servent pas Veridian. Tant qu'on
-n'a pas confirmé qu'ils sont 100% retirables sans casser le build, on les
-laisse intacts.
-
-### Cas spécial : `twenty-docker`
-
-Garder, mais **adapter** : c'est notre point de départ pour notre propre
-compose Veridian CRM (deploy via Dokploy + Traefik prod).
-
-## 4. Stratégie — Twenty standalone, pas d'intégration Hub
-
-**Décision Robert 2026-05-26** : Veridian CRM tourne en **standalone**, sans
-intégration au contrat Hub. Pas de HMAC m2m, pas de provisioning Hub→CRM, pas
-d'`update-plan` webhook, pas de `magic-link` cross-app, pas d'audit log GDPR
-maison, pas de SSO/SAML clean room.
-
-**Raison** : Twenty est conçu pour tourner seul. Il a son propre login
-(email+password + Google OAuth + Microsoft OAuth), son propre admin panel,
-ses propres magic links internes (via `AppToken`), son propre billing
-(qu'on désactive parce qu'on facture autrement), son propre subdomain par
-workspace. Forcer Twenty à se plier au contrat Hub coûterait ~150h-agent
-pour un gain quasi nul à ce stade. On garde Twenty natif.
-
-**Conséquence sur l'archi** :
-
-- L'utilisateur s'inscrit/se logge **directement** sur le CRM Veridian
-  (`crm.veridian.site` ou subdomain par client)
-- Pas d'auth bouncée depuis le Hub
-- Pas de tenant provisionné par le Hub
-- Le billing client = via le canal Veridian habituel (Stripe direct ou
-  facturation manuelle pour les premiers clients consulting), mais **pas
-  via le module billing Twenty interne** (qui est 100% EE)
-
-Les audits `docs/spec/AUDIT-CONFORMITE-HUB.md` et `AUDIT-TWENTY-MICRO.md`
-restent en archive comme **référence si un jour la stratégie évolue**, pas
-comme spec à implémenter.
-
-### Si Robert pivote (futur)
-
-Si un jour l'intégration Hub redevient nécessaire (genre Phase 2 quand le
-CRM aura 5+ clients), réexhumer `AUDIT-CONFORMITE-HUB.md` qui contient le
-plan détaillé (~115-150h-agent, 10 lots L1→L10).
-
-## 5. Conventions de travail agent
-
-### Trunk-based sur `staging` — pas de PR, pas de branche feature
-
-Cf `veridian-platform/CLAUDE.md` §"Règle d'or : trunk-based sur staging".
-
-- Tu travailles **direct sur `staging`** (`git push origin staging`)
-- Tu ne crées **PAS** de branche feature
-- Tu n'ouvres **PAS** de PR
-- Auto-promotion `staging` → `main` après smoke staging vert
-
-### Chaîne CI + déploiement (état 2026-07-17 — migré Dokploy → Nomad)
-
-> 🔴 **Le CRM a été migré de Dokploy vers le cluster Nomad le 2026-07-15.**
-> Il n'y a **plus d'autoDeploy** : l'image est **pinnée sur un SHA** dans le job
-> `~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl`. Runbook complet de
-> redéploiement : **`todo/2026-07-17-runbook-redeploy-nomad.md`**.
-
-```
-push staging
-  → veridian-crm-ci.yaml     (tests unitaires patches Veridian + typecheck)
-  → veridian-crm-build-image (GHCR :staging + :staging-<sha7>, si CI verte)
-promotion main (ff)
-  → veridian-crm-ci + build-image (:latest + :<sha7>, l'ancienne :latest
-    re-taggée :rollback AVANT écrasement) + Trivy scan (rapport)
-
-DÉPLOIEMENT PROD (manuel, plus d'autoDeploy) :
-  1. bump le tag image :<sha7> dans crm.nomad.hcl (crm-server ET crm-worker)
-  2. cd ~/nomad-veridian && git commit  (nomad-v refuse un job non commité)
-  3. nomad-v deploy ~/nomad-veridian/jobs/saas-prod/crm.nomad.hcl
-  4. ~90s de 502 (migrations DB au boot) puis healthz 200 ; twenty doctor
+npx nx lint:diff-with-main twenty-server      # diff-based lint (fast; add --configuration=fix); run with typecheck after changes
+npx nx fmt <pkg>                              # format
+npx nx build twenty-shared                    # required before building/testing packages that depend on it
+npx nx database:reset twenty-server
+npx nx run twenty-front:graphql:generate      # after GraphQL schema changes (--configuration=metadata for metadata schema)
 ```
 
-**Prod tourne sur Nomad** (job `crm`, nœud `ovh-prod`, 4 tasks co-localisés :
-postgres+redis+server+worker). URL `crm.app.veridian.site`, multi-workspace →
-login par subdomain `<slug>.crm.app.veridian.site`. Secrets = Nomad var
-`nomad/jobs/crm`. ⚠️ Le **staging CRM n'est PAS (encore) sur Nomad** — pas de job
-`crm-staging` dans le cluster ; le `veridian-crm-staging-deploy` (SSH dev-pub
-compose) est obsolète.
+## Gotchas
 
-**Rollback prod** : image `:rollback` sur GHCR = la `:latest` précédente. Remettre
-l'ancien SHA dans le HCL + `nomad-v deploy`, ou pointer l'image sur `:rollback`.
-Détail : runbook ci-dessus.
-
-### Hooks git versionnés (`.githooks/`)
-
-`git config core.hooksPath .githooks` (à faire une fois par clone — déjà fait
-sur le repo local). Le `pre-push` refuse : modification d'un fichier
-`@license Enterprise` (contrefaçon), push d'une branche hors staging/main,
-secrets évidents dans le diff. Pas de husky : pas de `node_modules` en local
-(machine saturée), la batterie complète tourne en CI.
-
-### Un agent par app, pas de cross-touch
-
-Tu es l'agent **veridian-crm**. Tu touches **uniquement** ce repo. Si tu vois
-un fix évident dans `veridian-hub`, `veridian-prospection`, `veridian-cms`,
-`notifuse-veridian`, `veridian-analytics`, `veridian-infra` → **tu ne touches
-pas**. Tu déposes un ticket dans le `todo/` du repo cible et tu préviens
-Robert.
-
-### Convention `todo/`
-
-Ce repo a un dossier `todo/` à sa racine :
-
-```
-todo/
-├── YYYY-MM-DD-<slug>.md   ← ticket actif (à la racine)
-├── README.md               ← index
-├── done/                   ← archive
-└── blocked/  (optionnel)   ← en attente externe
-```
-
-Au début de chaque session, vérifier `todo/` — c'est ta file d'attente.
-
-## 6. Spec produit Veridian
-
-Toute la spec produit Veridian (décisions Robert, archi cible, sprint
-decomposition, intégrations) vit dans `docs/spec/` :
-
-- `00-VISION.md` — vision produit finale (décisions Robert verrouillées)
-- `01-archi-meta-modele.md` — archi Twenty + adaptations Veridian
-- `02-rebrand-checklist.md` — checklist rebrand strict
-- `03-integration-hub-auth.md` — intégration Hub auth
-- `04-module-leads-b2b.md` — pull leads depuis Prospection
-- `05-module-notifuse-mail.md` — push campagnes vers Notifuse
-- `06-deploiement-infra.md` — Dokploy + Traefik + CI/CD
-- `07-sprint-decomposition.md` — Vague 11.1-11.5 (~8 semaines, ~14 agents cumul)
-- `08-questions-ouvertes.md` — questions à trancher avec Robert
-- `AUDIT-TWENTY-DETAIL-P0.md` — 30+ questions techniques d'audit micro
-- `AUDIT-LIMITE-EE-TWENTY.md` — cadre légal AGPL/EE (à lire avant tout)
-
-## 7. État au 2026-05-26
-
-- ✅ Fork cloné (`Christ-Roy/veridian-crm`, commit Twenty `1188ea9c`)
-- ✅ Branche `staging` créée (trunk-based)
-- ✅ Audit légal AGPL livré (`docs/spec/AUDIT-LIMITE-EE-TWENTY.md`)
-- ✅ Audit conformité Hub livré (`docs/spec/AUDIT-CONFORMITE-HUB.md`) — **archivé**, stratégie pivotée standalone
-- ✅ Audit Twenty micro livré (`docs/spec/AUDIT-TWENTY-MICRO.md`)
-- ✅ Limite 5 workspaces patchée (`MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY = Number.MAX_SAFE_INTEGER`)
-- ⏳ **Ticket P0 actif** : `todo/2026-05-26-faire-sauter-verrous-twenty.md`
-  - Inventorier les callsites `enterprisePlanService.isValid()` AGPL
-  - Neutraliser le gating pour les features utiles
-  - Désactiver le billing Twenty (proprement, sans toucher au code EE)
-  - Setup admin Robert (`canAccessFullAdminPanel = true`)
-  - Activer mode multi-workspace (`IS_MULTIWORKSPACE_ENABLED=true`)
+- **`twenty-shared/dist` is per-branch state nothing tracks.** After switching branches or editing `twenty-shared`, run `npx nx build twenty-shared --skip-nx-cache` before trusting any typecheck or test failure in a dependent package.
+- **Nx caching can serve a stale pass.** To verify a fix, run `npx tsgo -p tsconfig.json --noEmit` in the package directly rather than `nx typecheck`.
+- **Do not commit translation catalogs unless translations are the task.** `lingui extract`/`compile` regenerate `packages/twenty-server/src/engine/core-modules/i18n/locales/*.po` and `locales/generated/*` with thousands of lines of churn as a side effect of touching any `msg` string. The i18n pipeline maintains them; leave them out of your commit.
+- **Commit messages must not carry AI attribution.** CI rejects commits containing `@anthropic.com` co-author trailers or "Generated with Claude Code" lines.
+- **Upgrade commands** (`packages/twenty-server/src/database/commands/upgrade-version-command/`): add or edit files only under the current `TWENTY_CURRENT_VERSION` directory, with a real epoch-ms timestamp strictly greater than every existing one in that directory — CI enforces both, and the upgrade cursor silently skips a command that sorts before an already-applied one. Instance commands implement `up` and `down`; workspace commands only implement `runOnWorkspace`, since nothing ever runs a `down` on them. Never rewrite committed command logic. Keep command-only helpers and constants in the version folder, never in runtime modules, and never make runtime code branch on migration state. See `packages/twenty-server/docs/UPGRADE_COMMANDS.md`.
+- **Entity file changes need a generated instance command**: `npx nx run twenty-server:database:migrate:generate --name <name> --type <fast|slow>` (slow = adds a data-backfill step).
+- A read-only Postgres MCP server is configured in `.mcp.json` for inspecting workspace data, metadata, and migration results. Writes go through the CLI commands above.
+- E2E login: click "Continue with Email" and use the prefilled credentials.

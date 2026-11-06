@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isDefined } from 'twenty-shared/utils';
 
 import {
   getEnterpriseConfigError,
@@ -6,10 +7,17 @@ import {
   getSubscriptionCurrentPeriodEnd,
   verifyEnterpriseKey,
 } from '@/platform/enterprise';
+import { forwardToTwentyConnect } from '@/platform/enterprise/forward-to-twenty-connect';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  const forwardedResponse = await forwardToTwentyConnect(request);
+
+  if (isDefined(forwardedResponse)) {
+    return forwardedResponse;
+  }
+
   const configError = getEnterpriseConfigError({
     route: 'enterprise-status',
     feature: 'Enterprise status',
@@ -35,7 +43,7 @@ export async function POST(request: Request) {
 
     if (!payload) {
       return NextResponse.json(
-        { error: 'Invalid enterprise key' },
+        { error: 'Invalid Organization key' },
         { status: 403 },
       );
     }

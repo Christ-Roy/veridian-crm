@@ -1,4 +1,5 @@
 import { type FieldManifest } from 'twenty-shared/application';
+import { isDefined, isFieldMetadataSelectKind } from 'twenty-shared/utils';
 import {
   FieldMetadataType,
   type RelationAndMorphRelationFieldMetadataType,
@@ -10,9 +11,10 @@ import {
 } from 'src/engine/core-modules/application/application.exception';
 import { type CompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/types/composite-field-metadata-type.type';
 import { generateDefaultValue } from 'src/engine/metadata-modules/field-metadata/utils/generate-default-value';
+import { isAuditLoggableFieldType } from 'src/engine/metadata-modules/field-metadata/utils/is-audit-loggable-field-type.util';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { nullifyEmptyCompositeDefaultValue } from 'src/engine/metadata-modules/flat-field-metadata/utils/nullify-empty-composite-default-value.util';
-import { PARTIAL_SYSTEM_FLAT_FIELD_METADATAS } from 'src/engine/metadata-modules/object-metadata/constants/partial-system-flat-field-metadatas.constant';
+import { sanitizeSelectOptionColors } from 'src/engine/metadata-modules/flat-field-metadata/utils/sanitize-select-option-colors.util';
 import { isMorphOrRelationFieldMetadataType } from 'src/engine/utils/is-morph-or-relation-field-metadata-type.util';
 import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
 
@@ -52,25 +54,58 @@ const getRelationTargetUniversalIdentifiers = (
   };
 };
 
+const resolveManifestFieldIsSearchable = ({
+  fieldManifest,
+  objectLabelIdentifierFieldMetadataUniversalIdentifier,
+  objectIsSearchable,
+}: {
+  fieldManifest: FieldManifest;
+  objectLabelIdentifierFieldMetadataUniversalIdentifier?: string | null;
+  objectIsSearchable?: boolean;
+}): boolean => {
+  if (isDefined(fieldManifest.isSearchable)) {
+    return fieldManifest.isSearchable;
+  }
+
+  return (
+    (objectIsSearchable ?? true) &&
+    fieldManifest.universalIdentifier ===
+      objectLabelIdentifierFieldMetadataUniversalIdentifier
+  );
+};
+
+const resolveManifestFieldOptions = (
+  fieldManifest: FieldManifest,
+): UniversalFlatFieldMetadata['options'] => {
+  if (!isDefined(fieldManifest.options)) {
+    return null;
+  }
+
+  return isFieldMetadataSelectKind(fieldManifest.type)
+    ? sanitizeSelectOptionColors(fieldManifest.options)
+    : fieldManifest.options;
+};
+
 export const fromFieldManifestToUniversalFlatFieldMetadata = ({
   fieldManifest,
   applicationUniversalIdentifier,
   now,
+  objectLabelIdentifierFieldMetadataUniversalIdentifier,
+  objectIsSearchable,
 }: {
   fieldManifest: FieldManifest & {
     objectUniversalIdentifier: string;
   };
   applicationUniversalIdentifier: string;
   now: string;
+  objectLabelIdentifierFieldMetadataUniversalIdentifier?: string | null;
+  objectIsSearchable?: boolean;
 }): UniversalFlatFieldMetadata => {
   const {
     relationTargetFieldMetadataUniversalIdentifier,
     relationTargetObjectMetadataUniversalIdentifier,
   } = getRelationTargetUniversalIdentifiers(fieldManifest);
 
-  // TODO: generate system fields server-side from the object manifest
-  // so the converter doesn't need to re-normalize composite defaults
-  // that the SDK couldn't have known the canonical shape of.
   const rawDefaultValue =
     fieldManifest.defaultValue ?? generateDefaultValue(fieldManifest.type);
   const defaultValue = isCompositeFieldMetadataType(fieldManifest.type)
@@ -89,17 +124,26 @@ export const fromFieldManifestToUniversalFlatFieldMetadata = ({
     description: fieldManifest.description ?? null,
     icon: fieldManifest.icon ?? null,
     overrides: null,
-    options: fieldManifest.options ?? null,
+    options: resolveManifestFieldOptions(fieldManifest),
     defaultValue,
     universalSettings: fieldManifest.universalSettings ?? null,
     isActive: true,
-    isSystem: fieldManifest.name in PARTIAL_SYSTEM_FLAT_FIELD_METADATAS,
-    isSystemSideEffect:
-      fieldManifest.name in PARTIAL_SYSTEM_FLAT_FIELD_METADATAS,
+    isSystem: false,
+    isSystemSideEffect: false,
     isUIEditable: fieldManifest.isUIEditable ?? true,
+    disabledFieldPermissionActions:
+      fieldManifest.disabledFieldPermissionActions ?? null,
     isNullable: fieldManifest.isNullable ?? true,
     isUnique: fieldManifest.isUnique ?? false,
-    isLabelSyncedWithName: false,
+    isSearchable: resolveManifestFieldIsSearchable({
+      fieldManifest,
+      objectLabelIdentifierFieldMetadataUniversalIdentifier,
+      objectIsSearchable,
+    }),
+    isAuditLogged:
+      fieldManifest.isAuditLogged ??
+      isAuditLoggableFieldType(fieldManifest.type),
+    isLabelSyncedWithName: fieldManifest.isLabelSyncedWithName ?? false,
     morphId:
       fieldManifest.type === FieldMetadataType.MORPH_RELATION
         ? (fieldManifest.morphId ?? null)

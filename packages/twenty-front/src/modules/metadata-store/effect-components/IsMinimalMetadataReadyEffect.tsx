@@ -1,5 +1,6 @@
-import { useHasAccessTokenPair } from '@/auth/hooks/useHasAccessTokenPair';
+import { useIsLogged } from '@/auth/hooks/useIsLogged';
 import { currentUserState } from '@/auth/states/currentUserState';
+import { currentUserWorkspaceState } from '@/auth/states/currentUserWorkspaceState';
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { isMinimalMetadataReadyState } from '@/metadata-store/states/isMinimalMetadataReadyState';
 import { metadataStoreState } from '@/metadata-store/states/metadataStoreState';
@@ -11,8 +12,9 @@ import { isDefined } from 'twenty-shared/utils';
 import { isWorkspaceProvisioned } from 'twenty-shared/workspace';
 
 export const IsMinimalMetadataReadyEffect = () => {
-  const hasAccessTokenPair = useHasAccessTokenPair();
+  const isLogged = useIsLogged();
   const currentUser = useAtomStateValue(currentUserState);
+  const currentUserWorkspace = useAtomStateValue(currentUserWorkspaceState);
   const currentWorkspace = useAtomStateValue(currentWorkspaceState);
   const metadataStoreObjectMetadataItems = useAtomFamilyStateValue(
     metadataStoreState,
@@ -35,7 +37,7 @@ export const IsMinimalMetadataReadyEffect = () => {
   );
 
   useEffect(() => {
-    if (!hasAccessTokenPair) {
+    if (!isLogged) {
       setIsMinimalMetadataReady(true);
       return;
     }
@@ -54,15 +56,23 @@ export const IsMinimalMetadataReadyEffect = () => {
       return;
     }
 
+    // A value cached by 2.55 has no records permissions, and missing permissions default to allow.
+    const areRecordsPermissionsLoaded = isDefined(
+      currentUserWorkspace?.objectRecordsPermissions,
+    );
+
     const isReady =
-      isDefined(currentUser) && (!hasProvisionedWorkspace || areViewsLoaded);
+      isDefined(currentUser) &&
+      (!hasProvisionedWorkspace ||
+        (areViewsLoaded && areRecordsPermissionsLoaded));
 
     if (isReady) {
       setIsMinimalMetadataReady(true);
     }
   }, [
-    hasAccessTokenPair,
+    isLogged,
     currentUser,
+    currentUserWorkspace,
     currentWorkspace,
     metadataStoreObjectMetadataItems.status,
     metadataStoreFieldMetadataItems.status,

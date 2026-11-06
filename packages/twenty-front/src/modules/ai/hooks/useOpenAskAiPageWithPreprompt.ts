@@ -1,56 +1,84 @@
-import { isDefined } from 'twenty-shared/utils';
+import { useStore } from 'jotai';
+import { type AiModelTier } from 'twenty-shared/ai';
+import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
 
+import { useAiChatFileUpload } from '@/ai/hooks/useAiChatFileUpload';
+import { useStageAiChatPreprompt } from '@/ai/hooks/useStageAiChatPreprompt';
 import { useSwitchToNewAiChat } from '@/ai/hooks/useSwitchToNewAiChat';
-import {
-  AGENT_CHAT_NEW_THREAD_DRAFT_KEY,
-  agentChatDraftsByThreadIdState,
-} from '@/ai/states/agentChatDraftsByThreadIdState';
-import {
-  type AgentChatPrepromptMode,
-  agentChatPrepromptState,
-} from '@/ai/states/agentChatPrepromptState';
-import { agentChatUserSelectedModelState } from '@/ai/states/agentChatUserSelectedModelState';
-import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { type AgentChatPrepromptMode } from '@/ai/states/agentChatPrepromptState';
+import { useWorkspaceAiModelTiers } from '@/ai/hooks/useWorkspaceAiModelTiers';
+import { agentChatUploadedFilesState } from '@/ai/states/agentChatUploadedFilesState';
+import { currentAiChatThreadState } from '@/ai/states/currentAiChatThreadState';
+import { agentChatUserSelectedModelTierState } from '@/ai/states/agentChatUserSelectedModelTierState';
 import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
 
+// Kept coarse because it is part of the front component SDK surface.
 export type AgentChatModelPreselection = 'FAST' | 'SMART';
 
+const TIER_BY_PRESELECTION: Record<AgentChatModelPreselection, AiModelTier> = {
+  FAST: 'fast',
+  SMART: 'smart',
+};
+
 export const useOpenAskAiPageWithPreprompt = () => {
+  const store = useStore();
   const { switchToNewChat } = useSwitchToNewAiChat();
-  const currentWorkspace = useAtomStateValue(currentWorkspaceState);
-  const setAgentChatDraftsByThreadId = useSetAtomState(
-    agentChatDraftsByThreadIdState,
+  const { stageAiChatPreprompt } = useStageAiChatPreprompt();
+  const setAgentChatUserSelectedModelTier = useSetAtomState(
+    agentChatUserSelectedModelTierState,
   );
-  const setAgentChatPreprompt = useSetAtomState(agentChatPrepromptState);
-  const setAgentChatUserSelectedModel = useSetAtomState(
-    agentChatUserSelectedModelState,
+  const { chatTier } = useWorkspaceAiModelTiers();
+  const { uploadFiles } = useAiChatFileUpload();
+  const setAgentChatUploadedFiles = useSetAtomState(
+    agentChatUploadedFilesState,
   );
 
-  const openAskAiPageWithPreprompt = ({
-    text,
+  const openAskAiPageWithPreprompt = async ({
+    serializedDocument,
     mode = 'PREFILL',
     model,
+    files,
   }: {
-    text: string;
+    serializedDocument: string;
     mode?: AgentChatPrepromptMode;
     model?: AgentChatModelPreselection;
-  }) => {
-    switchToNewChat();
+    files?: File[];
+  }): Promise<string | null> => {
+    const newAiChatThreadId = switchToNewChat();
 
     if (isDefined(model)) {
-      const fastModelId = currentWorkspace?.fastModel;
+      const tier = TIER_BY_PRESELECTION[model];
 
-      setAgentChatUserSelectedModel(
-        model === 'FAST' && isDefined(fastModelId) ? fastModelId : null,
-      );
+      // null keeps following the workspace, so a later change there applies.
+      setAgentChatUserSelectedModelTier(tier === chatTier ? null : tier);
     }
 
-    setAgentChatDraftsByThreadId((prev) => ({
-      ...prev,
-      [AGENT_CHAT_NEW_THREAD_DRAFT_KEY]: text,
-    }));
-    setAgentChatPreprompt({ text, mode });
+    if (!isNonEmptyArray(files)) {
+      stageAiChatPreprompt({ serializedDocument, mode });
+
+      return newAiChatThreadId;
+    }
+
+    const threadId = store.get(currentAiChatThreadState.atom);
+
+    const uploadedFiles = await uploadFiles(files);
+
+    if (store.get(currentAiChatThreadState.atom) !== threadId) {
+      setAgentChatUploadedFiles((previousUploadedFiles) =>
+        previousUploadedFiles.filter(
+          (uploadedFile) => !uploadedFiles.includes(uploadedFile),
+        ),
+      );
+
+      return null;
+    }
+
+    stageAiChatPreprompt({
+      serializedDocument,
+      mode: isNonEmptyArray(uploadedFiles) ? mode : 'PREFILL',
+    });
+
+    return newAiChatThreadId;
   };
 
   return { openAskAiPageWithPreprompt };

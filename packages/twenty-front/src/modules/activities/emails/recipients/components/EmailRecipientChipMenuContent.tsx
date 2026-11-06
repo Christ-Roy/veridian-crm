@@ -1,23 +1,19 @@
-import { useLingui } from '@lingui/react/macro';
-import { isNonEmptyString } from '@sniptt/guards';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
-import { IconCopy, IconPencil, IconTrash, IconUserPlus } from 'twenty-ui/icon';
-import { MenuItem, MenuItemAvatar } from 'twenty-ui/navigation';
-
 import { type EmailRecipientResolution } from '@/activities/emails/recipients/hooks/useEmailRecipientsResolution';
 import { type EmailRecipient } from '@/activities/emails/recipients/types/EmailRecipient';
 import { useCreateOneRecord } from '@/object-record/hooks/useCreateOneRecord';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
-import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
-import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
-import { DropdownMenuSeparator } from '@/ui/layout/dropdown/components/DropdownMenuSeparator';
-import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
+import { useLingui } from '@lingui/react/macro';
+import { isNonEmptyString } from '@sniptt/guards';
+import { StandardObjectNameSingular } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
+import { useToast } from 'twenty-ui/components/feedback';
+import { Dropdown } from 'twenty-ui/components/navigation';
+import { Avatar } from 'twenty-ui/primitives/data-display';
+import { ListItem } from 'twenty-ui/primitives/navigation';
+import { IconCopy, IconPencil, IconTrash, IconUserPlus } from 'twenty-ui/icon';
 import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
 import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 type EmailRecipientChipMenuContentProps = {
-  dropdownId: string;
   recipient: EmailRecipient;
   resolution: EmailRecipientResolution | undefined;
   isInvalid: boolean;
@@ -26,7 +22,6 @@ type EmailRecipientChipMenuContentProps = {
 };
 
 export const EmailRecipientChipMenuContent = ({
-  dropdownId,
   recipient,
   resolution,
   isInvalid,
@@ -34,12 +29,11 @@ export const EmailRecipientChipMenuContent = ({
   onRemove,
 }: EmailRecipientChipMenuContentProps) => {
   const { t } = useLingui();
-  const { closeDropdown } = useCloseDropdown();
   const { copyToClipboard } = useCopyToClipboard();
-  const { enqueueSuccessSnackBar } = useSnackBar();
+  const { enqueueToast } = useToast();
 
   const { createOneRecord: createPerson } = useCreateOneRecord({
-    objectNameSingular: CoreObjectNameSingular.Person,
+    objectNameSingular: StandardObjectNameSingular.Person,
   });
 
   const workspaceMember = resolution?.workspaceMember;
@@ -53,8 +47,6 @@ export const EmailRecipientChipMenuContent = ({
     : '';
 
   const handleAddAsPerson = async () => {
-    closeDropdown(dropdownId);
-
     const [firstName = '', ...lastNameParts] = (
       recipient.displayName ?? ''
     ).split(' ');
@@ -65,94 +57,89 @@ export const EmailRecipientChipMenuContent = ({
     });
 
     if (isDefined(createdPerson)) {
-      enqueueSuccessSnackBar({ message: t`Person created` });
+      enqueueToast({ status: 'success', children: t`Person created` });
     }
   };
 
   const handleCopy = () => {
-    closeDropdown(dropdownId);
     copyToClipboard(recipient.address, t`Email copied to clipboard`);
-  };
-
-  const handleEdit = () => {
-    closeDropdown(dropdownId);
-    onEdit();
-  };
-
-  const handleRemove = () => {
-    closeDropdown(dropdownId);
-    onRemove();
   };
 
   const showAddAsPerson =
     !isDefined(person) && !isDefined(workspaceMember) && !isInvalid;
 
   return (
-    <DropdownContent widthInPixels={280}>
+    <>
       {(isDefined(person) || isDefined(workspaceMember) || showAddAsPerson) && (
         <>
-          <DropdownMenuItemsContainer>
+          <Dropdown.Section>
             {isDefined(workspaceMember) ? (
-              <MenuItemAvatar
-                avatar={{
-                  avatarUrl: getAbsoluteImageUrl(workspaceMember.avatarUrl),
-                  placeholder: isNonEmptyString(workspaceMemberFullName)
-                    ? workspaceMemberFullName
-                    : recipient.address,
-                  placeholderColorSeed: workspaceMember.id,
-                  size: 'md',
-                  type: 'rounded',
-                }}
-                text={
-                  isNonEmptyString(workspaceMemberFullName)
-                    ? workspaceMemberFullName
-                    : recipient.address
+              <ListItem
+                startIcon={
+                  <Avatar
+                    src={getAbsoluteImageUrl(workspaceMember.avatarUrl)}
+                    name={
+                      isNonEmptyString(workspaceMemberFullName)
+                        ? workspaceMemberFullName
+                        : recipient.address
+                    }
+                    colorSeed={workspaceMember.id}
+                    size="md"
+                    shape="circle"
+                  />
                 }
-                contextualText={t`Team member`}
-              />
+                description={t`Team member`}
+              >
+                {isNonEmptyString(workspaceMemberFullName)
+                  ? workspaceMemberFullName
+                  : recipient.address}
+              </ListItem>
             ) : isDefined(person) ? (
-              <MenuItemAvatar
-                avatar={{
-                  avatarUrl: getAbsoluteImageUrl(person.avatarUrl),
-                  placeholder: isNonEmptyString(personFullName)
-                    ? personFullName
-                    : recipient.address,
-                  placeholderColorSeed: person.id,
-                  size: 'md',
-                  type: 'rounded',
-                }}
-                text={
-                  isNonEmptyString(personFullName)
-                    ? personFullName
-                    : recipient.address
+              <ListItem
+                startIcon={
+                  <Avatar
+                    src={getAbsoluteImageUrl(person.avatarUrl)}
+                    name={
+                      isNonEmptyString(personFullName)
+                        ? personFullName
+                        : recipient.address
+                    }
+                    colorSeed={person.id}
+                    size="md"
+                    shape="circle"
+                  />
                 }
-                contextualText={recipient.address}
-              />
+                description={recipient.address}
+              >
+                {isNonEmptyString(personFullName)
+                  ? personFullName
+                  : recipient.address}
+              </ListItem>
             ) : (
-              <MenuItem
-                LeftIcon={IconUserPlus}
-                text={t`Add as person`}
+              <Dropdown.ActionItem
+                startIcon={<IconUserPlus />}
                 onClick={handleAddAsPerson}
-              />
+              >{t`Add as person`}</Dropdown.ActionItem>
             )}
-          </DropdownMenuItemsContainer>
-          <DropdownMenuSeparator />
+          </Dropdown.Section>
+          <Dropdown.Separator />
         </>
       )}
-      <DropdownMenuItemsContainer>
-        <MenuItem
-          LeftIcon={IconCopy}
-          text={t`Copy email`}
+      <Dropdown.Section>
+        <Dropdown.ActionItem
+          startIcon={<IconCopy />}
           onClick={handleCopy}
-        />
-        <MenuItem LeftIcon={IconPencil} text={t`Edit`} onClick={handleEdit} />
-        <MenuItem
-          accent="danger"
-          LeftIcon={IconTrash}
-          text={t`Remove`}
-          onClick={handleRemove}
-        />
-      </DropdownMenuItemsContainer>
-    </DropdownContent>
+        >{t`Copy email`}</Dropdown.ActionItem>
+        <Dropdown.ActionItem
+          startIcon={<IconPencil />}
+          onClick={onEdit}
+        >{t`Edit`}</Dropdown.ActionItem>
+        <Dropdown.ActionItem
+          color="danger"
+          startIcon={<IconTrash />}
+          onClick={onRemove}
+        >{t`Remove`}</Dropdown.ActionItem>
+      </Dropdown.Section>
+    </>
   );
 };

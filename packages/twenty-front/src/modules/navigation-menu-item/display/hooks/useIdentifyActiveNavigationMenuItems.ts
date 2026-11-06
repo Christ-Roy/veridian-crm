@@ -6,7 +6,10 @@ import { getAppPath, isDefined } from 'twenty-shared/utils';
 import { MAIN_CONTEXT_STORE_INSTANCE_ID } from '@/context-store/constants/MainContextStoreInstanceId';
 import { contextStoreCurrentViewIdComponentState } from '@/context-store/states/contextStoreCurrentViewIdComponentState';
 import { lastClickedNavigationMenuItemIdState } from '@/navigation-menu-item/common/states/lastClickedNavigationMenuItemIdState';
+import { getLinkNavigationMenuItemComputedLink } from '@/navigation-menu-item/common/utils/getLinkNavigationMenuItemComputedLink';
 import { navigationMenuItemsSelector } from '@/navigation-menu-item/common/states/navigationMenuItemsSelector';
+import { isLinkNavigationMenuItemActive } from '@/navigation-menu-item/display/link/utils/isLinkNavigationMenuItemActive';
+import { isNativePageNavigationMenuItemActive } from '@/navigation-menu-item/display/native-page/utils/isNativePageNavigationMenuItemActive';
 import { getObjectMetadataForNavigationMenuItem } from '@/navigation-menu-item/display/object/utils/getObjectMetadataForNavigationMenuItem';
 import { getNavigationMenuItemComputedLink } from '@/navigation-menu-item/display/utils/getNavigationMenuItemComputedLink';
 import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
@@ -37,6 +40,7 @@ export const useIdentifyActiveNavigationMenuItems = (): {
   } = useParams();
 
   const currentPath = location.pathname;
+  const currentSearch = location.search;
   const currentPathWithSearch = location.pathname + location.search;
 
   const currentObjectMetadataItem = activeObjectMetadataItems.find(
@@ -99,6 +103,39 @@ export const useIdentifyActiveNavigationMenuItems = (): {
         }
       }
 
+      const matchingPathNavigationMenuItemIds = navigationMenuItems
+        .filter(
+          (item) =>
+            item.type === NavigationMenuItemType.LINK &&
+            isLinkNavigationMenuItemActive({
+              computedLink: getLinkNavigationMenuItemComputedLink(item),
+              location: { pathname: currentPath, search: currentSearch },
+            }),
+        )
+        .map((item) => item.id);
+
+      const matchingNativePageNavigationMenuItemIds = navigationMenuItems
+        .filter(
+          (item) =>
+            item.type === NavigationMenuItemType.NATIVE_PAGE &&
+            isNativePageNavigationMenuItemActive({
+              item,
+              pathname: currentPath,
+            }),
+        )
+        .map((item) => item.id);
+
+      // Native pages don't reset the context store's view id, so a view match would win on them.
+      if (matchingNativePageNavigationMenuItemIds.length > 0) {
+        return {
+          activeNavigationMenuItemIds: [
+            ...matchingNativePageNavigationMenuItemIds,
+            ...matchingPathNavigationMenuItemIds,
+          ],
+          objectMetadataIdForOpenedSection: null,
+        };
+      }
+
       if (isOnRecordShowPage) {
         const matchingRecordNavigationMenuItemIds = navigationMenuItems
           .filter((item) => {
@@ -131,6 +168,7 @@ export const useIdentifyActiveNavigationMenuItems = (): {
 
         const activeNavigationMenuItemIds = [
           ...matchingRecordNavigationMenuItemIds,
+          ...matchingPathNavigationMenuItemIds,
           ...matchingObjectNavigationMenuItemIds,
         ];
 
@@ -159,6 +197,13 @@ export const useIdentifyActiveNavigationMenuItems = (): {
         };
       }
 
+      if (matchingPathNavigationMenuItemIds.length > 0) {
+        return {
+          activeNavigationMenuItemIds: matchingPathNavigationMenuItemIds,
+          objectMetadataIdForOpenedSection: null,
+        };
+      }
+
       const matchingObjectNavigationMenuItemIds = navigationMenuItems
         .filter(
           (item) =>
@@ -183,6 +228,7 @@ export const useIdentifyActiveNavigationMenuItems = (): {
       lastVisitedViewPerObjectMetadataItem,
       currentPathWithSearch,
       currentPath,
+      currentSearch,
       currentObjectMetadataItem,
       isOnRecordShowPage,
       contextStoreCurrentViewId,

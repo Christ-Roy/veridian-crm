@@ -17,13 +17,19 @@ import { GenericDropdownContentWidth } from '@/ui/layout/dropdown/constants/Gene
 import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorValue';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { ObjectFilterDropdownComponentInstanceContext } from '@/object-record/object-filter-dropdown/states/contexts/ObjectFilterDropdownComponentInstanceContext';
+import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
 import { getFilterTypeFromFieldType, isDefined } from 'twenty-shared/utils';
-import { type SelectOption } from 'twenty-ui/input';
-
-const OBJECT_FILTER_DROPDOWN_INNER_SELECT_OPERAND_DROPDOWN_ID =
-  'object-filter-dropdown-inner-select-operand-dropdown';
+import { type SelectOption } from 'twenty-ui/primitives/input';
+import { useLingui } from '@lingui/react/macro';
 
 export const ObjectFilterDropdownInnerSelectOperandDropdown = () => {
+  const { t } = useLingui();
+  const objectFilterDropdownComponentInstanceId =
+    useAvailableComponentInstanceIdOrThrow(
+      ObjectFilterDropdownComponentInstanceContext,
+    );
+  const dropdownId = `${objectFilterDropdownComponentInstanceId}-inner-select-operand`;
   const selectedOperandInDropdown = useAtomComponentStateValue(
     selectedOperandInDropdownComponentState,
   );
@@ -43,9 +49,7 @@ export const ObjectFilterDropdownInnerSelectOperandDropdown = () => {
 
   const objectMetadataItems = useAtomStateValue(objectMetadataItemsSelector);
 
-  // The target field may have been deleted from the workspace since the
-  // filter was saved — return null and let the parent skip rendering
-  // rather than throwing.
+  // The target field may have been deleted since the filter was saved.
   const relationTargetFieldMetadataItem = isDefined(
     relationTargetFieldMetadataIdUsedInDropdown,
   )
@@ -114,7 +118,8 @@ export const ObjectFilterDropdownInnerSelectOperandDropdown = () => {
 
   return (
     <DropdownMenuInnerSelect
-      dropdownId={OBJECT_FILTER_DROPDOWN_INNER_SELECT_OPERAND_DROPDOWN_ID}
+      dropdownId={dropdownId}
+      aria-label={t`Operand`}
       selectedOption={selectedOption}
       onChange={handleOperandChange}
       options={options}

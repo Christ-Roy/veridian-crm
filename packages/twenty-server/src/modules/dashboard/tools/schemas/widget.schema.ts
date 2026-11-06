@@ -2,7 +2,9 @@ import { isNumber } from '@sniptt/guards';
 import {
   AggregateOperations,
   ObjectRecordGroupByDateGranularity,
+  PageLayoutTabLayoutMode,
   ViewFilterOperand,
+  WidgetType,
 } from 'twenty-shared/types';
 import { z } from 'zod';
 
@@ -12,7 +14,6 @@ import { BarChartLayout } from 'src/engine/metadata-modules/page-layout-widget/e
 import { ChartNumberFormat } from 'src/engine/metadata-modules/page-layout-widget/enums/chart-number-format.enum';
 import { GraphOrderBy } from 'src/engine/metadata-modules/page-layout-widget/enums/graph-order-by.enum';
 import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
-import { WidgetType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-type.enum';
 
 // Chart color options (MAIN_COLOR_NAMES plus 'auto').
 // should we export MAIN_COLOR_NAMES from twenty-ui to twenty-shared and use that here?
@@ -107,7 +108,7 @@ const chartRecordFilterSchema = z.object({
   operand: z
     .enum(FILTER_OPERAND_OPTIONS)
     .describe(
-      'Filter operator. Valid operators per field type — TEXT/EMAILS/FULL_NAME/ARRAY/PHONES: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. NUMBER/CURRENCY/RATING: GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. DATE/DATE_TIME: IS, IS_RELATIVE, IS_IN_PAST, IS_IN_FUTURE, IS_TODAY, IS_BEFORE, IS_AFTER, IS_EMPTY, IS_NOT_EMPTY. SELECT: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. MULTI_SELECT: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. RELATION: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. BOOLEAN: IS.',
+      'Filter operator. Valid operators per field type — TEXT: CONTAINS, DOES_NOT_CONTAIN, IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. EMAILS/FULL_NAME/ARRAY/PHONES: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. NUMBER/CURRENCY/RATING: GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. DATE/DATE_TIME: IS, IS_RELATIVE, IS_IN_PAST, IS_IN_FUTURE, IS_TODAY, IS_BEFORE, IS_AFTER, IS_EMPTY, IS_NOT_EMPTY. SELECT: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. MULTI_SELECT: CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY. RELATION: IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY. BOOLEAN: IS.',
     ),
   value: z
     .string()
@@ -161,10 +162,17 @@ export const chartFilterSchema = z
   })
   .describe(
     'Filter restricting which records are included in this chart. All filtered fields must belong to the widget object.',
-  );
+  )
+  .meta({ id: 'chartFilter' });
 
 const displayDataLabelSchema = z.boolean().optional();
 const displayLegendSchema = z.boolean().optional();
+const chartNumberFormatSchema = z
+  .enum(CHART_NUMBER_FORMAT_OPTIONS)
+  .optional()
+  .describe(
+    'Display format for data label values: SHORT abbreviates large numbers (1.3m), FULL shows the complete number (1,300,090). Tooltips always show the full value.',
+  );
 const showCenterMetricSchema = z
   .boolean()
   .optional()
@@ -264,7 +272,8 @@ const withRangeMinMaxRefinement = <T extends z.ZodType<RangeMinMaxFields>>(
     },
   );
 
-export const gridPositionSchema = z.object({
+export const widgetPositionSchema = z.object({
+  layoutMode: z.literal(PageLayoutTabLayoutMode.GRID),
   row: z.number().min(0).describe('Row position (0-based)'),
   column: z
     .number()
@@ -287,7 +296,6 @@ export const widgetTypeSchema = z.enum([
   WidgetType.RECORD_TABLE,
 ]);
 
-// Graph configuration schema for AGGREGATE type (KPI numbers)
 const aggregateChartConfigSchemaBase = z.object({
   configurationType: z.literal(WidgetConfigurationType.AGGREGATE_CHART),
   aggregateFieldMetadataId: z
@@ -326,7 +334,6 @@ const aggregateChartConfigSchema = aggregateChartConfigSchemaBase.extend({
 const aggregateChartConfigSchemaWithoutDefaults =
   aggregateChartConfigSchemaBase;
 
-// Graph configuration schema for BAR charts
 const barChartConfigSchemaCore = z.object({
   configurationType: z.literal(WidgetConfigurationType.BAR_CHART),
   aggregateFieldMetadataId: z
@@ -356,7 +363,7 @@ const barChartConfigSchemaCore = z.object({
     .string()
     .optional()
     .describe(
-      'REQUIRED for relation fields (e.g. "name", "address.addressCity") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+      'Optional for relation fields: omit it to group by the related record itself, labelled with its display name; provide it (e.g. "name", "address.addressCity") to group by that attribute instead. REQUIRED for composite fields (e.g. "addressCity").',
     ),
   secondaryAxisGroupByFieldMetadataId: z.uuid().optional(),
   secondaryAxisGroupByFieldName: z
@@ -369,7 +376,7 @@ const barChartConfigSchemaCore = z.object({
     .string()
     .optional()
     .describe(
-      'REQUIRED for relation fields (e.g. "name", "stage") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+      'Optional for relation fields: omit it to group by the related record itself, labelled with its display name; provide it (e.g. "name", "stage") to group by that attribute instead. REQUIRED for composite fields (e.g. "addressCity").',
     ),
   primaryAxisOrderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
   primaryAxisManualSortOrder: z.array(z.string()).optional(),
@@ -391,6 +398,7 @@ const barChartConfigSchemaCore = z.object({
     .describe('Which axis labels to show'),
   displayDataLabel: displayDataLabelSchema,
   displayLegend: displayLegendSchema,
+  numberFormat: chartNumberFormatSchema,
   groupMode: z
     .enum(BAR_CHART_GROUP_MODE_OPTIONS)
     .optional()
@@ -417,7 +425,6 @@ const barChartConfigSchema = withRangeMinMaxRefinement(
   ),
 );
 
-// Graph configuration schema for LINE charts
 const lineChartConfigSchemaCore = z.object({
   configurationType: z.literal(WidgetConfigurationType.LINE_CHART),
   aggregateFieldMetadataId: z
@@ -447,7 +454,7 @@ const lineChartConfigSchemaCore = z.object({
     .string()
     .optional()
     .describe(
-      'REQUIRED for relation fields (e.g. "name", "address.addressCity") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+      'Optional for relation fields: omit it to group by the related record itself, labelled with its display name; provide it (e.g. "name", "address.addressCity") to group by that attribute instead. REQUIRED for composite fields (e.g. "addressCity").',
     ),
   secondaryAxisGroupByFieldMetadataId: z.uuid().optional(),
   secondaryAxisGroupByFieldName: z
@@ -460,7 +467,7 @@ const lineChartConfigSchemaCore = z.object({
     .string()
     .optional()
     .describe(
-      'REQUIRED for relation fields (e.g. "name", "stage") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+      'Optional for relation fields: omit it to group by the related record itself, labelled with its display name; provide it (e.g. "name", "stage") to group by that attribute instead. REQUIRED for composite fields (e.g. "addressCity").',
     ),
   primaryAxisOrderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
   primaryAxisManualSortOrder: z.array(z.string()).optional(),
@@ -482,6 +489,7 @@ const lineChartConfigSchemaCore = z.object({
     .describe('Which axis labels to show'),
   displayDataLabel: displayDataLabelSchema,
   displayLegend: displayLegendSchema,
+  numberFormat: chartNumberFormatSchema,
   isStacked: z.boolean().optional().describe('Stack multiple lines'),
   isCumulative: z.boolean().optional().describe('Show running totals'),
   rangeMin: z.number().optional().describe('Y axis minimum value'),
@@ -502,7 +510,6 @@ const lineChartConfigSchema = withRangeMinMaxRefinement(
   ),
 );
 
-// Graph configuration schema for PIE charts
 const pieChartConfigSchemaCore = z.object({
   configurationType: z.literal(WidgetConfigurationType.PIE_CHART),
   aggregateFieldMetadataId: z
@@ -530,7 +537,7 @@ const pieChartConfigSchemaCore = z.object({
     .string()
     .optional()
     .describe(
-      'REQUIRED for relation fields (e.g. "name", "stage") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+      'Optional for relation fields: omit it to group by the related record itself, labelled with its display name; provide it (e.g. "name", "stage") to group by that attribute instead. REQUIRED for composite fields (e.g. "addressCity").',
     ),
   orderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
   manualSortOrder: z.array(z.string()).optional(),
@@ -541,6 +548,7 @@ const pieChartConfigSchemaCore = z.object({
   color: z.enum(CHART_COLORS).optional().describe('Chart color theme'),
   displayDataLabel: displayDataLabelSchema,
   displayLegend: displayLegendSchema,
+  numberFormat: chartNumberFormatSchema,
   showCenterMetric: showCenterMetricSchema,
   hideEmptyCategory: hideEmptyCategorySchema,
   filter: chartFilterSchema.optional(),
@@ -559,7 +567,6 @@ const pieChartConfigSchema = withManualSortRefinement(
   }),
 );
 
-// Record table configuration
 const recordTableConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.RECORD_TABLE),
   viewId: z
@@ -575,24 +582,15 @@ const recordTableConfigSchema = z.object({
     .describe('Maximum number of records displayed in the table widget.'),
 });
 
-// Iframe configuration
 const iframeConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.IFRAME),
   url: z.string().url().optional().describe('URL to embed'),
 });
 
-// Rich text configuration
 const richTextConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.STANDALONE_RICH_TEXT),
   body: z
     .object({
-      blocknote: z
-        .string()
-        .nullable()
-        .optional()
-        .describe(
-          'BlockNote JSON string (advanced). Stringified array of BlockNote blocks.',
-        ),
       markdown: z
         .string()
         .nullable()
@@ -652,5 +650,4 @@ export const widgetConfigurationSchemaWithoutDefaults = z
   .optional()
   .describe('Widget configuration - structure depends on widget type');
 
-// Export enums for documentation
 export { AggregateOperations, WidgetConfigurationType };

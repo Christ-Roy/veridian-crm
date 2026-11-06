@@ -1,0 +1,42 @@
+import { getObjectPermissionsForObject } from '@/object-metadata/utils/getObjectPermissionsForObject';
+import { type ObjectRecordsPermissions } from 'twenty-shared/types';
+
+const OBJECT_METADATA_ID = 'object-metadata-id';
+
+describe('getObjectPermissionsForObject', () => {
+  it('should allow everything when the object has no permissions entry', () => {
+    expect(getObjectPermissionsForObject({}, OBJECT_METADATA_ID)).toEqual({
+      canReadAllRecords: true,
+      canUpdateAllRecords: true,
+      canSoftDeleteAllRecords: true,
+      canDestroyAllRecords: true,
+      restrictedFields: {},
+    });
+  });
+
+  it('should return the permissions of the requested object', () => {
+    const restrictedObjectPermissions: ObjectRecordsPermissions = {
+      canReadAllRecords: true,
+      canUpdateAllRecords: false,
+      canSoftDeleteAllRecords: false,
+      canDestroyAllRecords: false,
+      restrictedFields: {
+        'field-metadata-id': { canRead: false, canUpdate: false },
+      },
+      rowLevelRecordsPermissions: null,
+    };
+
+    expect(
+      getObjectPermissionsForObject(
+        {
+          [OBJECT_METADATA_ID]: restrictedObjectPermissions,
+          'other-object-metadata-id': {
+            ...restrictedObjectPermissions,
+            canReadAllRecords: false,
+          },
+        },
+        OBJECT_METADATA_ID,
+      ),
+    ).toEqual(restrictedObjectPermissions);
+  });
+});

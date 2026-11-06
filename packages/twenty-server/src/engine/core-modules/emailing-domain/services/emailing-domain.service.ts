@@ -1,10 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { msg } from '@lingui/core/macro';
 
+import { MessageCampaignStatus } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
+import { CAMPAIGN_DELIVERY_STATE } from 'src/engine/core-modules/emailing-domain/constants/campaign-delivery-state.constant';
 import {
   EmailingDomainDriverException,
   EmailingDomainDriverExceptionCode,
@@ -16,10 +19,15 @@ import {
   EmailingDomainException,
   EmailingDomainExceptionCode,
 } from 'src/engine/core-modules/emailing-domain/exceptions/emailing-domain.exception';
+import { DmarcRecordService } from 'src/engine/core-modules/emailing-domain/services/dmarc-record.service';
 import { UnsubscribeHostnameService } from 'src/engine/core-modules/emailing-domain/services/unsubscribe-hostname.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
+import { CampaignDeliveryWorkspaceEntity } from 'src/modules/emailing/standard-objects/campaign-delivery.workspace-entity';
+import { MessageCampaignWorkspaceEntity } from 'src/modules/emailing/standard-objects/message-campaign.workspace-entity';
 
 @Injectable()
 export class EmailingDomainService {
@@ -28,13 +36,23 @@ export class EmailingDomainService {
   constructor(
     @InjectWorkspaceScopedRepository(EmailingDomainEntity)
     private readonly emailingDomainRepository: WorkspaceScopedRepository<EmailingDomainEntity>,
-    // Domain is globally unique across workspaces, so existence checks need
-    // an unscoped repository
+    // Domain is globally unique, so existence checks need an unscoped repository.
+    // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
     @InjectRepository(EmailingDomainEntity)
     private readonly globalEmailingDomainRepository: Repository<EmailingDomainEntity>,
     private readonly emailingDomainDriverFactory: EmailingDomainDriverFactory,
     private readonly unsubscribeHostnameService: UnsubscribeHostnameService,
+    private readonly dmarcRecordService: DmarcRecordService,
+    private readonly workspaceOrmManager: WorkspaceOrmManager,
   ) {}
+
+  private async withDnsRecords(
+    emailingDomain: EmailingDomainEntity,
+  ): Promise<EmailingDomainEntity> {
+    return this.dmarcRecordService.withDnsRecord(
+      await this.unsubscribeHostnameService.withDnsRecords(emailingDomain),
+    );
+  }
 
   async createEmailingDomain(
     domain: string,
@@ -49,6 +67,11 @@ export class EmailingDomainService {
       throw new EmailingDomainException(
         'Emailing domain is already registered',
         EmailingDomainExceptionCode.EMAILING_DOMAIN_ALREADY_REGISTERED,
+        existingEmailingDomain.workspaceId === workspaceId
+          ? {
+              userFriendlyMessage: msg`Already registered in this workspace.`,
+            }
+          : {},
       );
     }
 
@@ -70,21 +93,19 @@ export class EmailingDomainService {
     const isVerifiedOnCreation =
       verificationResult.status === EmailingDomainStatus.VERIFIED;
 
-    const emailingDomain = await this.emailingDomainRepository.save(
-      workspaceId,
-      {
+    const emailingDomain =
+      await this.emailingDomainRepository.insertAndReturnOne(workspaceId, {
         domain,
         status: verificationResult.status,
         verificationRecords: verificationResult.verificationRecords,
         verifiedAt: isVerifiedOnCreation ? new Date() : null,
-      },
-    );
+      });
 
     await this.unsubscribeHostnameService.sync(workspaceId, emailingDomain.id, {
       provision: true,
     });
 
-    return this.unsubscribeHostnameService.withDnsRecords(
+    return this.withDnsRecords(
       await this.emailingDomainRepository.findOneOrFail(workspaceId, {
         where: { id: emailingDomain.id },
       }),
@@ -136,11 +157,44 @@ export class EmailingDomainService {
       emailingDomainId,
     );
 
+    await this.validateNoCampaignSendingOrThrow(workspace.id);
+
     await this.unsubscribeHostnameService.deprovision(emailingDomain);
     await this.deleteRemoteEmailingDomain(emailingDomain);
     await this.emailingDomainRepository.delete(workspace.id, {
       id: emailingDomain.id,
     });
+  }
+
+  async validateNoCampaignSendingOrThrow(workspaceId: string): Promise<void> {
+    const isCampaignSending =
+      await this.workspaceOrmManager.executeInWorkspaceContext(async () => {
+        const hasSendingCampaign = await this.workspaceOrmManager
+          .getRepositoryWithoutPermissionChecks(MessageCampaignWorkspaceEntity)
+          .exists({ where: { status: MessageCampaignStatus.SENDING } });
+
+        if (hasSendingCampaign) {
+          return true;
+        }
+
+        return this.workspaceOrmManager
+          .getRepositoryWithoutPermissionChecks(CampaignDeliveryWorkspaceEntity)
+          .exists({
+            where: {
+              state: In([
+                CAMPAIGN_DELIVERY_STATE.QUEUED,
+                CAMPAIGN_DELIVERY_STATE.SENDING,
+              ]),
+            },
+          });
+      }, buildSystemAuthContext(workspaceId));
+
+    if (isCampaignSending) {
+      throw new EmailingDomainException(
+        `Workspace ${workspaceId} has a campaign sending`,
+        EmailingDomainExceptionCode.EMAILING_DOMAIN_CAMPAIGN_SENDING,
+      );
+    }
   }
 
   async cleanupEmailingDomainsForWorkspace(
@@ -181,17 +235,20 @@ export class EmailingDomainService {
 
     return Promise.all(
       emailingDomains.map((emailingDomain) =>
-        this.unsubscribeHostnameService.withDnsRecords(emailingDomain),
+        this.withDnsRecords(emailingDomain),
       ),
     );
   }
 
-  async verifyEmailingDomain(
-    workspace: WorkspaceEntity,
-    emailingDomainId: string,
-  ): Promise<EmailingDomainEntity> {
+  async verifyEmailingDomain({
+    workspaceId,
+    emailingDomainId,
+  }: {
+    workspaceId: string;
+    emailingDomainId: string;
+  }): Promise<EmailingDomainEntity> {
     const emailingDomain = await this.findEmailingDomainByIdOrThrow(
-      workspace.id,
+      workspaceId,
       emailingDomainId,
     );
 
@@ -208,7 +265,7 @@ export class EmailingDomainService {
       verificationResult.status === EmailingDomainStatus.VERIFIED;
 
     await this.emailingDomainRepository.update(
-      workspace.id,
+      workspaceId,
       { id: emailingDomain.id },
       {
         status: verificationResult.status,
@@ -217,16 +274,12 @@ export class EmailingDomainService {
       },
     );
 
-    await this.unsubscribeHostnameService.sync(
-      workspace.id,
-      emailingDomain.id,
-      {
-        provision: true,
-      },
-    );
+    await this.unsubscribeHostnameService.sync(workspaceId, emailingDomain.id, {
+      provision: true,
+    });
 
-    return this.unsubscribeHostnameService.withDnsRecords(
-      await this.emailingDomainRepository.findOneOrFail(workspace.id, {
+    return this.withDnsRecords(
+      await this.emailingDomainRepository.findOneOrFail(workspaceId, {
         where: { id: emailingDomain.id },
       }),
     );

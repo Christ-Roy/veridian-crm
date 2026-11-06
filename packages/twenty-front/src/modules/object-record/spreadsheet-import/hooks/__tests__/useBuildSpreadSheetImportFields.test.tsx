@@ -1,7 +1,8 @@
+import { i18n } from '@lingui/core';
 import { renderHook } from '@testing-library/react';
 import { Provider as JotaiProvider } from 'jotai';
 import { type ReactNode } from 'react';
-import { useIcons } from 'twenty-ui/icon';
+import { useIcons } from 'twenty-ui/icon/provider';
 import { JestObjectMetadataItemSetter } from '~/testing/jest/JestObjectMetadataItemSetter';
 
 import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
@@ -10,6 +11,8 @@ import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataIte
 import { type IndexMetadataItem } from '@/object-metadata/types/IndexMetadataItem';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { useBuildSpreadsheetImportFields } from '@/object-record/spreadsheet-import/hooks/useBuildSpreadSheetImportFields';
+import { COMPOSITE_FIELD_SUB_FIELD_LABEL_MESSAGES } from '@/settings/data-model/constants/CompositeFieldSubFieldLabelMessages';
+import { SOURCE_LOCALE } from 'twenty-shared/translations';
 import { FieldMetadataType, RelationType } from '~/generated-metadata/graphql';
 
 const Wrapper = ({ children }: { children: ReactNode }) => {
@@ -20,7 +23,7 @@ const Wrapper = ({ children }: { children: ReactNode }) => {
   );
 };
 
-jest.mock('twenty-ui/icon', () => ({
+jest.mock('twenty-ui/icon/provider', () => ({
   useIcons: jest.fn(),
 }));
 
@@ -244,6 +247,63 @@ describe('useBuildSpreadSheetImportFields', () => {
     expect(firstNameField?.isCompositeSubField).toBe(true);
     expect(lastNameField?.isNestedField).toBe(true);
     expect(lastNameField?.isCompositeSubField).toBe(true);
+  });
+
+  it('should keep the English label of a translated sub-field as an alternate match', () => {
+    i18n.load('fr-FR', {
+      [COMPOSITE_FIELD_SUB_FIELD_LABEL_MESSAGES[FieldMetadataType.FULL_NAME]
+        .firstName.id]: 'Prénom',
+    });
+    i18n.activate('fr-FR');
+
+    try {
+      const { result } = renderHook(() => useBuildSpreadsheetImportFields(), {
+        wrapper: Wrapper,
+      });
+
+      const spreadsheetImportFields =
+        result.current.buildSpreadsheetImportFields([
+          createMockFieldMetadataItem({
+            type: FieldMetadataType.FULL_NAME,
+            name: 'fullName',
+            label: 'Full Name',
+          }),
+        ]);
+
+      const firstNameField = spreadsheetImportFields.find(
+        (field) => field.compositeSubFieldKey === 'firstName',
+      );
+
+      expect(firstNameField).toMatchObject({
+        label: 'Full Name / Prénom',
+        alternateMatches: ['Full Name / First Name'],
+        key: 'First Name (fullName)',
+      });
+    } finally {
+      i18n.activate(SOURCE_LOCALE);
+    }
+  });
+
+  it('should not add alternate matches when the label is already English', () => {
+    const { result } = renderHook(() => useBuildSpreadsheetImportFields(), {
+      wrapper: Wrapper,
+    });
+
+    const spreadsheetImportFields = result.current.buildSpreadsheetImportFields(
+      [
+        createMockFieldMetadataItem({
+          type: FieldMetadataType.FULL_NAME,
+          name: 'fullName',
+          label: 'Full Name',
+        }),
+      ],
+    );
+
+    expect(
+      spreadsheetImportFields.every(
+        (field) => field.alternateMatches === undefined,
+      ),
+    ).toBe(true);
   });
 
   it('should filter out ACTOR fields', () => {

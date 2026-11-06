@@ -3,8 +3,6 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import * as crypto from 'crypto';
-
 import { isNonEmptyString } from '@sniptt/guards';
 import { ENTERPRISE_INSTANCE_TYPE } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
@@ -16,10 +14,6 @@ import {
   AppTokenType,
 } from 'src/engine/core-modules/app-token/app-token.entity';
 import {
-  ENTERPRISE_JWT_DEV_PUBLIC_KEY,
-  ENTERPRISE_JWT_PUBLIC_KEY,
-} from 'src/engine/core-modules/enterprise/constants/enterprise-public-key.constant';
-import {
   EnterpriseException,
   EnterpriseExceptionCode,
 } from 'src/engine/core-modules/enterprise/enterprise.exception';
@@ -28,8 +22,9 @@ import {
   type EnterpriseKeyPayload,
   type EnterpriseLicenseInfo,
   type EnterpriseValidityPayload,
-} from 'src/engine/core-modules/enterprise/types/enterprise-key-payload.type';
-import { NodeEnvironment } from 'src/engine/core-modules/twenty-config/interfaces/node-environment.interface';
+} from 'src/engine/core-modules/enterprise/types/organization-key-payload.type';
+import { isValidityTokenReloadDue } from 'src/engine/core-modules/enterprise/utils/is-validity-token-reload-due.util';
+import { verifyEnterpriseJwt } from 'src/engine/core-modules/enterprise/utils/verify-enterprise-jwt.util';
 import {
   ConfigVariableException,
   ConfigVariableExceptionCode,
@@ -45,6 +40,9 @@ export class EnterprisePlanService implements OnModuleInit {
   private cachedValidityPayload: EnterpriseValidityPayload | null = null;
   private cachedKeyPayload: EnterpriseKeyPayload | null = null;
   private lastRefreshRejectionCode: string | null = null;
+  private lastValidityTokenLoadStartedAt: number | null = null;
+  private didLastValidityTokenLoadFail = false;
+  private validityTokenRevocationCount = 0;
 
   static readonly ENTERPRISE_KEY_BOUND_TO_ANOTHER_SERVER_CODE =
     'ENTERPRISE_KEY_BOUND_TO_ANOTHER_SERVER';
@@ -84,6 +82,10 @@ export class EnterprisePlanService implements OnModuleInit {
   }
 
   private async loadValidityToken(): Promise<void> {
+    this.lastValidityTokenLoadStartedAt = Date.now();
+
+    const revocationCountAtLoadStart = this.validityTokenRevocationCount;
+
     try {
       const dbToken = await this.appTokenRepository.findOne({
         where: {
@@ -94,6 +96,12 @@ export class EnterprisePlanService implements OnModuleInit {
         },
         order: { createdAt: 'DESC' },
       });
+
+      this.didLastValidityTokenLoadFail = false;
+
+      if (revocationCountAtLoadStart !== this.validityTokenRevocationCount) {
+        return;
+      }
 
       const tokenValue =
         dbToken?.value ??
@@ -113,10 +121,11 @@ export class EnterprisePlanService implements OnModuleInit {
         this.cachedValidityPayload = null;
       }
     } catch (error) {
+      this.didLastValidityTokenLoadFail = true;
+
       this.logger.warn(
-        `Failed to load validity token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to load validity token: ${error instanceof Error ? error.message : 'Unknown error'}. Keeping the token in hand.`,
       );
-      this.cachedValidityPayload = null;
     }
   }
 
@@ -156,14 +165,50 @@ export class EnterprisePlanService implements OnModuleInit {
     return isDefined(this.cachedKeyPayload);
   }
 
-  hasValidEnterpriseValidityToken(): boolean {
-    if (isDefined(this.cachedValidityPayload)) {
-      const now = Math.floor(Date.now() / 1000);
+  private reloadValidityTokenIfStale(): void {
+    const isReloadDue = isValidityTokenReloadDue({
+      lastLoadStartedAt: this.lastValidityTokenLoadStartedAt,
+      didLastLoadFail: this.didLastValidityTokenLoadFail,
+      now: Date.now(),
+    });
 
-      return this.cachedValidityPayload.exp > now;
+    if (!isReloadDue) {
+      return;
     }
 
-    return false;
+    void this.loadValidityToken();
+  }
+
+  private isCachedValidityPayloadValid(): boolean {
+    if (!isDefined(this.cachedValidityPayload)) {
+      return false;
+    }
+
+    return this.cachedValidityPayload.exp > Math.floor(Date.now() / 1000);
+  }
+
+  hasValidEnterpriseValidityToken(): boolean {
+    this.reloadValidityTokenIfStale();
+
+    return this.isCachedValidityPayloadValid();
+  }
+
+  async isValidWithFreshToken(): Promise<boolean> {
+    if (this.isCachedValidityPayloadValid()) {
+      return true;
+    }
+
+    if (
+      isValidityTokenReloadDue({
+        lastLoadStartedAt: this.lastValidityTokenLoadStartedAt,
+        didLastLoadFail: this.didLastValidityTokenLoadFail,
+        now: Date.now(),
+      })
+    ) {
+      await this.loadValidityToken();
+    }
+
+    return this.isCachedValidityPayloadValid();
   }
 
   isValid(): boolean {
@@ -179,10 +224,8 @@ export class EnterprisePlanService implements OnModuleInit {
     await this.loadValidityToken();
 
     if (isDefined(this.cachedValidityPayload)) {
-      const now = Math.floor(Date.now() / 1000);
-
       return {
-        isValid: this.cachedValidityPayload.exp > now,
+        isValid: this.isCachedValidityPayloadValid(),
         licensee: this.cachedKeyPayload?.licensee ?? null,
         expiresAt: new Date(this.cachedValidityPayload.exp * 1000),
         subscriptionId: this.cachedValidityPayload.sub,
@@ -221,6 +264,7 @@ export class EnterprisePlanService implements OnModuleInit {
   }
 
   private async revokeStoredValidityToken(): Promise<void> {
+    this.validityTokenRevocationCount += 1;
     this.cachedValidityPayload = null;
 
     try {
@@ -284,8 +328,6 @@ export class EnterprisePlanService implements OnModuleInit {
           errorData.code ===
           EnterprisePlanService.ENTERPRISE_VALIDITY_TOKEN_RATE_LIMITED_CODE
         ) {
-          // Rate limited: the existing token stays valid, surface the reason so
-          // callers (e.g. the manual refresh button) can tell the user.
           throw new EnterpriseException(
             'Validity token refresh rate limit exceeded',
             EnterpriseExceptionCode.ENTERPRISE_VALIDITY_TOKEN_RATE_LIMITED,
@@ -296,10 +338,7 @@ export class EnterprisePlanService implements OnModuleInit {
           this.lastRefreshRejectionCode = errorData.code;
         }
 
-        // Only a key claimed by a different server means this instance is
-        // definitively displaced, so revoke its stored license. Other
-        // rejections (missing SERVER_ID, dev-needs-prod, dev-slot-taken) are
-        // recoverable: the existing token simply expires without reissue.
+        // Only a key bound to another server is definitive; other rejections are recoverable and the token just expires.
         if (
           errorData.code ===
           EnterprisePlanService.ENTERPRISE_KEY_BOUND_TO_ANOTHER_SERVER_CODE
@@ -337,8 +376,7 @@ export class EnterprisePlanService implements OnModuleInit {
     }
   }
 
-  // Self-hosted pricing is per user: a user who belongs to several workspaces
-  // on the same instance only counts as one seat.
+  // Self-hosted pricing is per user, so a user in several workspaces counts as one seat.
   async getBillableSeatCount(): Promise<number> {
     const result = await this.userWorkspaceRepository
       .createQueryBuilder('userWorkspace')
@@ -571,12 +609,24 @@ export class EnterprisePlanService implements OnModuleInit {
     }
 
     const checkoutUrl = `${apiUrl}/checkout`;
+    const serverId = await this.getOrCreateServerId();
+
+    if (!isDefined(serverId)) {
+      throw new EnterpriseException(
+        'Enterprise checkout requires a server id',
+        EnterpriseExceptionCode.ENTERPRISE_MISSING_SERVER_ID,
+      );
+    }
 
     try {
       const response = await fetch(checkoutUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ billingInterval, seatCount }),
+        body: JSON.stringify({
+          billingInterval,
+          seatCount,
+          instanceMetadata: { serverId },
+        }),
       });
 
       if (!response.ok) {
@@ -670,67 +720,13 @@ export class EnterprisePlanService implements OnModuleInit {
     }
   }
 
-  // In development and Jest integration tests, tries both keys so production keys
-  // work locally
-  private getPublicKeysToTry(): string[] {
-    const nodeEnv = this.twentyConfigService.get('NODE_ENV');
-
-    if (
-      nodeEnv === NodeEnvironment.DEVELOPMENT ||
-      nodeEnv === NodeEnvironment.TEST
-    ) {
-      return [ENTERPRISE_JWT_PUBLIC_KEY, ENTERPRISE_JWT_DEV_PUBLIC_KEY];
-    }
-
-    return [ENTERPRISE_JWT_PUBLIC_KEY];
-  }
-
-  private verifyJwt<T extends Record<string, unknown>>(
+  // Development and tests try both keys so production keys also work locally.
+  private verifyJwt<TPayload extends Record<string, unknown>>(
     token: string,
-  ): T | null {
-    try {
-      const parts = token.split('.');
-
-      if (parts.length !== 3) {
-        return null;
-      }
-
-      const [encodedHeader, encodedPayload, signature] = parts;
-      const signingInput = `${encodedHeader}.${encodedPayload}`;
-
-      const signatureBuffer = Buffer.from(
-        signature.replace(/-/g, '+').replace(/_/g, '/') +
-          '='.repeat((4 - (signature.length % 4)) % 4),
-        'base64',
-      );
-
-      const publicKeys = this.getPublicKeysToTry();
-
-      for (const publicKey of publicKeys) {
-        const isValid = crypto.verify(
-          'sha256',
-          Buffer.from(signingInput),
-          {
-            key: publicKey,
-            padding: crypto.constants.RSA_PKCS1_PADDING,
-          },
-          signatureBuffer,
-        );
-
-        if (isValid) {
-          const payloadStr = Buffer.from(
-            encodedPayload.replace(/-/g, '+').replace(/_/g, '/') +
-              '='.repeat((4 - (encodedPayload.length % 4)) % 4),
-            'base64',
-          ).toString('utf-8');
-
-          return JSON.parse(payloadStr) as T;
-        }
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
+  ): TPayload | null {
+    return verifyEnterpriseJwt<TPayload>({
+      token,
+      nodeEnvironment: this.twentyConfigService.get('NODE_ENV'),
+    });
   }
 }

@@ -1,17 +1,19 @@
+import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { StepStatus } from 'twenty-shared/workflow';
-
-import { type WorkflowToolDependencies } from 'src/modules/workflow/workflow-tools/types/workflow-tool-dependencies.type';
 
 import { createGetWorkflowRunTool } from '../get-workflow-run.tool';
 
 const WORKSPACE_ID = '20202020-aaaa-4d02-bf25-6aeccf7ea419';
 const WORKFLOW_RUN_ID = '20202020-bbbb-4d02-bf25-6aeccf7ea419';
-const ROLE_ID = '20202020-cccc-4d02-bf25-6aeccf7ea419';
+const AUTH_CONTEXT = {
+  type: 'user',
+  workspace: { id: WORKSPACE_ID },
+} as WorkspaceAuthContext;
 
 const buildDeps = (findOneResult: unknown) => ({
-  globalWorkspaceOrmManager: {
+  workspaceOrmManager: {
     executeInWorkspaceContext: jest.fn().mockImplementation(async (fn) => fn()),
-    getRepository: jest.fn().mockResolvedValue({
+    getRepository: jest.fn().mockReturnValue({
       findOne: jest.fn().mockResolvedValue(findOneResult),
     }),
   },
@@ -19,29 +21,24 @@ const buildDeps = (findOneResult: unknown) => ({
 
 const buildContext = () => ({
   workspaceId: WORKSPACE_ID,
-  rolePermissionConfig: { intersectionOf: [ROLE_ID] },
+  authContext: AUTH_CONTEXT,
 });
 
 describe('get_workflow_run tool', () => {
-  it('should pass rolePermissionConfig to getRepository', async () => {
+  it('should read as the caller rather than bypassing permissions', async () => {
     const deps = buildDeps({ id: WORKFLOW_RUN_ID, state: {}, stepLogs: {} });
     const context = buildContext();
 
-    const tool = createGetWorkflowRunTool(
-      deps as unknown as Pick<
-        WorkflowToolDependencies,
-        'globalWorkspaceOrmManager'
-      >,
-      context,
-    );
+    const tool = createGetWorkflowRunTool(deps, context);
 
     await tool.execute({ workflowRunId: WORKFLOW_RUN_ID });
 
-    expect(deps.globalWorkspaceOrmManager.getRepository).toHaveBeenCalledWith(
-      WORKSPACE_ID,
+    expect(deps.workspaceOrmManager.getRepository).toHaveBeenCalledWith(
       'workflowRun',
-      context.rolePermissionConfig,
     );
+    expect(
+      deps.workspaceOrmManager.executeInWorkspaceContext,
+    ).toHaveBeenCalledWith(expect.any(Function), AUTH_CONTEXT);
   });
 
   it('should return workflow run details on success', async () => {
@@ -52,8 +49,8 @@ describe('get_workflow_run tool', () => {
       startedAt: '2025-01-01T00:00:00Z',
       endedAt: '2025-01-01T00:01:00Z',
       enqueuedAt: null,
-      workflowId: 'wf-1',
-      workflowVersionId: 'wfv-1',
+      coreWorkflowId: 'core-wf-1',
+      coreWorkflowVersionId: 'core-wfv-1',
       state: {
         workflowRunError: 'Something went wrong',
         flow: {
@@ -75,13 +72,7 @@ describe('get_workflow_run tool', () => {
     const deps = buildDeps(workflowRun);
     const context = buildContext();
 
-    const tool = createGetWorkflowRunTool(
-      deps as unknown as Pick<
-        WorkflowToolDependencies,
-        'globalWorkspaceOrmManager'
-      >,
-      context,
-    );
+    const tool = createGetWorkflowRunTool(deps, context);
 
     const result = await tool.execute({ workflowRunId: WORKFLOW_RUN_ID });
 
@@ -104,13 +95,7 @@ describe('get_workflow_run tool', () => {
     const deps = buildDeps(null);
     const context = buildContext();
 
-    const tool = createGetWorkflowRunTool(
-      deps as unknown as Pick<
-        WorkflowToolDependencies,
-        'globalWorkspaceOrmManager'
-      >,
-      context,
-    );
+    const tool = createGetWorkflowRunTool(deps, context);
 
     const result = await tool.execute({ workflowRunId: WORKFLOW_RUN_ID });
 

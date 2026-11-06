@@ -11,15 +11,12 @@ import { SettingsDataModelFieldRelationJunctionForm } from '@/settings/data-mode
 import { SettingsDataModelFieldRelationPreviewContent } from '@/settings/data-model/fields/forms/morph-relation/components/SettingsDataModelFieldRelationPreviewContent';
 import { SettingsDataModelRelationPreviewImage } from '@/settings/data-model/fields/forms/morph-relation/components/SettingsDataModelFieldRelationPreviewImageCard';
 import { SettingsDataModelRelationFieldPreviewSubWidget } from '@/settings/data-model/fields/preview/components/SettingsDataModelRelationFieldPreviewSubWidget';
-import { useIsMobile } from '@/ui/utilities/responsive/hooks/useIsMobile';
-import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
+import { useLingui } from '@lingui/react/macro';
+import { useIsMobile } from 'twenty-ui/utilities';
 import { isDefined } from 'twenty-shared/utils';
-import {
-  FieldMetadataType,
-  RelationType,
-  FeatureFlagKey,
-} from '~/generated-metadata/graphql';
-import { type SettingsDataModelFieldEditFormValues } from '~/pages/settings/data-model/SettingsObjectFieldEdit';
+import { doNotTranslate } from 'twenty-shared/i18n';
+import { FieldMetadataType, RelationType } from '~/generated-metadata/graphql';
+import { type SettingsDataModelFieldEditFormValues } from '@/settings/data-model/types/SettingsDataModelFieldEditFormValues';
 
 type SettingsDataModelFieldRelationFormCardProps = {
   existingFieldMetadataId: string;
@@ -32,14 +29,12 @@ export const SettingsDataModelFieldRelationFormCard = ({
   objectNameSingular,
   disabled = false,
 }: SettingsDataModelFieldRelationFormCardProps) => {
+  const { t } = useLingui();
   const { watch } = useFormContext<
     SettingsDataModelFieldMorphRelationFormValues &
       SettingsDataModelFieldEditFormValues
   >();
   const isMobile = useIsMobile();
-  const isJunctionRelationsEnabled = useIsFeatureEnabled(
-    FeatureFlagKey.IS_JUNCTION_RELATIONS_ENABLED,
-  );
 
   const { objectMetadataItems } = useObjectMetadataItems();
 
@@ -48,7 +43,7 @@ export const SettingsDataModelFieldRelationFormCard = ({
   );
 
   if (!sourceObjectMetadataItem) {
-    throw new Error('Object not found.');
+    throw new Error(doNotTranslate('Object not found.'));
   }
 
   const relationObjectMetadataIds: string[] = watch(
@@ -101,7 +96,7 @@ export const SettingsDataModelFieldRelationFormCard = ({
           <SettingsDataModelRelationPreviewImage
             src={relationTypeConfig.imageSrc}
             flip={relationTypeConfig.isImageFlipped}
-            alt={relationTypeConfig.label}
+            alt={t(relationTypeConfig.label)}
             isMobile={isMobile}
           />
           <SettingsDataModelRelationFieldPreviewSubWidget
@@ -132,11 +127,11 @@ export const SettingsDataModelFieldRelationFormCard = ({
             sourceObjectMetadataId={sourceObjectMetadataItem?.id}
             disabled={disabled}
           />
-          {isJunctionRelationsEnabled && (
-            <SettingsDataModelFieldRelationJunctionForm
-              objectNameSingular={objectNameSingular}
-            />
-          )}
+          <SettingsDataModelFieldRelationJunctionForm
+            objectNameSingular={objectNameSingular}
+            existingFieldMetadataId={existingFieldMetadataId}
+            disabled={disabled}
+          />
         </>
       }
     />

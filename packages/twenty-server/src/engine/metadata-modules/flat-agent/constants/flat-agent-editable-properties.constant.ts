@@ -9,5 +9,6 @@ export const FLAT_AGENT_EDITABLE_PROPERTIES = [
   'modelId',
   'responseFormat',
   'modelConfiguration',
-  'evaluationInputs',
+  'triggers',
+  'isActive',
 ] as const satisfies MetadataEntityPropertyName<'agent'>[];

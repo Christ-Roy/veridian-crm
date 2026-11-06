@@ -87,12 +87,6 @@ export const getObjectMetadataId = ({
   return objectMetadataIdForName;
 };
 
-type ResolvedChartRecordFilter = ChartRecordFilter & {
-  id: string;
-  displayValue: string;
-  positionInRecordFilterGroup: number;
-};
-
 const resolveChartFilterFieldNamesToIds = (
   filter: ChartFilterInput | undefined,
   objectMetadataId: string | undefined,
@@ -129,7 +123,7 @@ const resolveChartFilterFieldNamesToIds = (
 
   const positionByGroupId = new Map<string, number>();
 
-  const recordFilters: ResolvedChartRecordFilter[] = inputRecordFilters.map(
+  const recordFilters: ChartRecordFilter[] = inputRecordFilters.map(
     (recordFilter) => {
       const { fieldName, fieldMetadataId, ...rest } = recordFilter;
 
@@ -159,16 +153,11 @@ const resolveChartFilterFieldNamesToIds = (
         positionInRecordFilterGroup + 1,
       );
 
-      const field = maps.fieldById.get(resolvedFieldMetadataId);
-      const value = rest.value ?? '';
-
       return {
         id: uuidv4(),
         fieldMetadataId: resolvedFieldMetadataId,
         operand: rest.operand,
-        value,
-        displayValue: value,
-        type: field?.type ?? '',
+        value: rest.value ?? '',
         recordFilterGroupId,
         positionInRecordFilterGroup,
         ...(isDefined(rest.subFieldName)
@@ -351,7 +340,7 @@ export const resolveWidgetFieldNamesToIds = (
   return {
     title: widget.title,
     type: widget.type,
-    gridPosition: widget.gridPosition,
+    position: widget.position,
     objectMetadataId,
     configuration: isDefined(widget.configuration)
       ? resolveConfigurationFieldNamesToIds(

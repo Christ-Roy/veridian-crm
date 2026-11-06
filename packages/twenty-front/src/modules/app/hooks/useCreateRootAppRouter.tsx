@@ -2,15 +2,15 @@ import { lazy, useState } from 'react';
 import {
   createBrowserRouter,
   createRoutesFromElements,
-  Navigate,
   Route,
 } from 'react-router-dom';
 import { AppPath } from 'twenty-shared/types';
 
 import { LazyRoute } from '@/app/components/LazyRoute';
 import { RootAppProviders } from '@/app/components/RootAppProviders';
-import { RootAuthorizeRedirect } from '@/app/components/RootAuthorizeRedirect';
+import { RootDeepLinkRedirect } from '@/app/components/RootDeepLinkRedirect';
 import { VerifyEmail } from '@/auth/components/VerifyEmail';
+import { AppRouteErrorFallback } from '@/error-handler/components/AppRouteErrorFallback';
 import { OnboardingPageLoader } from '@/onboarding/components/OnboardingPageLoader';
 import { OnboardingTransitionOutlet } from '@/onboarding/components/OnboardingTransitionOutlet';
 import { AuthFlowLayout } from '@/ui/layout/page/components/AuthFlowLayout';
@@ -31,7 +31,11 @@ const PasswordReset = lazy(() =>
 const createRootAppRouter = () =>
   createBrowserRouter(
     createRoutesFromElements(
-      <Route element={<RootAppProviders />} loader={async () => null}>
+      <Route
+        element={<RootAppProviders />}
+        errorElement={<AppRouteErrorFallback />}
+        loader={async () => null}
+      >
         <Route element={<BlankLayout />}>
           <Route element={<OnboardingTransitionOutlet />}>
             <Route
@@ -63,10 +67,9 @@ const createRootAppRouter = () =>
             }
           />
         </Route>
-        <Route path={AppPath.Authorize} element={<RootAuthorizeRedirect />} />
         <Route
           path={AppPath.NotFoundWildcard}
-          element={<Navigate to={AppPath.SignInUp} replace />}
+          element={<RootDeepLinkRedirect />}
         />
       </Route>,
     ),

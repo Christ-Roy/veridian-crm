@@ -2,10 +2,11 @@ import {
   AVAILABLE_WORKSPACE_FOR_AUTH_FRAGMENT,
   AVAILABLE_WORKSPACES_FOR_AUTH_FRAGMENT,
 } from '@/auth/graphql/fragments/authFragments';
-import { OBJECT_PERMISSION_FRAGMENT } from '@/settings/roles/graphql/fragments/objectPermissionFragment';
 import { ROLE_FRAGMENT } from '@/settings/roles/graphql/fragments/roleFragment';
+import { ROW_LEVEL_PERMISSION_PREDICATE_FRAGMENT } from '@/settings/roles/graphql/fragments/rowLevelPermissionPredicateFragment';
+import { ROW_LEVEL_PERMISSION_PREDICATE_GROUP_FRAGMENT } from '@/settings/roles/graphql/fragments/rowLevelPermissionPredicateGroupFragment';
 import { BILLING_SUBSCRIPTION_FRAGMENT } from '@/users/graphql/fragments/billingSubscriptionsFragment';
-import { CURRENT_BILLING_SUBSCRIPTION_FRAGMENT } from '@/users/graphql/fragments/currentBillingSubscriptionFragement';
+import { CURRENT_BILLING_SUBSCRIPTION_FRAGMENT } from '@/users/graphql/fragments/currentBillingSubscriptionFragment';
 import { WORKSPACE_URLS_FRAGMENT } from '@/users/graphql/fragments/workspaceUrlsFragment';
 import { DELETED_WORKSPACE_MEMBER_QUERY_FRAGMENT } from '@/workspace-member/graphql/fragments/deletedWorkspaceMemberQueryFragment';
 import { PARTIAL_WORKSPACE_MEMBER_QUERY_FRAGMENT } from '@/workspace-member/graphql/fragments/partialWorkspaceMemberQueryFragment';
@@ -23,6 +24,8 @@ export const USER_QUERY_FRAGMENT = gql`
     canImpersonate
     supportUserHash
     onboardingStatus
+    previousOnboardingStatus
+    isWorkspaceCreator
     workspaceMember {
       ...WorkspaceMemberQueryFragment
     }
@@ -35,8 +38,26 @@ export const USER_QUERY_FRAGMENT = gql`
     currentUserWorkspace {
       id
       permissionFlags
-      objectsPermissions {
-        ...ObjectPermissionFragment
+      isImpersonating
+      objectRecordsPermissions {
+        objectMetadataId
+        canReadAllRecords
+        canUpdateAllRecords
+        canSoftDeleteAllRecords
+        canDestroyAllRecords
+        restrictedFields
+        rowLevelRecordsPermissions {
+          canReadRecords
+          canUpdateRecords
+          canSoftDeleteRecords
+          canDestroyRecords
+          predicates {
+            ...RowLevelPermissionPredicateFragment
+          }
+          predicateGroups {
+            ...RowLevelPermissionPredicateGroupFragment
+          }
+        }
       }
       twoFactorAuthenticationMethodSummary {
         twoFactorAuthenticationMethodId
@@ -52,6 +73,8 @@ export const USER_QUERY_FRAGMENT = gql`
       allowImpersonation
       activationStatus
       isPublicInviteLinkEnabled
+      isCampaignClickTrackingEnabled
+      isCampaignOpenTrackingEnabled
       workspaceDiscoverability
       isGoogleAuthEnabled
       isMicrosoftAuthEnabled
@@ -69,11 +92,17 @@ export const USER_QUERY_FRAGMENT = gql`
       installedApplications {
         id
         name
+        description
         universalIdentifier
-        logo
         logoUrl
+        createdAt
       }
       isCustomDomainEnabled
+      iframeMediaPermissions {
+        origin
+        microphone
+        camera
+      }
       workspaceUrls {
         ...WorkspaceUrlsFragment
       }
@@ -81,13 +110,13 @@ export const USER_QUERY_FRAGMENT = gql`
         key
         value
       }
-      metadataVersion
       currentBillingSubscription {
         ...CurrentBillingSubscriptionFragment
       }
       billingCustomer {
         id
         hasPaymentMethod
+        userCreditsFallback
       }
       billingSubscriptions {
         ...BillingSubscriptionFragment
@@ -96,15 +125,18 @@ export const USER_QUERY_FRAGMENT = gql`
         key
         value
       }
+      isTrialAvailable
       workspaceMembersCount
       defaultRole {
         ...RoleFragment
       }
-      fastModel
-      smartModel
+      aiChatModelTier
+      aiChatDirectMessageAssistantMode
+      aiChatInboxAssistantMode
+      aiAgentModelTier
+      isAutoModelSelectionEnabled
+      aiModelIdByTier
       aiAdditionalInstructions
-      enabledAiModelIds
-      useRecommendedModels
       isTwoFactorAuthenticationEnforced
       trashRetentionDays
       eventLogRetentionDays
@@ -120,7 +152,8 @@ export const USER_QUERY_FRAGMENT = gql`
   ${WORKSPACE_MEMBER_QUERY_FRAGMENT}
   ${DELETED_WORKSPACE_MEMBER_QUERY_FRAGMENT}
   ${PARTIAL_WORKSPACE_MEMBER_QUERY_FRAGMENT}
-  ${OBJECT_PERMISSION_FRAGMENT}
+  ${ROW_LEVEL_PERMISSION_PREDICATE_FRAGMENT}
+  ${ROW_LEVEL_PERMISSION_PREDICATE_GROUP_FRAGMENT}
   ${WORKSPACE_URLS_FRAGMENT}
   ${ROLE_FRAGMENT}
   ${AVAILABLE_WORKSPACES_FOR_AUTH_FRAGMENT}

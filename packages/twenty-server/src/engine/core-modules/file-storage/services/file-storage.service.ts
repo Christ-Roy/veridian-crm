@@ -1,28 +1,51 @@
 import { Injectable } from '@nestjs/common';
 
+import { isNonEmptyString, isString } from '@sniptt/guards';
+import { createHash } from 'crypto';
 import { basename, dirname, join } from 'path';
 import { type Readable } from 'stream';
+import { v4 } from 'uuid';
 
 import { FileFolder } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
-import { Like, type QueryRunner } from 'typeorm';
+import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
+import {
+  type FindOptionsWhere,
+  Like,
+  type QueryRunner,
+  type UpdateResult,
+} from 'typeorm';
 
 import { ApplicationEntity } from 'src/engine/core-modules/application/application.entity';
 import { findActiveFlatApplicationById } from 'src/engine/core-modules/application/utils/find-active-flat-application-by-id.util';
 import { findActiveFlatApplicationByUniversalIdentifier } from 'src/engine/core-modules/application/utils/find-active-flat-application-by-universal-identifier.util';
+import { CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
+import { type StorageDriver } from 'src/engine/core-modules/file-storage/drivers/interfaces/storage-driver.interface';
 import { FileStorageDriverFactory } from 'src/engine/core-modules/file-storage/file-storage-driver.factory';
 import {
   FileStorageException,
   FileStorageExceptionCode,
 } from 'src/engine/core-modules/file-storage/interfaces/file-storage-exception';
+import { type ByteRange } from 'src/engine/core-modules/file-storage/types/byte-range.type';
+import { type FileStorageMetadata } from 'src/engine/core-modules/file-storage/types/file-storage-metadata.type';
+import { buildFileWriteLockKey } from 'src/engine/core-modules/file-storage/utils/build-file-write-lock-key.util';
+import { buildReleasedStockByApplication } from 'src/engine/core-modules/file-storage/utils/build-released-stock-by-application.util';
+import { buildStockDelta } from 'src/engine/core-modules/file-storage/utils/build-stock-delta.util';
 import { prepareFileForStorageOrThrow } from 'src/engine/core-modules/file-storage/utils/prepare-file-for-storage-or-throw.util';
 import { validateFilePath } from 'src/engine/core-modules/file-storage/utils/validate-file-path.util';
 import { validateFolderPath } from 'src/engine/core-modules/file-storage/utils/validate-folder-path.util';
 import { validateStoragePathIsWithinWorkspaceOrThrow } from 'src/engine/core-modules/file-storage/utils/validate-storage-path-is-within-workspace-or-throw.util';
 import { FileEntity } from 'src/engine/core-modules/file/entities/file.entity';
-import { FileSettings } from 'src/engine/core-modules/file/types/file-settings.types';
-import { FILE_STATUS } from 'src/engine/core-modules/file/types/file-status.types';
+import { FILE_CONTENT_SNIFF_BYTE_COUNT } from 'src/engine/core-modules/file/file-upload/constants/file-content-sniff.constant';
+import { FileSettings } from 'src/engine/core-modules/file/types/file-settings.type';
+import { FILE_STATUS } from 'src/engine/core-modules/file/types/file-status.type';
+import { extractFileInfoOrThrow } from 'src/engine/core-modules/file/utils/extract-file-info-or-throw.utils';
 import { removeFileFolderFromFileEntityPath } from 'src/engine/core-modules/file/utils/remove-file-folder-from-file-entity-path.utils';
+import { UsageLimitStockService } from 'src/engine/core-modules/usage-limit/services/usage-limit-stock.service';
+import { type StockCost } from 'src/engine/core-modules/usage-limit/types/stock-cost.type';
+import { type StockScope } from 'src/engine/core-modules/usage-limit/types/stock-scope.type';
+import { UsageOperationType } from 'src/engine/core-modules/usage/enums/usage-operation-type.enum';
+import { UsageResourceType } from 'src/engine/core-modules/usage/enums/usage-resource-type.enum';
+import { UsageUnit } from 'src/engine/core-modules/usage/enums/usage-unit.enum';
 import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator';
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
@@ -40,7 +63,219 @@ export class FileStorageService {
     @InjectWorkspaceScopedRepository(FileEntity)
     private readonly fileRepository: WorkspaceScopedRepository<FileEntity>,
     private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly usageLimitStockService: UsageLimitStockService,
+    private readonly cacheLockService: CacheLockService,
   ) {}
+
+  async releaseStorageStock({
+    workspaceId,
+    applicationId,
+    bytes,
+    quantity,
+  }: {
+    workspaceId: string;
+    applicationId: string;
+    bytes: number;
+    quantity: number;
+  }): Promise<void> {
+    await this.usageLimitStockService.releaseStock({
+      workspaceId,
+      resourceType: UsageResourceType.STORAGE,
+      operationType: UsageOperationType.STORAGE_FILE,
+      spenders: { applicationId },
+      cost: { [UsageUnit.BYTE]: bytes, [UsageUnit.FILE]: quantity },
+    });
+  }
+
+  async invalidateStorageStock({
+    workspaceId,
+    applicationId,
+  }: {
+    workspaceId: string;
+    applicationId?: string;
+  }): Promise<void> {
+    await this.usageLimitStockService.invalidateStock({
+      workspaceId,
+      resourceType: UsageResourceType.STORAGE,
+      operationType: UsageOperationType.STORAGE_FILE,
+      spenders: { applicationId },
+    });
+  }
+
+  private async assertStorageStockAvailable({
+    workspaceId,
+    applicationId,
+    delta,
+  }: {
+    workspaceId: string;
+    applicationId: string;
+    delta: StockCost;
+  }): Promise<void> {
+    if (Object.values(delta).every((amount) => (amount ?? 0) <= 0)) {
+      return;
+    }
+
+    await this.usageLimitStockService.assertStockAvailable({
+      workspaceId,
+      resourceType: UsageResourceType.STORAGE,
+      operationType: UsageOperationType.STORAGE_FILE,
+      spenders: { applicationId },
+      cost: delta,
+      computeUsedStock: (scope) =>
+        this.computeStorageUsedStock({ workspaceId, ...scope }),
+    });
+  }
+
+  private async computeStorageUsedStock({
+    workspaceId,
+    spenderType,
+    spenderId,
+  }: StockScope & { workspaceId: string }): Promise<StockCost> {
+    const query = this.fileRepository
+      .createQueryBuilder('file')
+      .select('COUNT(*)::bigint', 'quantity')
+      .addSelect('COALESCE(SUM(file.size), 0)::bigint', 'bytes')
+      .where('file.workspaceId = :workspaceId', { workspaceId })
+      .withDeleted();
+
+    if (spenderType === 'application') {
+      query.andWhere('file.applicationId = :applicationId', {
+        applicationId: spenderId,
+      });
+    }
+
+    const used = await query.getRawOne<{ quantity: string; bytes: string }>();
+
+    return {
+      [UsageUnit.FILE]: Number(used?.quantity ?? 0),
+      [UsageUnit.BYTE]: Number(used?.bytes ?? 0),
+    };
+  }
+
+  private async deleteFileRows({
+    workspaceId,
+    where,
+    fileRepository,
+  }: {
+    workspaceId: string;
+    where: FindOptionsWhere<FileEntity>;
+    fileRepository: WorkspaceScopedRepository<FileEntity>;
+  }): Promise<void> {
+    const deletedRows = await fileRepository.deleteAndReturn(
+      workspaceId,
+      where,
+    );
+
+    const releasedByApplication = buildReleasedStockByApplication(deletedRows);
+
+    await Promise.all(
+      [...releasedByApplication.entries()].map(([applicationId, released]) =>
+        this.releaseStorageStock({ workspaceId, applicationId, ...released }),
+      ),
+    );
+  }
+
+  private findFileByPath({
+    fileRepository,
+    workspaceId,
+    filePath,
+    applicationId,
+  }: {
+    fileRepository: WorkspaceScopedRepository<FileEntity>;
+    workspaceId: string;
+    filePath: string;
+    applicationId: string;
+  }): Promise<FileEntity | null> {
+    return fileRepository.findOne(workspaceId, {
+      where: { path: filePath, applicationId },
+      withDeleted: true,
+    });
+  }
+
+  private async createFileRowFromStorageOrThrow({
+    resourceIdentifier,
+    filePath,
+    applicationId,
+  }: {
+    resourceIdentifier: ResourceIdentifier;
+    filePath: string;
+    applicationId: string;
+  }): Promise<Pick<FileEntity, 'mimeType' | 'size' | 'settings'>> {
+    const metadata = await this.getFileMetadata(resourceIdentifier);
+
+    if (!isDefined(metadata)) {
+      throw new FileStorageException(
+        `File not found at path "${filePath}"`,
+        FileStorageExceptionCode.FILE_NOT_FOUND,
+      );
+    }
+
+    const { mimeType } = await extractFileInfoOrThrow({
+      file: await this.readFilePrefix({
+        ...resourceIdentifier,
+        byteCount: FILE_CONTENT_SNIFF_BYTE_COUNT,
+      }),
+      filename: resourceIdentifier.resourcePath,
+    });
+
+    const fileRow = {
+      mimeType,
+      size: metadata.size,
+      settings: { isTemporaryFile: false, toDelete: false },
+    };
+
+    const insertResult = await this.fileRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        ...fileRow,
+        workspaceId: resourceIdentifier.workspaceId,
+        path: filePath,
+        applicationId,
+        status: FILE_STATUS.UPLOADED,
+      })
+      .orIgnore()
+      .returning('id')
+      .execute();
+
+    if (isNonEmptyArray(insertResult.raw)) {
+      await this.applyStorageStockDelta({
+        workspaceId: resourceIdentifier.workspaceId,
+        applicationId,
+        delta: { [UsageUnit.BYTE]: metadata.size, [UsageUnit.FILE]: 1 },
+      });
+    }
+
+    return fileRow;
+  }
+
+  private async applyStorageStockDelta({
+    workspaceId,
+    applicationId,
+    delta,
+  }: {
+    workspaceId: string;
+    applicationId: string;
+    delta: StockCost;
+  }): Promise<void> {
+    const scope = {
+      workspaceId,
+      resourceType: UsageResourceType.STORAGE,
+      operationType: UsageOperationType.STORAGE_FILE,
+      spenders: { applicationId },
+    };
+
+    if ((delta[UsageUnit.BYTE] ?? 0) < 0) {
+      return this.releaseStorageStock({
+        workspaceId,
+        applicationId,
+        bytes: -(delta[UsageUnit.BYTE] ?? 0),
+        quantity: 0,
+      });
+    }
+
+    return this.usageLimitStockService.acquireStock({ ...scope, cost: delta });
+  }
 
   private async resolveApplicationIdOrThrow({
     applicationUniversalIdentifier,
@@ -193,6 +428,35 @@ export class FileStorageService {
     };
   }
 
+  private async isStoredContentUnchanged({
+    driver,
+    onStorageFilePath,
+    existingFile,
+    contentSha256,
+    mimeType,
+  }: {
+    driver: StorageDriver;
+    onStorageFilePath: string;
+    existingFile: Pick<
+      FileEntity,
+      'deletedAt' | 'status' | 'mimeType' | 'contentSha256'
+    > | null;
+    contentSha256: string;
+    mimeType: string;
+  }): Promise<boolean> {
+    if (
+      !isDefined(existingFile) ||
+      isDefined(existingFile.deletedAt) ||
+      existingFile.status !== FILE_STATUS.UPLOADED ||
+      existingFile.mimeType !== mimeType ||
+      existingFile.contentSha256 !== contentSha256
+    ) {
+      return false;
+    }
+
+    return driver.checkFileExists({ filePath: onStorageFilePath });
+  }
+
   async writeFile({
     sourceFile,
     fileFolder,
@@ -238,35 +502,96 @@ export class FileStorageService {
         resourcePath,
       });
 
-    await driver.writeFile({
-      filePath: onStorageFilePath,
-      mimeType,
-      sourceFile: persistedSourceFile,
-    });
+    const size = isString(persistedSourceFile)
+      ? Buffer.byteLength(persistedSourceFile)
+      : persistedSourceFile.length;
 
-    return fileRepository.upsertAndReturnOne(
-      workspaceId,
-      {
-        path: filePath,
-        applicationId: resolvedApplicationId,
-        id: fileId,
-        mimeType,
-        size:
-          typeof persistedSourceFile === 'string'
-            ? Buffer.byteLength(persistedSourceFile)
-            : persistedSourceFile.length,
-        settings,
+    const contentSha256 = createHash('sha256')
+      .update(persistedSourceFile)
+      .digest('hex');
+
+    return this.cacheLockService.withLock(
+      async () => {
+        const existingFile = await this.findFileByPath({
+          fileRepository,
+          workspaceId,
+          filePath,
+          applicationId: resolvedApplicationId,
+        });
+
+        const delta = buildStockDelta({ existingFile, size });
+
+        await this.assertStorageStockAvailable({
+          workspaceId,
+          applicationId: resolvedApplicationId,
+          delta,
+        });
+
+        const isStoredContentUnchanged =
+          !isDefined(queryRunner) &&
+          (await this.isStoredContentUnchanged({
+            driver,
+            onStorageFilePath,
+            existingFile,
+            contentSha256,
+            mimeType,
+          }));
+
+        if (!isStoredContentUnchanged) {
+          if (
+            isNonEmptyString(existingFile?.contentSha256) &&
+            (isDefined(queryRunner) ||
+              existingFile.contentSha256 !== contentSha256)
+          ) {
+            await this.fileRepository.update(
+              workspaceId,
+              { id: existingFile.id },
+              { contentSha256: null },
+            );
+          }
+
+          await driver.writeFile({
+            filePath: onStorageFilePath,
+            mimeType,
+            sourceFile: persistedSourceFile,
+          });
+        }
+
+        const file = await fileRepository.upsertAndReturnOne(
+          workspaceId,
+          {
+            path: filePath,
+            applicationId: resolvedApplicationId,
+            id: existingFile?.id ?? fileId,
+            mimeType,
+            size,
+            settings,
+            contentSha256: isDefined(queryRunner) ? null : contentSha256,
+          },
+          ['path', 'workspaceId', 'applicationId'],
+        );
+
+        await this.applyStorageStockDelta({
+          workspaceId,
+          applicationId: resolvedApplicationId,
+          delta,
+        });
+
+        return file;
       },
-      ['path', 'workspaceId', 'applicationId'],
+      buildFileWriteLockKey({
+        workspaceId,
+        applicationId: resolvedApplicationId,
+        filePath,
+      }),
     );
   }
 
-  // Creates the file record ahead of a direct client upload. The bytes are
-  // not in storage yet: the record stays PENDING until the upload is
-  // confirmed (completeFileUpload) or reaped by the cleanup cron.
+  // Stays PENDING until completeFileUpload confirms it or the cleanup cron reaps it.
   async createPendingFile({
     fileFolder,
     applicationUniversalIdentifier,
+    applicationId,
     workspaceId,
     resourcePath,
     fileId,
@@ -274,15 +599,18 @@ export class FileStorageService {
     mimeType,
     settings,
   }: ResourceIdentifier & {
+    applicationId?: string;
     fileId: string;
     size: number;
     mimeType: string;
     settings: FileSettings;
   }): Promise<FileEntity> {
-    const applicationId = await this.resolveApplicationIdOrThrow({
-      applicationUniversalIdentifier,
-      workspaceId,
-    });
+    const resolvedApplicationId =
+      applicationId ??
+      (await this.resolveApplicationIdOrThrow({
+        applicationUniversalIdentifier,
+        workspaceId,
+      }));
 
     const { filePath } = this.validateAndBuildFileStoragePathOrThrow({
       workspaceId,
@@ -291,19 +619,122 @@ export class FileStorageService {
       resourcePath,
     });
 
-    return this.fileRepository.upsertAndReturnOne(
+    const existingFile = await this.findFileByPath({
+      fileRepository: this.fileRepository,
+      workspaceId,
+      filePath,
+      applicationId: resolvedApplicationId,
+    });
+
+    const delta = buildStockDelta({ existingFile, size });
+
+    await this.assertStorageStockAvailable({
+      workspaceId,
+      applicationId: resolvedApplicationId,
+      delta,
+    });
+
+    const file = await this.fileRepository.upsertAndReturnOne(
       workspaceId,
       {
         path: filePath,
-        applicationId,
-        id: fileId,
+        applicationId: resolvedApplicationId,
+        id: existingFile?.id ?? fileId,
         mimeType,
         size,
         settings,
         status: FILE_STATUS.PENDING,
+        contentSha256: null,
       },
       ['path', 'workspaceId', 'applicationId'],
     );
+
+    await this.applyStorageStockDelta({
+      workspaceId,
+      applicationId: resolvedApplicationId,
+      delta,
+    });
+
+    return file;
+  }
+
+  async promotePendingFile({
+    workspaceId,
+    file,
+    from,
+    to,
+    ifMatchChecksum,
+    size,
+    mimeType,
+  }: {
+    workspaceId: string;
+    file: Pick<FileEntity, 'id' | 'path' | 'applicationId' | 'size'>;
+    from: ResourceIdentifier;
+    to: ResourceIdentifier;
+    ifMatchChecksum?: string;
+    size: number;
+    mimeType: string;
+  }): Promise<UpdateResult> {
+    return this.cacheLockService.withLock(
+      async () => {
+        await this.fileRepository.update(
+          workspaceId,
+          { path: file.path, applicationId: file.applicationId },
+          { contentSha256: null },
+        );
+
+        // The presigned PUT can still overwrite quarantine after the sniff, so only the inspected version is promoted.
+        await this.move({ from, to, ifMatchChecksum });
+
+        return this.markFileUploaded({
+          workspaceId,
+          applicationId: file.applicationId,
+          fileId: file.id,
+          chargedSize: Number(file.size),
+          size,
+          mimeType,
+        });
+      },
+      buildFileWriteLockKey({
+        workspaceId,
+        applicationId: file.applicationId,
+        filePath: file.path,
+      }),
+    );
+  }
+
+  private async markFileUploaded({
+    workspaceId,
+    applicationId,
+    fileId,
+    chargedSize,
+    size,
+    mimeType,
+  }: {
+    workspaceId: string;
+    applicationId: string;
+    fileId: string;
+    chargedSize: number;
+    size: number;
+    mimeType: string;
+  }): Promise<UpdateResult> {
+    const updateResult = await this.fileRepository.update(
+      workspaceId,
+      { id: fileId },
+      { status: FILE_STATUS.UPLOADED, mimeType, size },
+    );
+
+    if (updateResult.affected === 0 || size === chargedSize) {
+      return updateResult;
+    }
+
+    await this.applyStorageStockDelta({
+      workspaceId,
+      applicationId,
+      delta: { [UsageUnit.BYTE]: size - chargedSize },
+    });
+
+    return updateResult;
   }
 
   async writeFileStream(
@@ -325,7 +756,7 @@ export class FileStorageService {
 
   async getFileMetadata(
     params: ResourceIdentifier,
-  ): Promise<{ size: number } | null> {
+  ): Promise<FileStorageMetadata | null> {
     const driver = this.fileStorageDriverFactory.getCurrentDriver();
     const { onStorageFilePath } =
       this.validateAndBuildFileStoragePathOrThrow(params);
@@ -373,13 +804,32 @@ export class FileStorageService {
     });
   }
 
-  readFile(params: ResourceIdentifier): Promise<Readable> {
+  readFile(
+    params: ResourceIdentifier & { byteRange?: ByteRange },
+  ): Promise<Readable> {
     const driver = this.fileStorageDriverFactory.getCurrentDriver();
 
     const { onStorageFilePath } =
       this.validateAndBuildFileStoragePathOrThrow(params);
 
-    return driver.readFile({ filePath: onStorageFilePath });
+    return driver.readFile({
+      filePath: onStorageFilePath,
+      byteRange: params.byteRange,
+    });
+  }
+
+  readFilePrefix(
+    params: ResourceIdentifier & { byteCount: number },
+  ): Promise<Buffer> {
+    const driver = this.fileStorageDriverFactory.getCurrentDriver();
+
+    const { onStorageFilePath } =
+      this.validateAndBuildFileStoragePathOrThrow(params);
+
+    return driver.readFilePrefix({
+      filePath: onStorageFilePath,
+      byteCount: params.byteCount,
+    });
   }
 
   downloadFile(
@@ -408,7 +858,11 @@ export class FileStorageService {
       ? this.fileRepository.withManager(queryRunner.manager)
       : this.fileRepository;
 
-    await fileRepository.delete(workspaceId, { applicationId });
+    await this.deleteFileRows({
+      workspaceId,
+      where: { applicationId },
+      fileRepository,
+    });
   }
 
   async deleteApplicationFilesFromStorage({
@@ -444,14 +898,29 @@ export class FileStorageService {
         workspaceId: params.workspaceId,
       }));
 
-    await this.fileRepository.delete(params.workspaceId, {
-      path: filePath,
-      applicationId,
+    await this.deleteFileRows({
+      workspaceId: params.workspaceId,
+      where: { path: filePath, applicationId },
+      fileRepository: this.fileRepository,
+    });
+  }
+
+  // Unlike deleteFile, leaves the row alone: it may be gone or belong to a later upload at the same path.
+  async deleteFileObject(params: ResourceIdentifier): Promise<void> {
+    const driver = this.fileStorageDriverFactory.getCurrentDriver();
+    const { onStorageFilePath } =
+      this.validateAndBuildFileStoragePathOrThrow(params);
+
+    await driver.delete({
+      folderPath: dirname(onStorageFilePath),
+      filename: basename(onStorageFilePath),
     });
   }
 
   async deleteFolder(
-    params: Omit<ResourceIdentifier, 'resourcePath'> & { folderPath: string },
+    params: Omit<ResourceIdentifier, 'resourcePath'> & {
+      folderPath: string;
+    },
   ): Promise<void> {
     const {
       workspaceId,
@@ -477,9 +946,10 @@ export class FileStorageService {
       workspaceId,
     });
 
-    await this.fileRepository.delete(workspaceId, {
-      path: Like(`${validatedFolderPath}%`),
-      applicationId,
+    await this.deleteFileRows({
+      workspaceId,
+      where: { path: Like(`${validatedFolderPath}%`), applicationId },
+      fileRepository: this.fileRepository,
     });
   }
 
@@ -526,16 +996,92 @@ export class FileStorageService {
     await driver.delete({ folderPath: workspaceId });
   }
 
-  copyLegacy(params: {
-    from: { folderPath: string; filename?: string };
-    to: { folderPath: string; filename?: string };
-  }): Promise<void> {
-    const driver = this.fileStorageDriverFactory.getCurrentDriver();
+  async copyFile({
+    from,
+    to,
+    applicationId,
+    fileId,
+    size,
+    mimeType,
+    settings,
+  }: {
+    from: ResourceIdentifier;
+    to: ResourceIdentifier;
+    applicationId: string;
+    fileId: string;
+    size: number;
+    mimeType: string;
+    settings: FileSettings | null;
+  }): Promise<FileEntity> {
+    const { filePath } = this.validateAndBuildFileStoragePathOrThrow(to);
+    const delta = { [UsageUnit.BYTE]: size, [UsageUnit.FILE]: 1 };
 
-    return driver.copy(params);
+    await this.assertStorageStockAvailable({
+      workspaceId: to.workspaceId,
+      applicationId,
+      delta,
+    });
+
+    await this.copy({ from, to });
+
+    const file = await this.fileRepository.insertAndReturnOne(to.workspaceId, {
+      id: fileId,
+      path: filePath,
+      applicationId,
+      mimeType,
+      size,
+      status: FILE_STATUS.UPLOADED,
+      settings,
+    });
+
+    await this.applyStorageStockDelta({
+      workspaceId: to.workspaceId,
+      applicationId,
+      delta,
+    });
+
+    return file;
   }
 
-  async copy({
+  async copyFileByPath({
+    from,
+    to,
+  }: {
+    from: ResourceIdentifier;
+    to: ResourceIdentifier;
+  }): Promise<FileEntity> {
+    const { filePath } = this.validateAndBuildFileStoragePathOrThrow(from);
+
+    const [sourceApplicationId, destinationApplicationId] = await Promise.all([
+      this.resolveApplicationIdOrThrow(from),
+      this.resolveApplicationIdOrThrow(to),
+    ]);
+
+    const sourceFile =
+      (await this.findFileByPath({
+        fileRepository: this.fileRepository,
+        workspaceId: from.workspaceId,
+        filePath,
+        applicationId: sourceApplicationId,
+      })) ??
+      (await this.createFileRowFromStorageOrThrow({
+        resourceIdentifier: from,
+        filePath,
+        applicationId: sourceApplicationId,
+      }));
+
+    return this.copyFile({
+      from,
+      to,
+      applicationId: destinationApplicationId,
+      fileId: v4(),
+      mimeType: sourceFile.mimeType,
+      size: sourceFile.size,
+      settings: sourceFile.settings,
+    });
+  }
+
+  private async copy({
     from,
     to,
   }: {
@@ -561,6 +1107,29 @@ export class FileStorageService {
     return driver.copy({
       from: { folderPath: fromPath },
       to: { folderPath: toPath },
+    });
+  }
+
+  private async move({
+    from,
+    to,
+    ifMatchChecksum,
+  }: {
+    from: ResourceIdentifier;
+    to: ResourceIdentifier;
+    ifMatchChecksum?: string;
+  }): Promise<void> {
+    const driver = this.fileStorageDriverFactory.getCurrentDriver();
+
+    const { onStorageFilePath: fromPath } =
+      this.validateAndBuildFileStoragePathOrThrow(from);
+    const { onStorageFilePath: toPath } =
+      this.validateAndBuildFileStoragePathOrThrow(to);
+
+    return driver.move({
+      from: { folderPath: dirname(fromPath), filename: basename(fromPath) },
+      to: { folderPath: dirname(toPath), filename: basename(toPath) },
+      ifMatchChecksum,
     });
   }
 

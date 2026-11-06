@@ -21,7 +21,7 @@ import {
   UpsertObjectPermissionsDocument,
   UpsertPermissionFlagsDocument,
 } from '~/generated-metadata/graphql';
-import { getDirtyFields } from '~/utils/getDirtyFields';
+import { getRoleDirtyFields } from '@/settings/roles/role/utils/getRoleDirtyFields';
 
 const ROLE_BASIC_KEYS: Array<keyof Role> = [
   'label',
@@ -29,6 +29,7 @@ const ROLE_BASIC_KEYS: Array<keyof Role> = [
   'icon',
   'canUpdateAllSettings',
   'canAccessAllTools',
+  'canAccessAllAgentChatChannels',
   'canReadAllObjectRecords',
   'canUpdateAllObjectRecords',
   'canSoftDeleteAllObjectRecords',
@@ -70,7 +71,10 @@ export const useSaveDraftRoleToDB = ({
     roleId,
   );
 
-  const dirtyFields = getDirtyFields(settingsDraftRole, settingsPersistedRole);
+  const dirtyFields = getRoleDirtyFields(
+    settingsDraftRole,
+    settingsPersistedRole,
+  );
 
   const fieldPermissionsThatShouldntBeCreatedBecauseTheyAreUseless =
     settingsDraftRole.fieldPermissions?.filter((fieldPermissionToFilter) => {
@@ -134,6 +138,8 @@ export const useSaveDraftRoleToDB = ({
           icon: settingsDraftRole.icon,
           canUpdateAllSettings: settingsDraftRole.canUpdateAllSettings,
           canAccessAllTools: settingsDraftRole.canAccessAllTools,
+          canAccessAllAgentChatChannels:
+            settingsDraftRole.canAccessAllAgentChatChannels,
           canReadAllObjectRecords: settingsDraftRole.canReadAllObjectRecords,
           canUpdateAllObjectRecords:
             settingsDraftRole.canUpdateAllObjectRecords,
@@ -158,9 +164,7 @@ export const useSaveDraftRoleToDB = ({
     await upsertRolePermissions(createdRoleId);
     await assignEntitiesToRole(createdRoleId);
 
-    if (isDefined(onSuccess)) {
-      await onSuccess(createdRoleId);
-    }
+    return createdRoleId;
   };
 
   const updateExistingRole = async () => {
@@ -190,6 +194,8 @@ export const useSaveDraftRoleToDB = ({
               icon: settingsDraftRole.icon,
               canUpdateAllSettings: settingsDraftRole.canUpdateAllSettings,
               canAccessAllTools: settingsDraftRole.canAccessAllTools,
+              canAccessAllAgentChatChannels:
+                settingsDraftRole.canAccessAllAgentChatChannels,
               canReadAllObjectRecords:
                 settingsDraftRole.canReadAllObjectRecords,
               canUpdateAllObjectRecords:
@@ -253,6 +259,8 @@ export const useSaveDraftRoleToDB = ({
     ) {
       await upsertRowLevelPermissionPredicatesForRole(roleId);
     }
+
+    return roleId;
   };
 
   const upsertRowLevelPermissionPredicatesForRole = async (
@@ -330,6 +338,7 @@ export const useSaveDraftRoleToDB = ({
             predicates: objectPredicates.map((predicate) => ({
               id: predicate.id,
               fieldMetadataId: predicate.fieldMetadataId,
+              relationFieldMetadataId: predicate.relationFieldMetadataId,
               operand: predicate.operand as RowLevelPermissionPredicateOperand,
               value: predicate.value,
               subFieldName: predicate.subFieldName,
@@ -455,19 +464,17 @@ export const useSaveDraftRoleToDB = ({
         apiKeyIds: settingsDraftRole.apiKeys.map((apiKey) => apiKey.id),
       });
     }
-
-    if (isDefined(onSuccess)) {
-      await onSuccess(roleId);
-    }
   };
 
   const saveDraftRoleToDB = async () => {
     removeUselessFieldPermissions();
 
-    if (isCreateMode) {
-      await createNewRole();
-    } else {
-      await updateExistingRole();
+    const savedRoleId = isCreateMode
+      ? await createNewRole()
+      : await updateExistingRole();
+
+    if (isDefined(savedRoleId) && isDefined(onSuccess)) {
+      await onSuccess(savedRoleId);
     }
   };
 

@@ -1,6 +1,6 @@
 import { useFormContext } from 'react-hook-form';
 
-import { Separator } from '@/settings/components/Separator';
+import { SettingsCardSeparator } from '@/settings/components/SettingsCardSeparator';
 import { SettingsDataModelPreviewFormCard } from '@/settings/data-model/components/SettingsDataModelPreviewFormCard';
 import { SettingsDataModelFieldIsUniqueForm } from '@/settings/data-model/fields/forms/components/SettingsDataModelFieldIsUniqueForm';
 import {
@@ -9,7 +9,7 @@ import {
 } from '@/settings/data-model/fields/forms/date/components/SettingsDataModelFieldDateForm';
 import { SettingsDataModelFieldPreviewWidget } from '@/settings/data-model/fields/preview/components/SettingsDataModelFieldPreviewWidget';
 import { type FieldMetadataType } from 'twenty-shared/types';
-import { type SettingsDataModelFieldEditFormValues } from '~/pages/settings/data-model/SettingsObjectFieldEdit';
+import { type SettingsDataModelFieldEditFormValues } from '@/settings/data-model/types/SettingsDataModelFieldEditFormValues';
 
 type SettingsDataModelFieldDateSettingsFormCardProps = {
   disabled?: boolean;
@@ -52,7 +52,7 @@ export const SettingsDataModelFieldDateSettingsFormCard = ({
             disabled={disabled}
             existingFieldMetadataId={existingFieldMetadataId}
           />
-          <Separator />
+          <SettingsCardSeparator />
           <SettingsDataModelFieldIsUniqueForm
             fieldType={fieldType}
             existingFieldMetadataId={existingFieldMetadataId}

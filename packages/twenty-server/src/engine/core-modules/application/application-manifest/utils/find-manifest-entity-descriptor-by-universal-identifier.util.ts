@@ -1,4 +1,7 @@
-import { type Manifest } from 'twenty-shared/application';
+import {
+  getRoleTargetUniversalIdentifier,
+  type Manifest,
+} from 'twenty-shared/application';
 import { type AllMetadataName } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -32,7 +35,7 @@ const toCandidates = <T extends { universalIdentifier?: string }>(
       label: getLabel(entity),
     }));
 
-const MANIFEST_ENTITY_REGISTRY: Record<
+export const MANIFEST_ENTITY_REGISTRY: Record<
   AllMetadataName,
   ManifestEntityRegistryEntry
 > = {
@@ -81,6 +84,30 @@ const MANIFEST_ENTITY_REGISTRY: Record<
         (connectionProvider) => connectionProvider.displayName,
       ),
   },
+  messagingProvider: {
+    entityKind: 'messaging provider',
+    getCandidates: (manifest) =>
+      toCandidates(
+        manifest.messagingProviders,
+        (messagingProvider) => messagingProvider.displayName,
+      ),
+  },
+  timelineActivityType: {
+    entityKind: 'timeline activity type',
+    getCandidates: (manifest) =>
+      toCandidates(
+        manifest.timelineActivityTypes,
+        (timelineActivityType) => timelineActivityType.label,
+      ),
+  },
+  settingsMenuItem: {
+    entityKind: 'settings menu item',
+    getCandidates: (manifest) =>
+      toCandidates(
+        manifest.settingsMenuItems,
+        (settingsMenuItem) => settingsMenuItem.title,
+      ),
+  },
   view: {
     entityKind: 'view',
     getCandidates: (manifest) =>
@@ -106,6 +133,7 @@ const MANIFEST_ENTITY_REGISTRY: Record<
   pageLayoutWidget: {
     entityKind: 'page layout widget',
     getCandidates: (manifest) => [
+      ...toCandidates(manifest.pageLayoutWidgets, (widget) => widget.title),
       ...(manifest.pageLayoutTabs ?? []).flatMap((pageLayoutTab) =>
         toCandidates(pageLayoutTab.widgets, (widget) => widget.title),
       ),
@@ -227,7 +255,17 @@ const MANIFEST_ENTITY_REGISTRY: Record<
   },
   roleTarget: {
     entityKind: 'role target',
-    getCandidates: () => NO_MANIFEST_CANDIDATES,
+    getCandidates: (manifest) =>
+      (manifest.agents ?? [])
+        .filter((agent) => isDefined(agent.roleUniversalIdentifier))
+        .map((agent) => ({
+          universalIdentifier: getRoleTargetUniversalIdentifier({
+            applicationUniversalIdentifier:
+              manifest.application.universalIdentifier,
+            agentUniversalIdentifier: agent.universalIdentifier,
+          }),
+          label: agent.label,
+        })),
   },
   rolePermissionFlag: {
     entityKind: 'role permission flag',
@@ -237,12 +275,47 @@ const MANIFEST_ENTITY_REGISTRY: Record<
     entityKind: 'webhook',
     getCandidates: () => NO_MANIFEST_CANDIDATES,
   },
+  mcpServer: {
+    entityKind: 'MCP server',
+    getCandidates: (manifest) =>
+      toCandidates(manifest.mcpServers, (mcpServer) => mcpServer.label),
+  },
   applicationVariable: {
     entityKind: 'application variable',
     getCandidates: () => NO_MANIFEST_CANDIDATES,
   },
   searchFieldMetadata: {
     entityKind: 'search field',
+    getCandidates: () => NO_MANIFEST_CANDIDATES,
+  },
+  workflow: {
+    entityKind: 'workflow',
+    getCandidates: () => NO_MANIFEST_CANDIDATES,
+  },
+  workflowVersion: {
+    entityKind: 'workflow version',
+    getCandidates: () => NO_MANIFEST_CANDIDATES,
+  },
+  fieldMetadataOption: {
+    entityKind: 'field option',
+    getCandidates: () => NO_MANIFEST_CANDIDATES,
+  },
+  relatedRecordPath: {
+    entityKind: 'related record path',
+    getCandidates: (manifest) =>
+      toCandidates(manifest.relatedRecordPaths, () => undefined),
+  },
+  validationRule: {
+    entityKind: 'validation rule',
+    getCandidates: (manifest) =>
+      toCandidates(manifest.validationRules, (rule) => rule.name),
+  },
+  agentChatChannel: {
+    entityKind: 'chat channel',
+    getCandidates: () => NO_MANIFEST_CANDIDATES,
+  },
+  agentChatChannelRole: {
+    entityKind: 'chat channel role',
     getCandidates: () => NO_MANIFEST_CANDIDATES,
   },
 };

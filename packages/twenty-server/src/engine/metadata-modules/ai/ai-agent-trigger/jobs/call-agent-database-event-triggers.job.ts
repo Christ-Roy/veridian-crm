@@ -1,0 +1,144 @@
+import { Logger } from '@nestjs/common';
+
+import chunk from 'lodash.chunk';
+import { isDefined } from 'twenty-shared/utils';
+
+import type { ObjectRecordEvent } from 'twenty-shared/database-events';
+
+import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
+import { Process } from 'src/engine/core-modules/message-queue/decorators/process.decorator';
+import { Processor } from 'src/engine/core-modules/message-queue/decorators/processor.decorator';
+import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import { type PermissionsAuthContext } from 'src/engine/permissions/principal/types/permissions-auth-context.type';
+import { PermissionsService } from 'src/engine/permissions/permissions.service';
+import { AGENT_TRIGGER_RUN_LIMITS } from 'src/engine/metadata-modules/ai/ai-agent-trigger/constants/agent-trigger-run-limits.const';
+import { RunAgentTriggerJob } from 'src/engine/metadata-modules/ai/ai-agent-trigger/jobs/run-agent-trigger.job';
+import { AgentTriggerThrottlerService } from 'src/engine/metadata-modules/ai/ai-agent-trigger/services/agent-trigger-throttler.service';
+import { type RunAgentTriggerJobData } from 'src/engine/metadata-modules/ai/ai-agent-trigger/types/run-agent-trigger-job-data.type';
+import { findAgentDatabaseEventTriggersMatchingEvent } from 'src/engine/metadata-modules/ai/ai-agent-trigger/utils/find-agent-database-event-triggers-matching-event.util';
+import { isDatabaseEventCausedByAgent } from 'src/engine/metadata-modules/ai/ai-agent-trigger/utils/is-database-event-caused-by-agent.util';
+import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { type WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
+import { filterEventsByUpdatedFields } from 'src/engine/workspace-event-emitter/utils/filter-events-by-updated-fields.util';
+
+@Processor(MessageQueue.triggerQueue)
+export class CallAgentDatabaseEventTriggersJob {
+  private readonly logger = new Logger(CallAgentDatabaseEventTriggersJob.name);
+
+  constructor(
+    @InjectMessageQueue(MessageQueue.aiQueue)
+    private readonly messageQueueService: MessageQueueService,
+    private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly permissionsService: PermissionsService,
+    private readonly agentTriggerThrottlerService: AgentTriggerThrottlerService,
+  ) {}
+
+  @Process(CallAgentDatabaseEventTriggersJob.name)
+  async handle(workspaceEventBatch: WorkspaceEventBatch<ObjectRecordEvent>) {
+    const {
+      workspaceId,
+      name: eventName,
+      objectMetadata,
+    } = workspaceEventBatch;
+
+    const { flatAgentMaps, flatApplicationMaps, flatRoleTargetByAgentIdMaps } =
+      await this.workspaceCacheService.getOrRecompute(workspaceId, [
+        'flatAgentMaps',
+        'flatApplicationMaps',
+        'flatRoleTargetByAgentIdMaps',
+      ]);
+
+    const matchingAgentTriggers = findAgentDatabaseEventTriggersMatchingEvent({
+      flatAgentMaps,
+      eventName,
+    });
+
+    if (matchingAgentTriggers.length === 0) {
+      return;
+    }
+
+    for (const { flatAgent, trigger } of matchingAgentTriggers) {
+      const application = flatApplicationMaps.byId[flatAgent.applicationId];
+
+      if (!isDefined(application) || isDefined(application.deletedAt)) {
+        continue;
+      }
+
+      const agentAuthContext: PermissionsAuthContext = {
+        type: 'application',
+        workspace: { id: workspaceId },
+        application,
+        agentId: flatAgent.id,
+      };
+      const readableEvents = await this.permissionsService.findReadableEvents({
+        authContext: agentAuthContext,
+        eventBatch: workspaceEventBatch,
+        // Masking can drop the actor fields, so the agent's own writes are skipped first
+        events: workspaceEventBatch.events.filter(
+          (event) =>
+            !isDatabaseEventCausedByAgent({
+              event,
+              eventName,
+              agentId: flatAgent.id,
+            }),
+        ),
+      });
+
+      const eventsToRunOn = filterEventsByUpdatedFields({
+        events: readableEvents,
+        eventName,
+        watchedFields: trigger.settings.updatedFields,
+      });
+
+      if (eventsToRunOn.length === 0) {
+        continue;
+      }
+
+      const eventGroups = trigger.settings.batchMode
+        ? chunk(
+            eventsToRunOn,
+            AGENT_TRIGGER_RUN_LIMITS.MAX_EVENTS_PER_BATCHED_RUN,
+          )
+        : eventsToRunOn.map((event) => [event]);
+
+      const grantedRunCount =
+        await this.agentTriggerThrottlerService.consumeAvailableRuns({
+          workspaceId,
+          agentId: flatAgent.id,
+          requestedRunCount: eventGroups.length,
+        });
+
+      if (grantedRunCount < eventGroups.length) {
+        this.logger.warn(
+          `Run limit reached for agent ${flatAgent.id} in workspace ${workspaceId}: skipping ${eventGroups.length - grantedRunCount} run(s) of trigger ${trigger.id}`,
+        );
+      }
+
+      if (grantedRunCount === 0) {
+        continue;
+      }
+
+      await this.messageQueueService.bulkAdd<RunAgentTriggerJobData>(
+        RunAgentTriggerJob.name,
+        eventGroups.slice(0, grantedRunCount).map((events) => ({
+          data: {
+            workspaceId,
+            agentId: flatAgent.id,
+            triggerId: trigger.id,
+            dispatchedRoleId: flatRoleTargetByAgentIdMaps[flatAgent.id]?.roleId,
+            payload: {
+              type: 'DATABASE_EVENT',
+              eventName,
+              objectNameSingular: objectMetadata.nameSingular,
+              events,
+            },
+          },
+          workspaceId,
+          applicationUniversalIdentifier:
+            flatAgent.applicationUniversalIdentifier,
+        })),
+      );
+    }
+  }
+}

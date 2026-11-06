@@ -1,7 +1,7 @@
 import ReactDOM from 'react-dom/client';
 
 import { App } from '@/app/components/App';
-import { migrateTokenPairCookieToLocalStorage } from '@/auth/utils/migrateTokenPairCookieToLocalStorage';
+import '@/app/utils/setupMonacoEnvironment';
 import { hydrateMetadataStore } from '@/metadata-store/storage/metadataStoreStorage';
 import '@fontsource/dm-mono/400.css';
 import '@fontsource/dm-mono/500.css';
@@ -9,15 +9,12 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
-import 'react-loading-skeleton/dist/skeleton.css';
 import 'twenty-ui/style.css';
 import 'twenty-ui/theme-light.css';
 import 'twenty-ui/theme-dark.css';
 import './index.css';
-
-// TODO: REMOVE this after 2026-12-12 — temporary migration of tokenPair from the
-// legacy cookie to localStorage (legacy cookie has a 180-day expiry).
-migrateTokenPairCookieToLocalStorage();
+// Salesfarce: remove with the theme
+import { salesfarceLoadStyles } from '@/salesfarce/utils/salesfarceLoadStyles';
 
 const renderApp = () => {
   const root = ReactDOM.createRoot(
@@ -27,4 +24,7 @@ const renderApp = () => {
   root.render(<App />);
 };
 
-hydrateMetadataStore().then(renderApp, renderApp);
+// Salesfarce: on removal, restore hydrateMetadataStore().then(renderApp, renderApp)
+void Promise.allSettled([hydrateMetadataStore(), salesfarceLoadStyles()]).then(
+  renderApp,
+);

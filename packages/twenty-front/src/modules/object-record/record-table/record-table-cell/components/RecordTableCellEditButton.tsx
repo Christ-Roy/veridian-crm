@@ -3,20 +3,22 @@ import { useIsFieldInputOnly } from '@/object-record/record-field/ui/hooks/useIs
 
 import { RecordTableCellContext } from '@/object-record/record-table/contexts/RecordTableCellContext';
 import { RecordTableCellButtons } from '@/object-record/record-table/record-table-cell/components/RecordTableCellButtons';
-import { useGetSecondaryRecordTableCellButton } from '@/object-record/record-table/record-table-cell/hooks/useGetSecondaryRecordTableCellButton';
+import { useGetSecondaryFieldButton } from '@/object-record/record-field/ui/hooks/useGetSecondaryFieldButton';
 import { useOpenRecordTableCellFromCell } from '@/object-record/record-table/record-table-cell/hooks/useOpenRecordTableCellFromCell';
 import { useContext } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import { IconArrowUpRight, IconPencil } from 'twenty-ui/icon';
+import { useLingui } from '@lingui/react/macro';
 
 export const RecordTableCellEditButton = () => {
-  const { cellPosition } = useContext(RecordTableCellContext);
+  const { t } = useLingui();
+  const { columnIndex } = useContext(RecordTableCellContext);
   const { openTableCell } = useOpenRecordTableCellFromCell();
   const isFieldInputOnly = useIsFieldInputOnly();
-  const isFirstColumn = cellPosition.column === 0;
+  const isFirstColumn = columnIndex === 0;
   const customButtonIcon = useGetButtonIcon();
 
-  const secondaryButton = useGetSecondaryRecordTableCellButton();
+  const secondaryButton = useGetSecondaryFieldButton();
 
   const mainButtonIcon = isFirstColumn
     ? IconArrowUpRight
@@ -39,6 +41,7 @@ export const RecordTableCellEditButton = () => {
         {
           onClick: handleMainButtonClick,
           Icon: mainButtonIcon,
+          ariaLabel: isFirstColumn ? t`Open record` : t`Edit field`,
         },
       ]}
     />

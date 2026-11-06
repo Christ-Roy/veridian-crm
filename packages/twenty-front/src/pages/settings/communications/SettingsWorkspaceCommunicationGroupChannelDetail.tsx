@@ -1,76 +1,82 @@
+import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
+import { SettingsAccountsMessageChannelDetails } from '@/settings/accounts/components/SettingsAccountsMessageChannelDetails';
+import { useDeleteEmailGroupChannel } from '@/settings/accounts/hooks/useDeleteEmailGroupChannel';
+import { useMyMessageChannels } from '@/settings/accounts/hooks/useMyMessageChannels';
+import { useUpdateEmailGroupChannel } from '@/settings/accounts/hooks/useUpdateEmailGroupChannel';
+import { getEmailChannelDomain } from '@/settings/accounts/utils/getEmailChannelDomain';
+import { SettingsDiscoveryHeroCard } from '@/settings/components/SettingsDiscoveryHeroCard';
+import { SettingsDiscoveryHeroCardFooter } from '@/settings/components/SettingsDiscoveryHeroCardFooter';
+import { SettingsEditableTitle } from '@/settings/components/SettingsEditableTitle';
+import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
+import { SettingsSkeletonLoader } from '@/settings/components/SettingsSkeletonLoader';
+import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
+import { SettingsEmailingDomainDnsRecords } from '@/settings/emailing-domains/components/SettingsEmailingDomainDnsRecords';
+import { SettingsEmailingDomainVerifyButton } from '@/settings/emailing-domains/components/SettingsEmailingDomainVerifyButton';
+import { getDocumentationUrl } from '@/support/utils/getDocumentationUrl';
+import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
+import { ConfirmationDialog } from '@/ui/layout/dialog/components/ConfirmationDialog';
+import { useDialog } from '@/ui/layout/dialog/hooks/useDialog';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useQuery } from '@apollo/client/react';
 import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
+import { isNonEmptyString } from '@sniptt/guards';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-
-import { useDeleteEmailGroupChannel } from '@/settings/accounts/hooks/useDeleteEmailGroupChannel';
-import { useMyMessageChannels } from '@/settings/accounts/hooks/useMyMessageChannels';
-
-import { getEmailChannelDomain } from '@/settings/accounts/utils/getEmailChannelDomain';
-import { SettingsDnsRecordsTable } from '@/settings/components/SettingsDnsRecordsTable';
-
-import { SettingsEmailingDomainVerifyButton } from '@/settings/emailing-domains/components/SettingsEmailingDomainVerifyButton';
-import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
-import { SettingsSkeletonLoader } from '@/settings/components/SettingsSkeletonLoader';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
-import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
-import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
-import { ConfirmationModal } from '@/ui/layout/modal/components/ConfirmationModal';
-import { useModal } from '@/ui/layout/modal/hooks/useModal';
 import { MessageChannelType, SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath, isDefined } from 'twenty-shared/utils';
+import { useToast } from 'twenty-ui/components/feedback';
+import { Section } from 'twenty-ui/components/layout';
 import {
-  EmailingDomainStatus,
-  GetEmailingDomainsDocument,
-} from '~/generated-metadata/graphql';
-import { Status } from 'twenty-ui/data-display';
-import { IconCopy, IconTrash } from 'twenty-ui/icon';
-import { H2Title } from 'twenty-ui/typography';
-import { Button } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
-import { type ThemeColor } from 'twenty-ui/theme';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { NotFound } from '~/pages/not-found/NotFound';
-import { getColorByEmailingDomainStatus } from '~/pages/settings/emailing-domains/utils/getEmailingDomainStatusColor';
-import { getTextByEmailingDomainStatus } from '~/pages/settings/emailing-domains/utils/getEmailingDomainStatusText';
+  IconArrowUpRight,
+  IconCopy,
+  IconMail,
+  IconTrash,
+} from 'twenty-ui/icon';
+import { Button } from 'twenty-ui/primitives/input';
+import { themeCssVariables } from 'twenty-ui/theme';
+import { GetEmailingDomainsDocument } from '~/generated-metadata/graphql';
 import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
+import { NotFound } from '~/pages/not-found/NotFound';
+import channelSetupCoverDark from '~/pages/settings/communications/assets/channel-setup-cover-dark.png';
+import channelSetupCoverLight from '~/pages/settings/communications/assets/channel-setup-cover-light.png';
+import { openUrlInNewTab } from '~/utils/openUrlInNewTab';
 
 const DELETE_EMAIL_GROUP_MODAL_ID = 'delete-email-group-channel-modal';
 
-const StyledForwardingRow = styled.div`
+const StyledInputRow = styled.div`
   display: flex;
   flex-direction: row;
 `;
 
-const StyledForwardingInputContainer = styled.div`
+const StyledInputContainer = styled.div`
   flex: 1;
   margin-right: ${themeCssVariables.spacing[2]};
 `;
 
-const StyledSendingDomainAdornment = styled.div`
-  align-items: center;
+const StyledSendingDomainColumn = styled.div`
   display: flex;
-  gap: ${themeCssVariables.spacing[2]};
+  flex-direction: column;
+  gap: ${themeCssVariables.spacing[3]};
 `;
-
-const RECORD_STATUS_TO_COLOR: Partial<Record<string, ThemeColor>> = {
-  success: 'green',
-  pending: 'yellow',
-  error: 'red',
-};
 
 export const SettingsWorkspaceCommunicationGroupChannelDetail = () => {
   const { t } = useLingui();
+  const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
   const navigateSettings = useNavigateSettings();
   const { messageChannelId } = useParams<{ messageChannelId: string }>();
   const { channels, loading } = useMyMessageChannels();
   const { copyToClipboard } = useCopyToClipboard();
-  const { openModal } = useModal();
-  const { enqueueErrorSnackBar } = useSnackBar();
+  const { openDialog } = useDialog();
+  const { enqueueToast } = useToast();
   const { deleteEmailGroupChannel, loading: deleting } =
     useDeleteEmailGroupChannel();
+  const { updateEmailGroupChannel, loading: updatingDisplayName } =
+    useUpdateEmailGroupChannel();
   const { data: emailingDomainsData } = useQuery(GetEmailingDomainsDocument);
+
+  const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
 
   if (loading) {
     return <SettingsSkeletonLoader />;
@@ -94,44 +100,60 @@ export const SettingsWorkspaceCommunicationGroupChannelDetail = () => {
     (domain) => domain.domain.toLowerCase() === channelDomain,
   );
 
-  const verificationRecords = (emailingDomain?.verificationRecords ?? []).map(
-    (record) => ({
-      ...record,
-      status: record.status ?? undefined,
-      statusColor: isDefined(record.status)
-        ? (RECORD_STATUS_TO_COLOR[record.status] ?? 'gray')
-        : undefined,
-    }),
-  );
+  const displayName = channel.displayName ?? '';
 
-  const isDomainVerified =
-    verificationRecords.length > 0 &&
-    verificationRecords.every((record) => record.status === 'success');
+  const handleDisplayNameSave = async () => {
+    if (!isDefined(displayNameDraft) || displayNameDraft === displayName) {
+      setDisplayNameDraft(null);
 
-  const hasFailedRecord = verificationRecords.some(
-    (record) => record.status === 'error',
-  );
+      return;
+    }
 
-  const domainStatus = isDomainVerified
-    ? EmailingDomainStatus.VERIFIED
-    : hasFailedRecord
-      ? EmailingDomainStatus.FAILED
-      : EmailingDomainStatus.PENDING;
+    const nextDisplayName = displayNameDraft.trim();
+
+    try {
+      await updateEmailGroupChannel(
+        channel.id,
+        isNonEmptyString(nextDisplayName) ? nextDisplayName : null,
+      );
+    } catch {
+      enqueueToast({
+        status: 'error',
+        children: t`Failed to update sender name.`,
+      });
+    } finally {
+      setDisplayNameDraft(null);
+    }
+  };
 
   const handleDelete = async () => {
     try {
       await deleteEmailGroupChannel(channel.id);
       navigateSettings(SettingsPath.WorkspaceCommunications);
     } catch {
-      enqueueErrorSnackBar({
-        message: t`Failed to delete email channel.`,
+      enqueueToast({
+        status: 'error',
+        children: t`Failed to delete email channel.`,
       });
     }
   };
 
   return (
     <SettingsPageLayout
-      title={sourceHandle}
+      pageTitle={displayNameDraft ?? displayName}
+      title={
+        <SettingsEditableTitle
+          instanceId="email-group-display-name"
+          value={displayNameDraft ?? displayName}
+          placeholder={t`Sender name`}
+          disabled={updatingDisplayName}
+          onChange={setDisplayNameDraft}
+          onEnter={handleDisplayNameSave}
+          onTab={handleDisplayNameSave}
+          onClickOutside={handleDisplayNameSave}
+          onEscape={() => setDisplayNameDraft(null)}
+        />
+      }
       links={[
         {
           children: t`Workspace`,
@@ -141,22 +163,51 @@ export const SettingsWorkspaceCommunicationGroupChannelDetail = () => {
           children: t`Communication`,
           href: getSettingsPath(SettingsPath.WorkspaceCommunications),
         },
+        { children: sourceHandle },
       ]}
       actionButton={
         <Button
-          Icon={IconTrash}
-          title={t`Delete`}
-          variant="secondary"
-          accent="danger"
-          size="small"
+          startIcon={<IconTrash />}
+          size="sm"
           disabled={deleting}
-          onClick={() => openModal(DELETE_EMAIL_GROUP_MODAL_ID)}
-        />
+          onClick={() => openDialog(DELETE_EMAIL_GROUP_MODAL_ID)}
+          variant="outline"
+          color="danger"
+        >{t`Delete`}</Button>
       }
     >
       <SettingsPageContainer>
-        <Section>
-          <H2Title
+        <Section.Root>
+          <SettingsDiscoveryHeroCard
+            lightSrc={channelSetupCoverLight}
+            darkSrc={channelSetupCoverDark}
+            instanceIdPrefix="settings-email-channel-hero"
+            tabs={[]}
+            footer={
+              <SettingsDiscoveryHeroCardFooter
+                Icon={IconMail}
+                title={t`Set up forwarding and DNS`}
+                description={t`See which parts you need and how to set each one up.`}
+                action={
+                  <Button
+                    size="sm"
+                    endIcon={<IconArrowUpRight />}
+                    onClick={() =>
+                      openUrlInNewTab(
+                        getDocumentationUrl({
+                          locale: currentWorkspaceMember?.locale,
+                          path: '/user-guide/calendar-emails/capabilities/email-channels',
+                        }),
+                      )
+                    }
+                  >{t`Read documentation`}</Button>
+                }
+              />
+            }
+          />
+        </Section.Root>
+        <Section.Root>
+          <Section.Header
             title={t`Shared email`}
             description={t`The shared email you want to use.`}
           />
@@ -166,65 +217,81 @@ export const SettingsWorkspaceCommunicationGroupChannelDetail = () => {
             disabled
             fullWidth
           />
-        </Section>
-        <Section>
-          <H2Title
+        </Section.Root>
+        <Section.Root>
+          <Section.Header
             title={t`Forwarding address`}
             description={t`Set up forwarding from the source address to this destination.`}
           />
-          <StyledForwardingRow>
-            <StyledForwardingInputContainer>
+          <StyledInputRow>
+            <StyledInputContainer>
               <SettingsTextInput
                 instanceId="email-group-forwarding"
                 value={forwardingAddress}
                 disabled
                 fullWidth
               />
-            </StyledForwardingInputContainer>
+            </StyledInputContainer>
             <Button
-              Icon={IconCopy}
-              title={t`Copy`}
+              startIcon={<IconCopy />}
               onClick={() =>
                 copyToClipboard(
                   forwardingAddress,
                   t`Forwarding address copied to clipboard`,
                 )
               }
+            >{t`Copy`}</Button>
+          </StyledInputRow>
+        </Section.Root>
+        {isNonEmptyString(channel.displayName) && (
+          <Section.Root>
+            <Section.Header
+              title={t`Sender name`}
+              description={t`The name recipients see next to your address. It is set when the channel is created.`}
             />
-          </StyledForwardingRow>
-        </Section>
-        {isDefined(emailingDomain) && (
-          <Section>
-            <H2Title
-              title={t`Sending domain`}
-              description={t`Outbound mail from this channel is sent through this domain. It must be verified before email can be delivered.`}
-              adornment={
-                <StyledSendingDomainAdornment>
-                  <Status
-                    color={getColorByEmailingDomainStatus(domainStatus)}
-                    text={getTextByEmailingDomainStatus(domainStatus)}
-                  />
-                  {!isDomainVerified && (
-                    <SettingsEmailingDomainVerifyButton
-                      emailingDomainId={emailingDomain.id}
-                    />
-                  )}
-                </StyledSendingDomainAdornment>
-              }
+            <SettingsTextInput
+              instanceId="message-channel-sender-name"
+              value={channel.displayName}
+              disabled
+              fullWidth
             />
-            {!isDomainVerified && (
-              <SettingsDnsRecordsTable records={verificationRecords} />
-            )}
-          </Section>
+          </Section.Root>
         )}
+        {isDefined(emailingDomain) && (
+          <Section.Root>
+            <Section.Header
+              title={t`Sending domain`}
+              description={t`Add these records at your DNS provider. Twenty checks them automatically.`}
+            />
+            <StyledSendingDomainColumn>
+              <StyledInputRow>
+                <StyledInputContainer>
+                  <SettingsTextInput
+                    instanceId="email-group-sending-domain"
+                    value={emailingDomain.domain}
+                    disabled
+                    fullWidth
+                  />
+                </StyledInputContainer>
+                <SettingsEmailingDomainVerifyButton
+                  emailingDomainId={emailingDomain.id}
+                />
+              </StyledInputRow>
+              <SettingsEmailingDomainDnsRecords
+                emailingDomain={emailingDomain}
+              />
+            </StyledSendingDomainColumn>
+          </Section.Root>
+        )}
+        <SettingsAccountsMessageChannelDetails messageChannel={channel} />
       </SettingsPageContainer>
-      <ConfirmationModal
-        modalInstanceId={DELETE_EMAIL_GROUP_MODAL_ID}
+      <ConfirmationDialog
+        dialogId={DELETE_EMAIL_GROUP_MODAL_ID}
         title={t`Delete email channel`}
         subtitle={t`Are you sure you want to delete ${sourceHandle}? Inbound mail forwarded to this address and outbound replies from it will stop working.`}
         onConfirmClick={handleDelete}
         confirmButtonText={t`Delete`}
-        confirmButtonAccent="danger"
+        confirmButtonColor="danger"
         loading={deleting}
       />
     </SettingsPageLayout>

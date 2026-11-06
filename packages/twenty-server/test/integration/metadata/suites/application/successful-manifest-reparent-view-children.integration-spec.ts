@@ -197,13 +197,13 @@ const findPersonObjectId = async () => {
 const findPersonViewsWithChildren = async (
   personObjectId: string,
 ): Promise<ViewWithChildren[]> => {
-  const { data } = await findViews({
+  const { data } = await findViews<ViewWithChildren>({
     objectMetadataId: personObjectId,
     gqlFields: VIEW_WITH_CHILDREN_GQL_FIELDS,
     expectToFail: false,
   });
 
-  return (data?.getViews ?? []) as unknown as ViewWithChildren[];
+  return data?.getViews ?? [];
 };
 
 const findReparentViews = async (personObjectId: string) => {
@@ -282,7 +282,6 @@ describe('Manifest reparent - all view children are reparentable', () => {
       await findReparentViews(personObjectId);
 
     for (const childCollectionKey of CHILD_COLLECTION_KEYS) {
-      // The source view no longer owns any child.
       expect(sourceAfterReparent[childCollectionKey]).toHaveLength(0);
 
       // The target view now owns exactly the same row (same id), proving the
@@ -333,7 +332,6 @@ describe('Manifest reparent - all view children are reparentable', () => {
       (view) => view.name === TARGET_VIEW_NAME,
     );
 
-    // The source view has been deleted.
     expect(sourceAfterReparent).toBeUndefined();
 
     if (!targetAfterReparent) {

@@ -1,13 +1,14 @@
 import { useFirstConnectedAccount } from '@/activities/emails/hooks/useFirstConnectedAccount';
 import { useResolveDefaultEmailRecipient } from '@/activities/emails/hooks/useResolveDefaultEmailRecipient';
+import { type ActivityTargetableObject } from '@/activities/types/ActivityTargetableEntity';
 import { useOpenComposeEmailInSidePanel } from '@/side-panel/hooks/useOpenComposeEmailInSidePanel';
-import { useTargetRecord } from '@/ui/layout/contexts/useTargetRecord';
 import { SettingsPath } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
 
-export const useComposeEmailForTargetRecord = () => {
-  const targetRecord = useTargetRecord();
+export const useComposeEmailForTargetRecord = (
+  targetRecord: ActivityTargetableObject,
+) => {
   const { openComposeEmailInSidePanel } = useOpenComposeEmailInSidePanel();
   const navigateSettings = useNavigateSettings();
   const { connectedAccountId, loading: accountLoading } =
@@ -19,15 +20,11 @@ export const useComposeEmailForTargetRecord = () => {
       recordId: targetRecord.id,
     });
 
-  const openComposer = () => {
-    if (!isDefined(connectedAccountId)) {
-      navigateSettings(SettingsPath.NewAccount);
-
-      return;
-    }
-
+  const openComposerWithConnectedAccount = (
+    composerConnectedAccountId: string,
+  ) => {
     openComposeEmailInSidePanel({
-      connectedAccountId,
+      connectedAccountId: composerConnectedAccountId,
       defaultTo,
       contextRecord: {
         objectNameSingular: targetRecord.targetObjectNameSingular,
@@ -36,8 +33,19 @@ export const useComposeEmailForTargetRecord = () => {
     });
   };
 
+  const openComposer = () => {
+    if (!isDefined(connectedAccountId)) {
+      navigateSettings(SettingsPath.NewAccount);
+
+      return;
+    }
+
+    openComposerWithConnectedAccount(connectedAccountId);
+  };
+
   return {
     openComposer,
+    openComposerWithConnectedAccount,
     loading: accountLoading || recipientLoading,
   };
 };

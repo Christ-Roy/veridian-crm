@@ -1,10 +1,9 @@
 import { type getDefaultStore } from 'jotai';
-import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { StandardObjectNameSingular } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 import { objectMetadataItemFamilySelector } from '@/object-metadata/states/objectMetadataItemFamilySelector';
 import { recordPageLayoutByObjectMetadataIdFamilySelector } from '@/page-layout/states/selectors/recordPageLayoutByObjectMetadataIdFamilySelector';
-import { getDefaultRecordPageLayoutId } from '@/page-layout/utils/getDefaultRecordPageLayoutId';
 import { getTabListInstanceIdFromPageLayoutAndRecord } from '@/page-layout/utils/getTabListInstanceIdFromPageLayoutAndRecord';
 import { activeTabIdComponentState } from '@/ui/layout/tab-list/states/activeTabIdComponentState';
 import { PageLayoutType } from '~/generated-metadata/graphql';
@@ -21,7 +20,7 @@ export const setRecordPageActiveTabId = ({
   store: ReturnType<typeof getDefaultStore>;
 }) => {
   // Dashboards resolve their page layout from record data, not object metadata
-  if (objectNameSingular === CoreObjectNameSingular.Dashboard) {
+  if (objectNameSingular === StandardObjectNameSingular.Dashboard) {
     return;
   }
 
@@ -42,11 +41,11 @@ export const setRecordPageActiveTabId = ({
     }),
   );
 
-  const pageLayoutId = isDefined(recordPageLayout)
-    ? recordPageLayout.id
-    : getDefaultRecordPageLayoutId({
-        targetObjectNameSingular: objectNameSingular,
-      });
+  if (!isDefined(recordPageLayout)) {
+    return;
+  }
+
+  const pageLayoutId = recordPageLayout.id;
 
   const tabListInstanceId = getTabListInstanceIdFromPageLayoutAndRecord({
     pageLayoutId,

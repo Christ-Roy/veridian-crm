@@ -6,6 +6,7 @@ import { buildApplicationFileList } from 'src/engine/core-modules/application/ap
 describe('buildApplicationFileList', () => {
   it('includes source and built files for logic functions and front components', () => {
     const manifest = {
+      application: {},
       logicFunctions: [
         {
           sourceHandlerPath: 'src/send-email.function.ts',
@@ -26,6 +27,12 @@ describe('buildApplicationFileList', () => {
         relativePath: 'package.json',
         fileFolder: FileFolder.Dependencies,
         isRequired: true,
+      },
+      {
+        relativePath: 'dependencies/yarn.lock',
+        resourcePath: 'yarn.lock',
+        fileFolder: FileFolder.Dependencies,
+        isRequired: false,
       },
       {
         relativePath: 'manifest.json',
@@ -58,5 +65,43 @@ describe('buildApplicationFileList', () => {
         isRequired: true,
       },
     ]);
+  });
+
+  it('stores the packaged yarn.lock as the application yarn.lock', () => {
+    expect(
+      buildApplicationFileList({ application: {} } as Manifest),
+    ).toContainEqual({
+      relativePath: 'dependencies/yarn.lock',
+      resourcePath: 'yarn.lock',
+      fileFolder: FileFolder.Dependencies,
+      isRequired: false,
+    });
+  });
+
+  it('includes the shared dependencies bundle when the application declares one', () => {
+    const manifest = {
+      application: {
+        frontComponentSharedDependencies: {
+          dependencies: ['react'],
+          builtPath: 'front-component-shared-dependencies.mjs',
+          builtChecksum: 'checksum',
+        },
+      },
+    } as Manifest;
+
+    expect(buildApplicationFileList(manifest)).toEqual(
+      expect.arrayContaining([
+        {
+          relativePath: 'front-component-shared-dependencies.mjs',
+          fileFolder: FileFolder.BuiltFrontComponent,
+          isRequired: true,
+        },
+        {
+          relativePath: 'front-component-shared-dependencies.mjs.json',
+          fileFolder: FileFolder.Dependencies,
+          isRequired: false,
+        },
+      ]),
+    );
   });
 });

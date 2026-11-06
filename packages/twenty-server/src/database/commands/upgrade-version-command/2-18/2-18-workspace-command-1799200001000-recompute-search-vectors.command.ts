@@ -8,7 +8,7 @@ import { type RunOnWorkspaceArgs } from 'src/database/commands/command-runners/w
 import { RegisteredWorkspaceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
 import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty-standard-application/constants/twenty-standard-applications';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import { type UniversalUpdateFieldAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/field/types/workspace-migration-field-action';
+import { type UniversalUpdateFieldAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/field/types/workspace-migration-field-action.type';
 import { WORKSPACE_MIGRATION_ACTION_TYPE } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/constants/workspace-migration-action-type.constant';
 import { WorkspaceMigrationRunnerService } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/services/workspace-migration-runner.service';
 
@@ -63,17 +63,17 @@ export class RecomputeSearchVectorsCommand extends ProvisionedWorkspaceCommandRu
       return;
     }
 
-    const actions: UniversalUpdateFieldAction[] = tsVectorFlatFieldMetadatas.map(
-      (flatFieldMetadata) => ({
+    const actions: UniversalUpdateFieldAction[] =
+      tsVectorFlatFieldMetadatas.map((flatFieldMetadata) => ({
         type: WORKSPACE_MIGRATION_ACTION_TYPE.update,
         metadataName: 'fieldMetadata',
         universalIdentifier: flatFieldMetadata.universalIdentifier,
         update: { universalSettings: null },
         rebuildSearchVector: true,
-      }),
-    );
+      }));
 
     await this.workspaceMigrationRunnerService.run({
+      shouldDeferActions: false,
       workspaceMigration: {
         // Cross-app actions; this is only the runner's existence gate, not a scope filter.
         applicationUniversalIdentifier:

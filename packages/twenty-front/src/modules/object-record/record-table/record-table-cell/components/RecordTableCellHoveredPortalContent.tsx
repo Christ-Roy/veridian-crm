@@ -9,13 +9,13 @@ import { RecordTableCellEditButton } from '@/object-record/record-table/record-t
 import { RecordTableCellEditMode } from '@/object-record/record-table/record-table-cell/components/RecordTableCellEditMode';
 import { RecordTableCellFieldInput } from '@/object-record/record-table/record-table-cell/components/RecordTableCellFieldInput';
 
-import { isRecordTableRowActiveComponentFamilyState } from '@/object-record/record-table/states/isRecordTableRowActiveComponentFamilyState';
+import { isRecordTableRowActiveByRecordIdComponentFamilySelector } from '@/object-record/record-table/states/selectors/isRecordTableRowActiveByRecordIdComponentFamilySelector';
+import { useAtomComponentFamilySelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilySelectorValue';
 import { recordTableHoverPositionComponentState } from '@/object-record/record-table/states/recordTableHoverPositionComponentState';
-import { useAtomComponentFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentFamilyStateValue';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { styled } from '@linaria/react';
 import { useContext } from 'react';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { useIsMobile } from 'twenty-ui/utilities';
 
 const StyledRecordTableCellHoveredPortalContent = styled.div<{
@@ -68,11 +68,11 @@ export const RecordTableCellHoveredPortalContent = () => {
 
   const showInteractiveStyle = !isReadOnly || (isFirstColumn && showButton);
 
-  const { rowIndex } = useRecordTableRowContextOrThrow();
+  const { recordId } = useRecordTableRowContextOrThrow();
 
-  const isRecordTableRowActive = useAtomComponentFamilyStateValue(
-    isRecordTableRowActiveComponentFamilyState,
-    rowIndex,
+  const isRecordTableRowActive = useAtomComponentFamilySelectorValue(
+    isRecordTableRowActiveByRecordIdComponentFamilySelector,
+    recordId,
   );
 
   return (

@@ -1,27 +1,25 @@
 import {
-  type WorkspaceSSOIdentityProviderEntity,
   IdentityProviderType,
-  SSOIdentityProviderStatus,
+  SsoIdentityProviderStatus,
 } from 'src/engine/core-modules/sso/workspace-sso-identity-provider.entity';
 import { getAuthProvidersByWorkspace } from 'src/engine/core-modules/workspace/utils/get-auth-providers-by-workspace.util';
-import { type WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
 describe('getAuthProvidersByWorkspace', () => {
   const mockWorkspace = {
     isGoogleAuthEnabled: true,
     isPasswordAuthEnabled: true,
     isMicrosoftAuthEnabled: false,
-    workspaceSSOIdentityProviders: [
+    workspaceSsoIdentityProviders: [
       {
         id: 'sso1',
         name: 'SSO Provider 1',
         type: IdentityProviderType.SAML,
 
-        status: SSOIdentityProviderStatus.Active,
+        status: SsoIdentityProviderStatus.Active,
         issuer: 'sso1.example.com',
       },
     ],
-  } as unknown as WorkspaceEntity;
+  };
 
   it('should return correct auth providers for given workspace', () => {
     const result = getAuthProvidersByWorkspace({
@@ -46,7 +44,7 @@ describe('getAuthProvidersByWorkspace', () => {
           name: 'SSO Provider 1',
           type: IdentityProviderType.SAML,
 
-          status: SSOIdentityProviderStatus.Active,
+          status: SsoIdentityProviderStatus.Active,
           issuer: 'sso1.example.com',
         },
       ],
@@ -55,7 +53,7 @@ describe('getAuthProvidersByWorkspace', () => {
 
   it('should handle workspace with no SSO providers', () => {
     const result = getAuthProvidersByWorkspace({
-      workspace: { ...mockWorkspace, workspaceSSOIdentityProviders: [] },
+      workspace: { ...mockWorkspace, workspaceSsoIdentityProviders: [] },
       systemEnabledProviders: {
         google: true,
         magicLink: false,
@@ -77,14 +75,14 @@ describe('getAuthProvidersByWorkspace', () => {
     const result = getAuthProvidersByWorkspace({
       workspace: {
         ...mockWorkspace,
-        workspaceSSOIdentityProviders: [
+        workspaceSsoIdentityProviders: [
           {
             id: 'sso1',
             name: 'SSO Provider 1',
             type: IdentityProviderType.SAML,
-            status: SSOIdentityProviderStatus.Inactive,
+            status: SsoIdentityProviderStatus.Inactive,
             issuer: 'sso1.example.com',
-          } as WorkspaceSSOIdentityProviderEntity,
+          },
         ],
       },
       systemEnabledProviders: {
@@ -128,7 +126,7 @@ describe('getAuthProvidersByWorkspace', () => {
           name: 'SSO Provider 1',
           type: IdentityProviderType.SAML,
 
-          status: SSOIdentityProviderStatus.Active,
+          status: SsoIdentityProviderStatus.Active,
           issuer: 'sso1.example.com',
         },
       ],

@@ -1,15 +1,13 @@
 import { renderHook } from '@testing-library/react';
 
-import {
-  AUTO_SELECT_FAST_MODEL_ID,
-  AUTO_SELECT_SMART_MODEL_ID,
-} from 'twenty-shared/constants';
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { CUSTOM_WORKSPACE_APPLICATION_MOCK } from '@/object-metadata/hooks/__tests__/constants/CustomWorkspaceApplicationMock.test.constant';
 import { useColumnDefinitionsFromObjectMetadata } from '@/object-metadata/hooks/useColumnDefinitionsFromObjectMetadata';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 import {
+  AiChatAssistantMode,
+  AiModelTier,
   SubscriptionInterval,
   SubscriptionStatus,
   WorkspaceActivationStatus,
@@ -38,8 +36,10 @@ describe('useColumnDefinitionsFromObjectMetadata', () => {
       activationStatus: WorkspaceActivationStatus.ACTIVE,
       hasValidSignedEnterpriseKey: false,
       hasValidEnterpriseValidityToken: false,
-      metadataVersion: 1,
+      isTrialAvailable: true,
       isPublicInviteLinkEnabled: false,
+      isCampaignClickTrackingEnabled: false,
+      isCampaignOpenTrackingEnabled: false,
       workspaceDiscoverability: WorkspaceDiscoverability.PUBLIC,
       isGoogleAuthEnabled: true,
       isMicrosoftAuthEnabled: false,
@@ -72,10 +72,12 @@ describe('useColumnDefinitionsFromObjectMetadata', () => {
       isTwoFactorAuthenticationEnforced: false,
       trashRetentionDays: 14,
       eventLogRetentionDays: 365 * 3,
-      fastModel: AUTO_SELECT_FAST_MODEL_ID,
-      smartModel: AUTO_SELECT_SMART_MODEL_ID,
-      enabledAiModelIds: [],
-      useRecommendedModels: true,
+      aiChatModelTier: AiModelTier.fast,
+      aiChatDirectMessageAssistantMode: AiChatAssistantMode.MENTION_ONLY,
+      aiChatInboxAssistantMode: AiChatAssistantMode.AUTOMATIC,
+      aiAgentModelTier: AiModelTier.fast,
+      isAutoModelSelectionEnabled: true,
+      aiModelIdByTier: {},
       isInternalMessagesImportEnabled: false,
     });
 

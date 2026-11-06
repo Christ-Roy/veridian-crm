@@ -1,50 +1,14 @@
-import { aiModelsState } from '@/client-config/states/aiModelsState';
-import { InputLabel } from '@/ui/input/components/InputLabel';
-import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { styled } from '@linaria/react';
-import { t } from '@lingui/core/macro';
-import { useContext } from 'react';
-import { isDefined } from 'twenty-shared/utils';
+import {
+  type ModelConfiguration,
+  parseAiModelVariantId,
+} from 'twenty-shared/ai';
+import { Section } from 'twenty-ui/components/layout';
+import { SettingsRow } from 'twenty-ui/components/settings';
 import { IconBrandX, IconWorld } from 'twenty-ui/icon';
-import { Checkbox } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
-const StyledCheckboxContainer = styled.div<{ disabled: boolean }>`
-  align-items: center;
-  border-radius: ${themeCssVariables.border.radius.sm};
-  cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
-  display: flex;
-  height: ${themeCssVariables.spacing[8]};
-  justify-content: space-between;
-  padding-inline: ${themeCssVariables.spacing[2]};
-  transition: background-color
-    calc(${themeCssVariables.animation.duration.normal} * 1s) ease;
-
-  &:hover {
-    background-color: ${({ disabled }) =>
-      disabled
-        ? 'transparent'
-        : themeCssVariables.background.transparent.light};
-  }
-`;
-
-const StyledCheckboxLabel = styled.div`
-  align-items: center;
-  display: flex;
-  gap: ${themeCssVariables.spacing[1]};
-`;
-
-type ModelConfiguration = {
-  webSearch?: {
-    enabled: boolean;
-    configuration?: Record<string, unknown>;
-  };
-  twitterSearch?: {
-    enabled: boolean;
-    configuration?: Record<string, unknown>;
-  };
-};
+import { useResolvedAiModel } from '@/ai/hooks/useResolvedAiModel';
+import { InputLabel } from '@/ui/input/components/internal/InputLabel/InputLabel';
+import { useLingui } from '@lingui/react/macro';
 
 type SettingsAgentModelCapabilitiesProps = {
   selectedModelId: string;
@@ -59,27 +23,24 @@ export const SettingsAgentModelCapabilities = ({
   onConfigurationChange,
   disabled = false,
 }: SettingsAgentModelCapabilitiesProps) => {
-  const { theme } = useContext(ThemeContext);
-  const aiModels = useAtomStateValue(aiModelsState);
+  const { t } = useLingui();
+  const { modelId: baseModelId } = parseAiModelVariantId(selectedModelId);
+  const selectedModel = useResolvedAiModel(baseModelId);
 
-  const selectedModel = aiModels.find((m) => m.modelId === selectedModelId);
-  const nativeCapabilities = selectedModel?.nativeCapabilities;
-
-  if (!isDefined(nativeCapabilities)) {
+  if (
+    !selectedModel?.nativeCapabilities?.webSearch &&
+    !selectedModel?.nativeCapabilities?.twitterSearch
+  ) {
     return null;
   }
 
-  const showNativeWebSearch = nativeCapabilities.webSearch;
-  const showNativeTwitterSearch = nativeCapabilities.twitterSearch;
-
-  if (!showNativeWebSearch && !showNativeTwitterSearch) {
-    return null;
-  }
-
-  const handleCapabilityToggle = (
-    capability: 'webSearch' | 'twitterSearch',
-    enabled: boolean,
-  ) => {
+  const handleCapabilityChange = ({
+    capability,
+    enabled,
+  }: {
+    capability: 'webSearch' | 'twitterSearch';
+    enabled: boolean;
+  }) => {
     if (disabled) {
       return;
     }
@@ -87,62 +48,41 @@ export const SettingsAgentModelCapabilities = ({
     onConfigurationChange({
       ...modelConfiguration,
       [capability]: {
+        ...modelConfiguration[capability],
         enabled,
-        configuration: modelConfiguration[capability]?.configuration || {},
       },
     });
   };
 
-  const capabilities = [
-    ...(showNativeWebSearch
-      ? [
-          {
-            key: 'webSearch' as const,
-            label: t`Web Search`,
-            Icon: IconWorld,
-            enabled: modelConfiguration.webSearch?.enabled || false,
-          },
-        ]
-      : []),
-    ...(showNativeTwitterSearch
-      ? [
-          {
-            key: 'twitterSearch' as const,
-            label: t`Twitter/X Search`,
-            Icon: IconBrandX,
-            enabled: modelConfiguration.twitterSearch?.enabled || false,
-          },
-        ]
-      : []),
-  ];
-
   return (
-    <Section>
+    <Section.Root>
       <InputLabel>{t`Enable model-specific features`}</InputLabel>
       <div>
-        {capabilities.map((capability) => (
-          <StyledCheckboxContainer
-            disabled={disabled}
-            key={capability.key}
-            onClick={() =>
-              handleCapabilityToggle(capability.key, !capability.enabled)
+        {selectedModel.nativeCapabilities?.webSearch && (
+          <SettingsRow
+            startElement={<IconWorld />}
+            checked={modelConfiguration.webSearch?.enabled ?? false}
+            onCheckedChange={(enabled) =>
+              handleCapabilityChange({ capability: 'webSearch', enabled })
             }
+            disabled={disabled}
           >
-            <StyledCheckboxLabel>
-              <capability.Icon size={theme.icon.size.sm} />
-              <span>{capability.label}</span>
-            </StyledCheckboxLabel>
-            <Checkbox
-              checked={capability.enabled}
-              onChange={(event) => {
-                event.stopPropagation();
-                handleCapabilityToggle(capability.key, event.target.checked);
-              }}
-              disabled={disabled}
-            />
-          </StyledCheckboxContainer>
-        ))}
+            {t`Web Search`}
+          </SettingsRow>
+        )}
+        {selectedModel.nativeCapabilities?.twitterSearch && (
+          <SettingsRow
+            startElement={<IconBrandX />}
+            checked={modelConfiguration.twitterSearch?.enabled ?? false}
+            onCheckedChange={(enabled) =>
+              handleCapabilityChange({ capability: 'twitterSearch', enabled })
+            }
+            disabled={disabled}
+          >
+            {t`Twitter/X Search`}
+          </SettingsRow>
+        )}
       </div>
-    </Section>
+    </Section.Root>
   );
 };

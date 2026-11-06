@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import { getFrontComponentBuildPlugins } from 'twenty-sdk/front-component-renderer/build';
 
+import twentyUiPackageJson from '../../../twenty-ui/package.json';
+
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const storiesDir = path.resolve(dirname, '../../src/__stories__');
 const exampleSourcesBuiltDir = path.resolve(
@@ -16,13 +18,24 @@ const exampleSourcesBuiltPreactDir = path.resolve(
   '../../src/__stories__/example-sources-built-preact',
 );
 
-const SOURCE_SCAN_ROOTS = ['html-tag', 'host-api', 'showcase'];
+const SOURCE_SCAN_ROOTS = [
+  'html-tag',
+  'host-api',
+  'media',
+  'showcase',
+  'twenty-ui-gallery',
+];
 
 const rootNodeModules = path.resolve(dirname, '../../../../node_modules');
 
-const twentyUiIndividualIndex = path.resolve(
+const twentyUiIndividualDir = path.resolve(
   dirname,
-  '../../../twenty-ui/dist/individual/individual-entry.js',
+  '../../../twenty-ui/dist/individual',
+);
+
+const twentyUiIndividualIndex = path.join(
+  twentyUiIndividualDir,
+  'individual-entry.js',
 );
 
 const sdkDefineIndex = path.resolve(
@@ -61,27 +74,17 @@ const twentySharedAliases = Object.fromEntries(
   ]),
 );
 
-const TWENTY_UI_SUBMODULES = [
-  'accessibility',
-  'data-display',
-  'feedback',
-  'icon',
-  'input',
-  'json-visualizer',
-  'layout',
-  'navigation',
-  'surfaces',
-  'theme-constants',
-  'typography',
-  'utilities',
-];
+const twentyUiSubmodules = Object.keys(twentyUiPackageJson.exports)
+  .filter((subpath) => subpath !== '.' && !subpath.endsWith('.css'))
+  .map((subpath) => subpath.slice(2));
 
 const twentyUiAliases = {
+  'twenty-ui/style.css': path.join(twentyUiIndividualDir, 'twenty-ui.css'),
   'twenty-ui': twentyUiIndividualIndex,
   ...Object.fromEntries(
-    TWENTY_UI_SUBMODULES.map((submodule) => [
+    twentyUiSubmodules.map((submodule) => [
       `twenty-ui/${submodule}`,
-      twentyUiIndividualIndex,
+      path.join(twentyUiIndividualDir, submodule, 'index.js'),
     ]),
   ),
 };
@@ -176,12 +179,37 @@ const collectBundleSizes = (): BundleSizeEntry[] =>
     };
   });
 
+// esbuild memory grows with entries x import graph and is only released when its service stops
+const ENTRY_POINT_BATCH_SIZE = 16;
+
+const buildInBatches = async (
+  entryPoints: Record<string, string>,
+  options: esbuild.BuildOptions,
+): Promise<void> => {
+  const entryPointList = Object.entries(entryPoints);
+
+  for (
+    let batchStart = 0;
+    batchStart < entryPointList.length;
+    batchStart += ENTRY_POINT_BATCH_SIZE
+  ) {
+    const batchEntryPoints = Object.fromEntries(
+      entryPointList.slice(batchStart, batchStart + ENTRY_POINT_BATCH_SIZE),
+    );
+
+    try {
+      await esbuild.build({ ...options, entryPoints: batchEntryPoints });
+    } finally {
+      await esbuild.stop();
+    }
+  }
+};
+
 const buildSourceExamples = async (): Promise<void> => {
   const entryPoints = resolveEntryPoints();
   const tsconfigPath = path.join(dirname, '../../tsconfig.json');
 
   const commonOptions: esbuild.BuildOptions = {
-    entryPoints,
     bundle: true,
     splitting: false,
     format: 'esm',
@@ -197,7 +225,7 @@ const buildSourceExamples = async (): Promise<void> => {
 
   fs.mkdirSync(exampleSourcesBuiltDir, { recursive: true });
 
-  await esbuild.build({
+  await buildInBatches(entryPoints, {
     ...commonOptions,
     outdir: exampleSourcesBuiltDir,
     plugins: getFrontComponentBuildPlugins(),
@@ -209,7 +237,7 @@ const buildSourceExamples = async (): Promise<void> => {
 
   fs.mkdirSync(exampleSourcesBuiltPreactDir, { recursive: true });
 
-  await esbuild.build({
+  await buildInBatches(entryPoints, {
     ...commonOptions,
     outdir: exampleSourcesBuiltPreactDir,
     plugins: getFrontComponentBuildPlugins({ usePreact: true }),

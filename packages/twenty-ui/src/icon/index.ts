@@ -7,13 +7,12 @@
  *                              |___/
  */
 
-export type { IconProps } from './components/Icon';
-export { Icon } from './components/Icon';
 export { IconAddressBook } from './components/IconAddressBook';
 export { IconBrandAnthropic } from './components/IconBrandAnthropic';
 export { IconBrandGemini } from './components/IconBrandGemini';
 export { IconBrandGroq } from './components/IconBrandGroq';
 export { IconBrandMistral } from './components/IconBrandMistral';
+export { IconBrandTypesafeAi } from './components/IconBrandTypesafeAi';
 export { IconBrandXai } from './components/IconBrandXai';
 export { IconChartBarHorizontal } from './components/IconChartBarHorizontal';
 export { IconGmail } from './components/IconGmail';
@@ -87,6 +86,7 @@ export {
   IconBadge2k,
   IconBaselineDensitySmall,
   IconBell,
+  IconBellOff,
   IconBlockquote,
   IconBold,
   IconBolt,
@@ -108,6 +108,7 @@ export {
   IconBrandLinkedin,
   IconBrandNpm,
   IconBrandOpenai,
+  IconBrandTypescript,
   IconBrandWhatsapp,
   IconBrandX,
   IconBriefcase,
@@ -140,6 +141,7 @@ export {
   IconChevronsRight,
   IconChevronUp,
   IconCircle,
+  IconCircleCheck,
   IconCircleDashed,
   IconCircleDot,
   IconCircleOff,
@@ -154,12 +156,16 @@ export {
   IconCodeCircle,
   IconCoins,
   IconColorSwatch,
+  IconColumnInsertLeft,
   IconColumnInsertRight,
   IconColumns,
   IconCommand,
+  IconCompass,
+  IconMessageCircle,
   IconComment,
   IconCopy,
   IconCopyPlus,
+  IconCornerDownRight,
   IconCpu,
   IconCreativeCommonsSa,
   IconCreditCard,
@@ -218,6 +224,7 @@ export {
   IconDatabase,
   IconDatabaseExport,
   IconDecimal,
+  IconDeviceDesktop,
   IconDeviceFloppy,
   IconDoorEnter,
   IconDotsVertical,
@@ -237,6 +244,7 @@ export {
   IconFileImport,
   IconFileInfo,
   IconFilePencil,
+  IconFiles,
   IconFileText,
   IconFileUpload,
   IconFileZip,
@@ -252,6 +260,7 @@ export {
   IconFolder,
   IconFolderOpen,
   IconFolderPlus,
+  IconForms,
   IconFolderRoot,
   IconFolderSymlink,
   IconForbid,
@@ -263,6 +272,7 @@ export {
   IconGitCommit,
   IconGizmo,
   IconGraph,
+  IconGripHorizontal,
   IconGripVertical,
   IconH1,
   IconH2,
@@ -272,6 +282,7 @@ export {
   IconH6,
   IconHandClick,
   IconHandMove,
+  IconHash,
   IconHeadphones,
   IconHeart,
   IconHeartOff,
@@ -293,6 +304,7 @@ export {
   IconId,
   IconInbox,
   IconInfoCircle,
+  IconInfoSquareRounded,
   IconItalic,
   IconJetpack,
   IconJson,
@@ -302,9 +314,11 @@ export {
   IconLayout,
   IconLayoutDashboard,
   IconLayoutGrid,
+  IconLayoutGridAdd,
   IconLayoutKanban,
   IconLayoutList,
   IconLayoutNavbar,
+  IconLayoutSidebar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconLayoutSidebarRight,
@@ -336,10 +350,12 @@ export {
   IconMathXy,
   IconMaximize,
   IconMessage,
-  IconMessageCircle,
   IconMessageCirclePlus,
+  IconMicrophone,
+  IconMinimize,
   IconMinus,
   IconMoneybag,
+  IconMoodPlus,
   IconMoodSmile,
   IconMoon,
   IconMouse2,
@@ -357,6 +373,7 @@ export {
   IconPencil,
   IconPencilOff,
   IconPercentage,
+  IconPerspective,
   IconPhone,
   IconPhoto,
   IconPhotoUp,
@@ -409,7 +426,9 @@ export {
   IconSettingsAutomation,
   IconSettingsBolt,
   IconShare,
+  IconShare2,
   IconShield,
+  IconShoppingBag,
   IconSitemap,
   IconSlash,
   IconSortAscending,
@@ -440,6 +459,7 @@ export {
   IconSquareRoundedX,
   IconSquareX,
   IconStack2,
+  IconStairs,
   IconStar,
   IconStatusChange,
   IconStepInto,
@@ -454,6 +474,7 @@ export {
   IconTarget,
   IconTargetArrow,
   IconTerminal,
+  IconTerminal2,
   IconTestPipe,
   IconTextCaption,
   IconTextSize,
@@ -473,11 +494,13 @@ export {
   IconUnlink,
   IconUpload,
   IconUser,
+  IconUserOff,
   IconUserCircle,
   IconUserCog,
   IconUserPin,
   IconUserPlus,
   IconUsers,
+  IconUsersGroup,
   IconVariable,
   IconVariablePlus,
   IconVersions,
@@ -489,8 +512,17 @@ export {
   IconWorld,
   IconWorldWww,
   IconX,
+  IconZzz,
+  IconZzzOff,
 } from './components/TablerIcons';
 export { ThinkingOrbitLoaderIcon } from './components/ThinkingOrbitLoaderIcon';
-export { useIcons } from './hooks/useIcons';
-export { IconsProvider } from './providers/IconsProvider';
+export type {
+  TwentyIconDictionaryCategory,
+  TwentyIconDictionaryEntry,
+} from './constants/TwentyIconDictionary';
+export {
+  TWENTY_ICON_DICTIONARY_FIGMA_URL,
+  TWENTY_ICON_DICTIONARY_CATEGORIES,
+  TWENTY_ICON_DICTIONARY,
+} from './constants/TwentyIconDictionary';
 export type { IconComponentProps, IconComponent } from './types/IconComponent';

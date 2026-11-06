@@ -1,13 +1,16 @@
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { isManyToOneRelationField } from '@/object-metadata/utils/isManyToOneRelationField';
+import { isCompositeFieldType } from '@/object-record/object-filter-dropdown/utils/isCompositeFieldType';
 import { isFieldMorphRelation } from '@/object-record/record-field/ui/types/guards/isFieldMorphRelation';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { isSystemSearchVectorField } from '@/object-record/utils/isSystemSearchVectorField';
+import { removeTypenamesFromCompositeFieldValue } from '@/object-record/utils/removeTypenamesFromCompositeFieldValue';
 import {
   computeMorphRelationGqlFieldName,
   computeRelationGqlFieldJoinColumnName,
   isDefined,
 } from 'twenty-shared/utils';
+import { doNotTranslate } from 'twenty-shared/i18n';
 import { FieldMetadataType, RelationType } from '~/generated-metadata/graphql';
 
 export const sanitizeRecordInput = ({
@@ -46,7 +49,10 @@ export const sanitizeRecordInput = ({
                 targetObjectMetadataNamePlural:
                   morphRelation.targetObjectMetadata.namePlural,
               });
-              return computedFieldName === fieldName.replace('Id', '');
+              return (
+                computedFieldName ===
+                fieldName.replace(doNotTranslate('Id'), '')
+              );
             });
           });
 
@@ -65,7 +71,8 @@ export const sanitizeRecordInput = ({
         if (
           isDefined(fieldMetadataItem) &&
           isManyToOneRelationField(fieldMetadataItem) &&
-          !isDefined(recordInput[fieldMetadataItem.name]?.connect?.where)
+          !isDefined(recordInput[fieldMetadataItem.name]?.connect?.where) &&
+          !isDefined(recordInput[fieldMetadataItem.name]?.create)
         ) {
           return undefined;
         }
@@ -90,8 +97,17 @@ export const sanitizeRecordInput = ({
           return [fieldName, cleanedFiles];
         }
 
-        // Todo: we should check that the fieldValue is a valid value
-        // (e.g. a string for a string field, following the right composite structure for composite fields)
+        if (
+          isDefined(fieldMetadataItem) &&
+          isCompositeFieldType(fieldMetadataItem.type)
+        ) {
+          return [
+            fieldName,
+            removeTypenamesFromCompositeFieldValue(fieldValue),
+          ];
+        }
+
+        // TODO: validate fieldValue against the field type, including composite structures
         return [fieldName, fieldValue];
       })
       .filter(isDefined),

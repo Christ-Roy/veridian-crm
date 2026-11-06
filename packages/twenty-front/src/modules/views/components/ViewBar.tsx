@@ -9,7 +9,7 @@ import { ViewBarPageTitle } from '@/views/components/ViewBarPageTitle';
 import { ViewPickerDropdown } from '@/views/view-picker/components/ViewPickerDropdown';
 
 import { ObjectFilterDropdownComponentInstanceContext } from '@/object-record/object-filter-dropdown/states/contexts/ObjectFilterDropdownComponentInstanceContext';
-import { VIEW_SORT_DROPDOWN_ID } from '@/object-record/object-sort-dropdown/constants/ViewSortDropdownId';
+import { getObjectSortDropdownId } from '@/object-record/object-sort-dropdown/utils/getObjectSortDropdownId';
 import { ObjectSortDropdownComponentInstanceContext } from '@/object-record/object-sort-dropdown/states/context/ObjectSortDropdownComponentInstanceContext';
 import { QueryParamsCleanupEffect } from '@/views/components/QueryParamsCleanupEffect';
 import { ViewBarAnyFieldFilterEffect } from '@/views/components/ViewBarAnyFieldFilterEffect';
@@ -18,11 +18,7 @@ import { ViewBarRecordFieldEffect } from '@/views/components/ViewBarRecordFieldE
 import { ViewBarRecordFilterEffect } from '@/views/components/ViewBarRecordFilterEffect';
 import { ViewBarRecordFilterGroupEffect } from '@/views/components/ViewBarRecordFilterGroupEffect';
 import { ViewBarRecordSortEffect } from '@/views/components/ViewBarRecordSortEffect';
-import { ViewBarFilterDropdownIds } from '@/views/constants/ViewBarFilterDropdownIds';
-/* Veridian PATCH INLINE (cf VERIDIAN-PATCHES.md) : cockpit prospection —
-   boutons de filtre rapides (Taille / Avec-Sans site). Le gating sur l'objet
-   `company` est fait DANS le module (ViewBar est partagé par tous les objets). */
-import { VeridianProspectionFilterButtons } from '@/veridian-prospection-filters/components/VeridianProspectionFilterButtons';
+import { getViewBarFilterDropdownId } from '@/views/utils/getViewBarFilterDropdownId';
 import { UpdateViewButtonGroup } from './UpdateViewButtonGroup';
 import { ViewBarDetails } from './ViewBarDetails';
 
@@ -39,7 +35,7 @@ export const ViewBar = ({
   optionsDropdownButton,
   isReadOnly = false,
 }: ViewBarProps) => {
-  const { objectNamePlural } = useRecordIndexContextOrThrow();
+  const { objectNamePlural, recordIndexId } = useRecordIndexContextOrThrow();
 
   if (!objectNamePlural) {
     return;
@@ -53,7 +49,7 @@ export const ViewBar = ({
 
   return (
     <ObjectSortDropdownComponentInstanceContext.Provider
-      value={{ instanceId: VIEW_SORT_DROPDOWN_ID }}
+      value={{ instanceId: getObjectSortDropdownId(recordIndexId) }}
     >
       <ViewBarRecordFilterGroupEffect />
       <ViewBarAnyFieldFilterEffect />
@@ -70,13 +66,11 @@ export const ViewBar = ({
         rightComponent={
           <>
             <ObjectFilterDropdownComponentInstanceContext.Provider
-              value={{ instanceId: ViewBarFilterDropdownIds.MAIN }}
+              value={{ instanceId: getViewBarFilterDropdownId(recordIndexId) }}
             >
               <ViewBarFilterDropdown />
             </ObjectFilterDropdownComponentInstanceContext.Provider>
             <ObjectSortDropdownButton />
-            {/* Veridian PATCH INLINE : cockpit prospection (gating company dans le module) */}
-            <VeridianProspectionFilterButtons />
             {optionsDropdownButton}
           </>
         }

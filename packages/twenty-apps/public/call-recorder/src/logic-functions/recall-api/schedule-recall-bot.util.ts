@@ -11,22 +11,32 @@ import {
   extractRecallBotId,
   type RecallBotResponse,
 } from 'src/logic-functions/recall-api/extract-recall-bot-id.util';
+import { computeRecallBotDetectionActivateAfterSeconds } from 'src/logic-functions/domain/compute-recall-bot-detection-activate-after-seconds.util';
 import { getRecallApiConfig } from 'src/logic-functions/recall-api/get-recall-api-config.util';
+import { getRecallBotChatConfig } from 'src/logic-functions/recall-api/get-recall-bot-chat-config.util';
 import { recallBotApiRequest } from 'src/logic-functions/recall-api/recall-bot-api-request.util';
 import { computeMaximumJoinAt } from 'src/logic-functions/recall-api/compute-maximum-join-at.utils';
 
 export type ScheduleRecallBotArgs = {
   meetingUrl: string;
+  meetingStartsAt: string;
   joinAt: string;
   metadata: RecallRoutingMetadata;
   automaticVideoOutput?: RecallBotAutomaticVideoOutput;
+  idempotencyKey?: string;
 };
 
 export const scheduleRecallBot = async ({
   meetingUrl,
+  meetingStartsAt,
   joinAt,
   metadata,
   automaticVideoOutput,
+  idempotencyKey = computeRecallBotCreationIdempotencyKey({
+    meetingUrl,
+    joinAt,
+    metadata,
+  }),
 }: ScheduleRecallBotArgs): Promise<RecallBotScheduleResult> => {
   const configResult = getRecallApiConfig();
 
@@ -34,12 +44,16 @@ export const scheduleRecallBot = async ({
     return { ok: false, status: null, errorMessage: configResult.error };
   }
 
-  const automaticLeave = getRecallBotAutomaticLeave();
-  const idempotencyKey = computeRecallBotCreationIdempotencyKey({
-    meetingUrl,
-    joinAt,
-    metadata,
+  const effectiveJoinAt = computeMaximumJoinAt(joinAt);
+  const automaticLeave = getRecallBotAutomaticLeave({
+    botDetectionActivateAfterSeconds:
+      computeRecallBotDetectionActivateAfterSeconds({
+        botJoinsAt: effectiveJoinAt,
+        meetingStartsAt,
+      }),
+    botName: configResult.config.botName,
   });
+  const chat = getRecallBotChatConfig();
 
   const result = await recallBotApiRequest<RecallBotResponse>({
     config: configResult.config,
@@ -48,11 +62,10 @@ export const scheduleRecallBot = async ({
     idempotencyKey,
     body: {
       meeting_url: meetingUrl,
-      join_at: computeMaximumJoinAt(joinAt), // We can't join in the past, so we floor this date 1s in the future
+      join_at: effectiveJoinAt,
       bot_name: configResult.config.botName,
-      ...(isUndefined(automaticLeave)
-        ? {}
-        : { automatic_leave: automaticLeave }),
+      automatic_leave: automaticLeave,
+      ...(isUndefined(chat) ? {} : { chat }),
       ...(isUndefined(automaticVideoOutput)
         ? {}
         : { automatic_video_output: automaticVideoOutput }),
@@ -82,11 +95,14 @@ export const scheduleRecallBot = async ({
   };
 };
 
-const computeRecallBotCreationIdempotencyKey = ({
+export const computeRecallBotCreationIdempotencyKey = ({
   meetingUrl,
   joinAt,
   metadata,
-}: Pick<ScheduleRecallBotArgs, 'meetingUrl' | 'joinAt' | 'metadata'>): string =>
+  attemptedAt,
+}: Pick<ScheduleRecallBotArgs, 'meetingUrl' | 'joinAt' | 'metadata'> & {
+  attemptedAt?: string;
+}): string =>
   createHash('sha256')
     .update(
       JSON.stringify({
@@ -94,6 +110,7 @@ const computeRecallBotCreationIdempotencyKey = ({
         callRecordingId: metadata.twentyCallRecordingId,
         meetingUrl,
         joinAt,
+        attemptedAt,
       }),
     )
     .digest('hex');

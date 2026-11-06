@@ -1,6 +1,6 @@
 import { mapObjectMetadataToGraphQLQuery } from '@/object-metadata/utils/mapObjectMetadataToGraphQLQuery';
 import { getTestEnrichedObjectMetadataItemsMock } from '~/testing/utils/getTestEnrichedObjectMetadataItemsMock';
-import { normalizeGQLQuery } from '~/utils/normalizeGQLQuery';
+import { normalizeGQLQuery } from '~/testing/utils/normalizeGQLQuery';
 
 const personObjectMetadataItem = getTestEnrichedObjectMetadataItemsMock().find(
   (item) => item.nameSingular === 'person',
@@ -32,14 +32,12 @@ describe('mapObjectMetadataToGraphQLQuery', () => {
       },
       objectPermissionsByObjectMetadataId: {
         [personObjectMetadataItem.id]: {
-          canReadObjectRecords: true,
-          canUpdateObjectRecords: true,
-          canSoftDeleteObjectRecords: true,
-          canDestroyObjectRecords: true,
-          objectMetadataId: personObjectMetadataItem.id,
+          canReadAllRecords: true,
+          canUpdateAllRecords: true,
+          canSoftDeleteAllRecords: true,
+          canDestroyAllRecords: true,
           restrictedFields: {},
-          rowLevelPermissionPredicates: [],
-          rowLevelPermissionPredicateGroups: [],
+          rowLevelRecordsPermissions: null,
         },
       },
     });
@@ -71,7 +69,10 @@ describe('mapObjectMetadataToGraphQLQuery', () => {
     {
       primaryLinkUrl
       primaryLinkLabel
-      secondaryLinks
+      secondaryLinks {
+        label
+        url
+      }
     }
     company
     {
@@ -82,7 +83,10 @@ describe('mapObjectMetadataToGraphQLQuery', () => {
     {
       primaryLinkUrl
       primaryLinkLabel
-      secondaryLinks
+      secondaryLinks {
+        label
+        url
+      }
     }
     annualRecurringRevenue
     {
@@ -107,7 +111,10 @@ describe('mapObjectMetadataToGraphQLQuery', () => {
     {
       primaryLinkUrl
       primaryLinkLabel
-      secondaryLinks
+      secondaryLinks {
+        label
+        url
+      }
     }
     createdAt
     accountOwnerId
@@ -115,7 +122,10 @@ describe('mapObjectMetadataToGraphQLQuery', () => {
     {
       primaryLinkUrl
       primaryLinkLabel
-      secondaryLinks
+      secondaryLinks {
+        label
+        url
+      }
     }
     updatedAt
     }
@@ -125,7 +135,10 @@ describe('mapObjectMetadataToGraphQLQuery', () => {
     {
       primaryLinkUrl
       primaryLinkLabel
-      secondaryLinks
+      secondaryLinks {
+        label
+        url
+      }
     }
     }`),
     );
@@ -138,14 +151,12 @@ describe('mapObjectMetadataToGraphQLQuery', () => {
       recordGqlFields: { company: { id: true }, id: true, name: true },
       objectPermissionsByObjectMetadataId: {
         [personObjectMetadataItem.id]: {
-          canReadObjectRecords: true,
-          canUpdateObjectRecords: true,
-          canSoftDeleteObjectRecords: true,
-          canDestroyObjectRecords: true,
-          objectMetadataId: personObjectMetadataItem.id,
+          canReadAllRecords: true,
+          canUpdateAllRecords: true,
+          canSoftDeleteAllRecords: true,
+          canDestroyAllRecords: true,
           restrictedFields: {},
-          rowLevelPermissionPredicates: [],
-          rowLevelPermissionPredicateGroups: [],
+          rowLevelRecordsPermissions: null,
         },
       },
     });

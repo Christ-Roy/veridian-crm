@@ -1,3 +1,5 @@
+import { themeCssVariables } from 'twenty-ui/theme';
+import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 
 import { useUnsubscribeTopics } from '@/activities/emails/hooks/useUnsubscribeTopics';
@@ -7,9 +9,12 @@ import {
   type UnsubscribeTopicsQuery,
   UnsubscribeTopicVisibility,
 } from '~/generated-metadata/graphql';
-import { Pill, Status } from 'twenty-ui/data-display';
-import { IconLock } from 'twenty-ui/icon';
+import { Status } from 'twenty-ui/primitives/data-display';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
+
+const StyledTopicName = styled.span`
+  color: ${themeCssVariables.font.color.primary};
+`;
 
 type UnsubscribeTopic = UnsubscribeTopicsQuery['unsubscribeTopics'][number];
 
@@ -20,27 +25,27 @@ export const SettingsWorkspaceUnsubscribeTopicSection = () => {
 
   const title = t`Unsubscribe topics`;
   const description = t`Email categories recipients can opt out of`;
-  const organizationPill = <Pill Icon={IconLock} label={t`Organization`} />;
 
   return (
     <SettingsTableListSection<UnsubscribeTopic>
       title={title}
       description={description}
-      headerAdornment={organizationPill}
       items={unsubscribeTopics}
       columns={[
         {
           label: t`Topic`,
-          Cell: ({ item }) => <>{item.name ?? t`Untitled topic`}</>,
+          Cell: ({ item }) => (
+            <StyledTopicName>{item.name ?? t`Untitled topic`}</StyledTopicName>
+          ),
         },
         {
           label: t`Visibility`,
           align: 'right',
           Cell: ({ item }) =>
             item.visibility === UnsubscribeTopicVisibility.PUBLIC ? (
-              <Status color="blue" text={t`Public`} />
+              <Status color="blue">{t`Public`}</Status>
             ) : (
-              <Status color="gray" text={t`Private`} />
+              <Status color="gray">{t`Private`}</Status>
             ),
         },
       ]}

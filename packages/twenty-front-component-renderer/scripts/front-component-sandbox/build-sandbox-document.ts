@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { build, type Rollup } from 'vite';
 
+import { createDomutilsStubPlugin } from '../worker/createDomutilsStubPlugin';
+
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(dirname, '../..');
 
@@ -25,13 +27,24 @@ const replaceProcessEnvReferences = (code: string): string =>
 const escapeClosingScriptTags = (code: string): string =>
   code.replace(/<\/script/gi, '<\\/script');
 
+const sourceDirectory = path.resolve(projectRoot, 'src');
+
 const buildSandboxDocument = async (): Promise<void> => {
   const buildResult = await build({
     configFile: false,
     root: projectRoot,
     resolve: {
       alias: {
-        '@/': path.resolve(projectRoot, 'src') + '/',
+        '@/': sourceDirectory + '/',
+      },
+    },
+    worker: {
+      plugins: () => [createDomutilsStubPlugin()],
+      // Since vite 8.1 the worker bundle no longer resolves every import through resolve.alias
+      rolldownOptions: {
+        resolve: {
+          alias: { '@': sourceDirectory },
+        },
       },
     },
     define: {

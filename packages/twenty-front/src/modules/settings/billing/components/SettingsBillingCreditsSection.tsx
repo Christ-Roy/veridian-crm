@@ -1,3 +1,5 @@
+import { NavigationButton } from '@/ui/input/components/NavigationButton';
+
 import { type CurrentWorkspace } from '@/auth/states/currentWorkspaceState';
 import { useNumberFormat } from '@/localization/hooks/useNumberFormat';
 import { ResourceCreditPriceSelector } from '@/settings/billing/components/internal/ResourceCreditPriceSelector';
@@ -11,33 +13,31 @@ import { useCurrentBillingFlags } from '@/settings/billing/hooks/useCurrentBilli
 import { useCurrentResourceCredit } from '@/settings/billing/hooks/useCurrentResourceCredit';
 import { useGetResourceCreditUsage } from '@/settings/billing/hooks/useGetResourceCreditUsage';
 import { useSplitPhaseItemsInPrices } from '@/settings/billing/hooks/useSplitPhaseItemsInPrices';
-import { usePermissionFlagMap } from '@/settings/roles/hooks/usePermissionFlagMap';
+import { useHasPermissionFlag } from '@/settings/roles/hooks/useHasPermissionFlag';
 import { getDocumentationUrl } from '@/support/utils/getDocumentationUrl';
-import { useModal } from '@/ui/layout/modal/hooks/useModal';
+import { useDialog } from '@/ui/layout/dialog/hooks/useDialog';
+import { isSubscriptionPaymentOverdue } from '@/settings/billing/utils/isSubscriptionPaymentOverdue';
 import { useSubscriptionStatus } from '@/workspace/hooks/useSubscriptionStatus';
 import { styled } from '@linaria/react';
-import { t } from '@lingui/core/macro';
 import { DOCUMENTATION_PATHS } from 'twenty-shared/constants';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath, isDefined } from 'twenty-shared/utils';
+import { Section } from 'twenty-ui/components/layout';
 import {
   IconChartBar,
   IconCoins,
   IconExternalLink,
   IconInfoCircle,
 } from 'twenty-ui/icon';
-import { ProgressBar } from 'twenty-ui/feedback';
-import { Button } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
-import { UndecoratedLink } from 'twenty-ui/navigation';
-import { H2Title } from 'twenty-ui/typography';
-import { themeCssVariables, useTheme } from 'twenty-ui/theme-constants';
+import { ProgressBar } from 'twenty-ui/primitives/feedback';
+import { Button } from 'twenty-ui/primitives/input';
+import { themeCssVariables, useTheme } from 'twenty-ui/theme';
 import {
   PermissionFlagType,
   SubscriptionStatus,
 } from '~/generated-metadata/graphql';
-
-const MIN_VISIBLE_EMPTY_CREDIT_PROGRESS_PERCENTAGE = 4;
+import { openUrlInNewTab } from '~/utils/openUrlInNewTab';
+import { useLingui } from '@lingui/react/macro';
 
 const StyledSettingsBillingCardBody = styled.div`
   display: flex;
@@ -96,6 +96,11 @@ const StyledRolloverText = styled.div`
   min-width: 0;
 `;
 
+const StyledSeatCreditsText = styled.div`
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.sm};
+`;
+
 const StyledUsageMetrics = styled.div`
   align-items: center;
   display: flex;
@@ -118,18 +123,23 @@ const StyledCreditUsageFooterActions = styled.div`
 
 export const SettingsBillingCreditsSection = ({
   currentBillingSubscription,
+  onManageBilling,
+  isManageBillingDisabled,
   onUpdatePayment,
   isUpdatePaymentDisabled,
 }: {
   currentBillingSubscription: NonNullable<
     CurrentWorkspace['currentBillingSubscription']
   >;
+  onManageBilling: () => void;
+  isManageBillingDisabled: boolean;
   onUpdatePayment: () => void;
   isUpdatePaymentDisabled: boolean;
 }) => {
+  const { t } = useLingui();
   const theme = useTheme();
   const subscriptionStatus = useSubscriptionStatus();
-  const { openModal } = useModal();
+  const { openDialog } = useDialog();
   const { formatNumber } = useNumberFormat();
 
   const { isMonthlyPlan } = useCurrentBillingFlags();
@@ -149,21 +159,29 @@ export const SettingsBillingCreditsSection = ({
   const { getIntervalLabel } = useBillingWording();
 
   const isTrialing = subscriptionStatus === SubscriptionStatus.Trialing;
-  const shouldUpdatePayment =
-    subscriptionStatus === SubscriptionStatus.PastDue ||
-    subscriptionStatus === SubscriptionStatus.Unpaid;
-  const { [PermissionFlagType.WORKSPACE]: hasPermissionToEndTrialPeriod } =
-    usePermissionFlagMap();
+  const shouldUpdatePayment = isSubscriptionPaymentOverdue(subscriptionStatus);
+  const hasPermissionToEndTrialPeriod = useHasPermissionFlag(
+    PermissionFlagType.WORKSPACE,
+  );
 
   const { getResourceCreditUsage } = useGetResourceCreditUsage();
 
-  const { usedCredits, grantedCredits, totalGrantedCredits, rolloverCredits } =
-    getResourceCreditUsage();
+  const {
+    workspaceCreditsUsed,
+    workspaceCreditsGranted,
+    workspaceCreditsTotalGranted,
+    workspaceCreditsExtraGranted,
+    workspaceCreditsGrantedForSeats,
+  } = getResourceCreditUsage();
 
   const intervalLabel = getIntervalLabel(isMonthlyPlan);
   const packageCredits = currentResourceCreditBillingPrice?.creditAmount;
   const nextCreditsByPeriod = nextResourceCreditPrice?.creditAmount;
-  const displayedGrantedCredits = packageCredits ?? grantedCredits;
+  const hasSeatCredits = workspaceCreditsGrantedForSeats > 0;
+  const displayedPackageCredits =
+    packageCredits ?? workspaceCreditsGranted - workspaceCreditsGrantedForSeats;
+  const displayedGrantedCredits =
+    displayedPackageCredits + workspaceCreditsGrantedForSeats;
   const canCancelCreditPackSwitch =
     !isCancellationScheduled &&
     !shouldUpdatePayment &&
@@ -171,33 +189,50 @@ export const SettingsBillingCreditsSection = ({
     packageCredits !== nextCreditsByPeriod;
 
   const remainingCreditsPercentage =
-    totalGrantedCredits > 0
-      ? ((totalGrantedCredits - usedCredits) / totalGrantedCredits) * 100
+    workspaceCreditsTotalGranted > 0
+      ? ((workspaceCreditsTotalGranted - workspaceCreditsUsed) /
+          workspaceCreditsTotalGranted) *
+        100
       : 0;
   const clampedRemainingCreditsPercentage = Math.min(
     100,
     Math.max(0, remainingCreditsPercentage),
   );
-  const isCreditsEmpty = clampedRemainingCreditsPercentage === 0;
-  const displayedProgressBarValue = isCreditsEmpty
-    ? MIN_VISIBLE_EMPTY_CREDIT_PROGRESS_PERCENTAGE
-    : clampedRemainingCreditsPercentage;
 
-  const hasRolloverCredits = rolloverCredits > 0;
+  const hasExtraCredits = workspaceCreditsExtraGranted > 0;
 
-  const usedCreditsDisplay = formatNumber(usedCredits, { decimals: 2 });
+  const workspaceCreditsUsedDisplay = formatNumber(workspaceCreditsUsed, {
+    decimals: 2,
+  });
   const grantedCreditsDisplay = formatNumber(displayedGrantedCredits, {
     decimals: 2,
   });
-  const totalGrantedCreditsDisplay = formatNumber(totalGrantedCredits, {
+  const workspaceCreditsTotalGrantedDisplay = formatNumber(
+    workspaceCreditsTotalGranted,
+    {
+      decimals: 2,
+    },
+  );
+  const extraCreditsDisplay = formatNumber(workspaceCreditsExtraGranted, {
     decimals: 2,
   });
-  const rolloverCreditsDisplay = formatNumber(rolloverCredits, {
+  const rolloverCapDisplay = formatNumber(displayedPackageCredits * 2, {
     decimals: 2,
   });
-  const rolloverCapDisplay = formatNumber(displayedGrantedCredits * 2, {
+  const seatCreditsDisplay = formatNumber(workspaceCreditsGrantedForSeats, {
     decimals: 2,
   });
+  const packageCreditsDisplay = formatNumber(displayedPackageCredits, {
+    decimals: 2,
+  });
+  const seatCreditsLabel =
+    displayedPackageCredits > 0
+      ? isMonthlyPlan
+        ? t`${seatCreditsDisplay} from seats, reset each month · ${packageCreditsDisplay} from your credit pack, roll over`
+        : t`${seatCreditsDisplay} from seats, reset each year · ${packageCreditsDisplay} from your credit pack, roll over`
+      : isMonthlyPlan
+        ? t`${seatCreditsDisplay} from seats, reset each month`
+        : t`${seatCreditsDisplay} from seats, reset each year`;
   const remainingCreditsPercentageDisplay = formatNumber(
     clampedRemainingCreditsPercentage,
     { decimals: 0 },
@@ -211,8 +246,8 @@ export const SettingsBillingCreditsSection = ({
   });
 
   return (
-    <Section>
-      <H2Title
+    <Section.Root>
+      <Section.Header
         title={t`Credits`}
         description={t`Credits are used by workflows, AI chats, agents, and approved apps`}
       />
@@ -240,51 +275,55 @@ export const SettingsBillingCreditsSection = ({
             shouldRedirectToManageBilling={isCancellationScheduled}
             shouldRedirectToUpdatePayment={shouldUpdatePayment}
             canEndTrialPeriod={hasPermissionToEndTrialPeriod}
-            onManageBilling={onUpdatePayment}
-            isManageBillingDisabled={isUpdatePaymentDisabled}
+            onManageBilling={onManageBilling}
+            isManageBillingDisabled={isManageBillingDisabled}
             onUpdatePayment={onUpdatePayment}
             isUpdatePaymentDisabled={isUpdatePaymentDisabled}
             canCancelCreditPackSwitch={canCancelCreditPackSwitch}
             onCancelCreditPackSwitch={() =>
-              openModal(BILLING_MODAL_IDS.cancelSwitchMeteredPrice)
+              openDialog(BILLING_MODAL_IDS.cancelSwitchMeteredPrice)
             }
           />
         </StyledSettingsBillingCardHeader>
         <StyledCreditsCardBody>
+          {hasSeatCredits && (
+            <StyledSeatCreditsText>{seatCreditsLabel}</StyledSeatCreditsText>
+          )}
           <ProgressBar
-            value={displayedProgressBarValue}
+            value={clampedRemainingCreditsPercentage}
+            aria-label={t`Remaining credits`}
             backgroundColor={themeCssVariables.background.tertiary}
-            barColor={
-              isCreditsEmpty
-                ? themeCssVariables.color.red9
-                : themeCssVariables.color.green9
-            }
+            barColor={themeCssVariables.color.green9}
             withBorderRadius
           />
           <StyledCreditsFooter>
             {isTrialing ? (
               <StyledRolloverText>
                 <StyledMetricValue>
-                  {totalGrantedCreditsDisplay}
+                  {workspaceCreditsTotalGrantedDisplay}
                 </StyledMetricValue>
                 {t`credits available during the trial period`}
               </StyledRolloverText>
-            ) : hasRolloverCredits ? (
+            ) : hasExtraCredits ? (
               <StyledRolloverText>
                 <StyledMetricValue>
-                  {totalGrantedCreditsDisplay}
+                  {workspaceCreditsTotalGrantedDisplay}
                 </StyledMetricValue>
-                {t`credits available (Including ${rolloverCreditsDisplay} from rollover)`}
+                {t`credits available (including ${extraCreditsDisplay} on top of your plan)`}
               </StyledRolloverText>
             ) : (
               <StyledRolloverText>
                 <IconInfoCircle size={theme.icon.size.sm} />
-                {t`Unused credits roll over, up to 2× your plan's credits (max ${rolloverCapDisplay}).`}
+                {hasSeatCredits
+                  ? t`Unused credits from your credit pack roll over, up to 2× the pack (max ${rolloverCapDisplay}).`
+                  : t`Unused credits roll over, up to 2× your plan's credits (max ${rolloverCapDisplay}).`}
               </StyledRolloverText>
             )}
             <StyledUsageMetrics>
               <span>
-                <StyledMetricValue>{usedCreditsDisplay}</StyledMetricValue>{' '}
+                <StyledMetricValue>
+                  {workspaceCreditsUsedDisplay}
+                </StyledMetricValue>{' '}
                 {t`credits used`}
               </span>
               <span>·</span>
@@ -299,28 +338,19 @@ export const SettingsBillingCreditsSection = ({
         </StyledCreditsCardBody>
       </StyledSettingsBillingCard>
       <StyledCreditUsageFooterActions>
-        <UndecoratedLink to={getSettingsPath(SettingsPath.Usage)}>
-          <Button
-            Icon={IconChartBar}
-            title={t`View usage`}
-            variant="secondary"
-            size="small"
-          />
-        </UndecoratedLink>
+        <NavigationButton
+          to={getSettingsPath(SettingsPath.Usage)}
+          startIcon={<IconChartBar />}
+          size="sm"
+          variant="outline"
+        >{t`View usage`}</NavigationButton>
         <Button
-          Icon={IconExternalLink}
-          title={t`How credits work`}
-          variant="secondary"
-          size="small"
-          onClick={() =>
-            window.open(
-              creditsDocumentationUrl,
-              '_blank',
-              'noopener,noreferrer',
-            )
-          }
-        />
+          startIcon={<IconExternalLink />}
+          size="sm"
+          onClick={() => openUrlInNewTab(creditsDocumentationUrl)}
+          variant="outline"
+        >{t`How credits work`}</Button>
       </StyledCreditUsageFooterActions>
-    </Section>
+    </Section.Root>
   );
 };

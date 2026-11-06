@@ -21,6 +21,7 @@ import { useQuery } from '@apollo/client/react';
 import { useMemo } from 'react';
 import { type Nullable } from 'twenty-shared/types';
 import {
+  canReachSomeRecords,
   combineFilters,
   computeRecordGqlOperationFilter,
   isDefined,
@@ -88,7 +89,7 @@ export const useRecordIndexGroupsAggregatesGroupBy = ({
 
   const { recordGqlOperationFilter: anyFieldFilter } =
     turnAnyFieldFilterIntoRecordGqlFilter({
-      fields: objectMetadataItem.fields,
+      fields: objectMetadataItem.readableFields,
       filterValue: anyFieldFilterValue,
     });
 
@@ -96,7 +97,10 @@ export const useRecordIndexGroupsAggregatesGroupBy = ({
     objectMetadataItem.id,
   );
 
-  const hasReadPermission = objectPermissions.canReadObjectRecords;
+  const hasReadPermission = canReachSomeRecords({
+    objectRecordsPermissions: objectPermissions,
+    operationType: 'select',
+  });
 
   const groupByGqlInput = buildGroupByFieldObject({
     field: groupByFieldMetadataItem,

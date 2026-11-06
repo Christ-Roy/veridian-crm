@@ -6,21 +6,24 @@ import { workflowDiagramComponentState } from '@/workflow/workflow-diagram/state
 import { useTidyUpWorkflowVersion } from '@/workflow/workflow-version/hooks/useTidyUpWorkflowVersion';
 import { useStore } from 'jotai';
 import { isDefined } from 'twenty-shared/utils';
+import { doNotTranslate } from 'twenty-shared/i18n';
 
 export const TidyUpWorkflowSingleRecordCommand = () => {
   const store = useStore();
   const { selectedRecords } = useHeadlessCommandContextApi();
 
   const recordId = selectedRecords[0]?.id;
-  const { tidyUpWorkflowVersion } = useTidyUpWorkflowVersion();
   const instanceId = getWorkflowVisualizerComponentInstanceId({
     recordId: recordId ?? '',
   });
+  const { tidyUpWorkflowVersion } = useTidyUpWorkflowVersion(instanceId);
   const { getUpdatableWorkflowVersion } =
     useGetUpdatableWorkflowVersionOrThrow(instanceId);
 
   if (!isDefined(recordId)) {
-    throw new Error('Record ID is required to tidy up workflow');
+    throw new Error(
+      doNotTranslate('Record ID is required to tidy up workflow'),
+    );
   }
 
   const handleExecute = async () => {
@@ -35,7 +38,14 @@ export const TidyUpWorkflowSingleRecordCommand = () => {
 
     const workflowVersionId = await getUpdatableWorkflowVersion();
 
-    await tidyUpWorkflowVersion(workflowVersionId, workflowDiagram);
+    const tidiedUpDiagram = await tidyUpWorkflowVersion(
+      workflowVersionId,
+      workflowDiagram,
+    );
+
+    if (isDefined(tidiedUpDiagram)) {
+      store.set(workflowDiagramAtom, tidiedUpDiagram);
+    }
   };
 
   return <HeadlessEngineCommandWrapperEffect execute={handleExecute} />;

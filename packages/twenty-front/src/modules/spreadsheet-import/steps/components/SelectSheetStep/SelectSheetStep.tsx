@@ -1,4 +1,4 @@
-import { styled } from '@linaria/react';
+import { SpreadsheetImportStepBody } from '@/spreadsheet-import/components/SpreadsheetImportStepBody';
 import { useCallback, useState } from 'react';
 
 import { Heading } from '@/spreadsheet-import/components/Heading';
@@ -9,20 +9,9 @@ import { SpreadsheetImportStepType } from '@/spreadsheet-import/steps/types/Spre
 import { exceedsMaxRecords } from '@/spreadsheet-import/utils/exceedsMaxRecords';
 import { mapWorkbook } from '@/spreadsheet-import/utils/mapWorkbook';
 
-import { ModalContent } from 'twenty-ui/surfaces';
 import { useLingui } from '@lingui/react/macro';
-import { Radio } from 'twenty-ui/input';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Radio, RadioGroup } from 'twenty-ui/primitives/input';
 import { type WorkBook } from 'xlsx-ugnis';
-
-const StyledRadioContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
-
-const StyledRadioItemContainer = styled.div`
-  margin-bottom: ${themeCssVariables.spacing[6]};
-`;
 
 type SelectSheetStepProps = {
   sheetNames: string[];
@@ -99,23 +88,25 @@ export const SelectSheetStep = ({
 
   return (
     <>
-      <ModalContent isVerticallyCentered isHorizontallyCentered gap={8}>
+      <SpreadsheetImportStepBody
+        padding="large"
+        isCenteredHorizontally
+        isCenteredVertically
+        hasLargeGap
+      >
         <Heading title={t`Select the sheet to use`} />
-        <StyledRadioContainer>
+        <RadioGroup
+          aria-label={t`Select the sheet to use`}
+          value={value}
+          onValueChange={setValue}
+        >
           {sheetNames.map((sheetName) => (
-            <StyledRadioItemContainer key={sheetName}>
-              <Radio
-                value={sheetName}
-                label={sheetName}
-                checked={value === sheetName}
-                onCheckedChange={(checked) => {
-                  if (checked) setValue(sheetName);
-                }}
-              />
-            </StyledRadioItemContainer>
+            <Radio key={sheetName} value={sheetName}>
+              {sheetName}
+            </Radio>
           ))}
-        </StyledRadioContainer>
-      </ModalContent>
+        </RadioGroup>
+      </SpreadsheetImportStepBody>
       <StepNavigationButton
         onContinue={() => handleOnContinue(value)}
         onBack={onBack}

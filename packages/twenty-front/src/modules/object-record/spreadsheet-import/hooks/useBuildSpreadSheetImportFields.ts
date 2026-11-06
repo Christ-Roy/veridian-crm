@@ -1,3 +1,4 @@
+import { getLinksVariant } from '@/object-record/spreadsheet-import/utils/getLinksVariant';
 import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
@@ -15,15 +16,27 @@ import {
   type SpreadsheetImportFields,
 } from '@/spreadsheet-import/types';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { COMPOSITE_FIELD_SUB_FIELD_LABELS } from 'twenty-shared/constants';
 import {
   assertUnreachable,
   getUniqueConstraintsFields,
   isDefined,
 } from 'twenty-shared/utils';
-import { useIcons } from 'twenty-ui/icon';
+import { useIcons } from 'twenty-ui/icon/provider';
 import { FieldMetadataType, RelationType } from '~/generated-metadata/graphql';
+import { useLingui } from '@lingui/react/macro';
+
+const getSourceLocaleAlternateMatches = ({
+  label,
+  sourceLocaleLabel,
+}: {
+  label: string;
+  sourceLocaleLabel: string;
+}): Partial<SpreadsheetImportField> =>
+  label === sourceLocaleLabel ? {} : { alternateMatches: [sourceLocaleLabel] };
 
 export const useBuildSpreadsheetImportFields = () => {
+  const { t } = useLingui();
   const { getIcon } = useIcons();
   const objectMetadataItems = useAtomStateValue(objectMetadataItemsSelector);
 
@@ -112,6 +125,8 @@ export const useBuildSpreadsheetImportFields = () => {
       fieldValidationDefinitions: getSpreadSheetFieldValidationDefinitions(
         fieldMetadataItem.type,
         fieldMetadataItem.label,
+        undefined,
+        getLinksVariant(fieldMetadataItem),
       ),
       isNestedField: false,
       ...overrides,
@@ -132,18 +147,26 @@ export const useBuildSpreadsheetImportFields = () => {
         if (!isImportable) return;
         const label = getCompositeSubFieldLabelWithFieldLabel(
           fieldMetadataItem,
-          subFieldLabel,
+          t(subFieldLabel),
         );
 
         spreadsheetImportFields.push(
           createBaseField(fieldMetadataItem, {
             label,
+            ...getSourceLocaleAlternateMatches({
+              label,
+              sourceLocaleLabel: getCompositeSubFieldLabelWithFieldLabel(
+                fieldMetadataItem,
+                COMPOSITE_FIELD_SUB_FIELD_LABELS[fieldType][subFieldName],
+              ),
+            }),
             key: getCompositeSubFieldKey(fieldMetadataItem, subFieldName),
             fieldValidationDefinitions:
               getSpreadSheetFieldValidationDefinitions(
                 fieldMetadataItem.type,
                 label,
                 subFieldName,
+                getLinksVariant(fieldMetadataItem),
               ),
             isNestedField: true,
             isCompositeSubField: true,
@@ -170,16 +193,33 @@ export const useBuildSpreadsheetImportFields = () => {
     SETTINGS_COMPOSITE_FIELD_TYPE_CONFIGS[
       uniqueConstraintType
     ].subFields.forEach(
-      ({ subFieldName, isImportable, isIncludedInUniqueConstraint }) => {
+      ({
+        subFieldName,
+        subFieldLabel,
+        isImportable,
+        isIncludedInUniqueConstraint,
+      }) => {
         if (!isImportable || !isIncludedInUniqueConstraint) return;
+
+        const label = getRelationConnectSubFieldLabel(
+          fieldMetadataItem,
+          uniqueConstraintField,
+          t(subFieldLabel),
+        );
 
         spreadsheetImportFields.push(
           createBaseField(fieldMetadataItem, {
-            label: getRelationConnectSubFieldLabel(
-              fieldMetadataItem,
-              uniqueConstraintField,
-              subFieldName,
-            ),
+            label,
+            ...getSourceLocaleAlternateMatches({
+              label,
+              sourceLocaleLabel: getRelationConnectSubFieldLabel(
+                fieldMetadataItem,
+                uniqueConstraintField,
+                COMPOSITE_FIELD_SUB_FIELD_LABELS[uniqueConstraintType][
+                  subFieldName
+                ],
+              ),
+            }),
             key: getRelationConnectSubFieldKey(
               fieldMetadataItem,
               uniqueConstraintField,
@@ -190,6 +230,7 @@ export const useBuildSpreadsheetImportFields = () => {
                 uniqueConstraintField.type,
                 uniqueConstraintField.name,
                 subFieldName,
+                getLinksVariant(uniqueConstraintField),
               ),
             isNestedField: true,
             isCompositeSubField: true,

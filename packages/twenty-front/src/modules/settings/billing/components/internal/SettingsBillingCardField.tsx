@@ -1,8 +1,8 @@
 import { styled } from '@linaria/react';
 import { type ReactNode } from 'react';
-import { type TablerIconsProps } from 'twenty-ui/icon';
-import { OverflowingTextWithTooltip } from 'twenty-ui/surfaces';
-import { themeCssVariables, useTheme } from 'twenty-ui/theme-constants';
+import { OverflowingTextWithTooltip } from 'twenty-ui/primitives/typography';
+import { type IconComponent, type TablerIconsProps } from 'twenty-ui/icon';
+import { themeCssVariables, useTheme } from 'twenty-ui/theme';
 
 const StyledBillingFieldRow = styled.div`
   align-items: center;
@@ -58,8 +58,13 @@ const StyledScheduledChangeItem = styled.div`
   }
 `;
 
+const StyledIncludedBillingItem = styled(StyledScheduledChangeItem)`
+  gap: ${themeCssVariables.spacing[3]};
+  grid-template-columns: max-content minmax(0, 1fr);
+`;
+
 type BillingFieldRowProps = {
-  Icon: (props: TablerIconsProps) => ReactNode;
+  Icon: IconComponent;
   label: string;
   children: ReactNode;
 };
@@ -103,5 +108,25 @@ export const ScheduledBillingChangeField = ({
       </StyledBillingFieldLabel>
       <StyledBillingFieldValue>{value}</StyledBillingFieldValue>
     </StyledScheduledChangeItem>
+  );
+};
+
+export type IncludedBillingFieldProps = ScheduledBillingChangeFieldProps;
+
+export const IncludedBillingField = ({
+  Icon,
+  label,
+  value,
+}: IncludedBillingFieldProps) => {
+  const theme = useTheme();
+
+  return (
+    <StyledIncludedBillingItem>
+      <StyledBillingFieldLabel>
+        <Icon size={theme.icon.size.md} stroke={theme.icon.stroke.sm} />
+        {label}
+      </StyledBillingFieldLabel>
+      <StyledBillingFieldValue>{value}</StyledBillingFieldValue>
+    </StyledIncludedBillingItem>
   );
 };

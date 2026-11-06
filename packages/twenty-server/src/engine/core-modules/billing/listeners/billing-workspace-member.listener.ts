@@ -37,7 +37,7 @@ export class BillingWorkspaceMemberListener {
     if (!this.twentyConfigService.get('IS_BILLING_ENABLED')) {
       return;
     }
-    // The 24h delay is a settling window: upgrade/churn during the day coalesces
+    // The 6h delay is a settling window: upgrade/churn within the window coalesces
     // into one net update (count is read at run time), so transient member changes
     // don't each generate a new Stripe invoice.
     await this.messageQueueService.add<UpdateSubscriptionQuantityJobData>(
@@ -45,6 +45,8 @@ export class BillingWorkspaceMemberListener {
       { workspaceId: payload.workspaceId },
       {
         delay: UPDATE_SUBSCRIPTION_QUANTITY_JOB_DELAY_MS,
+        workspaceId: payload.workspaceId,
+        isWorkspaceJob: true,
       },
     );
   }

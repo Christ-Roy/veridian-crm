@@ -1,0 +1,59 @@
+import { type MessageDescriptor } from '@lingui/core';
+import { msg } from '@lingui/core/macro';
+
+import { FeatureFlagKey } from '~/generated-admin/graphql';
+
+// Public flags use server-provided client config metadata to stay consistent with the lab.
+export const SETTINGS_ADMIN_FEATURE_FLAG_METADATA: Record<
+  FeatureFlagKey,
+  { label: MessageDescriptor; description: MessageDescriptor }
+> = {
+  [FeatureFlagKey.IS_CONFIGURABLE_SEARCH_FIELDS_ENABLED]: {
+    label: msg`Configurable search fields`,
+    description: msg`Choose which fields are used when searching for records.`,
+  },
+  [FeatureFlagKey.IS_REST_METADATA_API_NEW_FORMAT_DIRECT]: {
+    label: msg`Direct REST metadata responses`,
+    description: msg`Return metadata directly instead of wrapping it in the legacy response envelope.`,
+  },
+  [FeatureFlagKey.IS_RECORD_LEVEL_SHARING_ENABLED]: {
+    label: msg`Record sharing`,
+    description: msg`Let people restrict and share individual records.`,
+  },
+  [FeatureFlagKey.IS_CALENDAR_EVENT_SHARED_ACROSS_CHANNELS_ENABLED]: {
+    label: msg`Share calendar events across channels`,
+    description: msg`Store a meeting synced by several calendars of the same provider once, instead of once per calendar.`,
+  },
+  [FeatureFlagKey.IS_AI_CHAT_COMPONENT_BUILDER_ENABLED]: {
+    label: msg`AI chat component builder`,
+    description: msg`Create and preview frontend components in AI chat before adding them to the Workspace app.`,
+  },
+  [FeatureFlagKey.IS_AI_CHAT_INBOX_ENABLED]: {
+    label: msg`AI chat inbox`,
+    description: msg`Turn the AI tab into an inbox to triage, assign, snooze and follow chats, let workflows send messages and agent questions to a member's inbox, and show a Conversations tab on record pages.`,
+  },
+  [FeatureFlagKey.IS_AGENT_CHAT_DIRECT_MESSAGE_IDENTITY_ENABLED]: {
+    label: msg`Direct message pair identity`,
+    description: msg`Reuse the same conversation when the same two workspace members start a direct message. Enabled after the workspace upgrade completes.`,
+  },
+  [FeatureFlagKey.IS_APP_PREFERENCES_ENABLED]: {
+    label: msg`App preferences`,
+    description: msg`Replace the Accounts settings with App preferences, built around accounts and the apps that use them.`,
+  },
+  [FeatureFlagKey.IS_MCP_SERVERS_ENABLED]: {
+    label: msg`MCP servers`,
+    description: msg`Register external MCP servers in Developers settings and expose their tools to AI chat.`,
+  },
+  [FeatureFlagKey.IS_RELATED_RECORD_PATHS_ENABLED]: {
+    label: msg`Related record paths`,
+    description: msg`Define the relations along which a record's permissions extend to related records.`,
+  },
+  [FeatureFlagKey.IS_ROW_LEVEL_PERMISSION_RELATION_HOP_ENABLED]: {
+    label: msg`Record rules through relations`,
+    description: msg`Let record-level permission rules compare a field of a related record.`,
+  },
+  [FeatureFlagKey.IS_GETTING_STARTED_ENABLED]: {
+    label: msg`Getting started`,
+    description: msg`Show the Getting started page and sidebar card, and open it on landing during the trial.`,
+  },
+};

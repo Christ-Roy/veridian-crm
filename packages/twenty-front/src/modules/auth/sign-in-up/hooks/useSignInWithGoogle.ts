@@ -1,32 +1,23 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '@/auth/hooks/useAuth';
-import { type BillingCheckoutSession } from '@/auth/types/billingCheckoutSession.type';
-import { type SocialSSOSignInUpActionType } from '@/auth/types/socialSSOSignInUp.type';
-import {
-  BillingPlanKey,
-  SubscriptionInterval,
-} from '~/generated-metadata/graphql';
+import { type SocialSsoSignInUpActionType } from '@/auth/types/SocialSsoSignInUpActionType';
+import { BILLING_CHECKOUT_SESSION_DEFAULT_VALUE } from '@/settings/billing/constants/BillingCheckoutSessionDefaultValue';
 
 export const useSignInWithGoogle = () => {
   const workspaceInviteHash = useParams().workspaceInviteHash;
   const [searchParams] = useSearchParams();
   const workspacePersonalInviteToken =
     searchParams.get('inviteToken') ?? undefined;
-  const billingCheckoutSession = {
-    plan: BillingPlanKey.PRO,
-    interval: SubscriptionInterval.Month,
-    requirePaymentMethod: true,
-  } as BillingCheckoutSession;
 
   const { signInWithGoogle } = useAuth();
 
   return {
-    signInWithGoogle: ({ action }: { action: SocialSSOSignInUpActionType }) =>
+    signInWithGoogle: ({ action }: { action: SocialSsoSignInUpActionType }) =>
       signInWithGoogle({
         workspaceInviteHash,
         workspacePersonalInviteToken,
-        billingCheckoutSession,
+        billingCheckoutSession: BILLING_CHECKOUT_SESSION_DEFAULT_VALUE,
         action,
       }),
   };

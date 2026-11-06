@@ -1,20 +1,17 @@
 import { SubTitle } from '@/auth/components/SubTitle';
-import { currentUserState } from '@/auth/states/currentUserState';
 import { OnboardingAnimatedReveal } from '@/onboarding/components/OnboardingAnimatedReveal';
 import { OnboardingVerifyLayout } from '@/onboarding/components/OnboardingVerifyLayout';
 import { useOnboardingMotionTransition } from '@/onboarding/hooks/useOnboardingMotionTransition';
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
-import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
-import { useSubscriptionStatus } from '@/workspace/hooks/useSubscriptionStatus';
-import { useLazyQuery } from '@apollo/client/react';
-import { t } from '@lingui/core/macro';
+import { useEnterWorkspaceAfterOnboardingCheckout } from '@/onboarding/hooks/useEnterWorkspaceAfterOnboardingCheckout';
+import { useLoadCurrentUser } from '@/users/hooks/useLoadCurrentUser';
 import { styled } from '@linaria/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
-import { MainButton } from 'twenty-ui/input';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
-import { GetCurrentUserDocument } from '~/generated-metadata/graphql';
+import { useToast } from 'twenty-ui/components/feedback';
+import { MainButton } from 'twenty-ui/components/input';
+import { themeCssVariables } from 'twenty-ui/theme';
+import { useLingui } from '@lingui/react/macro';
 
 const SUBSCRIPTION_CONFIRMATION_POLL_INTERVAL_MS = 2000;
 const SUBSCRIPTION_CONFIRMATION_MAX_ATTEMPTS = 30;
@@ -25,12 +22,11 @@ const StyledRetryButtonContainer = styled.div`
 `;
 
 export const PaymentSuccess = () => {
-  const subscriptionStatus = useSubscriptionStatus();
-  const [getCurrentUser] = useLazyQuery(GetCurrentUserDocument, {
-    fetchPolicy: 'network-only',
-  });
-  const setCurrentUser = useSetAtomState(currentUserState);
-  const { enqueueErrorSnackBar } = useSnackBar();
+  const { t } = useLingui();
+  const { loadCurrentUser } = useLoadCurrentUser();
+  const enterWorkspaceAfterOnboardingCheckout =
+    useEnterWorkspaceAfterOnboardingCheckout();
+  const { enqueueToast } = useToast();
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const [confirmationRunIndex, setConfirmationRunIndex] = useState(0);
 
@@ -44,22 +40,19 @@ export const PaymentSuccess = () => {
         return;
       }
 
-      if (isDefined(subscriptionStatus)) {
-        return;
-      }
-
-      const result = await getCurrentUser();
+      const refreshedWorkspace = await loadCurrentUser()
+        .then(({ workspace }) => workspace)
+        .catch(() => null);
 
       if (cancelled) {
         return;
       }
 
-      const currentUser = result.data?.currentUser;
       const refreshedSubscriptionStatus =
-        currentUser?.currentWorkspace?.currentBillingSubscription?.status;
+        refreshedWorkspace?.currentBillingSubscription?.status;
 
-      if (isDefined(currentUser) && isDefined(refreshedSubscriptionStatus)) {
-        setCurrentUser(currentUser);
+      if (isDefined(refreshedSubscriptionStatus)) {
+        enterWorkspaceAfterOnboardingCheckout();
         return;
       }
 
@@ -67,8 +60,9 @@ export const PaymentSuccess = () => {
 
       if (attempts >= SUBSCRIPTION_CONFIRMATION_MAX_ATTEMPTS) {
         setHasTimedOut(true);
-        enqueueErrorSnackBar({
-          message: t`We're still waiting for a confirmation from our payment provider (Stripe). Please refresh in a few seconds.`,
+        enqueueToast({
+          status: 'error',
+          children: t`We're still waiting for a confirmation from our payment provider (Stripe). Please refresh in a few seconds.`,
         });
         return;
       }
@@ -88,7 +82,7 @@ export const PaymentSuccess = () => {
       }
     };
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmationRunIndex, subscriptionStatus]);
+  }, [confirmationRunIndex]);
 
   const handleRetry = () => {
     setHasTimedOut(false);
@@ -116,7 +110,7 @@ export const PaymentSuccess = () => {
       </AnimatePresence>
       <OnboardingAnimatedReveal isVisible={hasTimedOut}>
         <StyledRetryButtonContainer>
-          <MainButton title={t`Retry`} onClick={handleRetry} fullWidth />
+          <MainButton onClick={handleRetry} fullWidth>{t`Retry`}</MainButton>
         </StyledRetryButtonContainer>
       </OnboardingAnimatedReveal>
     </OnboardingVerifyLayout>

@@ -6,7 +6,7 @@ import { RecordTableColumnHead } from '@/object-record/record-table/record-table
 import { RecordTableColumnHeadWithDropdown } from '@/object-record/record-table/record-table-header/components/RecordTableColumnHeadWithDropdown';
 import { RecordTableHeaderCellContainer } from '@/object-record/record-table/record-table-header/components/RecordTableHeaderCellContainer';
 import { RecordTableHeaderResizeHandler } from '@/object-record/record-table/record-table-header/components/RecordTableHeaderResizeHandler';
-import { DragDropColumnSortableHandle } from '@/ui/utilities/drag-and-drop/components/DragDropColumnSortableHandle';
+import { DragDropItemSortableHandle } from '@/ui/utilities/drag-and-drop/components/DragDropItemSortableHandle';
 import { isRecordTableColumnHeadersReadOnlyComponentState } from '@/object-record/record-table/states/isRecordTableColumnHeadersReadOnlyComponentState';
 import { isRecordTableColumnResizableComponentState } from '@/object-record/record-table/states/isRecordTableColumnResizableComponentState';
 import { isRecordTableRowActiveComponentFamilyState } from '@/object-record/record-table/states/isRecordTableRowActiveComponentFamilyState';
@@ -101,10 +101,10 @@ export const RecordTableHeaderCell = ({
       {isRecordTableColumnResizable && (
         <RecordTableHeaderResizeHandler
           recordFieldIndex={recordFieldIndex}
-          position="left"
+          position="start"
         />
       )}
-      <DragDropColumnSortableHandle>
+      <DragDropItemSortableHandle disabled={isRecordTableColumnHeadersReadOnly}>
         {isRecordTableColumnHeadersReadOnly ? (
           <RecordTableColumnHead recordField={recordField} />
         ) : (
@@ -113,11 +113,11 @@ export const RecordTableHeaderCell = ({
             objectMetadataId={objectMetadataItem.id}
           />
         )}
-      </DragDropColumnSortableHandle>
+      </DragDropItemSortableHandle>
       {isRecordTableColumnResizable && (
         <RecordTableHeaderResizeHandler
           recordFieldIndex={recordFieldIndex}
-          position="right"
+          position="end"
         />
       )}
     </RecordTableHeaderCellContainer>

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { CommandShutdownService } from 'src/database/commands/command-runners/command-shutdown.service';
 import {
   type WorkspaceIteratorReport,
   WorkspaceIteratorService,
@@ -18,6 +19,7 @@ import {
 } from 'src/engine/core-modules/upgrade/services/upgrade-sequence-reader.service';
 import { WorkspaceCommandRunnerService } from 'src/engine/core-modules/upgrade/services/workspace-command-runner.service';
 import { formatUpgradeLog } from 'src/engine/core-modules/upgrade/utils/format-upgrade-log.util';
+import { isUpgradeWorkspaceCursorValidForSegment } from 'src/engine/core-modules/upgrade/utils/is-upgrade-workspace-cursor-valid-for-segment.util';
 import { UpgradeAwareEntityMetadataAdapter } from 'src/engine/twenty-orm/upgrade-aware/upgrade-aware-entity-metadata.adapter';
 import { WorkspaceVersionService } from 'src/engine/workspace-manager/workspace-version/services/workspace-version.service';
 import { assertUnreachable, isDefined } from 'twenty-shared/utils';
@@ -39,6 +41,7 @@ export class UpgradeSequenceRunnerService {
     private readonly upgradeAwareEntityMetadataAdapter: UpgradeAwareEntityMetadataAdapter,
     private readonly workspaceIteratorService: WorkspaceIteratorService,
     private readonly workspaceVersionService: WorkspaceVersionService,
+    private readonly commandShutdownService: CommandShutdownService,
   ) {}
 
   async run({
@@ -77,7 +80,7 @@ export class UpgradeSequenceRunnerService {
     sequence: UpgradeStep[];
     options: ParsedUpgradeCommandOptions;
   }): Promise<UpgradeSequenceRunnerReport> {
-    const allProvisionedWorkspaceIds =
+    let allProvisionedWorkspaceIds =
       await this.workspaceVersionService.getProvisionedWorkspaceIds();
 
     const startCursor = await this.resolveStartCursor({
@@ -94,6 +97,23 @@ export class UpgradeSequenceRunnerService {
 
     while (cursor < sequence.length) {
       const step = sequence[cursor];
+
+      if (this.commandShutdownService.isShutdownRequested()) {
+        this.logger.warn(
+          formatUpgradeLog({
+            humanMessage:
+              `Stopping before step "${step.name}": shutdown requested. ` +
+              'Rerun the upgrade to resume from this step.',
+            event: 'sequence.stopped',
+            logFields: {
+              before: step.name,
+              reason: 'shutdown-requested',
+            },
+          }),
+        );
+
+        break;
+      }
 
       if (step.kind === 'fast-instance' || step.kind === 'slow-instance') {
         if (
@@ -112,6 +132,23 @@ export class UpgradeSequenceRunnerService {
               logFields: {
                 before: step.name,
                 reason: 'workspace-filter-active',
+              },
+            }),
+          );
+
+          break;
+        }
+
+        if (options.dryRun) {
+          this.logger.log(
+            formatUpgradeLog({
+              humanMessage:
+                `Dry run stopped before instance step "${step.name}": ` +
+                'instance commands cannot run in dry-run mode.',
+              event: 'sequence.stopped',
+              logFields: {
+                before: step.name,
+                reason: 'dry-run',
               },
             }),
           );
@@ -173,7 +210,33 @@ export class UpgradeSequenceRunnerService {
         return { totalSuccesses, totalFailures };
       }
 
+      if (report.interrupted) {
+        this.logger.warn(
+          formatUpgradeLog({
+            humanMessage:
+              'Stopped during workspace steps: shutdown requested. ' +
+              'Rerun the upgrade to process the remaining workspaces.',
+            event: 'sequence.stopped',
+            logFields: {
+              reason: 'shutdown-requested',
+              processedWorkspaces: report.success.length,
+            },
+          }),
+        );
+
+        return { totalSuccesses, totalFailures };
+      }
+
       cursor += workspaceCommandsSegment.length;
+
+      // A workspace segment can outlive workspace deletion and cleanup jobs.
+      const remainingProvisionedWorkspaceIds = new Set(
+        await this.workspaceVersionService.getProvisionedWorkspaceIds(),
+      );
+
+      allProvisionedWorkspaceIds = allProvisionedWorkspaceIds.filter(
+        (workspaceId) => remainingProvisionedWorkspaceIds.has(workspaceId),
+      );
 
       workspaceCursors = await this.fetchWorkspaceCursors(
         allProvisionedWorkspaceIds,
@@ -243,9 +306,6 @@ export class UpgradeSequenceRunnerService {
       await this.upgradeMigrationService.getWorkspaceLastAttemptedCommandNameOrThrow(
         allProvisionedWorkspaceIds,
       );
-    const precedingStep =
-      startCursor > 0 ? sequence[startCursor - 1] : undefined;
-
     const invalidWorkspaces: Array<{
       workspaceId: string;
       cursorName: string;
@@ -259,16 +319,15 @@ export class UpgradeSequenceRunnerService {
           stepName: workspaceCursor.name,
         });
 
-      const isWithinSegment =
-        cursorPosition >= startCursor && cursorPosition <= endCursor;
+      const isWorkspaceCursorValid = isUpgradeWorkspaceCursorValidForSegment({
+        sequence,
+        cursorPosition,
+        workspaceCursorStatus: workspaceCursor.status,
+        startCursor,
+        endCursor,
+      });
 
-      const isAtPrecedingInstanceCommandCompleted =
-        isDefined(precedingStep) &&
-        precedingStep.kind !== 'workspace' &&
-        cursorPosition === startCursor - 1 &&
-        workspaceCursor.status === 'completed';
-
-      if (!isWithinSegment && !isAtPrecedingInstanceCommandCompleted) {
+      if (!isWorkspaceCursorValid) {
         invalidWorkspaces.push({
           workspaceId,
           cursorName: workspaceCursor.name,
@@ -355,6 +414,10 @@ export class UpgradeSequenceRunnerService {
       allProvisionedWorkspaceIds,
       options,
     });
+
+    if (workspaceIds.length === 0) {
+      return { success: [], fail: [], skipped: [], interrupted: false };
+    }
 
     return this.workspaceIteratorService.iterate({
       workspaceIds,

@@ -4,12 +4,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { msg } from '@lingui/core/macro';
-import { render } from '@react-email/render';
 import { addDays, differenceInCalendarDays } from 'date-fns';
 import {
   BillingSubscriptionRenewingEmail,
   BillingTrialConvertingEmail,
   BillingTrialEndingEmail,
+  renderEmail,
 } from 'twenty-emails';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath, isDefined } from 'twenty-shared/utils';
@@ -19,6 +19,7 @@ import { Between, Repository } from 'typeorm';
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { SubscriptionInterval } from 'src/engine/core-modules/billing/enums/billing-subscription-interval.enum';
 import { SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
+import { isSendInvoiceSubscription } from 'src/engine/core-modules/billing/utils/is-send-invoice-subscription.util';
 import {
   BILLING_RENEWAL_REMINDER_SENT_KEY,
   BILLING_TRIAL_REMINDER_SENT_KEY,
@@ -32,7 +33,7 @@ import { UserService } from 'src/engine/core-modules/user/services/user.service'
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
-// Reminders the cron can send. A given trial gets exactly one of "ending" / "converting".
+// A given trial gets exactly one of "ending" / "converting"
 type BillingReminderEmail =
   | { type: 'trial-ending'; trialEndsAt: Date }
   | { type: 'trial-converting'; trialEndsAt: Date; interval: 'month' | 'year' }
@@ -91,6 +92,10 @@ export class BillingReminderService {
     );
 
     for (const subscription of trialingSubscriptions) {
+      if (isSendInvoiceSubscription(subscription)) {
+        continue;
+      }
+
       const trialEnd = subscription.trialEnd;
 
       if (!isDefined(trialEnd)) {
@@ -183,11 +188,8 @@ export class BillingReminderService {
       return false;
     }
 
-    // Fallback when the payment-method flag isn't synced yet: a with-credit-card trial
-    // is longer than a no-credit-card one, so the trial duration disambiguates. Fall back
-    // to createdAt when trialStart is missing so this still holds during sync gaps —
-    // otherwise a real card-on-file trial could be misread as no-card and wrongly told
-    // "no card will be charged" right before it is actually charged.
+    // Unsynced payment-method flag: card trials are longer, so trial length tells them apart. createdAt covers a
+    // missing trialStart, else a card trial could be told "no card will be charged" right before it is charged
     const withoutCardTrialDurationDays = this.twentyConfigService.get(
       'BILLING_FREE_TRIAL_WITHOUT_CREDIT_CARD_DURATION_IN_DAYS',
     );
@@ -293,8 +295,8 @@ export class BillingReminderService {
       locale,
     });
 
-    const html = await render(emailTemplate, { pretty: true });
-    const text = await render(emailTemplate, { plainText: true });
+    const html = await renderEmail(emailTemplate, { pretty: true });
+    const text = await renderEmail(emailTemplate, { plainText: true });
 
     await this.emailService.send({
       to: workspaceMember.userEmail,

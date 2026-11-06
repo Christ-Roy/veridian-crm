@@ -1,9 +1,10 @@
-import { FieldMetadataType } from 'twenty-shared/types';
+import { FieldMetadataType, ObjectOpenRecordIn } from 'twenty-shared/types';
 
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { getColumnNameToFieldMetadataIdMap } from 'src/engine/twenty-orm/utils/get-column-name-to-field-metadata-id.util';
+import { getFlatFieldMetadataMock } from 'src/engine/metadata-modules/flat-field-metadata/__mocks__/get-flat-field-metadata.mock';
 
 describe('getColumnNameToFieldMetadataIdMap', () => {
   const createMockFlatObjectMetadata = (
@@ -26,10 +27,13 @@ describe('getColumnNameToFieldMetadataIdMap', () => {
     universalIdentifier: 'test-object-id',
     indexMetadataIds: [],
     searchFieldMetadataIds: [],
+    navigationMenuItemIds: [],
+    commandMenuItemIds: [],
     objectPermissionIds: [],
     fieldPermissionIds: [],
     fieldIds,
     viewIds: [],
+    pageLayoutIds: [],
     applicationId: 'test-application-id',
     isLabelSyncedWithName: false,
     createdAt: new Date().toISOString(),
@@ -39,6 +43,8 @@ describe('getColumnNameToFieldMetadataIdMap', () => {
     overrides: null,
     isUIEditable: true,
     isUICreatable: true,
+    disabledObjectPermissionActions: null,
+    openRecordIn: ObjectOpenRecordIn.USER_CHOICE,
     labelIdentifierFieldMetadataId: null,
     imageIdentifierFieldMetadataId: null,
     duplicateCriteria: null,
@@ -47,8 +53,11 @@ describe('getColumnNameToFieldMetadataIdMap', () => {
     objectPermissionUniversalIdentifiers: [],
     fieldPermissionUniversalIdentifiers: [],
     viewUniversalIdentifiers: [],
+    pageLayoutUniversalIdentifiers: [],
     indexMetadataUniversalIdentifiers: [],
     searchFieldMetadataUniversalIdentifiers: [],
+    navigationMenuItemUniversalIdentifiers: [],
+    commandMenuItemUniversalIdentifiers: [],
     labelIdentifierFieldMetadataUniversalIdentifier: null,
     imageIdentifierFieldMetadataUniversalIdentifier: null,
   });
@@ -59,7 +68,7 @@ describe('getColumnNameToFieldMetadataIdMap', () => {
     type: FieldMetadataType,
     settings?: Record<string, unknown>,
   ): FlatFieldMetadata =>
-    ({
+    getFlatFieldMetadataMock({
       id,
       name,
       type,
@@ -67,17 +76,15 @@ describe('getColumnNameToFieldMetadataIdMap', () => {
       objectMetadataId: 'test-object-id',
       isLabelSyncedWithName: true,
       isNullable: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
       universalIdentifier: id,
       viewFieldIds: [],
       viewFilterIds: [],
-      viewGroupIds: [],
       kanbanAggregateOperationViewIds: [],
       calendarViewIds: [],
-      applicationId: null,
       ...(settings ? { settings } : {}),
-    }) as unknown as FlatFieldMetadata;
+    });
 
   const buildFlatFieldMetadataMaps = (
     fields: FlatFieldMetadata[],

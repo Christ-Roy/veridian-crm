@@ -19,9 +19,9 @@ import {
   PageLayoutWidgetExceptionCode,
 } from 'src/engine/metadata-modules/page-layout-widget/exceptions/page-layout-widget.exception';
 import { type AllPageLayoutWidgetConfiguration } from 'src/engine/metadata-modules/page-layout-widget/types/all-page-layout-widget-configuration.type';
-import { findActiveFlatFieldMetadataById } from 'src/engine/metadata-modules/page-layout-widget/utils/find-active-flat-field-metadata-by-id.util';
 import { isChartReferencingFieldInConfiguration } from 'src/engine/metadata-modules/page-layout-widget/utils/is-chart-referencing-field-in-configuration.util';
 import { validateGroupByFieldOrThrow } from 'src/engine/metadata-modules/page-layout-widget/utils/validate-group-by-field.util';
+import { resolveEffectiveFlatEntityProperty } from 'src/engine/metadata-modules/overrides/utils/resolve-effective-flat-entity-property.util';
 
 const buildChartFieldValidationException = (
   message: string,
@@ -126,16 +126,24 @@ export const validateChartConfigurationFieldReferencesOrThrow = ({
     flatEntityMaps: flatObjectMetadataMaps,
   });
 
-  if (!isDefined(objectMetadata) || !objectMetadata.isActive) {
+  if (
+    !isDefined(objectMetadata) ||
+    !resolveEffectiveFlatEntityProperty({
+      metadataName: 'objectMetadata',
+      flatEntity: objectMetadata,
+      property: 'isActive',
+    })
+  ) {
     throw buildChartFieldValidationException(
       `objectMetadataId "${widgetObjectMetadataId}" not found.`,
       widgetTitle,
     );
   }
 
-  const allFields = Object.values(flatFieldMetadataMaps.byUniversalIdentifier)
-    .filter(isDefined)
-    .filter((field) => field.isActive);
+  // Deactivated fields stay valid references, as deactivation is reversible
+  const allFields = Object.values(
+    flatFieldMetadataMaps.byUniversalIdentifier,
+  ).filter(isDefined);
 
   const fieldsByObjectId = new Map<string, FlatFieldMetadata[]>();
 
@@ -146,10 +154,10 @@ export const validateChartConfigurationFieldReferencesOrThrow = ({
     fieldsByObjectId.set(field.objectMetadataId, existing);
   });
 
-  const aggregateField = findActiveFlatFieldMetadataById(
-    widgetConfiguration.aggregateFieldMetadataId,
-    flatFieldMetadataMaps,
-  );
+  const aggregateField = findFlatEntityByIdInFlatEntityMaps({
+    flatEntityId: widgetConfiguration.aggregateFieldMetadataId,
+    flatEntityMaps: flatFieldMetadataMaps,
+  });
 
   if (!isDefined(aggregateField)) {
     throw buildChartFieldValidationException(
@@ -230,23 +238,14 @@ export const validateChartConfigurationFieldReferencesOrThrow = ({
 
   if (isDefined(widgetConfiguration.filter?.recordFilters)) {
     for (const recordFilter of widgetConfiguration.filter.recordFilters) {
-      const filterField = findActiveFlatFieldMetadataById(
-        recordFilter.fieldMetadataId,
-        flatFieldMetadataMaps,
-      );
+      const filterField = findFlatEntityByIdInFlatEntityMaps({
+        flatEntityId: recordFilter.fieldMetadataId,
+        flatEntityMaps: flatFieldMetadataMaps,
+      });
 
       if (!isDefined(filterField)) {
-        const inactiveOrMissingField = findFlatEntityByIdInFlatEntityMaps({
-          flatEntityId: recordFilter.fieldMetadataId,
-          flatEntityMaps: flatFieldMetadataMaps,
-        });
-
-        const fieldLabel = inactiveOrMissingField
-          ? `"${inactiveOrMissingField.label}"`
-          : `field id "${recordFilter.fieldMetadataId}"`;
-
         throw buildChartFieldValidationException(
-          `One of the chart filters uses ${fieldLabel}, but it was deleted. Please remove or replace this filter rule.`,
+          `One of the chart filters uses field id "${recordFilter.fieldMetadataId}", but it was deleted. Please remove or replace this filter rule.`,
           widgetTitle,
         );
       }

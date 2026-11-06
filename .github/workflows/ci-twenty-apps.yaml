@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  merge_group:
   workflow_dispatch:
     inputs:
       application:
@@ -22,6 +23,7 @@ concurrency:
 
 jobs:
   discover:
+    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/discover-apps.yaml
     with:
       scope: internal-and-public
@@ -109,5 +111,5 @@ jobs:
     needs: [discover, ci, integration]
     steps:
       - name: Fail job if any needs failed
-        if: contains(needs.*.result, 'failure')
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1

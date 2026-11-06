@@ -1,45 +1,86 @@
 import { UseFilters, UseGuards, UsePipes } from '@nestjs/common';
 import { Args, Mutation, Query } from '@nestjs/graphql';
 
+import { msg } from '@lingui/core/macro';
 import { PermissionFlagType } from 'twenty-shared/constants';
+import { isDefined } from 'twenty-shared/utils';
 
 import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
 import { PreventNestToAutoLogGraphqlErrorsFilter } from 'src/engine/core-modules/graphql/filters/prevent-nest-to-auto-log-graphql-errors.filter';
 import { ResolverValidationPipe } from 'src/engine/core-modules/graphql/pipes/resolver-validation.pipe';
+import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
 import { type AuthContextUser } from 'src/engine/core-modules/auth/types/auth-context.type';
+import { AuthGraphqlApiExceptionFilter } from 'src/engine/core-modules/auth/filters/auth-graphql-api-exception.filter';
 import { SendInvitationsDTO } from 'src/engine/core-modules/workspace-invitation/dtos/send-invitations.dto';
 import { WorkspaceInvitation } from 'src/engine/core-modules/workspace-invitation/dtos/workspace-invitation.dto';
 import { WorkspaceInvitationService } from 'src/engine/core-modules/workspace-invitation/services/workspace-invitation.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { AuthApplication } from 'src/engine/decorators/auth/auth-application.decorator';
+import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { SettingsPermissionGuard } from 'src/engine/guards/settings-permission.guard';
-import { UserAuthGuard } from 'src/engine/guards/user-auth.guard';
-import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
-import { PermissionsGraphqlApiExceptionFilter } from 'src/engine/metadata-modules/permissions/utils/permissions-graphql-api-exception.filter';
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
+import {
+  PermissionsException,
+  PermissionsExceptionCode,
+  PermissionsExceptionMessage,
+} from 'src/engine/permissions/permissions.exception';
+import { PermissionsService } from 'src/engine/permissions/permissions.service';
+import { PermissionsGraphqlApiExceptionFilter } from 'src/engine/permissions/utils/permissions-graphql-api-exception.filter';
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
 import { SendInvitationsInput } from './dtos/send-invitations.input';
+import { AccessPolicyGuard } from 'src/engine/guards/access-policy.guard';
+import { type AccessPolicy } from 'src/engine/guards/types/access-policy.type';
 
-@UseGuards(
-  WorkspaceAuthGuard,
-  SettingsPermissionGuard(PermissionFlagType.WORKSPACE_MEMBERS),
-)
+const WORKSPACE_INVITATION_WRITE_ACCESS_POLICY: AccessPolicy = {
+  authPrincipals: {
+    userSession: {
+      standard: true,
+      impersonated: true,
+      playground: true,
+      workspaceAgnostic: false,
+    },
+    apiKey: false,
+    oauthClient: { withUser: true, withoutUser: false },
+    application: false,
+  },
+  requiredPermissionFlags: [PermissionFlagType.WORKSPACE_MEMBERS],
+};
+
 @UsePipes(ResolverValidationPipe)
 @UseFilters(
   PermissionsGraphqlApiExceptionFilter,
   PreventNestToAutoLogGraphqlErrorsFilter,
+  AuthGraphqlApiExceptionFilter,
 )
 @MetadataResolver()
 export class WorkspaceInvitationResolver {
   constructor(
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    private readonly workspaceOrmManager: WorkspaceOrmManager,
     private readonly workspaceInvitationService: WorkspaceInvitationService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   @Mutation(() => String)
+  @UseGuards(
+    AccessPolicyGuard({
+      authPrincipals: {
+        userSession: {
+          standard: true,
+          impersonated: true,
+          playground: true,
+          workspaceAgnostic: false,
+        },
+        apiKey: true,
+        oauthClient: true,
+        application: false,
+      },
+      requiredPermissionFlags: [PermissionFlagType.WORKSPACE_MEMBERS],
+    }),
+  )
   async deleteWorkspaceInvitation(
     @Args('appTokenId') appTokenId: string,
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
@@ -51,7 +92,7 @@ export class WorkspaceInvitationResolver {
   }
 
   @Mutation(() => SendInvitationsDTO)
-  @UseGuards(UserAuthGuard)
+  @UseGuards(AccessPolicyGuard(WORKSPACE_INVITATION_WRITE_ACCESS_POLICY))
   async resendWorkspaceInvitation(
     @Args('appTokenId') appTokenId: string,
     @AuthWorkspace() workspace: WorkspaceEntity,
@@ -60,23 +101,18 @@ export class WorkspaceInvitationResolver {
     const authContext = buildSystemAuthContext(workspace.id);
 
     const workspaceMember =
-      await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
-        async () => {
-          const workspaceMemberRepository =
-            await this.globalWorkspaceOrmManager.getRepository<WorkspaceMemberWorkspaceEntity>(
-              workspace.id,
-              'workspaceMember',
-              { shouldBypassPermissionChecks: true },
-            );
+      await this.workspaceOrmManager.executeInWorkspaceContext(async () => {
+        const workspaceMemberRepository =
+          this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(
+            'workspaceMember',
+          );
 
-          return workspaceMemberRepository.findOneOrFail({
-            where: {
-              userId: user.id,
-            },
-          });
-        },
-        authContext,
-      );
+        return workspaceMemberRepository.findOneOrFail({
+          where: {
+            userId: user.id,
+          },
+        });
+      }, authContext);
 
     return this.workspaceInvitationService.resendWorkspaceInvitation(
       appTokenId,
@@ -86,43 +122,79 @@ export class WorkspaceInvitationResolver {
   }
 
   @Query(() => [WorkspaceInvitation])
+  @UseGuards(
+    AccessPolicyGuard({
+      authPrincipals: {
+        userSession: {
+          standard: true,
+          impersonated: true,
+          playground: true,
+          workspaceAgnostic: false,
+        },
+        apiKey: true,
+        oauthClient: true,
+        application: true,
+      },
+      requiredPermissionFlags: [PermissionFlagType.WORKSPACE_MEMBERS],
+    }),
+  )
   async findWorkspaceInvitations(@AuthWorkspace() workspace: WorkspaceEntity) {
     return this.workspaceInvitationService.loadWorkspaceInvitations(workspace);
   }
 
   @Mutation(() => SendInvitationsDTO)
-  @UseGuards(UserAuthGuard)
+  @UseGuards(AccessPolicyGuard(WORKSPACE_INVITATION_WRITE_ACCESS_POLICY))
+  @AllowSuspendedWorkspace()
   async sendInvitations(
     @Args() sendInviteLinkInput: SendInvitationsInput,
     @AuthUser() user: AuthContextUser,
     @AuthWorkspace() workspace: WorkspaceEntity,
+    @AuthUserWorkspaceId() userWorkspaceId: string,
+    @AuthApplication({ allowUndefined: true })
+    application: FlatApplication | undefined,
   ): Promise<SendInvitationsDTO> {
+    if (isDefined(sendInviteLinkInput.roleId)) {
+      const canAssignRoles =
+        await this.permissionsService.userHasWorkspaceSettingPermission({
+          userWorkspaceId,
+          workspaceId: workspace.id,
+          setting: PermissionFlagType.ROLES,
+          applicationId: application?.id,
+          agentId: undefined,
+        });
+
+      if (!canAssignRoles) {
+        throw new PermissionsException(
+          PermissionsExceptionMessage.PERMISSION_DENIED,
+          PermissionsExceptionCode.PERMISSION_DENIED,
+          {
+            userFriendlyMessage: msg`You do not have permission to access this feature. Please contact your workspace administrator for access.`,
+          },
+        );
+      }
+    }
+
     const authContext = buildSystemAuthContext(workspace.id);
 
     const workspaceMember =
-      await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
-        async () => {
-          const workspaceMemberRepository =
-            await this.globalWorkspaceOrmManager.getRepository<WorkspaceMemberWorkspaceEntity>(
-              workspace.id,
-              'workspaceMember',
-              { shouldBypassPermissionChecks: true },
-            );
+      await this.workspaceOrmManager.executeInWorkspaceContext(async () => {
+        const workspaceMemberRepository =
+          this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(
+            'workspaceMember',
+          );
 
-          return workspaceMemberRepository.findOneOrFail({
-            where: {
-              userId: user.id,
-            },
-          });
-        },
-        authContext,
-      );
+        return workspaceMemberRepository.findOneOrFail({
+          where: {
+            userId: user.id,
+          },
+        });
+      }, authContext);
 
-    return await this.workspaceInvitationService.sendInvitations(
-      sendInviteLinkInput.emails,
+    return await this.workspaceInvitationService.sendInvitations({
+      emails: sendInviteLinkInput.emails,
       workspace,
-      workspaceMember,
-      sendInviteLinkInput.roleId ?? undefined,
-    );
+      sender: workspaceMember,
+      roleId: sendInviteLinkInput.roleId ?? undefined,
+    });
   }
 }

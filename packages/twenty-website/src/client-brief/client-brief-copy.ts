@@ -10,6 +10,7 @@ export const CLIENT_BRIEF_COPY = {
   submitInFlight: msg`Submitting…`,
   successTitle: msg`Thanks — we received your brief.`,
   successBody: msg`Our team will review your project and follow up by email. You won't hear from partners until we've matched you.`,
+  successDone: msg`Done`,
   stepProgressLabel: (current: number, total: number) =>
     msg`Step ${current} of ${total}`,
   validation: {
@@ -32,7 +33,7 @@ export const CLIENT_BRIEF_COPY = {
     seatCountPlaceholder: msg`e.g. ~30`,
     timeline: msg`Timeline`,
     timelinePlaceholder: msg`e.g. Before Q4, Q1 2027…`,
-    budgetRange: msg`Budget range`,
+    budgetRange: msg`Implementation/migration budget range`,
     budgetRangePlaceholder: msg`e.g. $10k–$25k`,
     firstName: msg`First name *`,
     lastName: msg`Last name`,

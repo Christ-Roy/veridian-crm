@@ -1,7 +1,7 @@
 import { styled } from '@linaria/react';
-import { useContext, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { type IconComponent, IconX } from 'twenty-ui/icon';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { useTheme, themeCssVariables } from 'twenty-ui/theme';
 import { isDefined } from 'twenty-shared/utils';
 
 const StyledChip = styled.div<{ variant: SortOrFilterChipVariant }>`
@@ -56,12 +56,13 @@ const StyledIcon = styled.div`
   display: flex;
 `;
 
-const StyledDelete = styled.button<{ variant: SortOrFilterChipVariant }>`
+const StyledDelete = styled.button`
   align-items: center;
   background: none;
   border: none;
   box-sizing: border-box;
   color: inherit;
+  corner-shape: round;
   cursor: pointer;
   display: flex;
   font-size: ${themeCssVariables.font.size.sm};
@@ -71,19 +72,6 @@ const StyledDelete = styled.button<{ variant: SortOrFilterChipVariant }>`
   padding: 0;
   user-select: none;
   width: 20px;
-
-  &:hover {
-    background-color: ${({ variant }) => {
-      switch (variant) {
-        case 'danger':
-          return themeCssVariables.color.red5;
-        case 'default':
-        default:
-          return themeCssVariables.accent.secondary;
-      }
-    }};
-    border-radius: ${themeCssVariables.border.radius.sm};
-  }
 `;
 
 const StyledLabelKey = styled.div`
@@ -139,7 +127,7 @@ export const SortOrFilterChip = ({
   onClick,
   type,
 }: SortOrFilterChipProps) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useTheme();
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -168,7 +156,6 @@ export const SortOrFilterChip = ({
         )}
       </StyledKeyLabelContainer>
       <StyledDelete
-        variant={variant}
         onClick={handleDeleteClick}
         data-testid={'remove-icon-' + testId}
       >

@@ -1,5 +1,6 @@
 import {
   isDefined,
+  isMorphRelationHead,
   trimAndRemoveDuplicatedWhitespacesFromObjectStringProperties,
 } from 'twenty-shared/utils';
 
@@ -62,6 +63,16 @@ export const fromDeleteFieldInputToFlatFieldMetadatasToDelete = ({
   ) {
     throw new FieldMetadataException(
       `Cannot delete standard field "${flatFieldMetadataToDelete.name}"`,
+      FieldMetadataExceptionCode.FIELD_MUTATION_NOT_ALLOWED,
+    );
+  }
+
+  if (
+    flatFieldMetadataToDelete.isSystemSideEffect === true &&
+    !isMorphRelationHead(flatFieldMetadataToDelete)
+  ) {
+    throw new FieldMetadataException(
+      `Cannot delete system-managed field "${flatFieldMetadataToDelete.name}"`,
       FieldMetadataExceptionCode.FIELD_MUTATION_NOT_ALLOWED,
     );
   }

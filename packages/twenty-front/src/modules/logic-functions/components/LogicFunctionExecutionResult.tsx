@@ -1,10 +1,10 @@
-import { t } from '@lingui/core/macro';
 import {
   type ExecutionStatus,
   WorkflowStepExecutionResult,
 } from '@/workflow/components/WorkflowStepExecutionResult';
 import { type LogicFunctionTestData } from '@/workflow/workflow-steps/workflow-actions/code-action/states/logicFunctionTestDataFamilyState';
 import { LogicFunctionExecutionStatus } from '~/generated-metadata/graphql';
+import { useLingui } from '@lingui/react/macro';
 
 export const LogicFunctionExecutionResult = ({
   logicFunctionTestData,
@@ -13,10 +13,13 @@ export const LogicFunctionExecutionResult = ({
   logicFunctionTestData: LogicFunctionTestData;
   isTesting?: boolean;
 }) => {
+  const { t } = useLingui();
   const result =
     logicFunctionTestData.output.data ||
     logicFunctionTestData.output.error ||
-    '';
+    (logicFunctionTestData.output.status === LogicFunctionExecutionStatus.IDLE
+      ? t`Enter an input above then press "Test"`
+      : '');
 
   const isSuccess =
     logicFunctionTestData.output.status ===

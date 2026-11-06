@@ -1,12 +1,12 @@
 import {
   AggregateOperations,
-  FieldMetadataType,
+  PageLayoutTabLayoutMode,
   ViewFilterOperand,
+  WidgetType,
 } from 'twenty-shared/types';
 
 import { buildFieldByObjectIdAndNameKey } from 'src/engine/metadata-modules/flat-field-metadata/utils/build-field-by-object-id-and-name-key.util';
 import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
-import { WidgetType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-type.enum';
 import { type DashboardIdentifierMaps } from 'src/modules/dashboard/tools/types/dashboard-identifier-maps.type';
 import { type WidgetIdentifiersInput } from 'src/modules/dashboard/tools/types/widget-identifiers-input.type';
 import { resolveWidgetFieldNamesToIds } from 'src/modules/dashboard/tools/utils/resolve-widget-field-names-to-metadata-ids.util';
@@ -25,11 +25,6 @@ const buildMaps = (): DashboardIdentifierMaps => ({
       buildFieldByObjectIdAndNameKey(OBJECT_ID, 'createdAt'),
       CREATED_AT_FIELD_ID,
     ],
-  ]),
-  fieldById: new Map([
-    [AMOUNT_FIELD_ID, { type: FieldMetadataType.CURRENCY }],
-    [STAGE_FIELD_ID, { type: FieldMetadataType.SELECT }],
-    [CREATED_AT_FIELD_ID, { type: FieldMetadataType.DATE_TIME }],
   ]),
 });
 
@@ -53,7 +48,13 @@ const buildAggregateWidget = (
 ): WidgetIdentifiersInput => ({
   title: 'KPI',
   type: WidgetType.GRAPH,
-  gridPosition: { row: 0, column: 0, rowSpan: 2, columnSpan: 4 },
+  position: {
+    layoutMode: PageLayoutTabLayoutMode.GRID,
+    row: 0,
+    column: 0,
+    rowSpan: 2,
+    columnSpan: 4,
+  },
   objectName: 'opportunity',
   configuration: {
     configurationType: WidgetConfigurationType.AGGREGATE_CHART,
@@ -96,7 +97,7 @@ describe('resolveWidgetFieldNamesToIds - chart filters', () => {
     ).not.toHaveProperty('fieldName');
   });
 
-  it('enriches the filter with a root group, type and displayValue for the UI', () => {
+  it('places the filter in a root group and references its field by id only', () => {
     const widget = buildAggregateWidget({
       recordFilters: [
         {
@@ -117,16 +118,14 @@ describe('resolveWidgetFieldNamesToIds - chart filters', () => {
     expect(rootGroup).toMatchObject({ logicalOperator: 'AND' });
     expect(rootGroup.parentRecordFilterGroupId).toBeUndefined();
 
-    expect(filter.recordFilters[0]).toMatchObject({
+    expect(filter.recordFilters[0]).toEqual({
+      id: expect.any(String),
       fieldMetadataId: STAGE_FIELD_ID,
       operand: ViewFilterOperand.IS_NOT,
       value: '["NEW"]',
-      displayValue: '["NEW"]',
-      type: 'SELECT',
       recordFilterGroupId: rootGroup.id,
       positionInRecordFilterGroup: 0,
     });
-    expect(filter.recordFilters[0].id).toEqual(expect.any(String));
   });
 
   it('preserves an explicit filter fieldMetadataId', () => {

@@ -2,10 +2,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { getToastOptionsFromError } from '@/error-handler/utils/getToastOptionsFromError';
+import { useToast } from 'twenty-ui/components/feedback';
 
 import { useMutation } from '@apollo/client/react';
 import { t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react/macro';
 import { SettingsPath } from 'twenty-shared/types';
 import {
   type ConnectionParametersInput,
@@ -20,10 +22,9 @@ import {
   isProtocolConfiguredForUpdate,
 } from '@/settings/accounts/utils/isProtocolConfigured';
 import {
-  connectionImapSmtpCalDav,
-  connectionImapSmtpCalDavUpdate,
+  getConnectionImapSmtpCalDavSchema,
+  getConnectionImapSmtpCalDavUpdateSchema,
 } from '@/settings/accounts/validation-schemas/connectionImapSmtpCalDav';
-import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { isNonEmptyString } from '@sniptt/guards';
 import { ACCOUNT_TYPES } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
@@ -66,12 +67,23 @@ export const useImapSmtpCaldavConnectionForm = ({
   connectedAccountId,
 }: UseConnectionFormProps = {}) => {
   const navigate = useNavigateSettings();
+  const { i18n } = useLingui();
+
+  const connectionSchema = useMemo(
+    () =>
+      isEditing
+        ? getConnectionImapSmtpCalDavUpdateSchema()
+        : getConnectionImapSmtpCalDavSchema(),
+    [
+      isEditing,
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      i18n.locale,
+    ],
+  );
 
   const formMethods = useForm<ConnectionFormData>({
     mode: 'onSubmit',
-    resolver: zodResolver(
-      isEditing ? connectionImapSmtpCalDavUpdate : connectionImapSmtpCalDav,
-    ),
+    resolver: zodResolver(connectionSchema),
     defaultValues: {
       name: '',
       handle: '',
@@ -80,7 +92,7 @@ export const useImapSmtpCaldavConnectionForm = ({
   });
 
   const { handleSubmit, formState, watch, reset } = formMethods;
-  const { enqueueErrorSnackBar, enqueueSuccessSnackBar } = useSnackBar();
+  const { enqueueToast } = useToast();
   const { isSubmitting } = formState;
 
   const { connectedAccount, loading: accountLoading } =
@@ -146,7 +158,7 @@ export const useImapSmtpCaldavConnectionForm = ({
       const configuredProtocols = getConfiguredProtocols(formValues);
 
       if (configuredProtocols.length === 0) {
-        throw new Error('At least one protocol must be configured');
+        throw new Error(t`At least one protocol must be configured`);
       }
 
       const connectionParameters: Partial<
@@ -183,7 +195,7 @@ export const useImapSmtpCaldavConnectionForm = ({
           ? t`Connection successfully updated`
           : t`Connection successfully created`;
 
-        enqueueSuccessSnackBar({ message: successMessage });
+        enqueueToast({ status: 'success', children: successMessage });
 
         const { connectedAccountId: returnedConnectedAccountId } =
           data?.saveImapSmtpCaldavAccount ?? {};
@@ -192,9 +204,7 @@ export const useImapSmtpCaldavConnectionForm = ({
           connectedAccountId: returnedConnectedAccountId,
         });
       } catch (error) {
-        enqueueErrorSnackBar({
-          apolloError: CombinedGraphQLErrors.is(error) ? error : undefined,
-        });
+        enqueueToast(getToastOptionsFromError({ error }));
       }
     },
     [
@@ -202,9 +212,8 @@ export const useImapSmtpCaldavConnectionForm = ({
       saveConnection,
       isEditing,
       connectedAccountId,
-      enqueueSuccessSnackBar,
+      enqueueToast,
       navigate,
-      enqueueErrorSnackBar,
     ],
   );
 

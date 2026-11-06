@@ -6,20 +6,19 @@ import {
 } from '~/generated-metadata/graphql';
 import {
   FindAdminApplicationRegistrationVariablesDocument,
+  FindOneAdminApplicationRegistrationDocument,
   UpdateAdminApplicationRegistrationVariableDocument,
 } from '~/generated-admin/graphql';
 import { styled } from '@linaria/react';
-import { Section } from 'twenty-ui/layout';
-import { H2Title } from 'twenty-ui/typography';
-import { IconInfoCircle } from 'twenty-ui/icon';
-import { AppTooltip, TooltipDelay } from 'twenty-ui/surfaces';
-import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
+import { Section } from 'twenty-ui/components/layout';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { useLingui } from '@lingui/react/macro';
-import { isNonEmptyString } from '@sniptt/guards';
-import { useContext, useState } from 'react';
+import { useState } from 'react';
 import { type ApplicationVariableOption } from 'twenty-shared/application';
 import { useDebouncedCallback } from 'use-debounce';
-import { SettingsApplicationVariableInput } from '~/pages/settings/applications/components/SettingsApplicationVariableInput';
+import { SettingsApplicationVariableInput } from '@/settings/applications/components/SettingsApplicationVariableInput';
+import { SettingsApplicationVariableLabelRow } from '@/settings/applications/components/SettingsApplicationVariableLabelRow';
+import { shouldDisplayVariable } from '@/settings/applications/utils/shouldDisplayVariable';
 import { useApolloAdminClient } from '@/settings/admin-panel/apollo/hooks/useApolloAdminClient';
 
 type ConfigVariable = {
@@ -72,28 +71,14 @@ const StyledContainer = styled.div`
   gap: ${themeCssVariables.spacing[4]};
 `;
 
-const StyledLabelRow = styled.div`
-  align-items: center;
-  display: flex;
-  gap: ${themeCssVariables.spacing[1]};
-  margin-bottom: ${themeCssVariables.spacing[1]};
-`;
-
-const StyledLabel = styled.span`
-  color: ${themeCssVariables.font.color.light};
-  font-size: 11px;
-  font-weight: ${themeCssVariables.font.weight.semiBold};
-`;
-
 export const SettingsApplicationRegistrationConfigTab = ({
   registration,
-  fromAdmin,
+  isAdminView,
 }: {
   registration: ApplicationRegistrationData;
-  fromAdmin?: boolean;
+  isAdminView?: boolean;
 }) => {
   const { t } = useLingui();
-  const { theme } = useContext(ThemeContext);
   const apolloAdminClient = useApolloAdminClient();
 
   const applicationRegistrationId = registration.id;
@@ -102,7 +87,7 @@ export const SettingsApplicationRegistrationConfigTab = ({
     FindApplicationRegistrationVariablesDocument,
     {
       variables: { applicationRegistrationId },
-      skip: !applicationRegistrationId || fromAdmin === true,
+      skip: !applicationRegistrationId || isAdminView === true,
     },
   );
 
@@ -111,7 +96,7 @@ export const SettingsApplicationRegistrationConfigTab = ({
     {
       client: apolloAdminClient,
       variables: { applicationRegistrationId },
-      skip: !applicationRegistrationId || fromAdmin !== true,
+      skip: !applicationRegistrationId || isAdminView !== true,
     },
   );
 
@@ -126,16 +111,26 @@ export const SettingsApplicationRegistrationConfigTab = ({
     UpdateAdminApplicationRegistrationVariableDocument,
     {
       client: apolloAdminClient,
-      refetchQueries: [FindAdminApplicationRegistrationVariablesDocument],
+      refetchQueries: [
+        FindAdminApplicationRegistrationVariablesDocument,
+        FindOneAdminApplicationRegistrationDocument,
+      ],
     },
   );
 
-  const variables = fromAdmin
-    ? (adminVariablesData?.findAdminApplicationRegistrationVariables ?? [])
-    : (workspaceVariablesData?.findApplicationRegistrationVariables ?? []);
+  const variables = (
+    isAdminView
+      ? (adminVariablesData?.findAdminApplicationRegistrationVariables ?? [])
+      : (workspaceVariablesData?.findApplicationRegistrationVariables ?? [])
+  ).filter((variable) =>
+    shouldDisplayVariable({
+      isDeprecated: variable.isDeprecated,
+      hasValue: variable.isFilled,
+    }),
+  );
 
   const handleUpdate = (id: string, value: string) => {
-    if (fromAdmin === true) {
+    if (isAdminView === true) {
       updateAdminVariable({
         variables: { input: { id, update: { value } } },
       });
@@ -148,38 +143,20 @@ export const SettingsApplicationRegistrationConfigTab = ({
 
   return (
     variables.length > 0 && (
-      <Section>
-        <H2Title
+      <Section.Root>
+        <Section.Header
           title={t`Server Variables`}
           description={t`Server variables are applied to all workspace installations.`}
         />
         <StyledContainer>
           {variables.map((variable) => {
-            const tooltipId = `config-var-desc-${variable.key}`;
             return (
               <div key={variable.key}>
-                <StyledLabelRow>
-                  <StyledLabel>{variable.key}</StyledLabel>
-                  {isNonEmptyString(variable.description) && (
-                    <>
-                      <IconInfoCircle
-                        id={tooltipId}
-                        size={theme.icon.size.sm}
-                        color={theme.font.color.tertiary}
-                        style={{ outline: 'none', cursor: 'pointer' }}
-                      />
-                      <AppTooltip
-                        anchorSelect={`#${tooltipId}`}
-                        content={variable.description}
-                        offset={5}
-                        noArrow
-                        place="bottom"
-                        positionStrategy="fixed"
-                        delay={TooltipDelay.shortDelay}
-                      />
-                    </>
-                  )}
-                </StyledLabelRow>
+                <SettingsApplicationVariableLabelRow
+                  variableKey={variable.key}
+                  isDeprecated={variable.isDeprecated}
+                  description={variable.description}
+                />
                 <ConfigVariableInput
                   variable={variable as ConfigVariable}
                   onUpdate={handleUpdate}
@@ -188,7 +165,7 @@ export const SettingsApplicationRegistrationConfigTab = ({
             );
           })}
         </StyledContainer>
-      </Section>
+      </Section.Root>
     )
   );
 };

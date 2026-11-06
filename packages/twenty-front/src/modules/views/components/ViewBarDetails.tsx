@@ -23,7 +23,8 @@ import { anyFieldFilterValueComponentState } from '@/object-record/record-filter
 import { isDropdownOpenComponentState } from '@/ui/layout/dropdown/states/isDropdownOpenComponentState';
 import { ScrollWrapper } from '@/ui/utilities/scroll/components/ScrollWrapper';
 import { AnyFieldSearchDropdownButton } from '@/views/components/AnyFieldSearchDropdownButton';
-import { ANY_FIELD_SEARCH_DROPDOWN_ID } from '@/views/constants/AnyFieldSearchDropdownId';
+import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
+import { getAnyFieldSearchDropdownId } from '@/views/utils/getAnyFieldSearchDropdownId';
 import { EditableFilterDropdownButton } from '@/views/editable-chip/components/EditableFilterDropdownButton';
 import { getEditableChipObjectFilterDropdownComponentInstanceId } from '@/views/editable-chip/utils/getEditableChipObjectFilterDropdownComponentInstanceId';
 import { useHasFiltersInQueryParams } from '@/views/hooks/internal/useHasFiltersInQueryParams';
@@ -32,11 +33,11 @@ import { useApplyCurrentViewFilterGroupsToCurrentRecordFilterGroups } from '@/vi
 import { useAreViewFilterGroupsDifferentFromRecordFilterGroups } from '@/views/hooks/useAreViewFilterGroupsDifferentFromRecordFilterGroups';
 import { useIsViewAnyFieldFilterDifferentFromCurrentAnyFieldFilter } from '@/views/hooks/useIsViewAnyFieldFilterDifferentFromCurrentAnyFieldFilter';
 import { isViewBarExpandedComponentState } from '@/views/states/isViewBarExpandedComponentState';
-import { t } from '@lingui/core/macro';
 import { isNonEmptyArray, isNonEmptyString } from '@sniptt/guards';
 import { isDefined } from 'twenty-shared/utils';
-import { LightButton } from 'twenty-ui/input';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { LightButton } from 'twenty-ui/components/input';
+import { themeCssVariables } from 'twenty-ui/theme';
+import { useLingui } from '@lingui/react/macro';
 
 export type ViewBarDetailsProps = {
   hasFilterButton?: boolean;
@@ -105,6 +106,9 @@ export const ViewBarDetails = ({
   viewBarId,
   objectNamePlural,
 }: ViewBarDetailsProps) => {
+  const { t } = useLingui();
+  const { recordIndexId } = useRecordIndexContextOrThrow();
+
   const isViewBarExpanded = useAtomComponentStateValue(
     isViewBarExpandedComponentState,
   );
@@ -190,7 +194,7 @@ export const ViewBarDetails = ({
 
   const isDropdownOpen = useAtomComponentStateValue(
     isDropdownOpenComponentState,
-    ANY_FIELD_SEARCH_DROPDOWN_ID,
+    getAnyFieldSearchDropdownId(recordIndexId),
   );
 
   const canResetView =
@@ -278,11 +282,10 @@ export const ViewBarDetails = ({
       <StyledActionButtonContainer>
         {canResetView && (
           <LightButton
+            emphasis="subtle"
             data-testid="cancel-button"
-            accent="tertiary"
-            title={t`Reset`}
             onClick={handleCancelClick}
-          />
+          >{t`Reset`}</LightButton>
         )}
         {rightComponent}
       </StyledActionButtonContainer>

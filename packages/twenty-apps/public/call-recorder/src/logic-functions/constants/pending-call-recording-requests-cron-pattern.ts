@@ -1,1 +1,0 @@
-export const PENDING_CALL_RECORDING_REQUESTS_CRON_PATTERN = '*/5 * * * *';

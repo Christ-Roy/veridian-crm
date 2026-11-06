@@ -5,7 +5,7 @@ import {
   FieldMetadataType,
   RelationType,
 } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
+import { isDefined, isMorphRelationHead } from 'twenty-shared/utils';
 import { ColumnType, type QueryRunner } from 'typeorm';
 
 import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
@@ -24,20 +24,19 @@ import { isCompositeFlatFieldMetadata } from 'src/engine/metadata-modules/flat-f
 import { isEnumFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-enum-flat-field-metadata.util';
 import { isFlatFieldMetadataOfType } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-flat-field-metadata-of-type.util';
 import { isMorphOrRelationFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-morph-or-relation-flat-field-metadata.util';
-import { deriveSearchVectorAsExpressionForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/derive-search-vector-as-expression-for-ts-vector-field.util';
-import { getTargetSearchFieldMetadatasForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/get-target-search-field-metadatas-for-ts-vector-field.util';
+import { resolveSearchVectorAsExpressionForTsVectorField } from 'src/engine/metadata-modules/flat-search-field-metadata/utils/resolve-search-vector-as-expression-for-ts-vector-field.util';
 import { FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
 import { computeObjectTargetTable } from 'src/engine/utils/compute-object-target-table.util';
 import { isMorphOrRelationFieldMetadataType } from 'src/engine/utils/is-morph-or-relation-field-metadata-type.util';
 import { UniversalFlatEntityUpdate } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-entity-update.type';
 import { resolveUniversalUpdateRelationIdentifiersToIds } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/utils/resolve-universal-update-relation-identifiers-to-ids.util';
-import { convertOnDeleteActionToOnDelete } from 'src/engine/workspace-manager/workspace-migration/utils/convert-on-delete-action-to-on-delete.util';
 import {
   FlatUpdateFieldAction,
   UniversalUpdateFieldAction,
-} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/field/types/workspace-migration-field-action';
+} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/field/types/workspace-migration-field-action.type';
 import { serializeDefaultValue } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/utils/serialize-default-value.util';
+import { computeForeignKeyOnDelete } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/utils/compute-foreign-key-on-delete.util';
 import { fromUniversalSettingsToFlatFieldMetadataSettings } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/utils/from-universal-settings-to-flat-field-metadata-settings.util';
 import {
   WorkspaceMigrationActionExecutionException,
@@ -156,7 +155,11 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
     // payload only so per-type validators (e.g. FILES rejection) can run
     // — the actual state change is handled by the metadata side-effect
     // engine, which owns the backing unique index lifecycle.
-    const { isUnique: _droppedIsUnique, ...persistedUpdate } = update;
+    const {
+      isUnique: _droppedIsUnique,
+      isSearchable: _droppedIsSearchable,
+      ...persistedUpdate
+    } = update;
 
     if (Object.keys(persistedUpdate).length === 0) {
       return;
@@ -189,6 +192,10 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
       flatEntityId: entityId,
       flatEntityMaps: flatFieldMetadataMaps,
     });
+
+    if (isMorphRelationHead(currentFlatFieldMetadata)) {
+      return;
+    }
 
     const flatObjectMetadata = findFlatEntityByIdInFlatEntityMapsOrThrow({
       flatEntityMaps: flatObjectMetadataMaps,
@@ -282,12 +289,14 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
           optimisticFlatFieldMetadata.settings?.relationType ===
           RelationType.MANY_TO_ONE;
 
-        if (
-          isManyToOne &&
-          isDefined(fromSettings?.onDelete) &&
-          isDefined(toSettings?.onDelete) &&
-          toSettings.onDelete !== fromSettings.onDelete
-        ) {
+        const fromForeignKeyOnDelete = computeForeignKeyOnDelete({
+          onDelete: fromSettings?.onDelete,
+        });
+        const toForeignKeyOnDelete = computeForeignKeyOnDelete({
+          onDelete: toSettings?.onDelete,
+        });
+
+        if (isManyToOne && toForeignKeyOnDelete !== fromForeignKeyOnDelete) {
           const joinColumnName = computeMorphOrRelationFieldJoinColumnName({
             name: optimisticFlatFieldMetadata.name,
           });
@@ -337,9 +346,7 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
                 columnName: joinColumnName,
                 referencedTableName,
                 referencedColumnName: 'id',
-                onDelete:
-                  convertOnDeleteActionToOnDelete(toSettings.onDelete) ??
-                  'CASCADE',
+                onDelete: toForeignKeyOnDelete,
               },
             },
           );
@@ -354,30 +361,15 @@ export class UpdateFieldActionHandlerService extends WorkspaceMigrationRunnerAct
         FieldMetadataType.TS_VECTOR,
       )
     ) {
-      const indexedFieldById = new Map(
-        findManyFlatEntityByIdInFlatEntityMaps({
-          flatEntityMaps: flatFieldMetadataMaps,
-          flatEntityIds: flatObjectMetadata.fieldIds,
-        }).map((indexedFlatFieldMetadata) => [
-          indexedFlatFieldMetadata.id,
-          {
-            name: indexedFlatFieldMetadata.name,
-            type: indexedFlatFieldMetadata.type,
-          },
-        ]),
-      );
-
       const searchVectorAsExpression =
-        deriveSearchVectorAsExpressionForTsVectorField({
-          targetSearchFieldMetadatas:
-            getSearchFieldMetadatasByTsVectorFieldId?.(
-              optimisticFlatFieldMetadata.id,
-            ) ??
-            getTargetSearchFieldMetadatasForTsVectorField({
-              tsVectorFieldMetadataId: optimisticFlatFieldMetadata.id,
-              flatSearchFieldMetadataMaps,
-            }),
-          indexedFieldById,
+        resolveSearchVectorAsExpressionForTsVectorField({
+          tsVectorFieldMetadataId: optimisticFlatFieldMetadata.id,
+          objectFlatFieldMetadatas: findManyFlatEntityByIdInFlatEntityMaps({
+            flatEntityMaps: flatFieldMetadataMaps,
+            flatEntityIds: flatObjectMetadata.fieldIds,
+          }),
+          flatSearchFieldMetadataMaps,
+          getSearchFieldMetadatasByTsVectorFieldId,
         });
 
       const columnDefinitions = generateColumnDefinitions({

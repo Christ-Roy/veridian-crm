@@ -173,6 +173,7 @@ export class NormalizeCompositeFieldDefaultsCommand extends ProvisionedWorkspace
       const validateAndBuildResult =
         await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunLegacyWorkspaceMigration(
           {
+            shouldDeferActions: false,
             allFlatEntityOperationByMetadataName: {
               fieldMetadata: {
                 flatEntityToCreate: [],
@@ -210,8 +211,6 @@ export class NormalizeCompositeFieldDefaultsCommand extends ProvisionedWorkspace
          SET "${columnName}" = NULL
          WHERE "${columnName}"::text IN ('', '""')`,
         undefined,
-        undefined,
-        { shouldBypassPermissionChecks: true },
       );
 
       this.logger.log(

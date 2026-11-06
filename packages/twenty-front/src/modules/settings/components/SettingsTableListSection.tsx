@@ -1,16 +1,18 @@
 import { type ComponentType, type ReactNode } from 'react';
 
+import { isDefined } from 'twenty-shared/utils';
+
 import { styled } from '@linaria/react';
 
+import { SettingsSectionSkeletonLoader } from '@/settings/components/SettingsSectionSkeletonLoader';
 import { Table } from '@/ui/layout/table/components/Table';
 import { TableCell } from '@/ui/layout/table/components/TableCell';
 import { TableHeader } from '@/ui/layout/table/components/TableHeader';
 import { TableRow } from '@/ui/layout/table/components/TableRow';
+import { Section } from 'twenty-ui/components/layout';
 import { IconChevronRight, IconPlus } from 'twenty-ui/icon';
-import { H2Title } from 'twenty-ui/typography';
-import { Button } from 'twenty-ui/input';
-import { Section } from 'twenty-ui/layout';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { Button } from 'twenty-ui/primitives/input';
+import { themeCssVariables } from 'twenty-ui/theme';
 
 const StyledTableRows = styled.div`
   padding-bottom: ${themeCssVariables.spacing[2]};
@@ -40,9 +42,13 @@ const StyledFooter = styled.div`
 
 const HEADER_PADDING = `0 ${themeCssVariables.spacing[2]} 0 ${themeCssVariables.spacing[2]}`;
 
+// an auto track resolves differently in the header and in the rows, so the chevron column is fixed
+const CHEVRON_COLUMN_WIDTH = themeCssVariables.spacing[8];
+
 export type SettingsTableListSectionColumn<Item> = {
   label: string;
   align?: 'left' | 'right';
+  overflow?: string;
   Cell: ComponentType<{ item: Item }>;
 };
 
@@ -50,13 +56,16 @@ type SettingsTableListSectionProps<Item extends { id: string }> = {
   title: string;
   description: string;
   headerAdornment?: ReactNode;
+  toolbar?: ReactNode;
   items: Item[];
   columns: SettingsTableListSectionColumn<Item>[];
   gridAutoColumns: string;
+  isLoading?: boolean;
   showRowChevron?: boolean;
   onRowClick?: (item: Item) => void;
-  footerButtonLabel: string;
-  onFooterButtonClick: () => void;
+  footerButtonLabel?: string;
+  onFooterButtonClick?: () => void;
+  isFooterButtonDisabled?: boolean;
 };
 
 export const SettingsTableListSection = <
@@ -65,26 +74,31 @@ export const SettingsTableListSection = <
   title,
   description,
   headerAdornment,
+  toolbar,
   items,
   columns,
   gridAutoColumns,
+  isLoading = false,
   showRowChevron = false,
   onRowClick,
   footerButtonLabel,
   onFooterButtonClick,
+  isFooterButtonDisabled,
 }: SettingsTableListSectionProps<Item>) => {
   const resolvedGridAutoColumns = showRowChevron
-    ? `${gridAutoColumns} auto`
+    ? `${gridAutoColumns} ${CHEVRON_COLUMN_WIDTH}`
     : gridAutoColumns;
 
   return (
-    <Section>
-      <H2Title
+    <Section.Root>
+      <Section.Header
         title={title}
         description={description}
-        adornment={headerAdornment}
+        actions={headerAdornment}
       />
-      {items.length > 0 && (
+      {isDefined(toolbar) && toolbar}
+      {isLoading && <SettingsSectionSkeletonLoader />}
+      {!isLoading && items.length > 0 && (
         <Table>
           <TableRow gridAutoColumns={resolvedGridAutoColumns}>
             {columns.map((column) => (
@@ -106,7 +120,11 @@ export const SettingsTableListSection = <
                   onClick={onRowClick ? () => onRowClick(item) : undefined}
                 >
                   {columns.map((column) => (
-                    <TableCell key={column.label} align={column.align}>
+                    <TableCell
+                      key={column.label}
+                      align={column.align}
+                      overflow={column.overflow}
+                    >
                       <column.Cell item={item} />
                     </TableCell>
                   ))}
@@ -124,15 +142,19 @@ export const SettingsTableListSection = <
           </StyledTableRows>
         </Table>
       )}
-      <StyledFooter>
-        <Button
-          Icon={IconPlus}
-          title={footerButtonLabel}
-          variant="secondary"
-          size="small"
-          onClick={onFooterButtonClick}
-        />
-      </StyledFooter>
-    </Section>
+      {isDefined(footerButtonLabel) && isDefined(onFooterButtonClick) && (
+        <StyledFooter>
+          <Button
+            startIcon={<IconPlus />}
+            size="sm"
+            onClick={onFooterButtonClick}
+            variant="outline"
+            disabled={isFooterButtonDisabled}
+          >
+            {footerButtonLabel}
+          </Button>
+        </StyledFooter>
+      )}
+    </Section.Root>
   );
 };

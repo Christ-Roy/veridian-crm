@@ -1,11 +1,16 @@
+import { type EmailRecipientSuggestion } from '@/activities/emails/recipients/types/EmailRecipientSuggestion';
+import { ToastOnQueryErrorEffect } from '@/apollo/components/ToastOnQueryErrorEffect';
+import { pointerIntersection } from '@dnd-kit/collision';
+import { useDroppable } from '@dnd-kit/react';
 import { styled } from '@linaria/react';
 import { isNonEmptyString } from '@sniptt/guards';
-import { useStore } from 'jotai';
+import { atom, useStore } from 'jotai';
 import {
   type ClipboardEvent,
-  type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
+  useContext,
   useId,
   useMemo,
   useRef,
@@ -13,55 +18,66 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import { isDefined } from 'twenty-shared/utils';
-import { themeCssVariables } from 'twenty-ui/theme-constants';
+import {
+  type AutocompleteInputProps,
+  Autocomplete,
+} from 'twenty-ui/primitives/input';
+import { themeCssVariables } from 'twenty-ui/theme';
 import { useDebouncedCallback } from 'use-debounce';
 
-import { EmailRecipientsFieldChip } from '@/activities/emails/recipients/components/EmailRecipientsFieldChip';
+import { EMAIL_RECIPIENT_DND_TYPE } from '@/activities/emails/recipients/constants/EmailRecipientDndType';
+import { EmailRecipientsFieldChipCell } from '@/activities/emails/recipients/components/EmailRecipientsFieldChipCell';
+import { type EmailRecipientChipDropEdge } from '@/activities/emails/recipients/types/EmailRecipientChipDropEdge';
 import { EmailRecipientSuggestionsDropdownContent } from '@/activities/emails/recipients/components/EmailRecipientSuggestionsDropdownContent';
 import { useEmailRecipientsField } from '@/activities/emails/recipients/hooks/useEmailRecipientsField';
 import { useEmailRecipientsResolution } from '@/activities/emails/recipients/hooks/useEmailRecipientsResolution';
-import {
-  type EmailRecipientSuggestion,
-  useEmailRecipientSuggestions,
-} from '@/activities/emails/recipients/hooks/useEmailRecipientSuggestions';
+import { useEmailRecipientSuggestions } from '@/activities/emails/recipients/hooks/useEmailRecipientSuggestions';
 import { type EmailComposerContextRecord } from '@/activities/emails/recipients/types/EmailComposerContextRecord';
 import { type EmailRecipient } from '@/activities/emails/recipients/types/EmailRecipient';
+import { type EmailRecipientsFieldId } from '@/activities/emails/recipients/types/EmailRecipientsFieldId';
 import { getEmailRecipientKey } from '@/activities/emails/recipients/utils/getEmailRecipientKey';
 import { isValidEmailRecipientAddress } from '@/activities/emails/recipients/utils/isValidEmailRecipientAddress';
 import { parseEmailRecipients } from '@/activities/emails/recipients/utils/parseEmailRecipients';
-import { FormFieldInputContainer } from '@/object-record/record-field/ui/form-types/components/FormFieldInputContainer';
-import { FORM_FIELD_PLACEHOLDER_STYLES } from '@/object-record/record-field/ui/form-types/constants/FormFieldPlaceholderStyles';
-import { InputLabel } from '@/ui/input/components/InputLabel';
-import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
+import { FormFieldInputContainer } from '@/ui/input/components/FormFieldInputContainer';
+import { FORM_FIELD_PLACEHOLDER_STYLES } from '@/ui/input/constants/FormFieldPlaceholderStyles';
+import { AutocompleteRoot } from '@/ui/input/components/AutocompleteRoot';
 import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
 import { useOpenDropdown } from '@/ui/layout/dropdown/hooks/useOpenDropdown';
 import { isDropdownOpenComponentState } from '@/ui/layout/dropdown/states/isDropdownOpenComponentState';
-import { useSelectableList } from '@/ui/layout/selectable-list/hooks/useSelectableList';
-import { selectedItemIdComponentState } from '@/ui/layout/selectable-list/states/selectedItemIdComponentState';
+import { DND_KIT_COLLISION_PRIORITY } from '@/ui/utilities/drag-and-drop/constants/DndKitCollisionPriority';
+import { DragDropItemDndContext } from '@/ui/utilities/drag-and-drop/context/DragDropItemDndContext';
 import { usePushFocusItemToFocusStack } from '@/ui/utilities/focus/hooks/usePushFocusItemToFocusStack';
 import { useRemoveFocusItemFromFocusStackById } from '@/ui/utilities/focus/hooks/useRemoveFocusItemFromFocusStackById';
 import { FocusComponentType } from '@/ui/utilities/focus/types/FocusComponentType';
 import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotkeysOnFocusedElement';
-import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
+import { isKeyboardEventComposing } from '@/ui/utilities/hotkey/utils/isKeyboardEventComposing';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 
 const SUGGESTIONS_SEARCH_DEBOUNCE_MS = 300;
 
-const StyledRowContainer = styled.div`
+const StyledRowContainer = styled.div<{ $isDropTarget: boolean }>`
   align-content: flex-start;
   align-items: center;
-  background-color: ${themeCssVariables.background.transparent.lighter};
-  border: 1px solid ${themeCssVariables.border.color.medium};
-  border-radius: ${themeCssVariables.border.radius.md};
+  background-color: ${({ $isDropTarget }) =>
+    $isDropTarget
+      ? themeCssVariables.background.transparent.blue
+      : 'transparent'};
+  border-radius: ${themeCssVariables.border.radius.sm};
   box-sizing: border-box;
   cursor: text;
   display: flex;
   flex-wrap: wrap;
   gap: ${themeCssVariables.spacing[1]};
   max-height: 96px;
-  min-height: 32px;
+  min-height: 24px;
+  outline: ${({ $isDropTarget }) =>
+    $isDropTarget ? `1px solid ${themeCssVariables.color.blue}` : 'none'};
+  outline-offset: -1px;
   overflow-y: auto;
-  padding: ${themeCssVariables.spacing[1]} ${themeCssVariables.spacing[2]};
+  padding: ${themeCssVariables.spacing[1]} 0;
+  transition:
+    background-color 120ms ease-out,
+    outline-color 120ms ease-out;
   width: 100%;
 `;
 
@@ -78,14 +94,22 @@ const StyledInput = styled.input`
   outline: none;
   padding: 0;
 
+  &:focus-visible {
+    outline: 2px solid ${themeCssVariables.color.blue};
+    outline-offset: 1px;
+  }
+
   &::placeholder {
     ${FORM_FIELD_PLACEHOLDER_STYLES}
   }
 `;
 
 type EmailRecipientsFieldInputProps = {
+  fieldId: EmailRecipientsFieldId;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  // null when the drag started in another field.
+  draggedSourceIndices: number[] | null;
   label: string;
-  placeholder: string;
   recipients: EmailRecipient[];
   onChange: (recipients: EmailRecipient[]) => void;
   onSubmit?: () => void;
@@ -94,8 +118,10 @@ type EmailRecipientsFieldInputProps = {
 };
 
 export const EmailRecipientsFieldInput = ({
+  fieldId,
+  inputRef: providedInputRef,
+  draggedSourceIndices,
   label,
-  placeholder,
   recipients,
   onChange,
   onSubmit,
@@ -106,20 +132,18 @@ export const EmailRecipientsFieldInput = ({
   const focusId = `email-recipients-field-${instanceId}`;
   const suggestionsDropdownId = `${focusId}-suggestions`;
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = providedInputRef ?? localInputRef;
 
   const { pushFocusItemToFocusStack } = usePushFocusItemToFocusStack();
   const { removeFocusItemFromFocusStackById } =
     useRemoveFocusItemFromFocusStackById();
   const { openDropdown } = useOpenDropdown();
   const { closeDropdown } = useCloseDropdown();
-  const { resetSelectedItem } = useSelectableList(suggestionsDropdownId);
-
-  const store = useStore();
-  const selectedItemIdAtom = useAtomComponentStateCallbackState(
-    selectedItemIdComponentState,
-    suggestionsDropdownId,
+  const [highlightedSuggestionIdAtom] = useState(() =>
+    atom<string | undefined>(undefined),
   );
+  const store = useStore();
 
   const isDropdownOpen = useAtomComponentStateValue(
     isDropdownOpenComponentState,
@@ -131,7 +155,8 @@ export const EmailRecipientsFieldInput = ({
     setInputValue,
     editingIndex,
     isEditing,
-    selectedChipIndex,
+    selectedChipIndices,
+    selectionFocusIndex,
     chipFlash,
     commitInput,
     addRecipient,
@@ -139,10 +164,27 @@ export const EmailRecipientsFieldInput = ({
     beginEditingChip,
     cancelEditing,
     removeRecipientAtIndex,
-    removeRecipientWithKeyboard,
+    removeSelectedRecipients,
     clearChipSelection,
+    extendChipSelectionToIndex,
+    toggleChipSelectionAtIndex,
     moveChipSelection,
+    extendChipSelection,
   } = useEmailRecipientsField({ recipients, onChange });
+
+  const { activeDropTargetIndex, activeDroppableId } = useContext(
+    DragDropItemDndContext,
+  );
+
+  const isActiveDropField = activeDroppableId === fieldId;
+
+  const { ref: droppableRef } = useDroppable({
+    id: `${focusId}-droppable`,
+    accept: EMAIL_RECIPIENT_DND_TYPE,
+    collisionDetector: pointerIntersection,
+    collisionPriority: DND_KIT_COLLISION_PRIORITY,
+    data: { droppableId: fieldId, index: recipients.length },
+  });
 
   const [suggestionsSearchInput, setSuggestionsSearchInput] = useState('');
   const debouncedSetSuggestionsSearchInput = useDebouncedCallback(
@@ -159,7 +201,7 @@ export const EmailRecipientsFieldInput = ({
     recipients,
   });
 
-  const { suggestions } = useEmailRecipientSuggestions({
+  const { suggestions, error } = useEmailRecipientSuggestions({
     searchInput: isEditing ? '' : suggestionsSearchInput,
     excludedRecipientKeys: excludedSuggestionKeys,
     contextRecord,
@@ -177,6 +219,11 @@ export const EmailRecipientsFieldInput = ({
     [recipients],
   );
 
+  const selectedChipIndexSet = useMemo(
+    () => new Set(selectedChipIndices),
+    [selectedChipIndices],
+  );
+
   const openSuggestions = () => {
     if (!isDropdownOpen) {
       openDropdown({
@@ -187,12 +234,50 @@ export const EmailRecipientsFieldInput = ({
   };
 
   const closeSuggestions = () => {
+    store.set(highlightedSuggestionIdAtom, undefined);
+
     if (isDropdownOpen) {
       closeDropdown(suggestionsDropdownId);
     }
   };
 
   const getChipId = (chipIndex: number) => `${focusId}-chip-${chipIndex}`;
+
+  // Gaps at either end of the dragged run are no-op drops, so marking them would promise a reorder.
+  const isNoOpDropGap = (gapIndex: number) => {
+    if (draggedSourceIndices === null || draggedSourceIndices.length === 0) {
+      return false;
+    }
+
+    const lowestIndex = Math.min(...draggedSourceIndices);
+    const highestIndex = Math.max(...draggedSourceIndices);
+    const isContiguousRun =
+      highestIndex - lowestIndex + 1 === draggedSourceIndices.length;
+
+    return (
+      isContiguousRun && gapIndex >= lowestIndex && gapIndex <= highestIndex + 1
+    );
+  };
+
+  const getChipDropEdge = (chipIndex: number): EmailRecipientChipDropEdge => {
+    if (
+      !isActiveDropField ||
+      activeDropTargetIndex === null ||
+      isNoOpDropGap(activeDropTargetIndex)
+    ) {
+      return null;
+    }
+
+    if (activeDropTargetIndex === chipIndex) {
+      return 'before';
+    }
+
+    // Only the trailing chip owns the gap past the end of the row.
+    return chipIndex === recipients.length - 1 &&
+      activeDropTargetIndex === recipients.length
+      ? 'after'
+      : null;
+  };
 
   const scrollChipIntoView = (chipIndex: number | null) => {
     if (chipIndex === null) {
@@ -247,7 +332,7 @@ export const EmailRecipientsFieldInput = ({
   const handleInputChange = (value: string) => {
     setInputValue(value);
     clearChipSelection();
-    resetSelectedItem();
+    store.set(highlightedSuggestionIdAtom, undefined);
 
     if (isEditing) {
       return;
@@ -255,9 +340,7 @@ export const EmailRecipientsFieldInput = ({
 
     debouncedSetSuggestionsSearchInput(value);
 
-    if (value.trim().length > 0) {
-      openSuggestions();
-    } else {
+    if (value.trim().length === 0) {
       resetSuggestionsSearchInput();
       closeSuggestions();
     }
@@ -317,6 +400,16 @@ export const EmailRecipientsFieldInput = ({
     focusInput();
   };
 
+  const handleChipExtendSelectionTo = (chipIndex: number) => {
+    extendChipSelectionToIndex(chipIndex);
+    focusInput();
+  };
+
+  const handleChipToggleSelection = (chipIndex: number) => {
+    toggleChipSelectionAtIndex(chipIndex);
+    focusInput();
+  };
+
   const handleSubmitHotkey = () => {
     if (inputValue.length > 0) {
       commitInputAndCloseSuggestions();
@@ -339,8 +432,12 @@ export const EmailRecipientsFieldInput = ({
     dependencies: [handleSubmitHotkey],
   });
 
-  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.ctrlKey || event.metaKey) {
+  const handleInputKeyDown: AutocompleteInputProps['onKeyDown'] = (event) => {
+    if (
+      isKeyboardEventComposing(event.nativeEvent) ||
+      event.ctrlKey ||
+      event.metaKey
+    ) {
       return;
     }
 
@@ -352,11 +449,14 @@ export const EmailRecipientsFieldInput = ({
     switch (event.key) {
       case 'Enter': {
         event.preventDefault();
+        event.preventBaseUIHandler();
 
         if (!isEditing && isDropdownOpen && suggestions.length > 0) {
-          const selectedItemId = store.get(selectedItemIdAtom);
+          const highlightedSuggestionId = store.get(
+            highlightedSuggestionIdAtom,
+          );
           const selectedSuggestion = suggestions.find(
-            (suggestion) => suggestion.suggestionId === selectedItemId,
+            (suggestion) => suggestion.suggestionId === highlightedSuggestionId,
           );
           const suggestionsMatchBuffer =
             suggestionsSearchInput === inputValue.trim();
@@ -371,8 +471,8 @@ export const EmailRecipientsFieldInput = ({
           }
         }
 
-        if (bufferIsEmpty && selectedChipIndex !== null) {
-          handleChipEdit(selectedChipIndex);
+        if (bufferIsEmpty && selectionFocusIndex !== null) {
+          handleChipEdit(selectionFocusIndex);
           return;
         }
 
@@ -388,6 +488,7 @@ export const EmailRecipientsFieldInput = ({
       case ',':
       case ';': {
         event.preventDefault();
+        event.preventBaseUIHandler();
 
         if (!bufferIsEmpty) {
           commitInputAndCloseSuggestions();
@@ -397,6 +498,7 @@ export const EmailRecipientsFieldInput = ({
       case ' ': {
         if (isValidEmailRecipientAddress(inputValue.trim())) {
           event.preventDefault();
+          event.preventBaseUIHandler();
           commitInputAndCloseSuggestions();
         }
         return;
@@ -407,9 +509,10 @@ export const EmailRecipientsFieldInput = ({
         }
 
         event.preventDefault();
+        event.preventBaseUIHandler();
 
-        if (selectedChipIndex !== null) {
-          removeRecipientWithKeyboard();
+        if (selectedChipIndices.length > 0) {
+          removeSelectedRecipients();
           return;
         }
 
@@ -417,15 +520,17 @@ export const EmailRecipientsFieldInput = ({
         return;
       }
       case 'Delete': {
-        if (bufferIsEmpty && selectedChipIndex !== null) {
+        if (bufferIsEmpty && selectedChipIndices.length > 0) {
           event.preventDefault();
-          removeRecipientWithKeyboard();
+          event.preventBaseUIHandler();
+          removeSelectedRecipients();
         }
         return;
       }
       case 'ArrowDown': {
         if (!isEditing && !isDropdownOpen && suggestions.length > 0) {
           event.preventDefault();
+          event.preventBaseUIHandler();
           openSuggestions();
         }
         return;
@@ -436,32 +541,43 @@ export const EmailRecipientsFieldInput = ({
         }
 
         event.preventDefault();
-        scrollChipIntoView(moveChipSelection(-1));
+        event.preventBaseUIHandler();
+        scrollChipIntoView(
+          event.shiftKey ? extendChipSelection(-1) : moveChipSelection(-1),
+        );
         return;
       }
       case 'ArrowRight': {
-        if (selectedChipIndex === null) {
+        if (selectionFocusIndex === null) {
           return;
         }
 
         event.preventDefault();
-        scrollChipIntoView(moveChipSelection(1));
+        event.preventBaseUIHandler();
+        scrollChipIntoView(
+          event.shiftKey ? extendChipSelection(1) : moveChipSelection(1),
+        );
         return;
       }
       case 'Escape': {
         if (isDropdownOpen) {
+          event.preventDefault();
+          event.preventBaseUIHandler();
+          event.stopPropagation();
           closeSuggestions();
           return;
         }
 
         if (isEditing) {
           event.preventDefault();
+          event.preventBaseUIHandler();
           cancelEditing();
           return;
         }
 
-        if (selectedChipIndex !== null) {
+        if (selectedChipIndices.length > 0) {
           event.preventDefault();
+          event.preventBaseUIHandler();
           clearChipSelection();
         }
         return;
@@ -472,20 +588,14 @@ export const EmailRecipientsFieldInput = ({
   };
 
   const recipientsInput = (
-    <StyledInput
+    <Autocomplete.Input
       key="email-recipients-input"
+      render={<StyledInput />}
       ref={inputRef}
       type="text"
       autoComplete="off"
       spellCheck={false}
-      role="combobox"
-      aria-expanded={isDropdownOpen}
       aria-label={label}
-      placeholder={
-        recipients.length === 0 && !isEditing ? placeholder : undefined
-      }
-      value={inputValue}
-      onChange={(event) => handleInputChange(event.target.value)}
       onKeyDown={handleInputKeyDown}
       onPaste={handleInputPaste}
       onFocus={handleInputFocus}
@@ -506,22 +616,26 @@ export const EmailRecipientsFieldInput = ({
         : null;
 
     return (
-      <div
+      <EmailRecipientsFieldChipCell
         key={flashNonce === null ? chipKey : `${chipKey}-flash-${flashNonce}`}
-        onMouseDown={(event) => event.preventDefault()}
-      >
-        <EmailRecipientsFieldChip
-          chipId={getChipId(chipIndex)}
-          dropdownId={`${focusId}-chip-menu-${chipKey}`}
-          recipient={recipient}
-          resolution={resolutionByRecipientKey.get(chipKey)}
-          isInvalid={invalidRecipientKeys.has(chipKey)}
-          selected={chipIndex === selectedChipIndex}
-          isFlashing={flashNonce !== null}
-          onEdit={() => handleChipEdit(chipIndex)}
-          onRemove={() => handleChipRemove(chipIndex)}
-        />
-      </div>
+        chipId={getChipId(chipIndex)}
+        chipIndex={chipIndex}
+        dropdownId={`${focusId}-chip-menu-${chipKey}`}
+        inputRef={inputRef}
+        dropEdge={getChipDropEdge(chipIndex)}
+        fieldId={fieldId}
+        isFlashing={flashNonce !== null}
+        isInvalid={invalidRecipientKeys.has(chipKey)}
+        isSelected={selectedChipIndexSet.has(chipIndex)}
+        onEdit={() => handleChipEdit(chipIndex)}
+        onExtendSelectionTo={() => handleChipExtendSelectionTo(chipIndex)}
+        onRemove={() => handleChipRemove(chipIndex)}
+        onToggleSelection={() => handleChipToggleSelection(chipIndex)}
+        recipient={recipient}
+        resolution={resolutionByRecipientKey.get(chipKey)}
+        selectedIndices={selectedChipIndices}
+        sortableId={`${fieldId}:${chipKey}`}
+      />
     );
   });
 
@@ -530,29 +644,39 @@ export const EmailRecipientsFieldInput = ({
   }
 
   return (
-    <FormFieldInputContainer>
-      <InputLabel>{label}</InputLabel>
-      <Dropdown
-        dropdownId={suggestionsDropdownId}
-        dropdownPlacement="bottom-start"
-        dropdownOffset={{ y: 4 }}
-        disableClickForClickableComponent
-        clickableComponentWidth="100%"
-        onClose={resetSelectedItem}
-        clickableComponent={
-          <StyledRowContainer onMouseDown={handleRowMouseDown}>
+    <>
+      <ToastOnQueryErrorEffect error={error} />
+      <FormFieldInputContainer>
+        <AutocompleteRoot
+          dropdownId={suggestionsDropdownId}
+          enabled={!isEditing}
+          items={suggestions.map((suggestion) => suggestion.suggestionId)}
+          value={inputValue}
+          globalHotkeysConfig={{ enableGlobalHotkeysWithModifiers: true }}
+          onValueChange={handleInputChange}
+          onItemHighlightedByUser={(suggestionId) =>
+            store.set(highlightedSuggestionIdAtom, suggestionId)
+          }
+          onClose={() => store.set(highlightedSuggestionIdAtom, undefined)}
+        >
+          <Autocomplete.InputGroup
+            render={
+              <StyledRowContainer
+                ref={droppableRef}
+                $isDropTarget={isActiveDropField}
+                data-drop-target={isActiveDropField}
+                onMouseDown={handleRowMouseDown}
+              />
+            }
+          >
             {rowChildren}
-          </StyledRowContainer>
-        }
-        dropdownComponents={
+          </Autocomplete.InputGroup>
           <EmailRecipientSuggestionsDropdownContent
             suggestions={suggestions}
-            selectableListInstanceId={suggestionsDropdownId}
-            focusId={suggestionsDropdownId}
             onPick={handlePickSuggestion}
           />
-        }
-      />
-    </FormFieldInputContainer>
+        </AutocompleteRoot>
+      </FormFieldInputContainer>
+    </>
   );
 };

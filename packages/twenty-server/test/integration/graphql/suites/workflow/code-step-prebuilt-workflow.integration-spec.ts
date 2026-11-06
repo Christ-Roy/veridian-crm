@@ -1,18 +1,23 @@
 import gql from 'graphql-tag';
-import request from 'supertest';
+import { SEED_WORKFLOW_ACTION_TRIGGER_SETTINGS } from 'twenty-shared/logic-function';
+import {
+  activateCoreWorkflowVersion,
+  createCoreWorkflow,
+  createCoreWorkflowVersionStep,
+  deleteCoreWorkflows,
+  runCoreWorkflowVersion,
+  updateCoreWorkflowVersionStep,
+  updateCoreWorkflowVersionTrigger,
+} from 'test/integration/graphql/suites/workflow/utils/core-workflow.util';
 import {
   destroyWorkflowRun,
-  runWorkflowVersion,
   waitForWorkflowCompletion,
 } from 'test/integration/graphql/suites/workflow/utils/workflow-run-test.util';
+import { createOneLogicFunction } from 'test/integration/metadata/suites/logic-function/utils/create-logic-function.util';
 import { updateLogicFunctionSource } from 'test/integration/metadata/suites/logic-function/utils/update-logic-function-source.util';
-import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
-import { updateFeatureFlag } from 'test/integration/metadata/suites/utils/update-feature-flag.util';
-import { FeatureFlagKey } from 'twenty-shared/types';
+import { makeMetadataApiRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 
 import { LogicFunctionExecutionMode } from 'src/engine/metadata-modules/logic-function/logic-function.entity';
-
-const client = request(`http://localhost:${APP_PORT}`);
 
 const EXTERNAL_PACKAGES_FUNCTION_CODE = `import groupBy from 'lodash.groupby';
 
@@ -25,61 +30,19 @@ export const main = async (params: { items: Array<{ category: string; name: stri
 };`;
 
 describe('Code step workflow with PREBUILT logic function (e2e)', () => {
-  let createdWorkflowId: string | null = null;
-  let createdWorkflowVersionId: string | null = null;
+  let coreWorkflowId: string | null = null;
+  let coreWorkflowVersionId: string | null = null;
   let codeStepId: string | null = null;
   let codeStepLogicFunctionId: string | null = null;
   let createdWorkflowRunId: string | null = null;
 
   beforeAll(async () => {
-    await updateFeatureFlag({
-      featureFlag: FeatureFlagKey.IS_LOGIC_FUNCTION_PREBUILT_MODE_ENABLED,
-      value: true,
-      expectToFail: false,
+    const createdCoreWorkflow = await createCoreWorkflow({
+      name: 'Code Step PREBUILT Test',
     });
 
-    const createWorkflowResponse = await client
-      .post('/graphql')
-      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-      .send({
-        query: `
-          mutation CreateWorkflow {
-            createWorkflow(data: {
-              name: "Code Step PREBUILT Test"
-            }) {
-              id
-            }
-          }
-        `,
-      });
-
-    expect(createWorkflowResponse.body.errors).toBeUndefined();
-    createdWorkflowId = createWorkflowResponse.body.data.createWorkflow.id;
-
-    const getWorkflowResponse = await client
-      .post('/graphql')
-      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-      .send({
-        query: `
-          query GetWorkflow($id: UUID!) {
-            workflow(filter: { id: { eq: $id } }) {
-              id
-              versions {
-                edges {
-                  node {
-                    id
-                  }
-                }
-              }
-            }
-          }
-        `,
-        variables: { id: createdWorkflowId },
-      });
-
-    expect(getWorkflowResponse.body.errors).toBeUndefined();
-    createdWorkflowVersionId =
-      getWorkflowResponse.body.data.workflow.versions.edges[0].node.id;
+    coreWorkflowId = createdCoreWorkflow.coreWorkflowId;
+    coreWorkflowVersionId = createdCoreWorkflow.coreWorkflowVersionId;
 
     const manualTrigger = {
       name: 'Manual Trigger',
@@ -93,106 +56,43 @@ describe('Code step workflow with PREBUILT logic function (e2e)', () => {
       position: { x: 0, y: 0 },
     };
 
-    const updateTriggerResponse = await client
-      .post('/graphql')
-      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-      .send({
-        query: `
-          mutation UpdateWorkflowVersion($id: UUID!, $data: WorkflowVersionUpdateInput!) {
-            updateWorkflowVersion(id: $id, data: $data) {
-              id
-            }
-          }
-        `,
-        variables: {
-          id: createdWorkflowVersionId,
-          data: { trigger: manualTrigger },
-        },
-      });
+    await updateCoreWorkflowVersionTrigger({
+      coreWorkflowVersionId,
+      trigger: manualTrigger,
+    });
 
-    expect(updateTriggerResponse.body.errors).toBeUndefined();
+    const codeStep = await createCoreWorkflowVersionStep({
+      coreWorkflowVersionId,
+      stepType: 'CODE',
+    });
 
-    const createCodeStepResponse = await client
-      .post('/graphql')
-      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-      .send({
-        query: `
-          mutation CreateWorkflowVersionStep($input: CreateWorkflowVersionStepInput!) {
-            createWorkflowVersionStep(input: $input) {
-              stepsDiff
-            }
-          }
-        `,
-        variables: {
-          input: {
-            workflowVersionId: createdWorkflowVersionId,
-            stepType: 'CODE',
-            parentStepId: 'trigger',
-            position: { x: 200, y: 0 },
-          },
-        },
-      });
-
-    expect(createCodeStepResponse.body.errors).toBeUndefined();
-
-    const getStepsResponse = await client
-      .post('/graphql')
-      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-      .send({
-        query: `
-          query GetWorkflowVersion($id: UUID!) {
-            workflowVersion(filter: { id: { eq: $id } }) {
-              id
-              steps
-            }
-          }
-        `,
-        variables: { id: createdWorkflowVersionId },
-      });
-
-    expect(getStepsResponse.body.errors).toBeUndefined();
-
-    const codeStep = getStepsResponse.body.data.workflowVersion.steps.find(
-      (step: { type: string }) => step.type === 'CODE',
-    );
-
-    expect(codeStep).toBeDefined();
     codeStepId = codeStep.id;
 
-    const logicFunctionId = codeStep.settings.input.logicFunctionId;
+    const { data: createLogicFunctionData } = await createOneLogicFunction({
+      input: {
+        name: 'Code Step PREBUILT Test',
+        workflowActionTriggerSettings: SEED_WORKFLOW_ACTION_TRIGGER_SETTINGS,
+      },
+      expectToFail: false,
+    });
 
-    expect(logicFunctionId).toBeDefined();
+    const logicFunctionId = createLogicFunctionData.createOneLogicFunction.id;
+
     codeStepLogicFunctionId = logicFunctionId;
 
-    const updateStepResponse = await client
-      .post('/graphql')
-      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-      .send({
-        query: `
-          mutation UpdateWorkflowVersionStep($input: UpdateWorkflowVersionStepInput!) {
-            updateWorkflowVersionStep(input: $input) {
-              id
-            }
-          }
-        `,
-        variables: {
+    await updateCoreWorkflowVersionStep({
+      coreWorkflowVersionId,
+      step: {
+        ...codeStep,
+        settings: {
+          ...codeStep.settings,
           input: {
-            workflowVersionId: createdWorkflowVersionId,
-            step: {
-              ...codeStep,
-              settings: {
-                ...codeStep.settings,
-                input: {
-                  ...codeStep.settings.input,
-                  logicFunctionInput: { items: '{{trigger.items}}' },
-                },
-              },
-            },
+            logicFunctionId,
+            logicFunctionInput: { items: '{{trigger.items}}' },
           },
         },
-      });
-
-    expect(updateStepResponse.body.errors).toBeUndefined();
+      },
+    });
 
     const updateSourceResponse = await updateLogicFunctionSource({
       input: {
@@ -206,20 +106,7 @@ describe('Code step workflow with PREBUILT logic function (e2e)', () => {
 
     expect(updateSourceResponse.errors).toBeUndefined();
 
-    const activateResponse = await client
-      .post('/graphql')
-      .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-      .send({
-        query: `
-          mutation ActivateWorkflowVersion($workflowVersionId: UUID!) {
-            activateWorkflowVersion(workflowVersionId: $workflowVersionId)
-          }
-        `,
-        variables: { workflowVersionId: createdWorkflowVersionId },
-      });
-
-    expect(activateResponse.body.errors).toBeUndefined();
-    expect(activateResponse.body.data.activateWorkflowVersion).toBe(true);
+    await activateCoreWorkflowVersion({ coreWorkflowVersionId });
   });
 
   afterAll(async () => {
@@ -227,31 +114,13 @@ describe('Code step workflow with PREBUILT logic function (e2e)', () => {
       await destroyWorkflowRun(createdWorkflowRunId);
     }
 
-    if (createdWorkflowId) {
-      await client
-        .post('/graphql')
-        .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
-        .send({
-          query: `
-            mutation DestroyWorkflow($id: ID!) {
-              destroyWorkflow(id: $id) {
-                id
-              }
-            }
-          `,
-          variables: { id: createdWorkflowId },
-        });
+    if (coreWorkflowId) {
+      await deleteCoreWorkflows({ coreWorkflowIds: [coreWorkflowId] });
     }
-
-    await updateFeatureFlag({
-      featureFlag: FeatureFlagKey.IS_LOGIC_FUNCTION_PREBUILT_MODE_ENABLED,
-      value: false,
-      expectToFail: false,
-    });
   });
 
   it('flips the underlying logic function to PREBUILT on workflow activation', async () => {
-    const findLogicFunctionResponse = await makeMetadataAPIRequest({
+    const findLogicFunctionResponse = await makeMetadataApiRequest({
       query: gql`
         query FindOneLogicFunction($input: LogicFunctionIdInput!) {
           findOneLogicFunction(input: $input) {
@@ -273,9 +142,25 @@ describe('Code step workflow with PREBUILT logic function (e2e)', () => {
     );
   });
 
+  it('refuses source edits on the PREBUILT logic function', async () => {
+    const updateSourceResponse = await updateLogicFunctionSource({
+      input: {
+        id: codeStepLogicFunctionId!,
+        update: {
+          sourceHandlerCode: `export const main = async (): Promise<object> => ({});`,
+        },
+      },
+      expectToFail: true,
+    });
+
+    expect(updateSourceResponse.errors?.[0]?.extensions?.code).toBe(
+      'BAD_USER_INPUT',
+    );
+  });
+
   it('runs the code step from its prebuilt bundle and resolves bare imports', async () => {
-    createdWorkflowRunId = await runWorkflowVersion({
-      workflowVersionId: createdWorkflowVersionId!,
+    createdWorkflowRunId = await runCoreWorkflowVersion({
+      coreWorkflowVersionId: coreWorkflowVersionId!,
       payload: {
         items: [
           { category: 'fruit', name: 'apple' },

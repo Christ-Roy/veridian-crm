@@ -3,8 +3,7 @@ import 'reflect-metadata';
 import { Test } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';
 
-import { type DataSource, type Repository } from 'typeorm';
-import { type EntityMetadata } from 'typeorm/metadata/EntityMetadata';
+import { type Repository, type UpdateResult } from 'typeorm';
 
 import { WasIntroducedInUpgrade } from 'src/engine/core-modules/upgrade/decorators/was-introduced-in-upgrade.decorator';
 import { UpgradeMigrationService } from 'src/engine/core-modules/upgrade/services/upgrade-migration.service';
@@ -29,11 +28,11 @@ describe('wrapRepositoryWithUpgradeAwareProxy', () => {
       givenTableName: 'unavailableEntity',
       schema: 'core',
       columns: [],
-    } as unknown as EntityMetadata;
+    };
 
     const dataSource = {
       entityMetadatas: [metadata],
-    } as unknown as DataSource;
+    };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -88,7 +87,7 @@ describe('wrapRepositoryWithUpgradeAwareProxy', () => {
         .fn()
         .mockReturnValue(new Set(['introducedColumn'])),
       isEntityAvailable: jest.fn().mockReturnValue(true),
-    } as unknown as UpgradeAwareRepositoryState;
+    };
     const wrapped = wrapRepositoryWithUpgradeAwareProxy({
       repository,
       entityClass: EntityWithHiddenColumn,
@@ -108,6 +107,71 @@ describe('wrapRepositoryWithUpgradeAwareProxy', () => {
     });
   });
 
+  describe('update', () => {
+    const buildWrappedRepository = (hiddenColumnPropertyNames: string[]) => {
+      const update = jest.fn().mockResolvedValue({ affected: 1 });
+      const repository = {
+        update,
+        metadata: {
+          relations: [],
+          targetName: EntityWithHiddenColumn.name,
+        },
+      } as unknown as Repository<EntityWithHiddenColumn>;
+      const state = {
+        getHiddenColumnPropertyNames: jest
+          .fn()
+          .mockReturnValue(new Set(hiddenColumnPropertyNames)),
+        isEntityAvailable: jest.fn().mockReturnValue(true),
+      };
+
+      return {
+        update,
+        wrapped: wrapRepositoryWithUpgradeAwareProxy({
+          repository,
+          entityClass: EntityWithHiddenColumn,
+          state,
+        }) as unknown as {
+          update: (
+            criteria: unknown,
+            values: Record<string, unknown>,
+          ) => Promise<UpdateResult>;
+        },
+      };
+    };
+
+    it('strips hidden columns from the values so a lagging cursor cannot reject the write', async () => {
+      const { update, wrapped } = buildWrappedRepository(['introducedColumn']);
+
+      await wrapped.update({ id: 1 }, { name: 'app', introducedColumn: {} });
+
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(update).toHaveBeenCalledWith({ id: 1 }, { name: 'app' });
+    });
+
+    it('skips the query when every value is a hidden column', async () => {
+      const { update, wrapped } = buildWrappedRepository(['introducedColumn']);
+
+      const result = await wrapped.update({ id: 1 }, { introducedColumn: {} });
+
+      expect(update).not.toHaveBeenCalled();
+      expect(result.affected).toBe(0);
+      expect(result.raw).toEqual([]);
+      expect(result.generatedMaps).toEqual([]);
+    });
+
+    it('leaves the values untouched when no column is hidden', async () => {
+      const { update, wrapped } = buildWrappedRepository([]);
+
+      await wrapped.update({ id: 1 }, { name: 'app', introducedColumn: {} });
+
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(update).toHaveBeenCalledWith(
+        { id: 1 },
+        { name: 'app', introducedColumn: {} },
+      );
+    });
+  });
+
   it('strips hidden columns from an object select while preserving unknown keys', async () => {
     const find = jest.fn().mockResolvedValue([]);
     const repository = {
@@ -122,7 +186,7 @@ describe('wrapRepositoryWithUpgradeAwareProxy', () => {
         .fn()
         .mockReturnValue(new Set(['introducedColumn'])),
       isEntityAvailable: jest.fn().mockReturnValue(true),
-    } as unknown as UpgradeAwareRepositoryState;
+    };
     const wrapped = wrapRepositoryWithUpgradeAwareProxy({
       repository,
       entityClass: EntityWithHiddenColumn,

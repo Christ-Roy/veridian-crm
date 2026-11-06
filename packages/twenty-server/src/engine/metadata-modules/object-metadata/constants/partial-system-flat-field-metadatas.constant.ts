@@ -1,6 +1,8 @@
+import { RESERVED_SYSTEM_FIELD_TYPE_BY_NAME } from 'twenty-shared/metadata';
 import { FieldMetadataType } from 'twenty-shared/types';
 
 import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
+import { PLATFORM_WRITTEN_DISABLED_FIELD_PERMISSION_ACTIONS } from 'src/engine/workspace-manager/twenty-standard-application/constants/standard-disabled-field-permission-actions.constant';
 
 type PartialSystemFlatFieldMetadata<
   T extends FieldMetadataType = FieldMetadataType,
@@ -14,17 +16,20 @@ type PartialSystemFlatFieldMetadata<
 >;
 
 const PARTIAL_ID_FIELD = {
-  type: FieldMetadataType.UUID,
+  type: RESERVED_SYSTEM_FIELD_TYPE_BY_NAME.id,
   name: 'id',
-  label: 'Id',
+  label: 'ID',
   icon: 'Icon123',
-  description: 'Id',
+  description: 'ID',
   isNullable: false,
   isUnique: true,
+  isSearchable: false,
+  isAuditLogged: true,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions: null,
   isLabelSyncedWithName: false,
   defaultValue: 'uuid',
   options: null,
@@ -45,17 +50,20 @@ const PARTIAL_ID_FIELD = {
 } as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.UUID>;
 
 const PARTIAL_CREATED_AT_FIELD = {
-  type: FieldMetadataType.DATE_TIME,
+  type: RESERVED_SYSTEM_FIELD_TYPE_BY_NAME.createdAt,
   name: 'createdAt',
   label: 'Creation date',
   icon: 'IconCalendar',
   description: 'Creation date',
   isNullable: false,
   isUnique: false,
+  isSearchable: false,
+  isAuditLogged: true,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions: null,
   isLabelSyncedWithName: false,
   defaultValue: 'now',
   options: null,
@@ -76,17 +84,20 @@ const PARTIAL_CREATED_AT_FIELD = {
 } as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.DATE_TIME>;
 
 const PARTIAL_UPDATED_AT_FIELD = {
-  type: FieldMetadataType.DATE_TIME,
+  type: RESERVED_SYSTEM_FIELD_TYPE_BY_NAME.updatedAt,
   name: 'updatedAt',
   label: 'Last update',
   icon: 'IconCalendarClock',
   description: 'Last time the record was changed',
   isNullable: false,
   isUnique: false,
+  isSearchable: false,
+  isAuditLogged: true,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions: null,
   isLabelSyncedWithName: false,
   defaultValue: 'now',
   options: null,
@@ -107,17 +118,20 @@ const PARTIAL_UPDATED_AT_FIELD = {
 } as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.DATE_TIME>;
 
 const PARTIAL_DELETED_AT_FIELD = {
-  type: FieldMetadataType.DATE_TIME,
+  type: RESERVED_SYSTEM_FIELD_TYPE_BY_NAME.deletedAt,
   name: 'deletedAt',
   label: 'Deleted at',
   icon: 'IconCalendarClock',
   description: 'Deletion date',
   isNullable: true,
   isUnique: false,
+  isSearchable: false,
+  isAuditLogged: true,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions: null,
   isLabelSyncedWithName: false,
   defaultValue: null,
   options: null,
@@ -138,17 +152,20 @@ const PARTIAL_DELETED_AT_FIELD = {
 } as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.DATE_TIME>;
 
 const PARTIAL_CREATED_BY_FIELD = {
-  type: FieldMetadataType.ACTOR,
+  type: RESERVED_SYSTEM_FIELD_TYPE_BY_NAME.createdBy,
   name: 'createdBy',
   label: 'Created by',
   icon: 'IconCreativeCommonsSa',
   description: 'The creator of the record',
   isNullable: false,
   isUnique: false,
+  isSearchable: false,
+  isAuditLogged: true,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions: null,
   isLabelSyncedWithName: false,
   defaultValue: { name: "''", source: "'MANUAL'" },
   options: null,
@@ -169,17 +186,20 @@ const PARTIAL_CREATED_BY_FIELD = {
 } as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.ACTOR>;
 
 const PARTIAL_UPDATED_BY_FIELD = {
-  type: FieldMetadataType.ACTOR,
+  type: RESERVED_SYSTEM_FIELD_TYPE_BY_NAME.updatedBy,
   name: 'updatedBy',
   label: 'Updated by',
   icon: 'IconUserCircle',
   description: 'The workspace member who last updated the record',
   isNullable: false,
   isUnique: false,
+  isSearchable: false,
+  isAuditLogged: true,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions: null,
   isLabelSyncedWithName: false,
   defaultValue: { name: "''", source: "'MANUAL'" },
   options: null,
@@ -200,17 +220,20 @@ const PARTIAL_UPDATED_BY_FIELD = {
 } as const satisfies PartialSystemFlatFieldMetadata<FieldMetadataType.ACTOR>;
 
 const PARTIAL_POSITION_FIELD = {
-  type: FieldMetadataType.POSITION,
+  type: RESERVED_SYSTEM_FIELD_TYPE_BY_NAME.position,
   name: 'position',
   label: 'Position',
   icon: 'IconHierarchy2',
   description: 'Position',
   isNullable: false,
   isUnique: false,
+  isSearchable: false,
+  isAuditLogged: false,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions: null,
   isLabelSyncedWithName: false,
   defaultValue: 0,
   options: null,
@@ -238,17 +261,20 @@ const PARTIAL_SEARCH_VECTOR_FIELD = {
   description: 'Search vector',
   isNullable: true,
   isUnique: false,
+  isSearchable: false,
+  isAuditLogged: true,
   isActive: true,
   isSystem: true,
   isSystemSideEffect: true,
   isUIEditable: false,
+  disabledFieldPermissionActions:
+    PLATFORM_WRITTEN_DISABLED_FIELD_PERMISSION_ACTIONS,
   isLabelSyncedWithName: false,
   defaultValue: null,
   options: null,
   overrides: null,
   morphId: null,
-  // universalSettings for searchVector is computed at runtime
-  // based on the name field (getTsVectorColumnExpressionFromFields)
+  // universalSettings for searchVector is computed at runtime from the object's searchFieldMetadata targets
   universalSettings: null,
   relationTargetObjectMetadataUniversalIdentifier: null,
   relationTargetFieldMetadataUniversalIdentifier: null,

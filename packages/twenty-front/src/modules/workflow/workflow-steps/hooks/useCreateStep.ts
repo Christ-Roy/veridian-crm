@@ -3,7 +3,7 @@ import { useGetUpdatableWorkflowVersionOrThrow } from '@/workflow/hooks/useGetUp
 import { workflowLastCreatedStepIdComponentState } from '@/workflow/states/workflowLastCreatedStepIdComponentState';
 import { type WorkflowActionType } from '@/workflow/types/Workflow';
 import { workflowSelectedNodeComponentState } from '@/workflow/workflow-diagram/states/workflowSelectedNodeComponentState';
-import { type WorkflowStepConnectionOptions } from '@/workflow/workflow-diagram/workflow-iterator/types/WorkflowStepConnectionOptions';
+import { type WorkflowStepConnectionOptions } from '@/workflow/workflow-diagram/types/WorkflowStepConnectionOptions';
 import { useCreateWorkflowVersionStep } from '@/workflow/workflow-steps/hooks/useCreateWorkflowVersionStep';
 import {
   type Difference,
@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { type Nullable } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
+import { doNotTranslate } from 'twenty-shared/i18n';
 import { v4 } from 'uuid';
 
 export const useCreateStep = () => {
@@ -82,7 +83,7 @@ export const useCreateStep = () => {
       ) as Nullable<DifferenceChange>;
 
       if (!isDefined(createdFirstStepDiff) && !isDefined(addedStepDiff)) {
-        throw new Error("Couldn't create step");
+        throw new Error(doNotTranslate("Couldn't create step"));
       }
 
       if (shouldSelectNode) {

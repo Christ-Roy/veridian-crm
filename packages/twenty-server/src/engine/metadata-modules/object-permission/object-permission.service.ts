@@ -17,7 +17,7 @@ import {
   PermissionsException,
   PermissionsExceptionCode,
   PermissionsExceptionMessage,
-} from 'src/engine/metadata-modules/permissions/permissions.exception';
+} from 'src/engine/permissions/permissions.exception';
 import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
 import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
 import { type UniversalFlatObjectPermission } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-object-permission.type';
@@ -97,16 +97,6 @@ export class ObjectPermissionService {
           PermissionsExceptionCode.OBJECT_METADATA_NOT_FOUND,
           {
             userFriendlyMessage: msg`The object you are trying to set permissions for could not be found. It may have been deleted.`,
-          },
-        );
-      }
-
-      if (objectMetadata.isSystem === true) {
-        throw new PermissionsException(
-          PermissionsExceptionMessage.CANNOT_ADD_OBJECT_PERMISSION_ON_SYSTEM_OBJECT,
-          PermissionsExceptionCode.CANNOT_ADD_OBJECT_PERMISSION_ON_SYSTEM_OBJECT,
-          {
-            userFriendlyMessage: msg`You cannot set permissions on system objects as they are managed by the platform.`,
           },
         );
       }

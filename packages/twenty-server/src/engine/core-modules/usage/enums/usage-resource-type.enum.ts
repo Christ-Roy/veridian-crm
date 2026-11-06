@@ -1,6 +1,9 @@
 /* @license Enterprise */
 
+import { registerEnumType } from '@nestjs/graphql';
+
 export enum UsageResourceType {
+  ALL = 'ALL',
   AI = 'AI',
   WORKFLOW = 'WORKFLOW',
   APP = 'APP',
@@ -8,4 +11,10 @@ export enum UsageResourceType {
   API = 'API',
   LOGIC_FUNCTION = 'LOGIC_FUNCTION',
   EMAIL = 'EMAIL',
+  WEBHOOK = 'WEBHOOK',
+  RECORD = 'RECORD',
 }
+
+registerEnumType(UsageResourceType, {
+  name: 'UsageResourceType',
+});

@@ -16,7 +16,11 @@ export type AiChatModelMetadata = {
 };
 
 type Metadata = {
-  createdAt: string;
+  createdAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  senderWorkspaceMemberId?: string | null;
+  turnId?: string | null;
   usage?: AiChatUsageMetadata;
   model?: AiChatModelMetadata;
 };
