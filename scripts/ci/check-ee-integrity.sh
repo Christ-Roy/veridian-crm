@@ -50,17 +50,12 @@ violations=0
 # (b) un fichier EE modifié (contenu) depuis le marker = interdit.
 # La suppression pure (absent de HEAD) est tolérée → on ne teste que les
 # fichiers EE encore présents.
-while IFS= read -r f; do
-  # Existe au marker ? Si non, c'est un nouveau fichier upstream arrivé par
-  # un sync — pas une modif Veridian, on l'ignore (il sera couvert au prochain
-  # bump du marker).
-  if git cat-file -e "${FORK_MARKER}:${f}" 2>/dev/null; then
-    if ! git diff --quiet "${FORK_MARKER}" HEAD -- "$f" 2>/dev/null; then
-      red "  ✗ MODIFIÉ (interdit, @license Enterprise) : $f"
-      violations=$((violations + 1))
-    fi
-  fi
-done < <(printf '%s\n' "${ee_files[@]}")
+# Un seul `git diff` pour tout l'arbre : un appel par fichier prend plusieurs minutes.
+mapfile -t modifies < <(git diff --name-only --diff-filter=M "${FORK_MARKER}" HEAD -- packages)
+for f in $(comm -12 <(printf '%s\n' "${ee_files[@]}" | sort) <(printf '%s\n' "${modifies[@]}" | sort)); do
+  red "  ✗ MODIFIÉ (interdit, @license Enterprise) : $f"
+  violations=$((violations + 1))
+done
 
 # (c) un module veridian-* qui importe un chemin EE = dépendance toxique
 # (casse le jour où on prune EE). On grep les imports veridian-* vers les

@@ -29,7 +29,7 @@ if [ "${1:-}" = "--statique" ]; then
 fi
 
 cd packages/twenty-server || exit 2
-npx jest --config jest.config.mjs --testPathPatterns '\.veridian\.spec\.ts$' --passWithNoTests=false
+npx jest --config jest.config.mjs --testPathPattern '\.veridian\.spec\.ts$' --passWithNoTests=false
 code=$?
 [ "$code" -eq 0 ] || echec=1
 exit "$echec"
