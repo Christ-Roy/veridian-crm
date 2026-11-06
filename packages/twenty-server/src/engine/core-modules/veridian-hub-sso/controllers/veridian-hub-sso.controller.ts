@@ -53,6 +53,7 @@ export class VeridianHubSsoController {
   private isAuthenticHubCall(
     request: RawBodyRequest<Request>,
     response: Response,
+    signedPayload: Buffer | undefined = request.rawBody,
   ): boolean {
     const secrets = [
       process.env.HUB_API_SECRET,
@@ -66,7 +67,7 @@ export class VeridianHubSsoController {
     }
 
     const isSigned = isHubSignatureValid({
-      rawBody: request.rawBody,
+      rawBody: signedPayload,
       timestamp: readHeader(request, 'x-veridian-timestamp'),
       signature: readHeader(request, 'x-veridian-hub-signature'),
       secrets,
@@ -181,6 +182,7 @@ export class VeridianHubSsoController {
       ownerEmail,
       workspaceName: workspaceName.slice(0, 32),
       hubUserId,
+      plan,
     });
 
     if (result.status !== 'ok') {
@@ -192,8 +194,6 @@ export class VeridianHubSsoController {
       workspace_id: result.workspaceId,
       owner_user_id: result.ownerUserId,
       owner_email: ownerEmail,
-      api_key: result.apiKey,
-      api_key_email: null,
       plan,
       created: result.created,
       magic_link: result.magicLink,
@@ -320,8 +320,7 @@ export class VeridianHubSsoController {
     return response.status(200).json({ tenant_id: tenantId, removed });
   }
 
-  // Not in the contract yet: profile copy from the Hub, the only way to change a name or an email.
-  @Post('api/veridian/users/sync')
+  @Post('api/hub/users/sync')
   async syncUser(
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
@@ -330,26 +329,64 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const {
-      hub_user_id: hubUserId,
-      email,
-      first_name: firstName,
-      last_name: lastName,
-    } = request.body ?? {};
+    const { hub_user_id: hubUserId, email, name, deleted } = request.body ?? {};
 
     if (!UUID_PATTERN.test(hubUserId ?? '')) {
       return this.rejectInvalidBody(response);
     }
 
-    const synced = await this.veridianHubSsoService.syncProfile({
+    const synced = await this.veridianHubSsoService.syncUser({
       hubUserId,
       email,
-      firstName,
-      lastName,
+      name,
+      deleted,
     });
 
     return synced
       ? response.status(200).json({ synced: true })
-      : response.status(404).json({ error: 'user_not_found' });
+      : response.status(404).json({ error: 'user_not_in_app' });
+  }
+
+  // No body on these two: the signature covers `${ts}.` (§3.8) or the path (§5.12).
+  @Get('api/hub/users')
+  async listUsers(
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
+      return;
+    }
+
+    return response
+      .status(200)
+      .json({ users: await this.veridianHubSsoService.listUsers() });
+  }
+
+  @Get('api/users/by-email')
+  async usersByEmail(
+    @Query('email') email: string,
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    const signedPayload = Buffer.from(
+      `GET.${request.path}?email=${encodeURIComponent(email ?? '')}`,
+    );
+
+    if (!this.isAuthenticHubCall(request, response, signedPayload)) {
+      return;
+    }
+
+    if (!isNonEmptyString(email)) {
+      return this.rejectInvalidBody(response);
+    }
+
+    const workspaces =
+      await this.veridianHubSsoService.listWorkspacesByEmail(email);
+
+    return response
+      .status(200)
+      .json(
+        workspaces.length > 0 ? { found: true, workspaces } : { found: false },
+      );
   }
 }

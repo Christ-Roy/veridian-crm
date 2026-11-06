@@ -6,7 +6,6 @@ import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { IsNull, Like, Repository } from 'typeorm';
 
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
-import { ApiKeyService } from 'src/engine/core-modules/api-key/services/api-key.service';
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
 import { LoginTokenService } from 'src/engine/core-modules/auth/token/services/login-token.service';
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
@@ -20,6 +19,8 @@ import {
 import { OnboardingService } from 'src/engine/core-modules/onboarding/onboarding.service';
 import { ThrottlerService } from 'src/engine/core-modules/throttler/throttler.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { UserSessionService } from 'src/engine/core-modules/user-session/services/user-session.service';
+import { UserSessionRevokedReason } from 'src/engine/core-modules/user-session/types/user-session-revoked-reason.type';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
 import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
 import { UserService } from 'src/engine/core-modules/user/services/user.service';
@@ -28,7 +29,6 @@ import { fromUserEntityToFlat } from 'src/engine/core-modules/user/utils/from-us
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
@@ -36,14 +36,13 @@ import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-membe
 const RATE_LIMIT_PER_MINUTE = 10;
 const ONE_MINUTE_MS = 60 * 1000;
 const PROVISION_LOCK_MS = 5 * 60 * 1000;
-const API_KEY_EXPIRES_AT = new Date('2099-01-01T00:00:00.000Z');
 
 // The Hub is the only source of identity. These links live in core.keyValuePair so
 // the fork carries no schema of its own: one key per Hub user, one key per tenant.
 const hubUserKey = (hubUserId: string) => `veridian.hub_user:${hubUserId}`;
 const hubTenantKey = (tenantId: string) => `veridian.hub_tenant:${tenantId}`;
 
-type TenantLink = { ownerEmail: string; apiKeyId: string | null };
+type TenantLink = { ownerEmail: string; plan: string };
 
 export type ProvisionResult =
   | { status: 'conflict' | 'in_progress' | 'identity_conflict' }
@@ -52,7 +51,6 @@ export type ProvisionResult =
       created: boolean;
       workspaceId: string;
       ownerUserId: string;
-      apiKey: string | null;
       magicLink: string;
     };
 
@@ -71,9 +69,6 @@ export class VeridianHubSsoService {
     // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
     @InjectRepository(KeyValuePairEntity)
     private readonly keyValuePairRepository: Repository<KeyValuePairEntity>,
-    // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
-    @InjectRepository(RoleEntity)
-    private readonly roleRepository: Repository<RoleEntity>,
     @InjectCacheStorage(CacheStorageNamespace.EngineAuthSession)
     private readonly cacheStorage: CacheStorageService,
     private readonly loginTokenService: LoginTokenService,
@@ -85,9 +80,9 @@ export class VeridianHubSsoService {
     private readonly onboardingService: OnboardingService,
     private readonly userService: UserService,
     private readonly userWorkspaceService: UserWorkspaceService,
-    private readonly apiKeyService: ApiKeyService,
     private readonly coreEntityCacheService: CoreEntityCacheService,
     private readonly workspaceOrmManager: WorkspaceOrmManager,
+    private readonly userSessionService: UserSessionService,
   ) {}
 
   // ── Identity: hub_user_id first, email only to bind an account with no link yet.
@@ -293,11 +288,13 @@ export class VeridianHubSsoService {
     ownerEmail,
     workspaceName,
     hubUserId,
+    plan,
   }: {
     tenantId: string;
     ownerEmail: string;
     workspaceName: string;
     hubUserId: string;
+    plan: string;
   }): Promise<ProvisionResult> {
     const existing = await this.findTenant(tenantId);
 
@@ -317,10 +314,6 @@ export class VeridianHubSsoService {
         created: false,
         workspaceId: existing.workspaceId,
         ownerUserId: owner.id,
-        apiKey: await this.issueApiKeyToken(
-          existing.workspaceId,
-          existing.value.apiKeyId,
-        ),
         magicLink: await this.buildMagicLink(owner.email, existing.workspaceId),
       };
     }
@@ -375,71 +368,24 @@ export class VeridianHubSsoService {
       );
       await this.clearOnboarding(user.id, workspace.id);
 
-      // The tenant link is written first: a failure below must not create a second workspace.
-      const tenantLink = await this.keyValuePairRepository.save({
+      await this.keyValuePairRepository.save({
         key: hubTenantKey(tenantId),
         userId: null,
         workspaceId: workspace.id,
-        value: {
-          ownerEmail: ownerEmail.toLowerCase(),
-          apiKeyId: null,
-        } as unknown as JSON,
+        value: { ownerEmail: ownerEmail.toLowerCase(), plan } as unknown as JSON,
         type: KeyValuePairType.USER_VARIABLE,
       });
-
-      // Member roles cannot hold an API key in Twenty: the key takes the first role allowed to.
-      const apiKeyRole = await this.roleRepository.findOne({
-        where: { workspaceId: workspace.id, canBeAssignedToApiKeys: true },
-        order: { createdAt: 'ASC' },
-      });
-
-      const apiKey = apiKeyRole
-        ? await this.apiKeyService.create({
-            name: 'Hub Veridian',
-            expiresAt: API_KEY_EXPIRES_AT,
-            revokedAt: undefined,
-            roleId: apiKeyRole.id,
-            workspaceId: workspace.id,
-          })
-        : null;
-
-      if (apiKey) {
-        await this.keyValuePairRepository.update(tenantLink.id as string, {
-          value: {
-            ownerEmail: ownerEmail.toLowerCase(),
-            apiKeyId: apiKey.id,
-          } as never,
-        });
-      }
 
       return {
         status: 'ok',
         created: true,
         workspaceId: workspace.id,
         ownerUserId: user.id,
-        apiKey: await this.issueApiKeyToken(workspace.id, apiKey?.id ?? null),
         magicLink: await this.buildMagicLink(user.email, workspace.id),
       };
     } finally {
       await this.cacheStorage.del(`veridian-hub-sso:provision:${tenantId}`);
     }
-  }
-
-  private async issueApiKeyToken(
-    workspaceId: string,
-    apiKeyId: string | null,
-  ) {
-    if (!apiKeyId) {
-      return null;
-    }
-
-    const issued = await this.apiKeyService.generateApiKeyToken(
-      workspaceId,
-      apiKeyId,
-      API_KEY_EXPIRES_AT,
-    );
-
-    return issued?.token ?? null;
   }
 
   // CONTRAT-HUB §5.18.3 and §5.22.2. Additive and idempotent: a member stays a member.
@@ -533,22 +479,28 @@ export class VeridianHubSsoService {
     return Boolean(membership);
   }
 
-  // Hub to Twenty profile copy. Email and name only change through here.
-  async syncProfile({
+  // CONTRAT-HUB §3.8: found by hub_user_id only, only the fields present are applied.
+  async syncUser({
     hubUserId,
     email,
-    firstName,
-    lastName,
+    name,
+    deleted,
   }: {
     hubUserId: string;
     email?: string;
-    firstName?: string;
-    lastName?: string;
+    name?: string;
+    deleted?: boolean;
   }) {
     const user = await this.findUserByHubUserId(hubUserId);
 
     if (!user) {
       return false;
+    }
+
+    if (deleted === true) {
+      await this.cutAccess(user.id);
+
+      return true;
     }
 
     if (email && email.toLowerCase() !== user.email) {
@@ -558,16 +510,14 @@ export class VeridianHubSsoService {
       );
     }
 
-    if (firstName === undefined && lastName === undefined) {
+    if (name === undefined) {
       return true;
     }
 
-    const name = {
-      firstName: firstName ?? user.firstName,
-      lastName: lastName ?? user.lastName,
-    };
+    const [firstName, ...others] = name.trim().split(/\s+/);
+    const fullName = { firstName, lastName: others.join(' ') };
 
-    await this.userRepository.update(user.id, name);
+    await this.userRepository.update(user.id, fullName);
     await this.coreEntityCacheService.invalidate('user', user.id);
 
     const memberships = await this.userWorkspaceRepository.find({
@@ -581,10 +531,88 @@ export class VeridianHubSsoService {
             'workspaceMember',
           );
 
-        await repository.update({ userId: user.id }, { name });
+        await repository.update({ userId: user.id }, { name: fullName });
       }, buildSystemAuthContext(workspaceId));
     }
 
     return true;
+  }
+
+  private async cutAccess(userId: string) {
+    await this.userRepository.update(userId, { disabled: true });
+    await this.coreEntityCacheService.invalidate('user', userId);
+    await this.userSessionService.revokeAllSessionsForUser({
+      userId,
+      reason: UserSessionRevokedReason.UserRevoked,
+    });
+
+    const memberships = await this.userWorkspaceRepository.find({
+      where: { userId },
+    });
+
+    for (const membership of memberships) {
+      await this.userWorkspaceService.deleteUserWorkspace({
+        userWorkspaceId: membership.id,
+        workspaceId: membership.workspaceId,
+        softDelete: true,
+      });
+    }
+  }
+
+  // CONTRAT-HUB §3.8: humans only, the audit needs the accounts with no Hub link too.
+  async listUsers() {
+    const rows: {
+      key: string | null;
+      email: string;
+      firstName: string;
+      lastName: string;
+    }[] = await this.userRepository.query(
+      `SELECT k.key, u.email, u."firstName", u."lastName"
+         FROM core."user" u
+         LEFT JOIN core."keyValuePair" k
+           ON k."userId" = u.id AND k."workspaceId" IS NULL AND k.key LIKE 'veridian.hub_user:%'
+        WHERE u."deletedAt" IS NULL AND u.disabled = false`,
+    );
+
+    return rows.map(({ key, email, firstName, lastName }) => ({
+      hub_user_id: key ? key.slice('veridian.hub_user:'.length) : null,
+      email,
+      name: `${firstName} ${lastName}`.trim(),
+    }));
+  }
+
+  // CONTRAT-HUB §5.12.
+  async listWorkspacesByEmail(rawEmail: string) {
+    const email = rawEmail.toLowerCase();
+    const rows: {
+      workspaceId: string;
+      displayName: string;
+      activationStatus: string;
+      tenantKey: string | null;
+      link: TenantLink | null;
+    }[] = await this.userRepository.query(
+      `SELECT w.id AS "workspaceId", w."displayName", w."activationStatus",
+              k.key AS "tenantKey", k.value AS link
+         FROM core."user" u
+         JOIN core."userWorkspace" uw ON uw."userId" = u.id AND uw."deletedAt" IS NULL
+         JOIN core.workspace w ON w.id = uw."workspaceId" AND w."deletedAt" IS NULL
+         LEFT JOIN core."keyValuePair" k
+           ON k."workspaceId" = w.id AND k."userId" IS NULL AND k.key LIKE 'veridian.hub_tenant:%'
+        WHERE u.email = $1 AND u."deletedAt" IS NULL AND u.disabled = false`,
+      [email],
+    );
+
+    return rows.map(
+      ({ workspaceId, displayName, activationStatus, tenantKey, link }) => ({
+        workspace_id: workspaceId,
+        tenant_id: tenantKey
+          ? tenantKey.slice('veridian.hub_tenant:'.length)
+          : null,
+        workspace_name: displayName,
+        role: link?.ownerEmail === email ? 'owner' : 'member',
+        plan: link?.plan ?? null,
+        status: activationStatus.toLowerCase(),
+      }),
+    );
   }
 }

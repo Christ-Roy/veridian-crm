@@ -27,7 +27,8 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `POST /api/tenants/provision` | crée utilisateur et workspace | §5.1 |
 | `POST /api/tenants/:id/sync-member`, `POST /api/veridian/workspaces/:id/attach-member` | ajoute un membre | §5.18.3, §5.22.2 |
 | `POST /api/tenants/:id/remove-member` | retire un membre, données conservées | §5.19.2 |
-| `POST /api/veridian/users/sync` | copie email et nom depuis le Hub | hors contrat, à graver |
+| `POST /api/hub/users/sync`, `GET /api/hub/users` | copie nom, email et suppression ; liste pour l'audit | §3.8 |
+| `GET /api/users/by-email` | workspaces d'une adresse | §5.12 |
 | `GET /welcome` | renvoie vers `HUB_LOGIN_URL` | §6bis.8.1 |
 
 `HubOnlyIdentityGuard` refuse inscription, connexion par mot de passe, invitations, changement d'email ou de
@@ -35,7 +36,7 @@ nom. Le lien porte un login token Twenty : 15 min, à usage unique, consommé pa
 `core.keyValuePair`, aucune table neuve. Variables : `HUB_API_SECRET`, `HUB_API_SECRET_NEXT`, `HUB_LOGIN_URL`,
 `HUB_SERVER_ADMIN_EMAILS`. Sans secret, les routes répondent 503.
 
-Non implémentés : `update-plan`, `suspend`, `resume`, `health`, `DELETE` (§5.2 à §5.5, §5.8).
+Hors du lot, arbitré par le Hub le 06/11/2026 : `update-plan`, `suspend`, `resume`, `health`, `DELETE`, et toute clé API au provisioning (§3.8 : les clés machine restent locales).
 
 ## Coupé par variable d'environnement (job Nomad, aucun patch)
 

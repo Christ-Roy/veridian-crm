@@ -10,7 +10,7 @@
 Usage : HUB_API_SECRET=... parcours-staging.py <url> <dossier-sortie> [nb-workspaces]
 Sortie : 0 parcours réussi · 1 échec · 2 mesure non aboutie
 """
-import hashlib, hmac, json, os, re, sys, time, urllib.error, urllib.request, uuid
+import hashlib, hmac, json, os, re, sys, time, urllib.error, urllib.parse, urllib.request, uuid
 from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
@@ -110,8 +110,24 @@ code, texte = rebond(str(uuid.uuid4()), EMAIL)
 controle("email connu lié à un autre hub_user_id : refusé", code == 400, f"{code} {texte[:80]}")
 code, texte = rebond(HUB_ID, "email-change@veridian.site")
 controle("hub_user_id prime sur l'email", code == 200, str(code))
-code, texte = signe("/api/veridian/users/sync", {"hub_user_id": HUB_ID, "first_name": "Parcours", "last_name": "Hub"})
+code, texte = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "name": "Parcours Hub"})
 controle("nom poussé par le Hub", code == 200, f"{code} {texte[:80]}")
+code, texte = signe("/api/hub/users/sync", {"hub_user_id": str(uuid.uuid4()), "name": "Personne"})
+controle("sync inconnu : 404 user_not_in_app", code == 404 and "user_not_in_app" in texte, f"{code} {texte[:80]}")
+
+
+def lecture(chemin, charge_signee):
+    t = str(int(time.time() * 1000))
+    signature = hmac.new(SECRET.encode(), f"{t}.{charge_signee}".encode(), hashlib.sha256).hexdigest()
+    return http(BASE + chemin, None, {"X-Veridian-Timestamp": t, "X-Veridian-Hub-Signature": signature})
+
+
+code, texte = lecture("/api/hub/users", "")
+vu = next((u for u in json.loads(texte).get("users", []) if u["hub_user_id"] == HUB_ID), None) if code == 200 else None
+controle("GET /api/hub/users liste le compte", bool(vu) and vu["name"] == "Parcours Hub", f"{code} {vu}")
+requete = "/api/users/by-email?email=" + urllib.parse.quote(EMAIL, safe="")
+code, texte = lecture(requete, "GET." + requete)
+controle("GET /api/users/by-email", code == 200 and json.loads(texte).get("found") is True and len(json.loads(texte)["workspaces"]) == NB, f"{code} {texte[:120]}")
 
 # ── 3. lien signé, navigateur
 code, texte = rebond(HUB_ID, EMAIL)
@@ -152,7 +168,7 @@ with sync_playwright() as p:
     controle("le lien ne sert qu'une fois", "Settings" not in corps2, page2.url[:90])
     autre.close()
 
-    racine = f"{urlparse(page.url).scheme}://{urlparse(page.url).hostname}"
+    racine = f"{urlparse(page.url).scheme}://{urlparse(page.url).netloc}"
     for i in range(8):
         texte_page = page.inner_text("body")
         if "Create profile" in texte_page:
@@ -197,6 +213,9 @@ with sync_playwright() as p:
 externes = {h: n for h, n in hotes.items() if h and DOMAINE not in h}
 print("HOTES NAVIGATEUR", json.dumps(hotes))
 controle("navigateur : aucun hôte tiers", not externes, str(externes))
+code, _ = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True})
+code2, _ = rebond(HUB_ID, EMAIL)
+controle("compte supprimé par le Hub : plus de lien", code == 200 and code2 == 400, f"{code} {code2}")
 print(f"EMAIL {EMAIL}")
 print(f"VERDICT : {'ÉCHEC ' + str(echecs) if echecs else 'parcours réussi'}")
 sys.exit(1 if echecs else 0)
