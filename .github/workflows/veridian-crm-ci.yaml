@@ -52,10 +52,11 @@ jobs:
       - if: always()
         run: git clean -ffdx
 
+  # 1 cœur réservé sur ce runner : plus de 2 h mesurées le 06/11/2026, contre 23 min sur node02 sans plafond.
   image:
     runs-on: [self-hosted, veridian-jit, veridian-jit-build]
     needs: patch-survival
-    timeout-minutes: 120
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Connexion à ghcr.io
