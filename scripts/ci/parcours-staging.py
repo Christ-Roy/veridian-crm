@@ -273,6 +273,14 @@ with sync_playwright() as p:
 
     page.goto(racine + "/settings/general", wait_until="domcontentloaded")
     page.get_by_text("Workspace domain").first.wait_for(timeout=60000)
+    mention = page.get_by_text("Basé sur Twenty, AGPL", exact=True).first
+    controle("marque : mention amont et lien vers le code", mention.get_attribute("href") == "https://github.com/Christ-Roy/veridian-crm", str(mention.get_attribute("href")))
+    controle("marque : titre du navigateur", "Twenty" not in page.title() and page.locator("link[rel=manifest]").count() > 0, page.title())
+    for chemin in ["/settings/general", "/settings/profile", "/settings/members", "/settings/ai", "/settings/applications", "/settings/billing", "/objects/people", "/objects/companies", "/getting-started"]:
+        page.goto(racine + chemin, wait_until="domcontentloaded")
+        page.wait_for_timeout(5000)
+        reste = [l.strip() for l in page.locator("body").inner_text().splitlines() if "Twenty" in l and "Basé sur Twenty" not in l]
+        controle(f"marque : {chemin} sans le nom amont, {len(page.locator('body').inner_text())} caractères lus", not reste and len(page.locator("body").inner_text()) > 40, str(reste)[:200])
     controle("général : pas de suppression du workspace", not visible("Delete workspace"))
 
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")

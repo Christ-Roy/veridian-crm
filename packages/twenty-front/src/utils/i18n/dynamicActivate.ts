@@ -1,4 +1,5 @@
 import { i18n } from '@lingui/core';
+import { replaceBrandInMessages } from '@/veridian-brand/replaceBrandInMessages';
 import {
   APP_LOCALES,
   getLocaleTextDirection,
@@ -38,7 +39,7 @@ export const dynamicActivate = async (locale: keyof typeof APP_LOCALES) => {
     return;
   }
 
-  i18n.load(locale, messages);
+  i18n.load(locale, replaceBrandInMessages(messages));
   i18n.activate(locale);
   applyDocumentLocale(locale);
 };

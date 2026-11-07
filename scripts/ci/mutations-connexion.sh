@@ -8,10 +8,11 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 C=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller.ts
 S=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service.ts
+G=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/guards/hub-only-identity.guard.ts
 N=packages/twenty-shared/src/utils/navigation/createSingleNavigation.ts
 
 jouer() {
-  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'contrat-connexion-automatique' >/tmp/mutation.log 2>&1)
+  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'contrat-connexion-automatique|hub-only-identity|marque.veridian' >/tmp/mutation.log 2>&1)
 }
 
 jouer || { tail -30 /tmp/mutation.log; echo "NON ABOUTI : spec rouge sans sabotage"; exit 2; }
@@ -50,5 +51,15 @@ saboter "5. origine non contrôlée" "packages/twenty-server/src/engine/core-mod
 saboter "5. espace demandé ignoré" "$S" 'ownNext?.subdomain ?? null' 'null'
 saboter "6. revoke_sessions sans effet" "$S" 'if (revokeSessions === true) {' 'if (false as boolean) {'
 saboter "boucle : garde retirée" "$N" 'if (url === navigatingToUrl) {' 'if (false as boolean) {'
+
+for mutation in deleteUser deleteUserFromWorkspace deleteCurrentWorkspace; do
+  saboter "garde : $mutation permis" "$G" "  '$mutation',"$'\n' ""
+done
+for reglage in editableProfileFields isPasswordAuthEnabled isPasswordAuthBypassEnabled isPublicInviteLinkEnabled; do
+  saboter "garde : $reglage rouvrable" "$G" "  '$reglage',"$'\n' ""
+done
+saboter "garde : réouverture ignorée" "$G" "isRenaming ||"$'\n'"      isReopening" "isRenaming"
+saboter "marque : nom amont gardé" packages/twenty-front/src/modules/veridian-brand/replaceBrandInMessages.ts "'Veridian CRM'" "'Twenty'"
+saboter "marque : messages compilés ignorés" packages/twenty-front/src/modules/veridian-brand/replaceBrandInMessages.ts "return message.map(replaceBrand);" "return message;"
 
 exit "$rate"

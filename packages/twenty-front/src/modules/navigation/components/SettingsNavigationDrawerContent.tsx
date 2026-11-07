@@ -25,6 +25,15 @@ const StyledLogsSwitchFixedContent = styled.div`
   margin-top: auto;
 `;
 
+// AGPL : le fork dit d'où il vient et où lire son code.
+const StyledUpstreamNotice = styled.a`
+  color: ${themeCssVariables.font.color.tertiary};
+  flex-shrink: 0;
+  font-size: ${themeCssVariables.font.size.xs};
+  padding: ${themeCssVariables.spacing[2]};
+  text-decoration: none;
+`;
+
 const StyledMobileNavigationBarClearance = styled.div`
   flex-shrink: 0;
   height: ${MOBILE_NAVIGATION_BAR_CLEARANCE};
@@ -53,6 +62,15 @@ export const SettingsNavigationDrawerContent = () => {
             />
           </NavigationDrawerSection>
         </StyledLogsSwitchFixedContent>
+      )}
+      {isNavigationDrawerExpanded && (
+        <StyledUpstreamNotice
+          href="https://github.com/Christ-Roy/veridian-crm"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Basé sur Twenty, AGPL
+        </StyledUpstreamNotice>
       )}
       {isMobile && <StyledMobileNavigationBarClearance />}
     </>

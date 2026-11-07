@@ -4,7 +4,6 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import {
   HubOnlyIdentityGuard,
   MUTATIONS_RESERVED_TO_HUB,
-  WORKSPACE_SETTINGS_RESERVED_TO_HUB,
 } from 'src/engine/core-modules/veridian-hub-sso/guards/hub-only-identity.guard';
 
 const contextFor = (parent: string, fieldName: string, args: object = {}) => {
@@ -59,7 +58,13 @@ describe('HubOnlyIdentityGuard', () => {
     ).toBe(true);
   });
 
-  it.each(WORKSPACE_SETTINGS_RESERVED_TO_HUB)(
+  // Liste écrite ici, pas lue dans la garde : retirer une entrée doit casser ce test.
+  it.each([
+    'editableProfileFields',
+    'isPasswordAuthEnabled',
+    'isPasswordAuthBypassEnabled',
+    'isPublicInviteLinkEnabled',
+  ])(
     'refuses reopening %s, lets other workspace settings through',
     (setting) => {
       expect(() =>

@@ -22,6 +22,9 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `MultiWorkspaceDropdownDefaultComponents.tsx`, `SettingsWorkspaceMembers.tsx`, `SettingsProfile.tsx`, `SettingsGeneral.tsx`, `MemberInfosTab.tsx`, `MemberNameFields.tsx`, `SettingsSecurityAuthProvidersOptionsList.tsx` (`twenty-front`) | retirés : Create Workspace, Invite user, onglet Invite, Delete account, Delete workspace, Invite by Link ; nom d'un membre en lecture seule | ces actions appartiennent au Hub, le serveur les refuse déjà | `patch-survival.sh` |
 | `getting-started/services/getting-started.service.ts` | étape INVITE_TEAM filtrée | pas d'invitation interne | `patch-survival.sh` |
 | `twenty-server/package.json`, `yarn.lock` | `@modelcontextprotocol/sdk` 1.32.0 (amont 1.30.0) | 4 HIGH corrigées, à retirer dès que l'amont suit | trivy sur l'image |
+| `utils/i18n/dynamicActivate.ts` + `veridian-brand/replaceBrandInMessages.ts` (`twenty-front`) | « Twenty » devient « Veridian CRM » au chargement du catalogue, toutes langues, `.po` intacts | `.github/TRADEMARK.md` : un fork exploité porte son nom | `marque.veridian.spec.ts`, parcours |
+| `index.html`, `public/manifest.json`, `public/images/` (`scripts/ci/marque.sh`), `title-utils.ts` (`twenty-front`) | nom et icône du Hub, images à nom identique, images sociales distantes retirées | idem, et plus d'appel à raw.githubusercontent.com | `patch-survival.sh`, parcours |
+| `SettingsNavigationDrawerContent.tsx` (`twenty-front`) | mention « Basé sur Twenty, AGPL » et lien vers le code | AGPL | `patch-survival.sh`, parcours |
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
 ## Code neuf
