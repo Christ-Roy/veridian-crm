@@ -276,7 +276,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(12000)
     page.goto(racine + "/settings/profile", wait_until="domcontentloaded")
     page.wait_for_timeout(9000)
-    page.get_by_text(re.compile("^Log ?out$", re.I)).first.click(timeout=15000)
+    page.locator("#nav-item-logout").click(timeout=15000)
     page.wait_for_timeout(9000)
     corps = page.inner_text("body")
     controle("déconnexion : page locale, pas de rebond", "Continuer" in corps and urlparse(page.url).hostname == urlparse(racine).hostname, page.url[:90])
@@ -298,6 +298,30 @@ with sync_playwright() as p:
     controle("domaine nu : pas de boucle", len(navs) < 12, f"{len(navs)} navigations")
     controle("domaine nu : rebond auto vers la page demandée", bool(vers_hub) and "auto=1" in vers_hub[0] and "settings%2Fprofile" in vers_hub[0], (vers_hub or [pn.url])[0][:150])
     nu.close()
+
+    # Domaine nu jusqu'à la page demandée : le Hub est simulé par l'appel signé qu'il ferait.
+    arrivee = nav.new_context(viewport={"width": 1400, "height": 900})
+    arrivee.on("request", note)
+
+    def hub_simule(route):
+        rep = route.fetch(max_redirects=0)
+        cible = rep.headers.get("location", "")
+        if "bounce/prepare" not in cible:
+            route.fulfill(response=rep)
+            return
+        demande = urllib.parse.parse_qs(urlparse(cible).query).get("next", [""])[0]
+        _, corps_lien = signe("/api/sso/issue-magic-link", {"hub_user_id": HUB_ID, "email": EMAIL, "next": demande})
+        route.fulfill(status=302, headers={**rep.headers, "location": json.loads(corps_lien)["magic_link_url"]})
+
+    arrivee.route("**/welcome*", hub_simule)
+    pa = arrivee.new_page()
+    pa.goto(BASE + "/settings/profile", wait_until="commit", timeout=120000)
+    for _ in range(45):
+        pa.wait_for_timeout(2000)
+        if urlparse(pa.url).path == "/settings/profile" and urlparse(pa.url).hostname != urlparse(BASE).hostname:
+            break
+    controle("domaine nu : arrivée connectée sur la page demandée", urlparse(pa.url).path == "/settings/profile" and EMAIL in pa.evaluate(lire), pa.url[:90])
+    arrivee.close()
 
     # Un seul essai automatique : navigateur vierge, deux passages.
     neuf = nav.new_context(viewport={"width": 1400, "height": 900})
