@@ -95,7 +95,8 @@ for i in range(1, NB + 1):
         sys.exit(1)
     locataires.append((locataire, json.loads(texte)))
     print(f"workspace {i}/{NB} actif en {time.time() - debut:.0f}s : {locataires[-1][1]['workspace_id']}", flush=True)
-controle(f"{NB} workspaces, au-delà de l'ancienne limite de 5", NB > 5)
+if NB > 5:
+    controle(f"{NB} workspaces d'un coup, au-delà de l'ancienne limite de 5", True)
 code, texte = signe("/api/tenants/provision", {"tenant_id": locataires[0][0], "owner_email": EMAIL, "workspace_name": "Parcours 1", "plan": "free", "metadata": {"hub_user_id": HUB_ID}})
 controle("provisioning idempotent", code == 200 and json.loads(texte)["created"] is False, f"{code}")
 code, _ = signe("/api/tenants/provision", {"tenant_id": locataires[0][0], "owner_email": "autre@veridian.site", "workspace_name": "x", "plan": "free", "metadata": {"hub_user_id": str(uuid.uuid4())}})
@@ -149,6 +150,8 @@ with sync_playwright() as p:
     nav = p.chromium.launch(headless=True)
     ctx = nav.new_context(viewport={"width": 1400, "height": 900})
     ctx.on("request", note)
+    graphql = []
+    ctx.on("request", lambda q: graphql.append(q.headers) if q.url.endswith("/graphql") and q.method == "POST" else None)
     page = ctx.new_page()
     page.set_default_navigation_timeout(180000)
     page.goto(lien, wait_until="domcontentloaded")
@@ -195,29 +198,40 @@ with sync_playwright() as p:
     if ligne.count():
         ligne.click(timeout=10000)
         page.wait_for_timeout(10000)
-    jeton = next((json.loads(urllib.parse.unquote(c["value"]))["accessOrWorkspaceAgnosticToken"]["token"] for c in ctx.cookies() if c["name"] == "tokenPair"), None)
-    if jeton:
-        entetes = {"Content-Type": "application/json", "Authorization": f"Bearer {jeton}"}
-        _, moi = http(racine + "/graphql", json.dumps({"query": "{workspaceMembers(first:1){edges{node{id}}}}"}).encode(), entetes)
-        membre = json.loads(moi)["data"]["workspaceMembers"]["edges"][0]["node"]["id"]
-        _, reponse = http(racine + "/graphql", json.dumps({"query": 'mutation($i:UUID!){updateWorkspaceMember(id:$i,data:{name:{firstName:"Pirate"}}){id name{firstName}}}', "variables": {"i": membre}}).encode(), entetes)
-        controle("renommage par /graphql refusé", "Pirate" not in reponse, reponse[:140])
-    else:
-        controle("renommage par /graphql : jeton introuvable", False)
+    h = {k: v for k, v in (graphql[-1] if graphql else {}).items() if not k.startswith(":") and k not in ("content-length", "host", "cookie")}
+    essais = page.evaluate("""async (h) => {
+      const f = async (c, q, v) => (await fetch(c, {method: 'POST', credentials: 'include', headers: h, body: JSON.stringify({query: q, variables: v})})).text();
+      const m = await f('/graphql', '{workspaceMembers(first:1){edges{node{id}}}}', {});
+      const id = JSON.parse(m).data.workspaceMembers.edges[0].node.id;
+      return [
+        await f('/graphql', 'mutation($i:UUID!){updateWorkspaceMember(id:$i,data:{name:{firstName:"Pirate"}}){id name{firstName}}}', {i: id}),
+        await f('/metadata', 'mutation($i:UpdateWorkspaceMemberSettingsInput!){updateWorkspaceMemberSettings(input:$i)}', {i: {workspaceMemberId: id, update: {name: {firstName: 'Pirate2'}}}}),
+      ];
+    }""", h)
+    controle("renommage par /graphql refusé", '"Pirate"' not in essais[0], essais[0][:120])
+    controle("renommage par /metadata refusé", "Identity is managed" in essais[1], essais[1][:120])
     tiers = [f.url for f in page.frames if urlparse(f.url).hostname and DOMAINE not in f.url]
     controle("tableau de bord sans iframe tiers", not tiers, str(tiers)[:100])
 
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
     page.wait_for_timeout(8000)
-    page.get_by_role("button", name=re.compile("^Create$", re.I)).first.click(timeout=15000)
-    page.wait_for_timeout(3000)
-    page.keyboard.type("Parcours Navigateur")
-    page.keyboard.press("Enter")
+    avant = page.get_by_text("PersonneParcours").count()
+    for bouton in page.locator("button:visible").all():
+        if bouton.inner_text().strip() == "Create":
+            bouton.click(timeout=8000)
+            break
     page.wait_for_timeout(4000)
+    page.mouse.click(1180, 98)
+    page.wait_for_timeout(1500)
+    page.keyboard.type("PersonneParcours")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(1500)
+    page.keyboard.press("Control+Enter")
+    page.wait_for_timeout(6000)
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
     page.wait_for_timeout(9000)
     page.screenshot(path=f"{OUT}/2-personnes.png")
-    controle("personne créée et relue après rechargement", page.get_by_text("Parcours Navigateur").count() > 0)
+    controle("personne créée et relue après rechargement", page.get_by_text("PersonneParcours").count() > avant)
     nav.close()
 
 externes = {h: n for h, n in hotes.items() if h and DOMAINE not in h}

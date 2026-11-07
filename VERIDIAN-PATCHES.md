@@ -32,7 +32,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `GET /welcome` | renvoie vers `HUB_LOGIN_URL` | §6bis.8.1 |
 
 `HubOnlyIdentityGuard` refuse inscription, connexion par mot de passe, invitations, changement d'email ou de
-nom. Le lien porte un login token Twenty : 15 min, à usage unique, consommé par `/verify`. Liens Hub dans
+nom sur les résolveurs Nest. `WorkspaceMemberIdentityPreQueryHook` ferme le renommage sur les API générées. Le lien porte un login token Twenty : 15 min, à usage unique, consommé par `/verify`. Liens Hub dans
 `core.keyValuePair`, aucune table neuve. Variables : `HUB_API_SECRET`, `HUB_API_SECRET_NEXT`, `HUB_LOGIN_URL`,
 `HUB_SERVER_ADMIN_EMAILS`. Sans secret, les routes répondent 503.
 
