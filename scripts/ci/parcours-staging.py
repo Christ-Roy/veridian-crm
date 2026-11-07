@@ -261,18 +261,18 @@ with sync_playwright() as p:
         return page.get_by_text(texte, exact=True).locator("visible=true").count() > 0
 
     page.goto(racine + "/settings/profile", wait_until="domcontentloaded")
-    page.get_by_text("Authenticator App").first.wait_for(timeout=60000)
+    page.get_by_text("Authenticator App").locator("visible=true").first.wait_for(timeout=60000)
     controle("profil : pas de suppression de compte", not visible("Delete account") and not visible("Leave workspace"))
     controle("profil : nom et email en lecture seule, mot de passe absent",
-             page.locator("input:visible:not([disabled])").count() == 0 and not visible("Change Password") and not visible("Set Password"),
-             f"{page.locator('input:visible:not([disabled])').count()} champ(s) actif(s)")
+             page.locator("input:visible:not([disabled]):not([type=checkbox])").count() == 0 and not visible("Change Password") and not visible("Set Password"),
+             f"{page.locator('input:visible:not([disabled]):not([type=checkbox])').count()} champ(s) actif(s)")
 
     page.goto(racine + "/settings/members", wait_until="domcontentloaded")
-    page.get_by_text("Team", exact=True).first.wait_for(timeout=60000)
+    page.get_by_text("Team", exact=True).locator("visible=true").first.wait_for(timeout=60000)
     controle("membres : pas d'onglet Invite", not visible("Invite"))
 
     page.goto(racine + "/settings/general", wait_until="domcontentloaded")
-    page.get_by_text("Workspace domain").first.wait_for(timeout=60000)
+    page.get_by_text("Workspace domain").locator("visible=true").first.wait_for(timeout=60000)
     mention = page.get_by_text("Basé sur Twenty, AGPL", exact=True).first
     controle("marque : mention amont et lien vers le code", mention.get_attribute("href") == "https://github.com/Christ-Roy/veridian-crm", str(mention.get_attribute("href")))
     controle("marque : titre du navigateur", "Twenty" not in page.title() and page.locator("link[rel=manifest]").count() > 0, page.title())
@@ -284,12 +284,12 @@ with sync_playwright() as p:
     controle("général : pas de suppression du workspace", not visible("Delete workspace"))
 
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
-    page.get_by_text("Parcours", exact=False).first.wait_for(timeout=60000)
-    page.get_by_text("Parcours", exact=False).first.click(timeout=15000)
-    page.get_by_text("Settings", exact=True).first.wait_for(timeout=15000)
+    page.get_by_text("Parcours", exact=False).locator("visible=true").first.wait_for(timeout=60000)
+    page.get_by_text("Parcours", exact=False).locator("visible=true").first.click(timeout=15000)
+    page.get_by_text("Settings", exact=True).locator("visible=true").first.wait_for(timeout=15000)
     controle("menu : pas d'Invite user", not visible("Invite user"))
     page.get_by_role("button", name="More options").first.click(timeout=15000)
-    page.get_by_text("Log out", exact=True).first.wait_for(timeout=15000)
+    page.get_by_text("Log out", exact=True).locator("visible=true").first.wait_for(timeout=15000)
     controle("menu : pas de Create Workspace", not visible("Create Workspace"))
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")

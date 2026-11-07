@@ -14,11 +14,11 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
   est `veridian-hub/docs/CONTRAT-HUB.md` (§3.8, §5, §6bis.8.0) : c'est lui qui fait foi. Pas de base commune, pas d'OIDC.
 - **Rien ne sort sans décision.** Télémétrie, enrichissement, logos, iframes tierces, marketplace : coupés, et
   prouvés par capture réseau et navigateur (`VERIDIAN-PATCHES.md`). Un nouveau canal amont est une anomalie.
-- **Staging d'abord.** La prod attend les serveurs. Staging : `crm.staging.veridian.site`, privé au tailnet, base neuve.
+- **Staging d'abord.** Staging : `crm.staging.veridian.site`, privé au tailnet, base neuve. Le job de prod (`deploy/crm-prod.nomad.hcl`) attend un nœud.
 
-**Décisions ouvertes, à Robert :** migrer ou non le workspace « Veridian » de l'archive
-`~/veridian/archives/crm-decommission-2026-09-23/` (base en 2.13, saut jamais testé, reco : ne pas migrer sans usage
-décidé) ; nom et image du fork avant toute prod (`.github/TRADEMARK.md` l'impose à un fork exploité publiquement).
+**Décisions (07/11/2026) :** pas de migration, archive `~/veridian/archives/crm-decommission-2026-09-23/` intacte, base neuve ;
+marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,
+mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Reste avant prod : `todo/2026-11-07-passage-prod.md`.
 
 ## 2. Licence : ligne rouge
 
@@ -46,12 +46,15 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 |---|---|---|
 | `scripts/ci/check-ee-integrity.sh` | aucun fichier Enterprise touché | fichier modifié, code 1 |
 | `scripts/ci/patch-survival.sh` (`--statique` au pre-push) | chaque patch présent, `*.veridian.spec.ts` | limite remise à 5, code 1 |
-| `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, boucle du domaine nu : chaque comportement retiré casse la spec | à chaque CI |
-| `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, connexion, déconnexion, navigateur sans hôte tiers | oui, plusieurs fois |
+| `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, boucle du domaine nu, garde d'identité, marque : chaque comportement retiré casse la spec | à chaque CI |
+| `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, connexion, déconnexion, navigateur sans hôte tiers, écrans sans action réservée au Hub ni nom amont | oui, plusieurs fois |
+| `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier, espace jetable | mesure, à rejouer sur le nœud de prod |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 mesure non aboutie. Le secret : `CRM_HUB_API_SECRET_STAGING` dans `.all-creds.env`.
 Le parcours crée et retire son compte de test ; une capture couvre le démarrage seulement si elle démarre avant lui.
+
+Avec `lourd`, `dist` est effacé à chaque copie : `nx run twenty-shared:build` avant toute spec.
 
 Lecture d'une session depuis le navigateur, sur l'hôte du workspace (cookie `__Host-twenty-session`, pas de jeton
 en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twenty-session-cookie: 1`, `{currentUser{email}}`.
@@ -68,7 +71,7 @@ en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twent
 - **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
   `timeout` (`restart-task` lancé sans le faire : écritures Nomad du parc bloquées 83 min le 07/11/2026).
 - Démarrage lent : chaque étape d'entrée recharge Nest. Environ 2 min au calme, plus de 20 min sur un nœud saturé.
-- Mémoire de pointe mesurée : serveur 1,2 Go, worker 1 Go, Postgres 170 Mo, Redis 140 Mo.
+- Capacité mesurée : `todo/2026-11-07-passage-prod.md`. Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
 
 ## 6. Sync amont
 
