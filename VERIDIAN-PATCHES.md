@@ -18,6 +18,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `twenty-front/src/pages/auth/SignInUp.tsx` | `useRedirectToHubLogin()` | sans session, renvoi vers le Hub, navigation interne comprise | `patch-survival.sh` |
 | `twenty-front/src/modules/auth/hooks/useAuth.ts` | déconnexion vers `/welcome?logout=1` | clic explicite : pose le cookie local, pas de reconnexion silencieuse (§6bis.8.0) | `patch-survival.sh` |
 | `DefaultWorkspaceLogo.ts`, `OnboardingNetworkPreviewPeople.ts` (`twenty-front`) | image embarquée, avatar vide | le navigateur appelait twentyhq.github.io | `patch-survival.sh` |
+| `domain-manager/hooks/useRedirect.ts` (`twenty-front`) | ne relance pas la navigation en cours | boucle sur le domaine nu : 607 navigations en 25 s, le rebond n'aboutissait jamais | `patch-survival.sh`, parcours |
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
 ## Code neuf

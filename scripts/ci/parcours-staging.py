@@ -286,6 +286,19 @@ with sync_playwright() as p:
     page.wait_for_timeout(9000)
     controle("après déconnexion : toujours pas de rebond", "Continuer" in page.inner_text("body") and urlparse(page.url).hostname != "hub.staging.veridian.site", page.url[:90])
 
+    # Domaine nu, navigateur vierge : le chemin d'un utilisateur qui ne connaît pas son espace.
+    nu = nav.new_context(viewport={"width": 1400, "height": 900})
+    nu.on("request", note)
+    pn = nu.new_page()
+    navs = []
+    pn.on("request", lambda q: navs.append(q.url) if q.is_navigation_request() else None)
+    pn.goto(BASE + "/settings/profile", wait_until="commit", timeout=120000)
+    pn.wait_for_timeout(25000)
+    vers_hub = [u for u in navs if "bounce/prepare" in u]
+    controle("domaine nu : pas de boucle", len(navs) < 12, f"{len(navs)} navigations")
+    controle("domaine nu : rebond auto vers la page demandée", bool(vers_hub) and "auto=1" in vers_hub[0] and "settings%2Fprofile" in vers_hub[0], (vers_hub or [pn.url])[0][:150])
+    nu.close()
+
     # Un seul essai automatique : navigateur vierge, deux passages.
     neuf = nav.new_context(viewport={"width": 1400, "height": 900})
     neuf.on("request", note)

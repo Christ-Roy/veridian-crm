@@ -172,6 +172,7 @@ export class VeridianHubSsoController {
   async welcome(
     @Query('logout') logout: string,
     @Query('next') next: string,
+    @Query('returnToPath') returnToPath: string,
     @Req() request: Request,
     @Res() response: Response,
   ) {
@@ -189,12 +190,19 @@ export class VeridianHubSsoController {
       return response.status(401).json({ error: 'unauthenticated' });
     }
 
+    const ownOrigin =
+      parseOwnUrl(
+        `${request.protocol}://${readHeader(request, 'host')}/`,
+        serverUrl,
+      )?.origin ?? serverUrl;
+    // Twenty carries the requested page in returnToPath when it changes domain.
+    const requestedPath =
+      returnToPath?.startsWith('/') && !returnToPath.startsWith('//')
+        ? returnToPath
+        : '';
     const target = parseOwnUrl(next, serverUrl)
       ? next
-      : (parseOwnUrl(
-          `${request.protocol}://${readHeader(request, 'host')}/`,
-          serverUrl,
-        )?.origin ?? serverUrl);
+      : `${ownOrigin}${requestedPath}`;
     const bounce = `${hubUrl}/api/auth/bounce/prepare?next=${encodeURIComponent(target)}`;
     const cookies = readHeader(request, 'cookie') ?? '';
     const options = this.markerCookieOptions();
