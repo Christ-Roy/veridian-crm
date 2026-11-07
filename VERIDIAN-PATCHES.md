@@ -71,4 +71,12 @@ Le code reste dans le premier parent du commit de bascule (`git log --first-pare
 2. Supprimer les workflows amont réapparus dans `.github/workflows/`.
 3. Bumper `FORK_MARKER` dans `check-ee-integrity.sh`, puis le lancer.
 4. `scripts/ci/patch-survival.sh`.
-5. `scripts/ci/capture-sortante.sh` sur le staging pendant un parcours : tout nouveau canal sort en code 1.
+5. `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` sur le nœud du staging, pendant
+   `scripts/ci/parcours-staging.py` : tout nouveau canal, nom ou IP directe, sort en code 1.
+
+## Mesures du 07/11/2026 (image `staging-d68c556`)
+
+Image officielle sans coupure : registry.npmjs.org, unpkg.com, twenty-telemetry.com, twenty-icons.com au
+démarrage et à l'inscription ; dans le navigateur, twenty-icons.com et tradingview. Notre image : silence sur
+démarrage complet et parcours, témoin vu, navigateur sans hôte tiers. Épreuves vues échouer : limite remise
+à 5, fichier Enterprise modifié, envoi par nom, envoi par IP directe.

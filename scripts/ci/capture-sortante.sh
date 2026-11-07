@@ -48,7 +48,7 @@ docker stop -t 12 "$NOM" >/dev/null 2>&1
 [ -s "$DOSSIER/c.pcap" ] || non_abouti "fichier de capture vide"
 
 docker run --rm -v "$DOSSIER:/cap" "$IMAGE" tshark -r /cap/c.pcap -T fields -E separator='|' \
-  -e ip.dst -e ipv6.dst -e tcp.dstport -e dns.qry.name -e tls.handshake.extensions_server_name \
+  -e ip.dst -e ipv6.dst -e tcp.dstport -e dns.qry.name -e tls.handshake.extensions_server_name -e dns.a \
   2>/dev/null >"$DOSSIER/champs.txt"
 
 # Noms vus (DNS + SNI), IP publiques contactées.
@@ -80,8 +80,25 @@ while read -r n; do
   fi
 done <<<"$noms"
 
-echo "── IP publiques contactées (dont le témoin) ──"
-echo "${ips:-  aucune}"
+# Une connexion directe à une IP ne passe ni par le DNS ni par le SNI : toute IP publique
+# doit être la réponse DNS d'un nom autorisé, sinon c'est un envoi.
+echo "── IP publiques contactées ──"
+while read -r ip; do
+  [ -z "$ip" ] && continue
+  connue=non
+  while IFS='|' read -r _ _ _ nom _ reponses; do
+    [ -z "$reponses" ] && continue
+    case ",$reponses," in
+      *",$ip,"*) autorise "$nom" && connue=oui ;;
+    esac
+  done <"$DOSSIER/champs.txt"
+  if [ "$connue" = oui ]; then
+    echo "  ok      $ip"
+  else
+    echo "  ENVOI   $ip (aucun nom autorisé)"
+    detectes=$((detectes + 1))
+  fi
+done <<<"$ips"
 
 if [ "$detectes" -gt 0 ]; then
   echo "VERDICT : $detectes destination(s) non autorisée(s)"
