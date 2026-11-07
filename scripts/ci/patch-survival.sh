@@ -23,6 +23,7 @@ exige "$SERVEUR/engine/core-modules/auth/services/sign-in-up.service.ts" "if (!T
 exige "$SERVEUR/modules/contact-creation-manager/services/create-company.service.ts" "if (!TWENTY_COMPANIES_BASE_URL)"
 exige "$SERVEUR/engine/core-modules/tool/tools/search-help-center-tool/search-help-center-tool.ts" "HELP_CENTER_SEARCH_ENABLED"
 exige "$SERVEUR/engine/core-modules/core-engine.module.ts" "VeridianHubSsoModule"
+exige packages/twenty-front/src/pages/auth/SignInUp.tsx "useRedirectToHubLogin();"
 exige "$SERVEUR/engine/core-modules/auth/auth.module.ts" "SignInUpService,
   ],"
 

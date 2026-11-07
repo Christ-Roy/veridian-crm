@@ -73,7 +73,7 @@ job "crm-staging" {
         "traefik.http.routers.crm-staging.tls.certresolver=letsencrypt",
         "traefik.http.routers.crm-staging.tls.domains[0].main=crm.staging.veridian.site",
         "traefik.http.routers.crm-staging.tls.domains[0].sans=*.crm.staging.veridian.site",
-        "traefik.http.routers.crm-staging.middlewares=s2z-internal-only@file",
+        "traefik.http.routers.crm-staging.middlewares=internal-only@file",
       ]
       check {
         type     = "http"

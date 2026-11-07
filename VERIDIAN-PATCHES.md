@@ -15,6 +15,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `search-help-center-tool.ts` | coupé sauf `HELP_CENTER_SEARCH_ENABLED=true` | question de l'utilisateur envoyée à docs.twenty.com | `patch-survival.sh` |
 | `core-modules/core-engine.module.ts` | importe `VeridianHubSsoModule` | Hub seule source d'identité | `patch-survival.sh` |
 | `core-modules/auth/auth.module.ts` | exporte `SignInUpService` | provisioning par le Hub | `patch-survival.sh` |
+| `twenty-front/src/pages/auth/SignInUp.tsx` | `useRedirectToHubLogin()` | sans session, renvoi vers le Hub, navigation interne comprise | `patch-survival.sh` |
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
 ## Code neuf

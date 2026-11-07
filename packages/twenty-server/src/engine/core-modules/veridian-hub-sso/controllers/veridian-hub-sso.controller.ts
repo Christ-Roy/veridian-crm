@@ -347,7 +347,7 @@ export class VeridianHubSsoController {
       : response.status(404).json({ error: 'user_not_in_app' });
   }
 
-  // No body on these two: the signature covers `${ts}.` (§3.8) or the path (§5.12).
+  // No body on these two: the signature covers `${ts}.` (§3.8, §6.1).
   @Get('api/hub/users')
   async listUsers(
     @Req() request: RawBodyRequest<Request>,
@@ -368,11 +368,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    const signedPayload = Buffer.from(
-      `GET.${request.path}?email=${encodeURIComponent(email ?? '')}`,
-    );
-
-    if (!this.isAuthenticHubCall(request, response, signedPayload)) {
+    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
       return;
     }
 

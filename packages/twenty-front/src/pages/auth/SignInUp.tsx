@@ -7,6 +7,7 @@ import {
   signInUpStepState,
 } from '@/auth/states/signInUpStepState';
 import { workspacePublicDataState } from '@/auth/states/workspacePublicDataState';
+import { useRedirectToHubLogin } from '@/veridian-hub-login/useRedirectToHubLogin';
 import { styled } from '@linaria/react';
 
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
@@ -59,6 +60,8 @@ const StyledBackground = styled.div`
 `;
 
 export const SignInUp = () => {
+  useRedirectToHubLogin();
+
   const { t } = useLingui();
   const setSignInUpStep = useSetAtomState(signInUpStepState);
   const clientConfigApiStatus = useAtomStateValue(clientConfigApiStatusState);

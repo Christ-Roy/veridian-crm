@@ -123,11 +123,13 @@ def lecture(chemin, charge_signee):
     return http(BASE + chemin, None, {"X-Veridian-Timestamp": t, "X-Veridian-Hub-Signature": signature})
 
 
+code, _ = http(BASE + "/api/hub/users")
+controle("GET /api/hub/users sans signature : 401", code == 401, str(code))
 code, texte = lecture("/api/hub/users", "")
 vu = next((u for u in json.loads(texte).get("users", []) if u["hub_user_id"] == HUB_ID), None) if code == 200 else None
 controle("GET /api/hub/users liste le compte", bool(vu) and vu["name"] == "Parcours Hub", f"{code} {vu}")
 requete = "/api/users/by-email?email=" + urllib.parse.quote(EMAIL, safe="")
-code, texte = lecture(requete, "GET." + requete)
+code, texte = lecture(requete, "")
 controle("GET /api/users/by-email", code == 200 and json.loads(texte).get("found") is True and len(json.loads(texte)["workspaces"]) == NB, f"{code} {texte[:120]}")
 
 # ── 3. lien signé, navigateur
@@ -169,6 +171,7 @@ with sync_playwright() as p:
     page2.wait_for_timeout(12000)
     corps2 = page2.inner_text("body")
     controle("le lien ne sert qu'une fois", "Settings" not in corps2, page2.url[:90])
+    controle("sans session : renvoi vers le Hub", urlparse(page2.url).hostname.startswith("hub."), page2.url[:90])
     autre.close()
 
     racine = f"{urlparse(page.url).scheme}://{urlparse(page.url).netloc}"
@@ -234,7 +237,7 @@ with sync_playwright() as p:
     controle("personne créée et relue après rechargement", page.get_by_text("PersonneParcours").count() > avant)
     nav.close()
 
-externes = {h: n for h, n in hotes.items() if h and DOMAINE not in h}
+externes = {h: n for h, n in hotes.items() if h and not h.endswith(".veridian.site")}
 print("HOTES NAVIGATEUR", json.dumps(hotes))
 controle("navigateur : aucun hôte tiers", not externes, str(externes))
 code, _ = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True})
