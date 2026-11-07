@@ -45,6 +45,7 @@ saboter "2. cookie de déconnexion ignoré" "$C" 'cookies.includes(`${SIGNED_OUT
 saboter "3. cookie d'essai ignoré" "$C" 'cookies.includes(`${AUTO_TRY_COOKIE}=`) ||' ''
 saboter "4. iframe rebondit" "$C" "fetchDest === 'iframe'" "false"
 saboter "4. requête non navigation acceptée" "$C" "fetchMode !== 'navigate'" "false"
+saboter "4. route ouverte au POST" "$C" "@Get('welcome')" "@Post('welcome')"
 saboter "5. origine non contrôlée" "packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util.ts" "if (!isSameHost && !isSubdomain) {" "if (false as boolean) {"
 saboter "5. espace demandé ignoré" "$S" 'ownNext?.subdomain ?? null' 'null'
 saboter "6. revoke_sessions sans effet" "$S" 'if (revokeSessions === true) {' 'if (false as boolean) {'
