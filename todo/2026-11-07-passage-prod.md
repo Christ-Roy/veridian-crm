@@ -40,8 +40,12 @@ Disque d'`ovh-prod` : 40 Go libres et alerte à 20 Go. Twenty en prend moins de 
 - Démarrage : 215 s pendant cette mesure, 110 s sur nœud libre, plus de 20 min saturé.
 - Sauvegarde et restauration exercées (`pg_dump -Fc`, `pg_restore` dans une base temporaire) : 1 s et 6 s, 6 schémas, 40 comptes, 42 liens identiques.
   Base de 70 Mo qui se restaure en 21 Mo : créer et retirer des espaces laisse de l'espace mort.
-- Sur l'image servie `staging-e0376ab` : trivy par le registre, 0 HIGH et 0 CRITICAL ; capture réseau de 660 s, démarrage et parcours compris, silence et témoin vu ;
-  parcours 61 contrôles OK, 0 échec ; 24 sabotages détectés sur 24 (CI). `user=1000`, `cap_drop=ALL`, capacités effectives à zéro.
+- Image finale servie `staging-b640a15` (07/11/2026, 22 h) : trivy par le registre 0 HIGH et 0 CRITICAL ; parcours 63 OK, 0 échec, aucun hôte tiers ;
+  capture réseau de 780 s sur `staging-7a319d0`, démarrage compris, silence et témoin vu (`b640a15` ne change que le lien du pied de page) ;
+  36 sabotages détectés en CI ; `user=1000`, `cap_drop=ALL`, capacités effectives à zéro.
+- Batterie du Hub (`pnpm test:systeme 00- 08- 99-`, Hub de staging, `ADMIN_SECRET=$ADMIN_SECRET_STAGING`) : Twenty 4 sur 4
+  (session ouverte, sans session, session expirée, déconnexion sans boucle), 21 passent, 0 échec, 0 reste.
+  Non abouti : « se déconnecter partout », faute de session Twenty ouverte avant la coupure. À écrire côté Hub, puis à rejouer en prod.
 
 ## Limites connues
 
