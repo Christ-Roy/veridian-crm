@@ -461,6 +461,8 @@ export const useAuth = () => {
 
     broadcastSignOutToOtherTabs();
     clearSession();
+    // Veridian : déconnexion explicite, le Hub ne doit pas rouvrir la session Twenty aussitôt.
+    window.location.replace('/welcome?logout=1');
   }, [clearSession, signOutMutation, store]);
 
   const handleCredentialsSignUpInWorkspace = useCallback(

@@ -133,15 +133,25 @@ export class VeridianHubSsoController {
     );
   }
 
-  // Nobody signs in here: the login page sends to the Hub, which bounces back.
+  // Nobody signs in here: the login page sends to the Hub, which bounces back. After an
+  // explicit sign-out there is no bounce: an open Hub session must not reopen Twenty.
   @Get('welcome')
-  async redirectToHub(@Res() response: Response) {
+  async redirectToHub(
+    @Query('logout') logout: string,
+    @Res() response: Response,
+  ) {
     const hubLoginUrl = process.env.HUB_LOGIN_URL;
     const next = this.twentyConfigService.get('SERVER_URL');
 
-    return hubLoginUrl
-      ? response.redirect(`${hubLoginUrl}?next=${encodeURIComponent(next)}`)
-      : response.status(503).json({ error: 'hub_sso_not_configured' });
+    if (!hubLoginUrl) {
+      return response.status(503).json({ error: 'hub_sso_not_configured' });
+    }
+
+    return response.redirect(
+      logout === '1'
+        ? hubLoginUrl
+        : `${hubLoginUrl}?next=${encodeURIComponent(next)}`,
+    );
   }
 
   @Post('api/tenants/provision')
