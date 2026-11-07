@@ -82,6 +82,12 @@ jobs:
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # Trivy manque sur l'image de ce runner : mesure non aboutie affichée, pas un build rouge.
+          if ! trivy --version >/dev/null 2>&1; then
+            echo "::warning::Scan NON ABOUTI : trivy absent du runner"
+            echo "Scan NON ABOUTI : trivy absent du runner" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           nice -n 19 trivy image --severity CRITICAL,HIGH --ignore-unfixed --scanners vuln \
             --exit-code 0 "$IMAGE@$(cat /tmp/digest)" | tee -a "$GITHUB_STEP_SUMMARY"
       - if: always()
