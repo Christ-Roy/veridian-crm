@@ -251,7 +251,11 @@ export class VeridianHubSsoService {
 
     await this.onboardingService.setOnboardingCreateProfilePending(step);
     await this.onboardingService.setOnboardingConnectAccountPending(step);
-    await this.onboardingService.setOnboardingInviteTeamPending(step);
+    // Set per workspace at sign-up, not per user: the user id must stay out of this one.
+    await this.onboardingService.setOnboardingInviteTeamPending({
+      workspaceId,
+      value: false,
+    });
     await this.onboardingService.setOnboardingBookCallPending(step);
   }
 

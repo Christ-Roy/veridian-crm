@@ -27,14 +27,17 @@ non_abouti() { echo "NON ABOUTI : $1"; exit 2; }
 
 docker inspect "$CIBLE" >/dev/null 2>&1 || non_abouti "conteneur $CIBLE introuvable"
 
-docker run -d --name "$NOM" --network "container:$CIBLE" --cap-add NET_RAW --cap-add NET_ADMIN \
+docker pull -q "$IMAGE" >/dev/null || non_abouti "image $IMAGE indisponible"
+
+# Au premier plan puis `&` : le bastion refuse `docker run -d`, et ce conteneur ne survit pas au script.
+docker run --rm --name "$NOM" --network "container:$CIBLE" --cap-add NET_RAW --cap-add NET_ADMIN \
   -v "$DOSSIER:/cap" "$IMAGE" \
   timeout "$((DUREE + 10))" tcpdump -i eth0 -s 600 -U -w /cap/c.pcap \
   'udp port 53 or (tcp[tcpflags] & tcp-syn != 0 and tcp[tcpflags] & tcp-ack == 0) or (tcp dst port 443)' \
-  >/dev/null || non_abouti "capture non démarrée"
+  >"$DOSSIER/tcpdump.log" 2>&1 &
 
-sleep 3
-[ "$(docker inspect -f '{{.State.Running}}' "$NOM" 2>/dev/null)" = "true" ] || non_abouti "tcpdump s'est arrêté : $(docker logs "$NOM" 2>&1 | tail -1)"
+sleep 8
+[ "$(docker inspect -f '{{.State.Running}}' "$NOM" 2>/dev/null)" = "true" ] || non_abouti "tcpdump arrêté : $(tail -1 "$DOSSIER/tcpdump.log")"
 
 docker run --rm --network "container:$CIBLE" "$IMAGE" \
   curl -s -o /dev/null --max-time 10 "https://$TEMOIN/" >/dev/null 2>&1

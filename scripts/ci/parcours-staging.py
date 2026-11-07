@@ -155,7 +155,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(15000)
     page.screenshot(path=f"{OUT}/1-apres-rebond.png")
     corps = page.inner_text("body")
-    connecte = "Settings" in corps and "/welcome" not in page.url
+    connecte = "/welcome" not in page.url and "/verify" not in page.url and "Continue with" not in corps
     controle("le lien connecte l'utilisateur", connecte, f"{page.url[:70]} | {corps[:90]!r}")
 
     autre = nav.new_context(viewport={"width": 1400, "height": 900})
@@ -169,6 +169,7 @@ with sync_playwright() as p:
     autre.close()
 
     racine = f"{urlparse(page.url).scheme}://{urlparse(page.url).netloc}"
+    controle("aucune étape d'accueil à franchir", "/invite-team" not in page.url and "/create" not in page.url, page.url[:80])
     for i in range(8):
         texte_page = page.inner_text("body")
         if "Create profile" in texte_page:
@@ -194,6 +195,15 @@ with sync_playwright() as p:
     if ligne.count():
         ligne.click(timeout=10000)
         page.wait_for_timeout(10000)
+    jeton = next((json.loads(urllib.parse.unquote(c["value"]))["accessOrWorkspaceAgnosticToken"]["token"] for c in ctx.cookies() if c["name"] == "tokenPair"), None)
+    if jeton:
+        entetes = {"Content-Type": "application/json", "Authorization": f"Bearer {jeton}"}
+        _, moi = http(racine + "/graphql", json.dumps({"query": "{workspaceMembers(first:1){edges{node{id}}}}"}).encode(), entetes)
+        membre = json.loads(moi)["data"]["workspaceMembers"]["edges"][0]["node"]["id"]
+        _, reponse = http(racine + "/graphql", json.dumps({"query": 'mutation($i:UUID!){updateWorkspaceMember(id:$i,data:{name:{firstName:"Pirate"}}){id name{firstName}}}', "variables": {"i": membre}}).encode(), entetes)
+        controle("renommage par /graphql refusé", "Pirate" not in reponse, reponse[:140])
+    else:
+        controle("renommage par /graphql : jeton introuvable", False)
     tiers = [f.url for f in page.frames if urlparse(f.url).hostname and DOMAINE not in f.url]
     controle("tableau de bord sans iframe tiers", not tiers, str(tiers)[:100])
 
