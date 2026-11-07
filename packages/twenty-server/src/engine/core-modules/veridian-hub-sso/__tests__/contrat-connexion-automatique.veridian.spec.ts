@@ -5,6 +5,69 @@ import { RequestMethod } from '@nestjs/common';
 import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 
+// Les voisins sont des bouchons, pour un test rapide : contrôleur, service et règles restent réels.
+jest.mock('src/engine/core-modules/auth/services/sign-in-up.service', () => ({
+  SignInUpService: class SignInUpService {},
+}));
+jest.mock('src/engine/core-modules/auth/token/services/login-token.service', () => ({
+  LoginTokenService: class LoginTokenService {},
+}));
+jest.mock('src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service', () => ({
+  WorkspaceDomainsService: class WorkspaceDomainsService {},
+}));
+jest.mock('src/engine/core-modules/onboarding/onboarding.service', () => ({
+  OnboardingService: class OnboardingService {},
+}));
+jest.mock('src/engine/core-modules/throttler/throttler.service', () => ({
+  ThrottlerService: class ThrottlerService {},
+}));
+jest.mock('src/engine/core-modules/twenty-config/twenty-config.service', () => ({
+  TwentyConfigService: class TwentyConfigService {},
+}));
+jest.mock('src/engine/core-modules/user-session/services/user-session.service', () => ({
+  UserSessionService: class UserSessionService {},
+}));
+jest.mock('src/engine/core-modules/user-workspace/user-workspace.entity', () => ({
+  UserWorkspaceEntity: class UserWorkspaceEntity {},
+}));
+jest.mock('src/engine/core-modules/user-workspace/user-workspace.service', () => ({
+  UserWorkspaceService: class UserWorkspaceService {},
+}));
+jest.mock('src/engine/core-modules/user/services/user.service', () => ({
+  UserService: class UserService {},
+}));
+jest.mock('src/engine/core-modules/user/user.entity', () => ({
+  UserEntity: class UserEntity {},
+}));
+jest.mock('src/engine/core-modules/workspace/services/workspace.service', () => ({
+  WorkspaceService: class WorkspaceService {},
+}));
+jest.mock('src/engine/core-modules/workspace/workspace.entity', () => ({
+  WorkspaceEntity: class WorkspaceEntity {},
+}));
+jest.mock('src/engine/core-modules/cache-storage/services/cache-storage.service', () => ({
+  CacheStorageService: class CacheStorageService {},
+}));
+jest.mock('src/engine/core-modules/key-value-pair/key-value-pair.entity', () => ({
+  KeyValuePairEntity: class KeyValuePairEntity {},
+  KeyValuePairType: { USER_VARIABLE: 'USER_VARIABLE' },
+}));
+jest.mock('src/engine/core-entity-cache/services/core-entity-cache.service', () => ({
+  CoreEntityCacheService: class CoreEntityCacheService {},
+}));
+jest.mock('src/engine/twenty-orm/workspace-orm.manager', () => ({
+  WorkspaceOrmManager: class WorkspaceOrmManager {},
+}));
+jest.mock('src/engine/twenty-orm/utils/build-system-auth-context.util', () => ({
+  buildSystemAuthContext: () => ({}),
+}));
+jest.mock('src/engine/guards/no-permission.guard', () => ({
+  NoPermissionGuard: class NoPermissionGuard {},
+}));
+jest.mock('src/engine/guards/public-endpoint.guard', () => ({
+  PublicEndpointGuard: class PublicEndpointGuard {},
+}));
+
 // CONTRAT-HUB §6bis.8.0, sans navigateur ni base : chaque cas casse si le comportement disparaît.
 const SERVER = 'https://crm.staging.veridian.site';
 const HUB = 'https://hub.staging.veridian.site';
