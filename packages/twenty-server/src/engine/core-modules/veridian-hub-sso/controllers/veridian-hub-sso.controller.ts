@@ -1,6 +1,7 @@
 import {
   type RawBodyRequest,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -397,6 +398,23 @@ export class VeridianHubSsoController {
     );
 
     return response.status(200).json({ tenant_id: tenantId, removed });
+  }
+
+  @Delete('api/tenants/:tenantId')
+  async deleteTenant(
+    @Param('tenantId') tenantId: string,
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
+      return;
+    }
+
+    const deleted = await this.veridianHubSsoService.deleteTenant(tenantId);
+
+    return deleted
+      ? response.status(200).json({ tenant_id: tenantId, deleted: true })
+      : response.status(404).json({ error: 'tenant_not_found' });
   }
 
   @Post('api/hub/users/sync')

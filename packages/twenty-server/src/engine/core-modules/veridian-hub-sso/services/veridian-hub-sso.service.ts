@@ -487,6 +487,23 @@ export class VeridianHubSsoService {
     };
   }
 
+  // CONTRAT-HUB §5 (DELETE): the workspace and its data go, the link goes with them.
+  async deleteTenant(tenantId: string) {
+    const tenant = await this.findTenant(tenantId);
+
+    if (!tenant) {
+      return false;
+    }
+
+    await this.workspaceService.deleteWorkspace(tenant.workspaceId);
+    await this.keyValuePairRepository.delete({
+      key: hubTenantKey(tenantId),
+      userId: IsNull(),
+    });
+
+    return true;
+  }
+
   async findWorkspaceIdByTenant(tenantId: string) {
     return (await this.findTenant(tenantId))?.workspaceId ?? null;
   }

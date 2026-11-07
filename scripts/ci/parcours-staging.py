@@ -77,7 +77,23 @@ if not SECRET:
 
 HUB_ID = str(uuid.uuid4())
 # Compte de test retiré quoi qu'il arrive, sinon il pollue la dérive du Hub.
-atexit.register(lambda: signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True}))
+locataires = []
+
+
+def nettoyer():
+    for locataire, _ in locataires:
+        t = str(int(time.time() * 1000))
+        s = hmac.new(SECRET.encode(), f"{t}.".encode(), hashlib.sha256).hexdigest()
+        req = urllib.request.Request(f"{BASE}/api/tenants/{locataire}", headers={"X-Veridian-Timestamp": t, "X-Veridian-Hub-Signature": s}, method="DELETE")
+        try:
+            with urllib.request.urlopen(req, timeout=240) as r:
+                print("espace retiré", locataire, r.status, flush=True)
+        except urllib.error.HTTPError as e:
+            print("ECHEC retrait espace", locataire, e.code, flush=True)
+    signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True})
+
+
+atexit.register(nettoyer)
 signal.signal(signal.SIGTERM, lambda *_: sys.exit(2))
 
 # ── 1. identité fermée : le Hub seul
@@ -87,7 +103,6 @@ code, _ = signe("/api/tenants/provision", {"tenant_id": str(uuid.uuid4())}, sign
 controle("provisioning sans signature : 401", code == 401, str(code))
 
 # ── 2. workspaces provisionnés par le Hub
-locataires = []
 for i in range(1, NB + 1):
     debut = time.time()
     locataire = str(uuid.uuid4())

@@ -27,7 +27,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | Route | Rôle | Contrat |
 |---|---|---|
 | `POST /api/sso/issue-magic-link`, `GET /auth/token?t=` | rebond ; `hub_user_id` d'abord, email pour rattacher un compte sans lien | §6bis.8 |
-| `POST /api/tenants/provision` | crée utilisateur et workspace | §5.1 |
+| `POST /api/tenants/provision`, `DELETE /api/tenants/:id` | crée utilisateur et workspace ; supprime le workspace et ses données (signature `${ts}.`) | §5.1, §5 |
 | `POST /api/tenants/:id/sync-member`, `POST /api/veridian/workspaces/:id/attach-member` | ajoute un membre | §5.18.3, §5.22.2 |
 | `POST /api/tenants/:id/remove-member` | retire un membre, données conservées | §5.19.2 |
 | `POST /api/hub/users/sync`, `GET /api/hub/users` | copie nom, email et suppression ; liste pour l'audit | §3.8 |
@@ -39,7 +39,7 @@ nom sur les résolveurs Nest. `WorkspaceMemberIdentityPreQueryHook` ferme le ren
 `core.keyValuePair`, aucune table neuve. Variables : `HUB_API_SECRET`, `HUB_API_SECRET_NEXT`, `HUB_URL`,
 `HUB_SERVER_ADMIN_EMAILS`. Sans secret, les routes répondent 503.
 
-Hors du lot, arbitré par le Hub le 06/11/2026 : `update-plan`, `suspend`, `resume`, `health`, `DELETE`, et toute clé API au provisioning (§3.8 : les clés machine restent locales).
+Hors du lot, arbitré par le Hub le 06/11/2026 : `update-plan`, `suspend`, `resume`, `health`, et toute clé API au provisioning (§3.8 : les clés machine restent locales).
 
 ## Coupé par variable d'environnement (job Nomad, aucun patch)
 
