@@ -1,189 +1,74 @@
-# CLAUDE.md — Veridian CRM
+# CLAUDE.md : Veridian CRM
 
-> ## 🔴 Règle d'or Veridian — zéro contournement (gravée Robert 2026-06-10)
-> **Interdit absolu** : cron bricolé, SQLite/store parallèle, job maison pour
-> ÉVITER l'API ou la DB réelle de l'app. On travaille AVEC le vrai système :
-> coder propre → tester staging → fixer la logique → MAJ DB staging si besoin
-> → test lourd → push prod. Un blocage (accès, credential) se débloque via le
-> lead, il ne se contourne pas. Détail : CLAUDE.md racine veridian-platform.
+Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amont (Nx, tests, conventions) :
+`CLAUDE-TWENTY.md`. Ce fichier prime en cas de conflit. Ce qui diffère de l'amont : `VERIDIAN-PATCHES.md`.
 
+## 1. Vision
 
-> **Ce repo est un fork de `twentyhq/twenty` rebrandé Veridian CRM.**
->
-> Pour les directives techniques Twenty (commandes Nx, conventions tests, lint,
-> Storybook, archi NestJS), lire **`CLAUDE-TWENTY.md`** dans ce même dossier — il
-> reste la source de vérité pour le **comment ça tourne** côté Twenty upstream.
->
-> Ce fichier-ci grave les **règles Veridian** : licence, périmètre de travail,
-> intégrations cross-app, conventions agent. Il a **priorité** sur
-> `CLAUDE-TWENTY.md` en cas de conflit.
+- **Le plus petit fork qui tient.** Tout écart avec l'amont figure dans `VERIDIAN-PATCHES.md`, sinon c'est une
+  anomalie. Du code neuf dans `veridian-*`, de la variable d'environnement d'abord, du patch amont en dernier.
+  Une fonction Veridian retirée reste dans l'historique git (`git log --first-parent`).
+- **Le Hub, seule source des utilisateurs** (Robert, 06/11/2026). Twenty n'a ni inscription, ni mot de passe client,
+  ni changement d'email ou de nom hors Hub, ni invitation interne. Les tables `core` sont des copies alimentées par
+  `core-modules/veridian-hub-sso/`, identifiées par `hub_user_id` (= `hub_app.users.supabase_user_id`). Le contrat
+  est `veridian-hub/docs/CONTRAT-HUB.md` (§3.8, §5, §6bis.8.0) : c'est lui qui fait foi. Pas de base commune, pas d'OIDC.
+- **Rien ne sort sans décision.** Télémétrie, enrichissement, logos, iframes tierces, marketplace : coupés, et
+  prouvés par capture réseau et navigateur (`VERIDIAN-PATCHES.md`). Un nouveau canal amont est une anomalie.
+- **Staging d'abord.** La prod attend les serveurs. Staging : `crm.staging.veridian.site`, privé au tailnet, base neuve.
 
----
+**Décisions ouvertes, à Robert :** migrer ou non le workspace « Veridian » de l'archive
+`~/veridian/archives/crm-decommission-2026-09-23/` (base en 2.13, saut jamais testé, reco : ne pas migrer sans usage
+décidé) ; nom et image du fork avant toute prod (`.github/TRADEMARK.md` l'impose à un fork exploité publiquement).
 
-## 1. Contexte produit
+## 2. Licence : ligne rouge
 
-Veridian CRM est l'app **CRM customisable** de la suite Veridian. Elle vient en
-complément de `veridian-prospection` (cold outbound) et vise les clients qui
-ont besoin d'un CRM méta-modélisé (Object/Field/View dynamiques en DB).
+Chaque fichier `/* @license Enterprise */` (685 en v2.56.1) est sous licence commerciale :
 
-Stratégie produit (décidée 2026-05-25, gravée dans `docs/spec/00-VISION.md`) :
+- ne jamais le modifier, ni le copier, ni le lire pour s'en inspirer ; ne jamais patcher `enterprisePlanService.isValid()` ;
+- une fonction Enterprise voulue se réécrit en clean-room, dans un fichier neuf ;
+- aucune clé Enterprise, aucun achat sans l'accord de Robert.
 
-- 2 produits séparés (Prospection cold + CRM customisable)
-- Fork de Twenty (AGPLv3) + rebrand strict (trademark "Twenty" déposé, on ne le
-  garde nulle part dans l'UI)
-- Migration progressive des features Prospection → CRM (pas de big bang)
-- Moat Veridian = data (996K leads B2B) + service consulting + intégration
-  cross-app, **pas** le code
+`scripts/ci/check-ee-integrity.sh` le vérifie au push et en CI. La limite de workspaces vit dans un fichier AGPL et se
+patche légalement. AGPL : le code du fork reste public, le copyright d'origine reste dans les fichiers, le fork le dit.
 
-## 2. Licence — règles absolues
+## 3. Travailler dans ce dépôt
 
-### 🔴 LE PIÈGE PRINCIPAL : les 300 fichiers `/* @license Enterprise */`
+- Trunk sur `staging`, pas de PR. Promotion vers `main` quand la prod existera.
+- Tu touches ce dépôt seul. Un correctif ailleurs : ticket dans le `todo/` du dépôt cible, et signale-le.
+- Tickets : `todo/AAAA-MM-JJ-<sujet>.md`.
+- `docs/spec/` : notes de mai 2026, base légale incluse (`AUDIT-LIMITE-EE-TWENTY.md`). Ce fichier prime sur elles.
+- Paquets modifiés : `twenty-server`, `twenty-front`, `twenty-shared`. Les autres restent ceux de l'amont.
+- Base de données : pas de table Veridian, les liens Hub vivent dans `core.keyValuePair`.
 
-Twenty est **dual-licensé fichier par fichier** :
+## 4. Tests : ce qui prouve
 
-- Par défaut → **AGPLv3** (on peut modifier librement, à condition de publier
-  nos modifs)
-- **Fichiers marqués `/* @license Enterprise */` en tête → licence commerciale
-  Twenty Labs**. On a le droit de les LIRE (ils sont publics sur GitHub) mais
-  PAS de les modifier ni de les redistribuer activés.
-
-**Liste des features EE** (300 fichiers, cf `docs/spec/AUDIT-LIMITE-EE-TWENTY.md`) :
-SSO/SAML, custom domains Cloudflare, Row-Level Security (RLS), JWT key rotation,
-billing v2, audit logs, module `enterprise/` complet.
-
-**Règle de travail** :
-
-1. **Ne jamais modifier** un fichier qui commence par `/* @license Enterprise */`.
-2. **Ne jamais patcher** le check `enterprisePlanService.isValid()` pour
-   débloquer une feature EE — c'est de la contrefaçon.
-3. Si un client demande une feature EE → **réimplémentation clean room** dans
-   un fichier neuf sous AGPL Veridian, jamais en copiant du code EE.
-4. Les fichiers EE peuvent être **laissés inactifs** dans le repo (le check
-   `isValid()` retournera toujours `false` sans clé EE) ou **supprimés** si on
-   préfère un repo plus léger.
-
-### Modifs Veridian autorisées
-
-- ✅ `MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY = Number.MAX_SAFE_INTEGER`
-  (la limite des 5 workspaces est dans du code AGPL, pas EE)
-- ✅ Rebrand UI complet (logo, nom, couleurs, copy, emails)
-- ✅ Suppression / désactivation des packages non utilisés
-- ✅ Ajout de modules custom Veridian dans :
-  - `packages/twenty-server/src/modules/veridian-*/`
-  - `packages/twenty-front/src/modules/veridian-*/`
-- ✅ Intégrations cross-app (Hub auth, Prospection leads, Notifuse emails)
-
-### Obligations AGPL — non négociables
-
-- Publier le code source de notre fork (accessible aux utilisateurs SaaS via
-  un lien "Source code" en footer)
-- Garder le copyright `Twenty.com PBC` dans tous les fichiers d'origine
-- Indiquer clairement que c'est un fork modifié (README + footer SaaS)
-- Nos propres ajouts (`veridian-*/`) sont eux aussi sous AGPLv3
-
-## 3. Périmètre de travail — packages
-
-### Packages **actifs** (qu'on modifie)
-
-| Package | Rôle | Notes |
+| Commande | Prouve | Vue échouer |
 |---|---|---|
-| `twenty-server` | Backend NestJS (API GraphQL, auth, DB) | Cœur produit |
-| `twenty-front` | Frontend React (l'app web client) | À rebrand visuellement |
-| `twenty-shared` | Types + utils partagés front/server | Dep des 2 ci-dessus |
-| `twenty-ui` | Design system | À rebrand progressivement (couleurs, typo) |
-| `twenty-emails` | Templates React Email | Probablement à remplacer par appels Notifuse |
-| `twenty-front-component-renderer` | Rendu dynamique de composants | Dep front |
+| `scripts/ci/check-ee-integrity.sh` | aucun fichier Enterprise touché | fichier modifié, code 1 |
+| `scripts/ci/patch-survival.sh` (`--statique` au pre-push) | chaque patch présent, `*.veridian.spec.ts` | limite remise à 5, code 1 |
+| `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, connexion, déconnexion, navigateur sans hôte tiers | oui, plusieurs fois |
+| `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
-### Packages **ignorés** (ne pas modifier — supprimables jour J)
+Codes : 0 vrai, 1 faux, 2 mesure non aboutie. Le secret : `CRM_HUB_API_SECRET_STAGING` dans `.all-creds.env`.
+Le parcours crée et retire son compte de test ; une capture couvre le démarrage seulement si elle démarre avant lui.
 
-`twenty-docs`, `twenty-website`, `twenty-apps`, `twenty-sdk`, `twenty-client-sdk`,
-`twenty-companion`, `twenty-e2e-testing`, `twenty-zapier`, `twenty-claude-skills`,
-`twenty-oxlint-rules`, `twenty-cli`, `create-twenty-app`, `twenty-utils`.
+Lecture d'une session depuis le navigateur, sur l'hôte du workspace (cookie `__Host-twenty-session`, pas de jeton
+en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twenty-session-cookie: 1`, `{currentUser{email}}`.
 
-Ces packages sont liés au produit Twenty officiel (docs, marketing site, bot
-Discord, marketplace Zapier, etc.). Ils ne servent pas Veridian. Tant qu'on
-n'a pas confirmé qu'ils sont 100% retirables sans casser le build, on les
-laisse intacts.
+## 5. Construire et déployer
 
-### Cas spécial : `twenty-docker`
+- **Image : par la CI**, `.github/workflows/veridian-crm-ci.yaml`, sur nos runners : garde légale, patch-survival, image
+  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Compter près de 3 h (1 cœur réservé sur le runner). Pas de
+  `docker build` direct sur un nœud (règle de la plateforme, 07/11/2026) : hors CI, `lourd.sh` en `nice -n 19` sur un nœud libre.
+- `[skip ci]` dans un commit qui ne touche pas le produit. Un push normal annule la CI en cours sur la branche.
+- **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
+  push sur `staging`, puis `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl`. Le garde anti-recul refuse
+  tant que le commit n'est pas sur la branche distante.
+- **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
+  `timeout` (`restart-task` lancé sans le faire : écritures Nomad du parc bloquées 83 min le 07/11/2026).
+- Démarrage lent : chaque étape d'entrée recharge Nest. Environ 2 min au calme, plus de 20 min sur un nœud saturé.
+- Mémoire de pointe mesurée : serveur 1,2 Go, worker 1 Go, Postgres 170 Mo, Redis 140 Mo.
 
-Garder, mais **adapter** : c'est notre point de départ pour notre propre
-compose Veridian CRM (deploy via Dokploy + Traefik prod).
+## 6. Sync amont
 
-## 4. Identité : le Hub seul (décision Robert, 06/11/2026)
-
-Le Hub est la seule source des utilisateurs : Twenty ne connaît ni inscription directe, ni mot de passe
-client, ni changement d'email ou de nom hors Hub, ni invitation interne. Les tables `core` sont des copies
-alimentées par `core-modules/veridian-hub-sso/`, identifiées par `hub_user_id` (= `hub_app.users.supabase_user_id`).
-Détail des routes : `VERIDIAN-PATCHES.md`. Historique de la décision précédente : `docs/claude/01-historique-identite.md`.
-
-## 5. Conventions de travail agent
-
-### Trunk-based sur `staging` — pas de PR, pas de branche feature
-
-Cf `veridian-platform/CLAUDE.md` §"Règle d'or : trunk-based sur staging".
-
-- Tu travailles **direct sur `staging`** (`git push origin staging`)
-- Tu ne crées **PAS** de branche feature
-- Tu n'ouvres **PAS** de PR
-- Auto-promotion `staging` → `main` après smoke staging vert
-
-### Chaîne CI + déploiement
-
-Le CRM a été décommissionné le 23/09/2026, puis remonté en staging sur v2.56.1 le 06/11/2026.
-
-```
-push staging → veridian-crm-ci.yaml, sur nos runners (veridian-jit, aucun runner hébergé)
-  garde-legale → patch-survival → image ghcr.io/christ-roy/veridian-crm:staging-<sha7>
-déploiement : bump du tag dans ~/nomad-veridian/jobs/saas-staging/crm-staging.nomad.hcl,
-  commit, nomad-v deploy. Staging sur banc Tailscale. Pas de prod tant que les serveurs ne sont pas là.
-```
-
-Registre du fork et procédure de sync : `VERIDIAN-PATCHES.md`. Contrôle réseau : `scripts/ci/capture-sortante.sh`.
-
-### Hooks git versionnés (`.githooks/`)
-
-`git config core.hooksPath .githooks` (à faire une fois par clone — déjà fait
-sur le repo local). Le `pre-push` refuse : modification d'un fichier
-`@license Enterprise` (contrefaçon), push d'une branche hors staging/main,
-secrets évidents dans le diff. Pas de husky : pas de `node_modules` en local
-(machine saturée), la batterie complète tourne en CI.
-
-### Un agent par app, pas de cross-touch
-
-Tu es l'agent **veridian-crm**. Tu touches **uniquement** ce repo. Si tu vois
-un fix évident dans `veridian-hub`, `veridian-prospection`, `veridian-cms`,
-`notifuse-veridian`, `veridian-analytics`, `veridian-infra` → **tu ne touches
-pas**. Tu déposes un ticket dans le `todo/` du repo cible et tu préviens
-Robert.
-
-### Convention `todo/`
-
-Ce repo a un dossier `todo/` à sa racine :
-
-```
-todo/
-├── YYYY-MM-DD-<slug>.md   ← ticket actif (à la racine)
-├── README.md               ← index
-├── done/                   ← archive
-└── blocked/  (optionnel)   ← en attente externe
-```
-
-Au début de chaque session, vérifier `todo/` — c'est ta file d'attente.
-
-## 6. Spec produit Veridian
-
-Toute la spec produit Veridian (décisions Robert, archi cible, sprint
-decomposition, intégrations) vit dans `docs/spec/` :
-
-- `00-VISION.md` — vision produit finale (décisions Robert verrouillées)
-- `01-archi-meta-modele.md` — archi Twenty + adaptations Veridian
-- `02-rebrand-checklist.md` — checklist rebrand strict
-- `03-integration-hub-auth.md` — intégration Hub auth
-- `04-module-leads-b2b.md` — pull leads depuis Prospection
-- `05-module-notifuse-mail.md` — push campagnes vers Notifuse
-- `06-deploiement-infra.md` — Dokploy + Traefik + CI/CD
-- `07-sprint-decomposition.md` — Vague 11.1-11.5 (~8 semaines, ~14 agents cumul)
-- `08-questions-ouvertes.md` — questions à trancher avec Robert
-- `AUDIT-TWENTY-DETAIL-P0.md` — 30+ questions techniques d'audit micro
-- `AUDIT-LIMITE-EE-TWENTY.md` — cadre légal AGPL/EE (à lire avant tout)
+Procédure dans `VERIDIAN-PATCHES.md`. Après un sync, supprimer les workflows amont réapparus (aucun runner GitHub hébergé).
