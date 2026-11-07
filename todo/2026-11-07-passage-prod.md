@@ -7,7 +7,12 @@ Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBack
 ## Ce qui bloque, dans l'ordre
 
 1. **`infra` donne le signal** après la bascule Hub de 23h, même nœud : rien avant.
-2. **La parente fait rendre public le code du fork** par Robert (AGPL) : le lien du pied de page mène sinon à un 404 pour un client. Bloque l'ouverture aux clients, pas le déploiement.
+
+## AGPL : à chaque image de prod
+
+Code publié sur https://github.com/Christ-Roy/veridian-crm-source (un commit, sans historique, publié par la parente depuis `7a319d05b4`), lien du pied de page dessus.
+Il doit correspondre à ce qui est servi : republier avant chaque prod, sans `.env.test`, `deploy/`, `docs/`, `todo/`, `scripts/ci/`, `.github`, ni les manifestes k8s d'exemple.
+Trois lignes de tests et un yarn y portent le marqueur `check-no-secrets:allow` ou une construction à l'exécution, la fixture granola est construite par join : reporter le même changement si ces fichiers bougent.
 
 ## Passage
 
