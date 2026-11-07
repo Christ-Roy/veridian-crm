@@ -15,7 +15,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-e0376ab" # promu après parcours en staging
+  default = "staging-7a319d0" # promu après parcours en staging
 }
 
 job "crm" {

@@ -7,8 +7,7 @@ Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBack
 ## Ce qui bloque, dans l'ordre
 
 1. **`infra` donne le signal** après la bascule Hub de 23h, même nœud : rien avant.
-2. **`infra` déclare** `@job crm-db prod` dans `nodes/fusibles-io.conf` (seul ✗ de `nomad-v preflight deploy/crm-db.nomad.hcl`) et ajoute `crm-db` à `jobs/SOURCES.tsv`.
-3. **La parente fait rendre public le code du fork** par Robert (AGPL) : le lien du pied de page mène sinon à un 404 pour un client. Bloque l'ouverture aux clients, pas le déploiement.
+2. **La parente fait rendre public le code du fork** par Robert (AGPL) : le lien du pied de page mène sinon à un 404 pour un client. Bloque l'ouverture aux clients, pas le déploiement.
 
 ## Passage
 
@@ -16,7 +15,7 @@ Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBack
    `nomad/jobs/crm-db` : `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, plus `SFTP_REPO_*` et `PGBACKREST_CIPHER_PASS` posés par `infra` ;
    `nomad/jobs/crm` : les mêmes `POSTGRES_PASSWORD` et `REDIS_PASSWORD`, `APP_SECRET`, `HUB_API_SECRET`.
 2. Volumes sur `ovh-prod`, commandes en tête de chaque job. DNS `crm.app` et `*.crm.app` : vérifier qu'ils pointent sur l'ingress du nœud.
-3. Promouvoir `staging` sur `main`, ou laisser `jobs/SOURCES.tsv` sur `origin/staging` tant que `main` n'existe pas : à décider avec `infra`.
+3. Promouvoir `staging` sur `main` le jour du déploiement ; `infra` bascule alors `jobs/SOURCES.tsv` dessus (sa décision : le banc ne doit pas changer la source de la prod). Le contrat, `SOURCES` et le fusible I/O sont posés, `nomad-v preflight` vert sur les deux jobs.
 4. `echo oui | timeout 280 nomad-v deploy deploy/crm-db.nomad.hcl`, puis `deploy/crm-prod.nomad.hcl`. La base doit être saine avant le serveur : pas de tâche d'attente, le `restart` couvre.
 5. Épreuves sur ce qui est servi : `capture-sortante.sh` lancée dès le démarrage (elle vise un conteneur du job, à adapter : `crm-db` ne redémarre plus avec l'app), `parcours-staging.py https://crm.app.veridian.site`, `charge-staging.py` hors heures de bureau sur ce nœud partagé, comparer les variables au staging, `pnpm test:systeme` avec `TWENTY_URL=https://crm.app.veridian.site`.
 6. Écrire à `infra` dès que le service répond : blackbox, `sonde-prod.sh`, stanza, dépôt et drill pgBackRest, volume `storage`.
