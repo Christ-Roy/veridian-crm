@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-d114725"
+  default = "staging-6b05bdc"
 }
 
 job "crm-staging" {
