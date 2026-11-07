@@ -44,6 +44,9 @@ refuse() {
 }
 refuse packages/twenty-front/src/pages/settings/members/SettingsWorkspaceMembers.tsx "SettingsWorkspaceMembersInviteTab"
 refuse packages/twenty-front/src/pages/settings/profile/SettingsProfile.tsx "<DeleteAccount"
+refuse packages/twenty-front/src/pages/settings/profile/SettingsProfile.tsx "Two Factor Authentication"
+refuse packages/twenty-front/src/modules/settings/security/components/SettingsSecurityAuthProvidersOptionsList.tsx "<TwoFactorAuthenticationSwitch"
+refuse packages/twenty-front/src/modules/settings/members/components/MemberInfosTab.tsx "MemberTwoFactorAuthenticationRecoverySection"
 refuse packages/twenty-front/src/pages/settings/general/SettingsGeneral.tsx "<DeleteWorkspace"
 refuse packages/twenty-front/src/modules/settings/members/components/MemberInfosTab.tsx "Delete account"
 refuse packages/twenty-front/src/modules/settings/security/components/SettingsSecurityAuthProvidersOptionsList.tsx "Invite by Link"

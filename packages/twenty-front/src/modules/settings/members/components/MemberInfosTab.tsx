@@ -3,10 +3,8 @@ import { useState } from 'react';
 
 import { MemberEmailField } from '@/settings/members/components/MemberEmailField';
 import { MemberNameFields } from '@/settings/members/components/MemberNameFields';
-import { MemberTwoFactorAuthenticationRecoverySection } from '@/settings/members/components/MemberTwoFactorAuthenticationRecoverySection';
 import { WorkspaceMemberPictureUploader } from '@/settings/workspace-member/components/WorkspaceMemberPictureUploader';
 import { type WorkspaceMember } from '@/workspace-member/types/WorkspaceMember';
-import { isDefined } from 'twenty-shared/utils';
 import { Section } from 'twenty-ui/components/layout';
 import { Button } from 'twenty-ui/primitives/input';
 import { themeCssVariables } from 'twenty-ui/theme';
@@ -35,7 +33,6 @@ export const MemberInfosTab = ({
   member,
   onNameChange,
   onImpersonate,
-  twoFactorAuthenticationRecoveryUserId,
 }: MemberInfosTabProps) => {
   const { t } = useLingui();
   const [firstName, setFirstName] = useState(member.name.firstName);
@@ -85,14 +82,6 @@ export const MemberInfosTab = ({
         />
         <MemberEmailField email={member.userEmail} />
       </Section.Root>
-
-      {isDefined(twoFactorAuthenticationRecoveryUserId) && (
-        <MemberTwoFactorAuthenticationRecoverySection
-          key={twoFactorAuthenticationRecoveryUserId}
-          userId={twoFactorAuthenticationRecoveryUserId}
-          memberName={`${firstName} ${lastName}`.trim()}
-        />
-      )}
 
       {onImpersonate && (
         <Section.Root>

@@ -34,6 +34,5 @@ Au jour J : capture réseau sur le démarrage et le parcours (`capture-sortante.
 ## Limites connues
 
 - `EMAIL_DRIVER=logger` : aucun email ne part, envois de workflow compris, et le rebrand des gabarits (`twenty-emails`) reste à faire si on branche un relais.
-- 2FA locale encore proposée au profil : peut s'interposer après le rebond du Hub, jamais éprouvé, à trancher avec le Hub.
 - Un seul groupe Nomad : mettre à jour l'image redémarre aussi Postgres et Redis, coupure égale au démarrage.
 - Pas de volume réel testé au-delà de 5 000 sociétés. Fonctions Veridian retirées : `VERIDIAN-PATCHES.md`, « Retiré ou reporté ».

@@ -8,7 +8,7 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 - **Le plus petit fork qui tient.** Tout écart avec l'amont figure dans `VERIDIAN-PATCHES.md`, sinon c'est une
   anomalie. Du code neuf dans `veridian-*`, de la variable d'environnement d'abord, du patch amont en dernier.
   Une fonction Veridian retirée reste dans l'historique git (`git log --first-parent`).
-- **Le Hub, seule source des utilisateurs** (Robert, 06/11/2026). Twenty n'a ni inscription, ni mot de passe client,
+- **Le Hub, seule source des utilisateurs** (Robert, 06/11/2026). Twenty n'a ni inscription, ni mot de passe client, ni double authentification locale,
   ni changement d'email ou de nom hors Hub, ni invitation interne. Les tables `core` sont des copies alimentées par
   `core-modules/veridian-hub-sso/`, identifiées par `hub_user_id` (= `hub_app.users.supabase_user_id`). Le contrat
   est `veridian-hub/docs/CONTRAT-HUB.md` (§3.8, §5, §6bis.8.0) : c'est lui qui fait foi. Pas de base commune, pas d'OIDC.

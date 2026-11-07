@@ -1,5 +1,4 @@
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
-import { SettingsCard } from '@/settings/components/SettingsCard';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
 import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
 import { EmailField } from '@/settings/profile/components/EmailField';
@@ -7,26 +6,16 @@ import { NameFields } from '@/settings/profile/components/NameFields';
 import { SetOrChangePassword } from '@/settings/profile/components/SetOrChangePassword';
 import { SettingsProfileDevicesSection } from '@/settings/profile/devices/components/SettingsProfileDevicesSection';
 import { useCanChangePassword } from '@/settings/profile/hooks/useCanChangePassword';
-import { useCurrentUserWorkspaceTwoFactorAuthentication } from '@/settings/two-factor-authentication/hooks/useCurrentUserWorkspaceTwoFactorAuthentication';
 import { WorkspaceMemberPictureUploader } from '@/settings/workspace-member/components/WorkspaceMemberPictureUploader';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { Trans, useLingui } from '@lingui/react/macro';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
 import { Section } from 'twenty-ui/components/layout';
-import { IconShield } from 'twenty-ui/icon';
-import { Status } from 'twenty-ui/primitives/data-display';
 
 export const SettingsProfile = () => {
   const { t } = useLingui();
   const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
-
-  const { currentUserWorkspaceTwoFactorAuthenticationMethods } =
-    useCurrentUserWorkspaceTwoFactorAuthentication();
-
-  const has2FAMethod =
-    currentUserWorkspaceTwoFactorAuthenticationMethods['TOTP']?.status ===
-    'VERIFIED';
 
   const { canChangePassword } = useCanChangePassword();
 
@@ -65,27 +54,6 @@ export const SettingsProfile = () => {
             description={t`The email associated to your account`}
           />
           <EmailField />
-        </Section.Root>
-        <Section.Root>
-          <Section.Header
-            title={t`Two Factor Authentication`}
-            description={t`Enhances security by requiring a code along with your password`}
-          />
-          <SettingsCard
-            to={getSettingsPath(
-              SettingsPath.TwoFactorAuthenticationStrategyConfig,
-              { twoFactorAuthenticationStrategy: 'TOTP' },
-            )}
-            title={t`Authenticator App`}
-            Icon={<IconShield />}
-            Status={
-              has2FAMethod ? (
-                <Status color="turquoise">{t`Active`}</Status>
-              ) : (
-                <Status color="gray">{t`Deactivated`}</Status>
-              )
-            }
-          />
         </Section.Root>
         {canChangePassword && (
           <Section.Root>

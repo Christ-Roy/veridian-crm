@@ -248,6 +248,8 @@ with sync_playwright() as p:
         deleteCurrentWorkspace: await f('mutation{deleteCurrentWorkspace{id}}'),
         lienInvitation: await f('mutation{updateWorkspace(data:{isPublicInviteLinkEnabled:true}){id}}'),
         motDePasse: await f('mutation{updateWorkspace(data:{isPasswordAuthEnabled:true}){id}}'),
+        double: await f('mutation{updateWorkspace(data:{isTwoFactorAuthenticationEnforced:true}){id}}'),
+        doubleOtp: await f('mutation{initiateOTPProvisioningForAuthenticatedUser{uri}}'),
         temoin: await f('{currentWorkspace{id isPasswordAuthEnabled isPublicInviteLinkEnabled editableProfileFields}}'),
       };
     }""", h)
@@ -261,8 +263,8 @@ with sync_playwright() as p:
         return page.get_by_text(texte, exact=True).locator("visible=true").count() > 0
 
     page.goto(racine + "/settings/profile", wait_until="domcontentloaded")
-    page.get_by_text("Authenticator App").locator("visible=true").first.wait_for(timeout=60000)
-    controle("profil : pas de suppression de compte", not visible("Delete account") and not visible("Leave workspace"))
+    page.get_by_text("Your name as it will be displayed").locator("visible=true").first.wait_for(timeout=60000)
+    controle("profil : pas de suppression de compte ni de 2FA locale", not visible("Delete account") and not visible("Leave workspace") and not visible("Authenticator App"))
     controle("profil : nom et email en lecture seule, mot de passe absent",
              page.locator("input:visible:not([disabled]):not([type=checkbox])").count() == 0 and not visible("Change Password") and not visible("Set Password"),
              f"{page.locator('input:visible:not([disabled]):not([type=checkbox])').count()} champ(s) actif(s)")

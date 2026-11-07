@@ -22,6 +22,15 @@ export const MUTATIONS_RESERVED_TO_HUB = new Set([
   'deleteUser',
   'deleteUserFromWorkspace',
   'deleteCurrentWorkspace',
+  // Two-factor authentication lives on the Hub alone.
+  'initiateOTPProvisioning',
+  'initiateOTPProvisioningForAuthenticatedUser',
+  'verifyTwoFactorAuthenticationMethodForAuthenticatedUser',
+  'deleteTwoFactorAuthenticationMethod',
+  'generateTwoFactorAuthenticationRecoveryCode',
+  'revokeTwoFactorAuthenticationRecoveryCode',
+  'getAuthTokensFromOTP',
+  'getAuthTokensFromTwoFactorAuthenticationRecoveryCode',
 ]);
 
 // A workspace admin must not reopen what provisioning closed.
@@ -30,6 +39,7 @@ export const WORKSPACE_SETTINGS_RESERVED_TO_HUB = [
   'isPasswordAuthEnabled',
   'isPasswordAuthBypassEnabled',
   'isPublicInviteLinkEnabled',
+  'isTwoFactorAuthenticationEnforced',
 ];
 
 @Injectable()

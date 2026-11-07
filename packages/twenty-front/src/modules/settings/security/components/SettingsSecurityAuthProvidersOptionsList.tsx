@@ -29,7 +29,6 @@ import {
 } from '~/generated-metadata/graphql';
 
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { TwoFactorAuthenticationSwitch } from './TwoFactorAuthenticationSwitch';
 
 const StyledSettingsSecurityOptionsList = styled.div`
   display: flex;
@@ -231,7 +230,6 @@ export const SettingsSecurityAuthProvidersOptionsList = () => {
                 />
               </SettingsOptionCardContentSelect>
             )}
-            <TwoFactorAuthenticationSwitch />
           </Card.Root>
         </>
       )}

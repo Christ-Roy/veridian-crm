@@ -37,6 +37,14 @@ describe('HubOnlyIdentityGuard', () => {
       'deleteUser',
       'deleteUserFromWorkspace',
       'deleteCurrentWorkspace',
+      'initiateOTPProvisioning',
+      'initiateOTPProvisioningForAuthenticatedUser',
+      'verifyTwoFactorAuthenticationMethodForAuthenticatedUser',
+      'deleteTwoFactorAuthenticationMethod',
+      'generateTwoFactorAuthenticationRecoveryCode',
+      'revokeTwoFactorAuthenticationRecoveryCode',
+      'getAuthTokensFromOTP',
+      'getAuthTokensFromTwoFactorAuthenticationRecoveryCode',
     ]) {
       expect(MUTATIONS_RESERVED_TO_HUB.has(mutation)).toBe(true);
     }
@@ -64,6 +72,7 @@ describe('HubOnlyIdentityGuard', () => {
     'isPasswordAuthEnabled',
     'isPasswordAuthBypassEnabled',
     'isPublicInviteLinkEnabled',
+    'isTwoFactorAuthenticationEnforced',
   ])(
     'refuses reopening %s, lets other workspace settings through',
     (setting) => {

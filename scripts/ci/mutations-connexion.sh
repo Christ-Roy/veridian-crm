@@ -52,10 +52,10 @@ saboter "5. espace demandé ignoré" "$S" 'ownNext?.subdomain ?? null' 'null'
 saboter "6. revoke_sessions sans effet" "$S" 'if (revokeSessions === true) {' 'if (false as boolean) {'
 saboter "boucle : garde retirée" "$N" 'if (url === navigatingToUrl) {' 'if (false as boolean) {'
 
-for mutation in deleteUser deleteUserFromWorkspace deleteCurrentWorkspace; do
+for mutation in deleteUser deleteUserFromWorkspace deleteCurrentWorkspace initiateOTPProvisioning initiateOTPProvisioningForAuthenticatedUser verifyTwoFactorAuthenticationMethodForAuthenticatedUser deleteTwoFactorAuthenticationMethod generateTwoFactorAuthenticationRecoveryCode revokeTwoFactorAuthenticationRecoveryCode getAuthTokensFromOTP getAuthTokensFromTwoFactorAuthenticationRecoveryCode; do
   saboter "garde : $mutation permis" "$G" "  '$mutation',"$'\n' ""
 done
-for reglage in editableProfileFields isPasswordAuthEnabled isPasswordAuthBypassEnabled isPublicInviteLinkEnabled; do
+for reglage in editableProfileFields isPasswordAuthEnabled isPasswordAuthBypassEnabled isPublicInviteLinkEnabled isTwoFactorAuthenticationEnforced; do
   saboter "garde : $reglage rouvrable" "$G" "  '$reglage',"$'\n' ""
 done
 saboter "garde : réouverture ignorée" "$G" "isRenaming ||"$'\n'"      isReopening" "isRenaming"
