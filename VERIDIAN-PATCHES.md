@@ -16,7 +16,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `core-modules/core-engine.module.ts` | importe `VeridianHubSsoModule` | Hub seule source d'identité | `patch-survival.sh` |
 | `core-modules/auth/auth.module.ts` | exporte `SignInUpService` | provisioning par le Hub | `patch-survival.sh` |
 | `twenty-front/src/pages/auth/SignInUp.tsx` | `useRedirectToHubLogin()` | sans session, renvoi vers le Hub, navigation interne comprise | `patch-survival.sh` |
-| `twenty-front/src/modules/auth/hooks/useAuth.ts` | déconnexion vers `/welcome?logout=1` | clic explicite : Hub sans `next`, pas de reconnexion silencieuse (arbitrage Hub, 07/11/2026) | `patch-survival.sh` |
+| `twenty-front/src/modules/auth/hooks/useAuth.ts` | déconnexion vers `/welcome?logout=1` | clic explicite : pose le cookie local, pas de reconnexion silencieuse (§6bis.8.0) | `patch-survival.sh` |
 | `DefaultWorkspaceLogo.ts`, `OnboardingNetworkPreviewPeople.ts` (`twenty-front`) | image embarquée, avatar vide | le navigateur appelait twentyhq.github.io | `patch-survival.sh` |
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
@@ -32,11 +32,11 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `POST /api/tenants/:id/remove-member` | retire un membre, données conservées | §5.19.2 |
 | `POST /api/hub/users/sync`, `GET /api/hub/users` | copie nom, email et suppression ; liste pour l'audit | §3.8 |
 | `GET /api/users/by-email` | workspaces d'une adresse | §5.12 |
-| `GET /welcome`, `GET /welcome?logout=1` | renvoie vers `HUB_LOGIN_URL`, avec `next` sauf après déconnexion | §6bis.8.1, §6bis.7.1 |
+| `GET /welcome` | rebond `auto=1` une seule fois ; après déconnexion, en iframe ou après un essai : page « Continuer » sans `auto` | §6bis.8.0 |
 
 `HubOnlyIdentityGuard` refuse inscription, connexion par mot de passe, invitations, changement d'email ou de
 nom sur les résolveurs Nest. `WorkspaceMemberIdentityPreQueryHook` ferme le renommage sur les API générées. Le lien porte un login token Twenty : 15 min, à usage unique, consommé par `/verify`. Liens Hub dans
-`core.keyValuePair`, aucune table neuve. Variables : `HUB_API_SECRET`, `HUB_API_SECRET_NEXT`, `HUB_LOGIN_URL`,
+`core.keyValuePair`, aucune table neuve. Variables : `HUB_API_SECRET`, `HUB_API_SECRET_NEXT`, `HUB_URL`,
 `HUB_SERVER_ADMIN_EMAILS`. Sans secret, les routes répondent 503.
 
 Hors du lot, arbitré par le Hub le 06/11/2026 : `update-plan`, `suspend`, `resume`, `health`, `DELETE`, et toute clé API au provisioning (§3.8 : les clés machine restent locales).

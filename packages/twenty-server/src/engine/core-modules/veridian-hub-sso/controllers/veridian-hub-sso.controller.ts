@@ -11,17 +11,24 @@ import {
 } from '@nestjs/common';
 
 import { isNonEmptyString } from '@sniptt/guards';
-import { type Request, type Response } from 'express';
+import { type CookieOptions, type Request, type Response } from 'express';
 
 import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.exception';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
+import { buildSignInPage } from 'src/engine/core-modules/veridian-hub-sso/utils/build-sign-in-page.util';
+import { parseOwnUrl } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util';
 import { isHubSignatureValid } from 'src/engine/core-modules/veridian-hub-sso/utils/is-hub-signature-valid.util';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { PublicEndpointGuard } from 'src/engine/guards/public-endpoint.guard';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const SIGNED_OUT_COOKIE = 'veridian_signed_out';
+const AUTO_TRY_COOKIE = 'veridian_hub_try';
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 const SUPPORTED_PLANS = [
   'free',
@@ -93,7 +100,7 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const { email, hub_user_id: hubUserId } = request.body ?? {};
+    const { email, hub_user_id: hubUserId, next } = request.body ?? {};
 
     if (!isNonEmptyString(email) || !UUID_PATTERN.test(hubUserId ?? '')) {
       return this.rejectInvalidBody(response);
@@ -103,6 +110,7 @@ export class VeridianHubSsoController {
       const magicLinkUrl = await this.veridianHubSsoService.issueMagicLinkUrl(
         hubUserId,
         email,
+        next,
       );
 
       if (!magicLinkUrl) {
@@ -123,35 +131,96 @@ export class VeridianHubSsoController {
   }
 
   @Get('auth/token')
-  async followMagicLink(@Query('t') token: string, @Res() response: Response) {
+  async followMagicLink(
+    @Query('t') token: string,
+    @Query('next') nextPath: string,
+    @Res() response: Response,
+  ) {
     const redirectUrl = isNonEmptyString(token)
-      ? await this.veridianHubSsoService.resolveRedirectUrl(token)
+      ? await this.veridianHubSsoService.resolveRedirectUrl(token, nextPath)
       : null;
+
+    if (redirectUrl) {
+      // Successful sign-in: both markers of §6bis.8.0 fall.
+      for (const cookie of [SIGNED_OUT_COOKIE, AUTO_TRY_COOKIE]) {
+        response.clearCookie(cookie, this.markerCookieOptions());
+      }
+    }
 
     return response.redirect(
       redirectUrl ?? this.twentyConfigService.get('SERVER_URL'),
     );
   }
 
-  // Nobody signs in here: the login page sends to the Hub, which bounces back. After an
-  // explicit sign-out there is no bounce: an open Hub session must not reopen Twenty.
+  private markerCookieOptions(): CookieOptions {
+    const server = new URL(this.twentyConfigService.get('SERVER_URL'));
+
+    // Scoped to this app and its workspaces, never to .veridian.site.
+    return {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: server.protocol === 'https:',
+      ...(server.hostname === 'localhost' ? {} : { domain: server.hostname }),
+    };
+  }
+
+  // Nobody signs in here: CONTRAT-HUB §6bis.8.0, automatic bounce to the Hub, once,
+  // on a full navigation only. Otherwise this page, whose button bounces without `auto`.
   @Get('welcome')
-  async redirectToHub(
+  async welcome(
     @Query('logout') logout: string,
+    @Query('next') next: string,
+    @Req() request: Request,
     @Res() response: Response,
   ) {
-    const hubLoginUrl = process.env.HUB_LOGIN_URL;
-    const next = this.twentyConfigService.get('SERVER_URL');
+    const hubUrl = process.env.HUB_URL;
 
-    if (!hubLoginUrl) {
+    if (!hubUrl) {
       return response.status(503).json({ error: 'hub_sso_not_configured' });
     }
 
-    return response.redirect(
-      logout === '1'
-        ? hubLoginUrl
-        : `${hubLoginUrl}?next=${encodeURIComponent(next)}`,
-    );
+    const serverUrl = this.twentyConfigService.get('SERVER_URL');
+    const fetchDest = readHeader(request, 'sec-fetch-dest');
+    const fetchMode = readHeader(request, 'sec-fetch-mode');
+
+    if (fetchMode !== undefined && fetchMode !== 'navigate') {
+      return response.status(401).json({ error: 'unauthenticated' });
+    }
+
+    const target = parseOwnUrl(next, serverUrl)
+      ? next
+      : (parseOwnUrl(
+          `${request.protocol}://${readHeader(request, 'host')}/`,
+          serverUrl,
+        )?.origin ?? serverUrl);
+    const bounce = `${hubUrl}/api/auth/bounce/prepare?next=${encodeURIComponent(target)}`;
+    const cookies = readHeader(request, 'cookie') ?? '';
+    const options = this.markerCookieOptions();
+
+    if (logout === '1') {
+      response.cookie(SIGNED_OUT_COOKIE, '1', {
+        ...options,
+        maxAge: ONE_YEAR_MS,
+      });
+    }
+
+    const isBlocked =
+      logout === '1' ||
+      cookies.includes(`${SIGNED_OUT_COOKIE}=`) ||
+      cookies.includes(`${AUTO_TRY_COOKIE}=`) ||
+      fetchDest === 'iframe';
+
+    if (isBlocked) {
+      return response
+        .status(200)
+        .type('html')
+        .send(buildSignInPage(bounce));
+    }
+
+    response.cookie(AUTO_TRY_COOKIE, '1', { ...options, maxAge: FIVE_MINUTES_MS });
+
+    return response.redirect(`${bounce}&auto=1`);
   }
 
   @Post('api/tenants/provision')
@@ -339,7 +408,13 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const { hub_user_id: hubUserId, email, name, deleted } = request.body ?? {};
+    const {
+      hub_user_id: hubUserId,
+      email,
+      name,
+      deleted,
+      revoke_sessions: revokeSessions,
+    } = request.body ?? {};
 
     if (!UUID_PATTERN.test(hubUserId ?? '')) {
       return this.rejectInvalidBody(response);
@@ -350,6 +425,7 @@ export class VeridianHubSsoController {
       email,
       name,
       deleted,
+      revokeSessions,
     });
 
     return synced

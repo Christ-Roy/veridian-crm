@@ -11,6 +11,7 @@ import { LoginTokenService } from 'src/engine/core-modules/auth/token/services/l
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
+import { parseOwnUrl } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util';
 import { WorkspaceDomainsService } from 'src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service';
 import {
   KeyValuePairEntity,
@@ -143,7 +144,11 @@ export class VeridianHubSsoService {
     return byEmail;
   }
 
-  private async buildMagicLink(email: string, workspaceId: string) {
+  private async buildMagicLink(
+    email: string,
+    workspaceId: string,
+    nextPath?: string,
+  ) {
     const { token } = await this.loginTokenService.generateLoginToken(
       email,
       workspaceId,
@@ -157,6 +162,10 @@ export class VeridianHubSsoService {
 
     url.searchParams.set('t', token);
 
+    if (nextPath) {
+      url.searchParams.set('next', nextPath);
+    }
+
     return url.toString();
   }
 
@@ -164,6 +173,7 @@ export class VeridianHubSsoService {
   async issueMagicLinkUrl(
     hubUserId: string,
     rawEmail: string,
+    next?: unknown,
   ): Promise<string | null> {
     await this.throttlerService.tokenBucketThrottleOrThrow(
       `veridian-hub-sso:issue-magic-link:${hubUserId}`,
@@ -178,6 +188,12 @@ export class VeridianHubSsoService {
       return null;
     }
 
+    const ownNext = parseOwnUrl(
+      next,
+      this.twentyConfigService.get('SERVER_URL'),
+    );
+
+    // The workspace the user asked for wins, if he belongs to it. Otherwise the last active one.
     const [lastActiveMembership] = await this.userWorkspaceRepository.query(
       `SELECT uw."workspaceId"
          FROM core."userWorkspace" uw
@@ -187,19 +203,28 @@ export class VeridianHubSsoService {
           AND uw."deletedAt" IS NULL
           AND w."deletedAt" IS NULL
           AND w."activationStatus" = $2
-        GROUP BY uw."workspaceId", uw."createdAt"
-        ORDER BY MAX(s."lastActiveAt") DESC NULLS LAST, uw."createdAt" DESC
+        GROUP BY uw."workspaceId", uw."createdAt", w.subdomain
+        ORDER BY (w.subdomain = $3) DESC NULLS LAST,
+                 MAX(s."lastActiveAt") DESC NULLS LAST,
+                 uw."createdAt" DESC
         LIMIT 1`,
-      [user.id, WorkspaceActivationStatus.ACTIVE],
+      [user.id, WorkspaceActivationStatus.ACTIVE, ownNext?.subdomain ?? null],
     );
 
     return lastActiveMembership
-      ? this.buildMagicLink(user.email, lastActiveMembership.workspaceId)
+      ? this.buildMagicLink(
+          user.email,
+          lastActiveMembership.workspaceId,
+          ownNext?.path,
+        )
       : null;
   }
 
   // The token stays unconsumed here: /verify on the workspace domain consumes it.
-  async resolveRedirectUrl(token: string): Promise<string | null> {
+  async resolveRedirectUrl(
+    token: string,
+    nextPath?: string,
+  ): Promise<string | null> {
     try {
       const { workspaceId } =
         await this.loginTokenService.verifyLoginToken(token);
@@ -216,7 +241,12 @@ export class VeridianHubSsoService {
         .buildWorkspaceURL({
           workspace,
           pathname: AppPath.Verify,
-          searchParams: { loginToken: token },
+          searchParams: {
+            loginToken: token,
+            ...(nextPath?.startsWith('/') && !nextPath.startsWith('//')
+              ? { returnToPath: nextPath }
+              : {}),
+          },
         })
         .toString();
     } catch {
@@ -489,11 +519,13 @@ export class VeridianHubSsoService {
     email,
     name,
     deleted,
+    revokeSessions,
   }: {
     hubUserId: string;
     email?: string;
     name?: string;
     deleted?: boolean;
+    revokeSessions?: boolean;
   }) {
     const user = await this.findUserByHubUserId(hubUserId);
 
@@ -505,6 +537,13 @@ export class VeridianHubSsoService {
       await this.cutAccess(user.id);
 
       return true;
+    }
+
+    if (revokeSessions === true) {
+      await this.userSessionService.revokeAllSessionsForUser({
+        userId: user.id,
+        reason: UserSessionRevokedReason.UserRevoked,
+      });
     }
 
     if (email && email.toLowerCase() !== user.email) {

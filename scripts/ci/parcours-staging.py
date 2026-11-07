@@ -10,7 +10,7 @@
 Usage : HUB_API_SECRET=... parcours-staging.py <url> <dossier-sortie> [nb-workspaces]
 Sortie : 0 parcours réussi · 1 échec · 2 mesure non aboutie
 """
-import hashlib, hmac, json, os, re, sys, time, urllib.error, urllib.parse, urllib.request, uuid
+import atexit, hashlib, hmac, json, os, re, sys, time, urllib.error, urllib.parse, urllib.request, uuid
 from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
@@ -76,6 +76,8 @@ if not SECRET:
     sys.exit(2)
 
 HUB_ID = str(uuid.uuid4())
+# Compte de test retiré quoi qu'il arrive, sinon il pollue la dérive du Hub.
+atexit.register(lambda: signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True}))
 
 # ── 1. identité fermée : le Hub seul
 controle("inscription directe refusée", refus("mutation($e:String!,$p:String!){signUp(email:$e,password:$p){tokens{accessOrWorkspaceAgnosticToken{token}}}}", {"e": EMAIL, "p": MDP}))
@@ -133,6 +135,11 @@ code, texte = lecture(requete, "")
 controle("GET /api/users/by-email", code == 200 and json.loads(texte).get("found") is True and len(json.loads(texte)["workspaces"]) == NB, f"{code} {texte[:120]}")
 
 # ── 3. lien signé, navigateur
+cible = BASE + "/objects/people"
+code, texte = signe("/api/sso/issue-magic-link", {"hub_user_id": HUB_ID, "email": EMAIL, "next": "https://evil.example/x"})
+controle("next hors origine ignoré", code == 200 and "evil" not in texte and "next=" not in texte, texte[:100])
+code, texte = signe("/api/sso/issue-magic-link", {"hub_user_id": HUB_ID, "email": EMAIL, "next": cible})
+controle("next sur l'origine conservé", code == 200 and "next=%2Fobjects%2Fpeople" in texte, texte[-60:])
 code, texte = rebond(HUB_ID, EMAIL)
 lien = json.loads(texte).get("magic_link_url", "") if code == 200 else ""
 controle("signature valide : 200 et lien /auth/token", code == 200 and "/auth/token?t=" in lien, f"{code} {lien[:60]}")
@@ -235,15 +242,46 @@ with sync_playwright() as p:
     page.wait_for_timeout(9000)
     page.screenshot(path=f"{OUT}/2-personnes.png")
     controle("personne créée et relue après rechargement", page.get_by_text("PersonneParcours").count() > avant)
+    # Lecture de session, celle que la batterie du Hub utilise.
+    lire = """async () => (await fetch('/metadata', {method: 'POST', credentials: 'include',
+      headers: {'content-type': 'application/json', 'x-twenty-session-cookie': '1'},
+      body: JSON.stringify({query: '{currentUser{email}}'})})).text()"""
+    controle("lecture de session : connecté", EMAIL in page.evaluate(lire), page.evaluate(lire)[:80])
+
+    code, _ = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "revoke_sessions": True})
+    page.goto(racine + "/objects/people", wait_until="domcontentloaded")
+    page.wait_for_timeout(15000)
+    controle("revoke_sessions : session coupée", code == 200 and urlparse(page.url).hostname.startswith("hub."), f"{code} {page.url[:80]}")
+
+    # Reconnexion, puis déconnexion explicite.
+    ctx.clear_cookies()
+    _, texte = rebond(HUB_ID, EMAIL)
+    page.goto(json.loads(texte)["magic_link_url"], wait_until="domcontentloaded")
+    page.wait_for_timeout(12000)
     page.goto(racine + "/settings/profile", wait_until="domcontentloaded")
     page.wait_for_timeout(9000)
     page.get_by_text(re.compile("^Log ?out$", re.I)).first.click(timeout=15000)
     page.wait_for_timeout(9000)
-    sortie = urlparse(page.url)
-    controle("déconnexion : Hub sans next", sortie.hostname.startswith("hub.") and "next=" not in sortie.query, page.url[:90])
+    corps = page.inner_text("body")
+    controle("déconnexion : page locale, pas de rebond", "Continuer" in corps and urlparse(page.url).hostname == urlparse(racine).hostname, page.url[:90])
+    href = page.get_by_role("link", name="Continuer").get_attribute("href")
+    controle("Continuer : rebond sans auto", "bounce/prepare" in href and "auto=1" not in href, href[:110])
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
     page.wait_for_timeout(9000)
-    controle("après déconnexion : plus de session", urlparse(page.url).hostname.startswith("hub."), page.url[:90])
+    controle("après déconnexion : toujours pas de rebond", "Continuer" in page.inner_text("body") and urlparse(page.url).hostname != "hub.staging.veridian.site", page.url[:90])
+
+    # Un seul essai automatique : navigateur vierge, deux passages.
+    neuf = nav.new_context(viewport={"width": 1400, "height": 900})
+    neuf.on("request", note)
+    p3 = neuf.new_page()
+    p3.set_default_navigation_timeout(180000)
+    p3.goto(racine + "/objects/people", wait_until="domcontentloaded")
+    p3.wait_for_timeout(12000)
+    controle("sans session : rebond auto", urlparse(p3.url).hostname.startswith("hub."), p3.url[:90])
+    p3.goto(racine + "/objects/people", wait_until="domcontentloaded")
+    p3.wait_for_timeout(12000)
+    controle("second passage : page locale", "Continuer" in p3.inner_text("body"), p3.url[:90])
+    neuf.close()
     nav.close()
 
 externes = {h: n for h, n in hotes.items() if h and not h.endswith(".veridian.site")}
@@ -252,6 +290,8 @@ controle("navigateur : aucun hôte tiers", not externes, str(externes))
 code, _ = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True})
 code2, _ = rebond(HUB_ID, EMAIL)
 controle("compte supprimé par le Hub : plus de lien", code == 200 and code2 == 400, f"{code} {code2}")
+code, texte = lecture("/api/hub/users", "")
+controle("compte de test retiré de la liste", code == 200 and EMAIL not in texte, str(code))
 print(f"EMAIL {EMAIL}")
 print(f"VERDICT : {'ÉCHEC ' + str(echecs) if echecs else 'parcours réussi'}")
 sys.exit(1 if echecs else 0)
