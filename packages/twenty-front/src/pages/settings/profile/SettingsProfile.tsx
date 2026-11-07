@@ -2,7 +2,6 @@ import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMembe
 import { SettingsCard } from '@/settings/components/SettingsCard';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
 import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
-import { DeleteAccount } from '@/settings/profile/components/DeleteAccount';
 import { EmailField } from '@/settings/profile/components/EmailField';
 import { NameFields } from '@/settings/profile/components/NameFields';
 import { SetOrChangePassword } from '@/settings/profile/components/SetOrChangePassword';
@@ -94,9 +93,6 @@ export const SettingsProfile = () => {
           </Section.Root>
         )}
         <SettingsProfileDevicesSection />
-        <Section.Root>
-          <DeleteAccount />
-        </Section.Root>
       </SettingsPageContainer>
     </SettingsPageLayout>
   );

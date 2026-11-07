@@ -16,7 +16,6 @@ import { capitalize } from 'twenty-shared/utils';
 import { useToast } from 'twenty-ui/components/feedback';
 import {
   IconGoogle,
-  IconLink,
   IconList,
   IconMicrosoft,
   IconPassword,
@@ -111,27 +110,6 @@ export const SettingsSecurityAuthProvidersOptionsList = () => {
       });
       enqueueToast(getToastOptionsFromError({ error: err }));
     });
-  };
-
-  const handleChange = async (value: boolean) => {
-    try {
-      if (!currentWorkspace?.id) {
-        throw new Error(t`User is not logged in`);
-      }
-      await updateWorkspace({
-        variables: {
-          input: {
-            isPublicInviteLinkEnabled: value,
-          },
-        },
-      });
-      setCurrentWorkspace({
-        ...currentWorkspace,
-        isPublicInviteLinkEnabled: value,
-      });
-    } catch (err: any) {
-      enqueueToast(getToastOptionsFromError({ error: err }));
-    }
   };
 
   const discoverabilityOptions = [
@@ -233,16 +211,6 @@ export const SettingsSecurityAuthProvidersOptionsList = () => {
             )}
           </Card.Root>
           <Card.Root>
-            <SettingsOptionCardContentSwitch
-              Icon={IconLink}
-              title={t`Invite by Link`}
-              description={t`Allow the invitation of new users by sharing an invite link.`}
-              checked={currentWorkspace.isPublicInviteLinkEnabled}
-              divider
-              onChange={() =>
-                handleChange(!currentWorkspace.isPublicInviteLinkEnabled)
-              }
-            />
             {isMultiWorkspaceEnabled && (
               <SettingsOptionCardContentSelect
                 Icon={IconList}

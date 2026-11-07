@@ -239,6 +239,53 @@ with sync_playwright() as p:
     tiers = [f.url for f in page.frames if urlparse(f.url).hostname and DOMAINE not in f.url]
     controle("tableau de bord sans iframe tiers", not tiers, str(tiers)[:100])
 
+    # Ce qui appartient au Hub : refusé par le serveur, absent de l'interface. Chaque absence a un témoin présent à côté.
+    reserve = page.evaluate("""async (h) => {
+      const f = async (q) => (await fetch('/metadata', {method: 'POST', credentials: 'include', headers: h, body: JSON.stringify({query: q})})).text();
+      return {
+        deleteUser: await f('mutation{deleteUser{id}}'),
+        deleteUserFromWorkspace: await f('mutation{deleteUserFromWorkspace(workspaceMemberIdToDelete:"00000000-0000-4000-8000-000000000000"){id}}'),
+        deleteCurrentWorkspace: await f('mutation{deleteCurrentWorkspace{id}}'),
+        lienInvitation: await f('mutation{updateWorkspace(data:{isPublicInviteLinkEnabled:true}){id}}'),
+        motDePasse: await f('mutation{updateWorkspace(data:{isPasswordAuthEnabled:true}){id}}'),
+        temoin: await f('{currentWorkspace{id isPasswordAuthEnabled isPublicInviteLinkEnabled editableProfileFields}}'),
+      };
+    }""", h)
+    temoin = json.loads(reserve.pop("temoin"))["data"]["currentWorkspace"]
+    for nom, reponse in reserve.items():
+        controle(f"{nom} refusé par le serveur", "Identity is managed" in reponse, reponse[:120])
+    controle("provisioning : mot de passe, lien d'invitation et identité fermés",
+             temoin["isPasswordAuthEnabled"] is False and temoin["isPublicInviteLinkEnabled"] is False and temoin["editableProfileFields"] == ["profilePicture"], str(temoin)[:160])
+
+    def visible(texte):
+        return page.get_by_text(texte, exact=True).locator("visible=true").count() > 0
+
+    page.goto(racine + "/settings/profile", wait_until="domcontentloaded")
+    page.get_by_text("Authenticator App").first.wait_for(timeout=60000)
+    controle("profil : pas de suppression de compte", not visible("Delete account") and not visible("Leave workspace"))
+    controle("profil : nom et email en lecture seule, mot de passe absent",
+             page.locator("input:visible:not([disabled])").count() == 0 and not visible("Change Password") and not visible("Set Password"),
+             f"{page.locator('input:visible:not([disabled])').count()} champ(s) actif(s)")
+
+    page.goto(racine + "/settings/members", wait_until="domcontentloaded")
+    page.get_by_text("Team", exact=True).first.wait_for(timeout=60000)
+    controle("membres : pas d'onglet Invite", not visible("Invite"))
+
+    page.goto(racine + "/settings/general", wait_until="domcontentloaded")
+    page.get_by_text("Workspace domain").first.wait_for(timeout=60000)
+    controle("général : pas de suppression du workspace", not visible("Delete workspace"))
+
+    page.goto(racine + "/objects/people", wait_until="domcontentloaded")
+    page.get_by_text("Parcours", exact=False).first.wait_for(timeout=60000)
+    page.get_by_text("Parcours", exact=False).first.click(timeout=15000)
+    page.get_by_text("Settings", exact=True).first.wait_for(timeout=15000)
+    controle("menu : pas d'Invite user", not visible("Invite user"))
+    page.get_by_role("button", name="More options").first.click(timeout=15000)
+    page.get_by_text("Log out", exact=True).first.wait_for(timeout=15000)
+    controle("menu : pas de Create Workspace", not visible("Create Workspace"))
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
     page.wait_for_timeout(8000)
     avant = page.get_by_text("PersonneParcours").count()

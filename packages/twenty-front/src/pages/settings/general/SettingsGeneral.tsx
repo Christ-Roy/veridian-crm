@@ -9,7 +9,6 @@ import { useSettingsActiveTabId } from '@/settings/components/layout/useSettings
 import { SettingsWorkspaceDomainCard } from '@/settings/domains/components/SettingsWorkspaceDomainCard';
 import { SettingsLogs } from '@/settings/event-logs/components/SettingsLogs';
 import { SettingsOpenLogConsoleCard } from '@/settings/event-logs/components/SettingsOpenLogConsoleCard';
-import { DeleteWorkspace } from '@/settings/profile/components/DeleteWorkspace';
 import { useHasPermissionFlag } from '@/settings/roles/hooks/useHasPermissionFlag';
 import { SettingsSecuritySettings } from '@/settings/security/components/SettingsSecuritySettings';
 import { NameField } from '@/settings/workspace/components/NameField';
@@ -92,9 +91,6 @@ export const SettingsGeneral = () => {
             <SettingsWorkspaceDomainCard />
           </Section.Root>
         )}
-        <Section.Root>
-          <DeleteWorkspace />
-        </Section.Root>
       </>
     );
   };

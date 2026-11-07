@@ -4,6 +4,7 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import {
   HubOnlyIdentityGuard,
   MUTATIONS_RESERVED_TO_HUB,
+  WORKSPACE_SETTINGS_RESERVED_TO_HUB,
 } from 'src/engine/core-modules/veridian-hub-sso/guards/hub-only-identity.guard';
 
 const contextFor = (parent: string, fieldName: string, args: object = {}) => {
@@ -34,6 +35,9 @@ describe('HubOnlyIdentityGuard', () => {
       'getLoginTokenFromCredentials',
       'sendInvitations',
       'updateUserEmail',
+      'deleteUser',
+      'deleteUserFromWorkspace',
+      'deleteCurrentWorkspace',
     ]) {
       expect(MUTATIONS_RESERVED_TO_HUB.has(mutation)).toBe(true);
     }
@@ -54,6 +58,26 @@ describe('HubOnlyIdentityGuard', () => {
       ),
     ).toBe(true);
   });
+
+  it.each(WORKSPACE_SETTINGS_RESERVED_TO_HUB)(
+    'refuses reopening %s, lets other workspace settings through',
+    (setting) => {
+      expect(() =>
+        guard.canActivate(
+          contextFor('Mutation', 'updateWorkspace', {
+            data: { [setting]: true },
+          }),
+        ),
+      ).toThrow(ForbiddenException);
+      expect(
+        guard.canActivate(
+          contextFor('Mutation', 'updateWorkspace', {
+            data: { displayName: 'Acme' },
+          }),
+        ),
+      ).toBe(true);
+    },
+  );
 
   it('lets the login token exchange and queries through', () => {
     expect(

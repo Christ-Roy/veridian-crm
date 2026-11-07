@@ -186,6 +186,7 @@ EOH
 
     task "crm-server" {
       driver = "docker"
+      user   = "1000"
       config {
         labels = {
           "site.veridian.job"   = "${NOMAD_JOB_NAME}"
@@ -196,6 +197,7 @@ EOH
           "site.veridian.app"   = "crm"
         }
         security_opt = ["no-new-privileges:true"]
+        cap_drop     = ["ALL"]
         image        = "ghcr.io/christ-roy/veridian-crm:${var.image_tag}"
         ports        = ["http"]
         volumes      = ["/opt/veridian-staging/crm/storage:/app/packages/twenty-server/.local-storage"]
@@ -244,6 +246,7 @@ EOH
 
     task "crm-worker" {
       driver = "docker"
+      user   = "1000"
       config {
         labels = {
           "site.veridian.job"   = "${NOMAD_JOB_NAME}"
@@ -254,6 +257,7 @@ EOH
           "site.veridian.app"   = "crm"
         }
         security_opt = ["no-new-privileges:true"]
+        cap_drop     = ["ALL"]
         image        = "ghcr.io/christ-roy/veridian-crm:${var.image_tag}"
         command      = "yarn"
         args         = ["worker:prod"]

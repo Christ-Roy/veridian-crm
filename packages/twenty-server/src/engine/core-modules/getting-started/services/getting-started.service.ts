@@ -120,7 +120,11 @@ export class GettingStartedService {
     });
 
     const stepActionKeys = filterGettingStartedStepActionKeys({
-      stepActionKeys: assignedStepActionKeys,
+      // Veridian : pas d'invitation interne, le Hub seul ajoute un membre (VERIDIAN-PATCHES.md)
+      stepActionKeys: assignedStepActionKeys.filter(
+        (stepActionKey) =>
+          stepActionKey !== GettingStartedStepActionKey.INVITE_TEAM,
+      ),
       permissionFlags,
       hasSendingMailbox: isDefined(ownSendingMailbox),
       hasFeaturedApp: isNonEmptyArray(featuredApps),

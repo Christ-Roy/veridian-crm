@@ -5,7 +5,6 @@ import { Section } from 'twenty-ui/components/layout';
 import {
   IconLock,
   IconSparkle2,
-  IconUserPlus,
   IconUsers,
 } from 'twenty-ui/icon';
 
@@ -18,14 +17,12 @@ import { useHasPermissionFlag } from '@/settings/roles/hooks/useHasPermissionFla
 import { PermissionFlagType } from '~/generated-metadata/graphql';
 import coverDark from '~/pages/settings/members/assets/cover-dark.png';
 import coverLight from '~/pages/settings/members/assets/cover-light.png';
-import { SettingsWorkspaceMembersInviteTab } from '~/pages/settings/members/tabs/SettingsWorkspaceMembersInviteTab';
 import { SettingsWorkspaceMembersRolesTab } from '~/pages/settings/members/tabs/SettingsWorkspaceMembersRolesTab';
 import { SettingsWorkspaceMembersTeamTab } from '~/pages/settings/members/tabs/SettingsWorkspaceMembersTeamTab';
 
 const MEMBERS_TAB_LIST_ID = 'members-tab-list';
 
 const MEMBERS_TAB_TEAM_ID = 'team';
-const MEMBERS_TAB_INVITE_ID = 'invite';
 const MEMBERS_TAB_ROLES_ID = 'roles';
 
 const SETTINGS_MEMBERS_HERO_INSTANCE_ID_PREFIX = 'settings-members-hero';
@@ -37,7 +34,6 @@ export const SettingsWorkspaceMembers = () => {
 
   const tabs = [
     { id: MEMBERS_TAB_TEAM_ID, title: t`Team`, Icon: IconUsers },
-    { id: MEMBERS_TAB_INVITE_ID, title: t`Invite`, Icon: IconUserPlus },
     ...(hasRolesPermission
       ? [{ id: MEMBERS_TAB_ROLES_ID, title: t`Roles`, Icon: IconLock }]
       : []),
@@ -50,8 +46,6 @@ export const SettingsWorkspaceMembers = () => {
 
   const renderActiveTabContent = () => {
     switch (activeTabId) {
-      case MEMBERS_TAB_INVITE_ID:
-        return <SettingsWorkspaceMembersInviteTab />;
       case MEMBERS_TAB_ROLES_ID:
         return hasRolesPermission ? (
           <SettingsWorkspaceMembersRolesTab />

@@ -19,7 +19,18 @@ export const MUTATIONS_RESERVED_TO_HUB = new Set([
   'sendInvitations',
   'resendWorkspaceInvitation',
   'updateUserEmail',
+  'deleteUser',
+  'deleteUserFromWorkspace',
+  'deleteCurrentWorkspace',
 ]);
+
+// A workspace admin must not reopen what provisioning closed.
+export const WORKSPACE_SETTINGS_RESERVED_TO_HUB = [
+  'editableProfileFields',
+  'isPasswordAuthEnabled',
+  'isPasswordAuthBypassEnabled',
+  'isPublicInviteLinkEnabled',
+];
 
 @Injectable()
 export class HubOnlyIdentityGuard implements CanActivate {
@@ -39,7 +50,17 @@ export class HubOnlyIdentityGuard implements CanActivate {
       info.fieldName === 'updateWorkspaceMemberSettings' &&
       gqlContext.getArgs()?.input?.update?.name !== undefined;
 
-    if (MUTATIONS_RESERVED_TO_HUB.has(info.fieldName) || isRenaming) {
+    const isReopening =
+      info.fieldName === 'updateWorkspace' &&
+      WORKSPACE_SETTINGS_RESERVED_TO_HUB.some(
+        (setting) => gqlContext.getArgs()?.data?.[setting] !== undefined,
+      );
+
+    if (
+      MUTATIONS_RESERVED_TO_HUB.has(info.fieldName) ||
+      isRenaming ||
+      isReopening
+    ) {
       throw new ForbiddenException(
         'Identity is managed by Veridian Hub, this operation is not available here',
       );

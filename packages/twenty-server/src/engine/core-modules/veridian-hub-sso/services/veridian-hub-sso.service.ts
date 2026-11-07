@@ -395,6 +395,8 @@ export class VeridianHubSsoService {
 
       await this.workspaceRepository.update(workspace.id, {
         isPublicInviteLinkEnabled: false,
+        isPasswordAuthEnabled: false,
+        editableProfileFields: ['profilePicture'],
       });
       await this.coreEntityCacheService.invalidate(
         'workspaceEntity',

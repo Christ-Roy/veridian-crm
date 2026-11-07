@@ -28,6 +28,28 @@ exige packages/twenty-front/src/modules/domain-manager/hooks/useRedirect.ts "cre
 exige packages/twenty-front/src/modules/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo.ts "data:image/gif"
 exige packages/twenty-front/src/modules/onboarding/constants/OnboardingNetworkPreviewPeople.ts "avatarUrl: ''"
 exige packages/twenty-front/src/modules/auth/hooks/useAuth.ts "/welcome?logout=1"
+# Le menu « Create Workspace » ne doit pas revenir : l'absence se garde par une présence (le commentaire du patch).
+exige packages/twenty-front/src/modules/navigation/components/MultiWorkspaceDropdown/internal/MultiWorkspaceDropdownDefaultComponents.tsx "un workspace se crée au Hub seul"
+if grep -q "create-new-workspace" packages/twenty-front/src/modules/navigation/components/MultiWorkspaceDropdown/internal/MultiWorkspaceDropdownDefaultComponents.tsx; then
+  echo "PATCH ABSENT : le menu Create Workspace est revenu"; echec=1
+fi
+if grep -q "Invite user" packages/twenty-front/src/modules/navigation/components/MultiWorkspaceDropdown/internal/MultiWorkspaceDropdownDefaultComponents.tsx; then
+  echo "PATCH ABSENT : le menu Invite user est revenu"; echec=1
+fi
+# Ce que seul le Hub décide ne s'offre pas dans l'interface.
+refuse() {
+  if grep -qF -- "$2" "$1"; then
+    echo "PATCH ABSENT : $1 propose de nouveau « $2 »"; echec=1
+  fi
+}
+refuse packages/twenty-front/src/pages/settings/members/SettingsWorkspaceMembers.tsx "SettingsWorkspaceMembersInviteTab"
+refuse packages/twenty-front/src/pages/settings/profile/SettingsProfile.tsx "<DeleteAccount"
+refuse packages/twenty-front/src/pages/settings/general/SettingsGeneral.tsx "<DeleteWorkspace"
+refuse packages/twenty-front/src/modules/settings/members/components/MemberInfosTab.tsx "Delete account"
+refuse packages/twenty-front/src/modules/settings/security/components/SettingsSecurityAuthProvidersOptionsList.tsx "Invite by Link"
+exige "$SERVEUR/engine/core-modules/getting-started/services/getting-started.service.ts" "stepActionKey !== GettingStartedStepActionKey.INVITE_TEAM"
+exige packages/twenty-front/src/modules/settings/members/components/MemberNameFields.tsx "disabled"
+exige "$SERVEUR/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service.ts" "editableProfileFields: ['profilePicture']"
 exige "$SERVEUR/engine/core-modules/auth/auth.module.ts" "SignInUpService,
   ],"
 

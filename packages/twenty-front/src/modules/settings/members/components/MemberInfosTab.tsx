@@ -35,7 +35,6 @@ export const MemberInfosTab = ({
   member,
   onNameChange,
   onImpersonate,
-  onDelete,
   twoFactorAuthenticationRecoveryUserId,
 }: MemberInfosTabProps) => {
   const { t } = useLingui();
@@ -95,27 +94,21 @@ export const MemberInfosTab = ({
         />
       )}
 
-      <Section.Root>
-        <Section.Header
-          title={t`Admin`}
-          description={t`Perform administrative actions or permanently delete this user`}
-        />
-        <StyledActionRow>
-          {onImpersonate && (
+      {onImpersonate && (
+        <Section.Root>
+          <Section.Header
+            title={t`Admin`}
+            description={t`Perform administrative actions`}
+          />
+          <StyledActionRow>
             <Button
               size="sm"
               onClick={onImpersonate}
               variant="outline"
             >{t`Impersonate`}</Button>
-          )}
-          <Button
-            size="sm"
-            onClick={onDelete}
-            variant="outline"
-            color="danger"
-          >{t`Delete account`}</Button>
-        </StyledActionRow>
-      </Section.Root>
+          </StyledActionRow>
+        </Section.Root>
+      )}
     </>
   );
 };

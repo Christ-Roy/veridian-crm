@@ -2,9 +2,7 @@ import { useAuth } from '@/auth/hooks/useAuth';
 import { availableWorkspacesState } from '@/auth/states/availableWorkspacesState';
 import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { countAvailableWorkspaces } from '@/auth/utils/availableWorkspacesUtils';
-import { isMultiWorkspaceEnabledState } from '@/client-config/states/isMultiWorkspaceEnabledState';
 import { supportChatState } from '@/client-config/states/supportChatState';
-import { useRedirectToDefaultDomain } from '@/domain-manager/hooks/useRedirectToDefaultDomain';
 import { useOpenRecordInPreference } from '@/settings/experience/hooks/useOpenRecordInPreference';
 import { SelectOptionIcon } from '@/ui/input/components/SelectOptionIcon';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
@@ -17,19 +15,15 @@ import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomState
 import { getWorkspaceAvatarColorSeed } from '@/workspace/utils/getWorkspaceAvatarColorSeed';
 import { useLingui } from '@lingui/react/macro';
 import { isNonEmptyString } from '@sniptt/guards';
-import { Link } from 'react-router-dom';
-import { AppPath, SettingsPath } from 'twenty-shared/types';
-import { getSettingsPath } from 'twenty-shared/utils';
+import { SettingsPath } from 'twenty-shared/types';
 import { LightIconButton } from 'twenty-ui/components/input';
 import { Dropdown } from 'twenty-ui/components/navigation';
 import {
   IconDotsVertical,
   IconLogout,
   IconMessage,
-  IconPlus,
   IconSettings,
   IconSwitchHorizontal,
-  IconUserPlus,
 } from 'twenty-ui/icon';
 import { Avatar } from 'twenty-ui/primitives/data-display';
 import { useIsMobile } from 'twenty-ui/utilities';
@@ -38,14 +32,10 @@ import { getAbsoluteImageUrl } from '~/utils/image/getAbsoluteImageUrl';
 
 export const MultiWorkspaceDropdownDefaultComponents = () => {
   const currentWorkspace = useAtomStateValue(currentWorkspaceState);
-  const isMultiWorkspaceEnabled = useAtomStateValue(
-    isMultiWorkspaceEnabledState,
-  );
   const { t } = useLingui();
   const availableWorkspaces = useAtomStateValue(availableWorkspacesState);
   const availableWorkspacesCount =
     countAvailableWorkspaces(availableWorkspaces);
-  const { redirectToDefaultDomain } = useRedirectToDefaultDomain();
   const { signOut } = useAuth();
   const { colorScheme, colorSchemeList } = useColorScheme();
   const supportChat = useAtomStateValue(supportChatState);
@@ -63,13 +53,6 @@ export const MultiWorkspaceDropdownDefaultComponents = () => {
 
   const handleSupport = () => {
     window.FrontChat?.('show');
-  };
-
-  const createWorkspace = () => {
-    redirectToDefaultDomain({
-      pathname: AppPath.SignInUp,
-      searchParams: { action: 'create-new-workspace' },
-    });
   };
 
   return (
@@ -101,14 +84,7 @@ export const MultiWorkspaceDropdownDefaultComponents = () => {
           />
           <DropdownContent align="end">
             <Dropdown.Section>
-              {isMultiWorkspaceEnabled && (
-                <Dropdown.ActionItem
-                  startIcon={<IconPlus />}
-                  onClick={createWorkspace}
-                >
-                  {t`Create Workspace`}
-                </Dropdown.ActionItem>
-              )}
+              {/* Veridian : un workspace se crée au Hub seul (VERIDIAN-PATCHES.md) */}
               <Dropdown.ActionItem startIcon={<IconLogout />} onClick={signOut}>
                 {t`Log out`}
               </Dropdown.ActionItem>
@@ -179,16 +155,6 @@ export const MultiWorkspaceDropdownDefaultComponents = () => {
             {t`Open in`}
           </Dropdown.ActionItem>
         )}
-        <Dropdown.ActionItem
-          render={
-            <Link
-              to={`${getSettingsPath(SettingsPath.WorkspaceMembersPage)}#invite`}
-            />
-          }
-          startIcon={<IconUserPlus />}
-        >
-          {t`Invite user`}
-        </Dropdown.ActionItem>
         {isSupportChatConfigured && (
           <Dropdown.ActionItem
             startIcon={<IconMessage />}

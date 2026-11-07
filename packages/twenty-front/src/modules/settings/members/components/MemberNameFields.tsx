@@ -28,6 +28,7 @@ export const MemberNameFields = ({
         onChange={(value) => {
           onChange('firstName', value);
         }}
+        disabled
         fullWidth
       />
       <SettingsTextInput
@@ -38,6 +39,7 @@ export const MemberNameFields = ({
         onChange={(value) => {
           onChange('lastName', value);
         }}
+        disabled
         fullWidth
       />
     </>
