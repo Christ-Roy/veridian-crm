@@ -10,7 +10,7 @@
 Usage : HUB_API_SECRET=... parcours-staging.py <url> <dossier-sortie> [nb-workspaces]
 Sortie : 0 parcours réussi · 1 échec · 2 mesure non aboutie
 """
-import atexit, hashlib, hmac, json, os, re, sys, time, urllib.error, urllib.parse, urllib.request, uuid
+import atexit, hashlib, hmac, json, os, re, signal, sys, time, urllib.error, urllib.parse, urllib.request, uuid
 from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
@@ -78,6 +78,7 @@ if not SECRET:
 HUB_ID = str(uuid.uuid4())
 # Compte de test retiré quoi qu'il arrive, sinon il pollue la dérive du Hub.
 atexit.register(lambda: signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True}))
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(2))
 
 # ── 1. identité fermée : le Hub seul
 controle("inscription directe refusée", refus("mutation($e:String!,$p:String!){signUp(email:$e,password:$p){tokens{accessOrWorkspaceAgnosticToken{token}}}}", {"e": EMAIL, "p": MDP}))
@@ -275,9 +276,11 @@ with sync_playwright() as p:
     neuf.on("request", note)
     p3 = neuf.new_page()
     p3.set_default_navigation_timeout(180000)
+    rebonds = []
+    p3.on("request", lambda q: rebonds.append(q.url) if "bounce/prepare" in q.url else None)
     p3.goto(racine + "/objects/people", wait_until="domcontentloaded")
     p3.wait_for_timeout(12000)
-    controle("sans session : rebond auto", urlparse(p3.url).hostname.startswith("hub."), p3.url[:90])
+    controle("sans session : rebond auto vers la page demandée", bool(rebonds) and "auto=1" in rebonds[0] and "objects%2Fpeople" in rebonds[0], (rebonds or [p3.url])[0][:150])
     p3.goto(racine + "/objects/people", wait_until="domcontentloaded")
     p3.wait_for_timeout(12000)
     controle("second passage : page locale", "Continuer" in p3.inner_text("body"), p3.url[:90])
