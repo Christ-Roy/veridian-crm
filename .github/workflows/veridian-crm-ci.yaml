@@ -47,9 +47,7 @@ jobs:
           node "$(sed -n 's/^yarnPath: //p' .yarnrc.yml)" workspaces focus twenty-monorepo twenty-server twenty-emails twenty-shared twenty-client-sdk
           npx nx run twenty-shared:build
           npx nx run twenty-emails:lingui:compile
-          npx nx run twenty-server:lingui:compile
           npx nx run twenty-emails:build
-          npx nx run twenty-client-sdk:build
         env:
           YARN_ENABLE_SCRIPTS: 'false'
       - run: bash scripts/ci/patch-survival.sh
