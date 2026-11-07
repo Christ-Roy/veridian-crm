@@ -65,7 +65,7 @@ export const SettingsNavigationDrawerContent = () => {
       )}
       {isNavigationDrawerExpanded && (
         <StyledUpstreamNotice
-          href="https://github.com/Christ-Roy/veridian-crm"
+          href="https://github.com/Christ-Roy/veridian-crm-source"
           target="_blank"
           rel="noreferrer"
         >

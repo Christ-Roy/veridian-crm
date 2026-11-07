@@ -57,6 +57,7 @@ exige packages/twenty-front/src/utils/i18n/dynamicActivate.ts "replaceBrandInMes
 exige packages/twenty-front/index.html "<title>Veridian CRM</title>"
 exige packages/twenty-front/public/manifest.json '"name": "Veridian CRM"'
 exige packages/twenty-front/src/modules/navigation/components/SettingsNavigationDrawerContent.tsx "Basé sur Twenty, AGPL"
+exige packages/twenty-front/src/modules/navigation/components/SettingsNavigationDrawerContent.tsx "github.com/Christ-Roy/veridian-crm-source"
 exige "$SERVEUR/engine/core-modules/auth/auth.module.ts" "SignInUpService,
   ],"
 

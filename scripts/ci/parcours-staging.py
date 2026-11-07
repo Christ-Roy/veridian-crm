@@ -276,7 +276,7 @@ with sync_playwright() as p:
     page.goto(racine + "/settings/general", wait_until="domcontentloaded")
     page.get_by_text("Workspace domain").locator("visible=true").first.wait_for(timeout=60000)
     mention = page.get_by_text("Basé sur Twenty, AGPL", exact=True).first
-    controle("marque : mention amont et lien vers le code", mention.get_attribute("href") == "https://github.com/Christ-Roy/veridian-crm", str(mention.get_attribute("href")))
+    controle("marque : mention amont et lien vers le code", mention.get_attribute("href") == "https://github.com/Christ-Roy/veridian-crm-source", str(mention.get_attribute("href")))
     controle("marque : titre du navigateur", "Twenty" not in page.title() and page.locator("link[rel=manifest]").count() > 0, page.title())
     for chemin in ["/settings/general", "/settings/profile", "/settings/members", "/settings/ai", "/settings/applications", "/settings/billing", "/objects/people", "/objects/companies", "/getting-started"]:
         page.goto(racine + chemin, wait_until="domcontentloaded")
