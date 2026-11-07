@@ -77,7 +77,7 @@ Le code reste dans le premier parent du commit de bascule (`git log --first-pare
 5. `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` sur le nœud du staging, pendant
    `scripts/ci/parcours-staging.py` : tout nouveau canal, nom ou IP directe, sort en code 1.
 
-## Mesures du 07/11/2026 (image `staging-6b05bdc`)
+## Mesures du 07/11/2026 (image `staging-605cd60`)
 
 Image officielle sans coupure : registry.npmjs.org, unpkg.com, twenty-telemetry.com, twenty-icons.com au
 démarrage et à l'inscription ; dans le navigateur, twenty-icons.com et tradingview. Notre image : silence sur

@@ -58,7 +58,7 @@ en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twent
 ## 5. Construire et déployer
 
 - **Image : par la CI**, `.github/workflows/veridian-crm-ci.yaml`, sur nos runners : garde légale, patch-survival, image
-  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Compter près de 3 h (1 cœur réservé sur le runner). Pas de
+  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Durée mesurée : 13 min le 07/11/2026, 2 h 48 la veille sur un runner plus bridé ; le relevé de la CI fait foi. Pas de
   `docker build` direct sur un nœud (règle de la plateforme, 07/11/2026) : hors CI, `lourd.sh` en `nice -n 19` sur un nœud libre.
 - `[skip ci]` dans un commit qui ne touche pas le produit. Un push normal annule la CI en cours sur la branche.
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
