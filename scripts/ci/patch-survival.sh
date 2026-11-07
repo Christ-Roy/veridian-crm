@@ -24,6 +24,8 @@ exige "$SERVEUR/modules/contact-creation-manager/services/create-company.service
 exige "$SERVEUR/engine/core-modules/tool/tools/search-help-center-tool/search-help-center-tool.ts" "HELP_CENTER_SEARCH_ENABLED"
 exige "$SERVEUR/engine/core-modules/core-engine.module.ts" "VeridianHubSsoModule"
 exige packages/twenty-front/src/pages/auth/SignInUp.tsx "useRedirectToHubLogin();"
+exige packages/twenty-front/src/modules/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo.ts "data:image/gif"
+exige packages/twenty-front/src/modules/onboarding/constants/OnboardingNetworkPreviewPeople.ts "avatarUrl: ''"
 exige packages/twenty-front/src/modules/auth/hooks/useAuth.ts "/welcome?logout=1"
 exige "$SERVEUR/engine/core-modules/auth/auth.module.ts" "SignInUpService,
   ],"

@@ -17,6 +17,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `core-modules/auth/auth.module.ts` | exporte `SignInUpService` | provisioning par le Hub | `patch-survival.sh` |
 | `twenty-front/src/pages/auth/SignInUp.tsx` | `useRedirectToHubLogin()` | sans session, renvoi vers le Hub, navigation interne comprise | `patch-survival.sh` |
 | `twenty-front/src/modules/auth/hooks/useAuth.ts` | déconnexion vers `/welcome?logout=1` | clic explicite : Hub sans `next`, pas de reconnexion silencieuse (arbitrage Hub, 07/11/2026) | `patch-survival.sh` |
+| `DefaultWorkspaceLogo.ts`, `OnboardingNetworkPreviewPeople.ts` (`twenty-front`) | image embarquée, avatar vide | le navigateur appelait twentyhq.github.io | `patch-survival.sh` |
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
 ## Code neuf
