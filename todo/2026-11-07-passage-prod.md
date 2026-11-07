@@ -28,7 +28,8 @@ Au jour J : capture réseau sur le démarrage et le parcours (`capture-sortante.
 - Démarrage : 215 s pendant cette mesure, 110 s sur nœud libre, plus de 20 min saturé.
 - Sauvegarde et restauration exercées (`pg_dump -Fc`, `pg_restore` dans une base temporaire) : 1 s et 6 s, 6 schémas, 40 comptes, 42 liens identiques.
   Base de 70 Mo qui se restaure en 21 Mo : créer et retirer des espaces laisse de l'espace mort.
-- Trivy par le registre : 0 HIGH et 0 CRITICAL sur `staging-f427e79`. `user=1000`, `cap_drop=ALL`, capacités effectives à zéro.
+- Sur l'image servie `staging-e0376ab` : trivy par le registre, 0 HIGH et 0 CRITICAL ; capture réseau de 660 s, démarrage et parcours compris, silence et témoin vu ;
+  parcours 61 contrôles OK, 0 échec ; 24 sabotages détectés sur 24 (CI). `user=1000`, `cap_drop=ALL`, capacités effectives à zéro.
 
 ## Limites connues
 
