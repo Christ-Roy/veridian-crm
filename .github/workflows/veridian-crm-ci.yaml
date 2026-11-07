@@ -49,6 +49,8 @@ jobs:
         env:
           YARN_ENABLE_SCRIPTS: 'false'
       - run: bash scripts/ci/patch-survival.sh
+      # Chaque comportement du §6bis.8.0 est retiré tour à tour : la spec doit casser à chaque fois.
+      - run: bash scripts/ci/mutations-connexion.sh
       - if: always()
         run: git clean -ffdx
 

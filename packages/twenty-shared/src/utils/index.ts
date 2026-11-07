@@ -352,6 +352,7 @@ export { getUrlHostnameOrThrow } from './url/getUrlHostnameOrThrow';
 export { intersectIframeMediaPermissions } from './url/intersectIframeMediaPermissions';
 export { isAbsoluteUrl } from './url/isAbsoluteUrl';
 export { isHttpUrl } from './url/isHttpUrl';
+export { createSingleNavigation } from './navigation/createSingleNavigation';
 export { isSafeInternalPath } from './url/isSafeInternalPath';
 export { isSafeUrl } from './url/isSafeUrl';
 export { isValidDomain } from './url/isValidDomain';

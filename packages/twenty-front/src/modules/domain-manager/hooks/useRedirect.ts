@@ -1,24 +1,15 @@
 // Don't use this hook directly! Prefer the high level hooks like:
 // useRedirectToDefaultDomain and useRedirectToWorkspaceDomain
 
+import { createSingleNavigation } from 'twenty-shared/utils';
 import { useDebouncedCallback } from 'use-debounce';
 
-let navigatingToUrl: string | undefined;
+const navigate = createSingleNavigation((url, target) => {
+  window.open(url, target);
+});
 
 export const useRedirect = () => {
-  const redirect = useDebouncedCallback((url: string, target?: string) => {
-    // Veridian : relancer la même navigation à chaque rendu annule la précédente, sans fin
-    // sur le domaine nu dès que le serveur met plus d'un rendu à répondre.
-    if (target === undefined && url === navigatingToUrl) {
-      return;
-    }
-
-    if (target === undefined) {
-      navigatingToUrl = url;
-    }
-
-    window.open(url, target ?? '_self');
-  }, 1);
+  const redirect = useDebouncedCallback(navigate, 1);
 
   return {
     redirect,
