@@ -1,12 +1,12 @@
 # Passage de Twenty en prod : ce qui reste, chiffres à l'appui
 
 Décisions tranchées (parente, 07/11/2026) : pas de migration, archive intacte, base neuve ; « Veridian CRM » ;
-`crm.app.veridian.site` ; double authentification au Hub seul. Nœud retenu par `infra` : `ovh-prod`.
+`crm.app.veridian.site` ; double authentification au Hub seul. Nœud pressenti par `infra` : `ovh-prod`, non confirmé.
 Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBackRest) et `deploy/crm-prod.nomad.hcl` (serveur, worker).
 
 ## Ce qui bloque, dans l'ordre
 
-1. **`infra` donne le signal** après la bascule Hub de 23h, même nœud : rien avant.
+1. **`infra` donne le nœud et le moment.** `ovh-prod`, inscrit dans les deux jobs (`noeud_provider`, contrainte de `crm-db`), n'est pas confirmé : il serait presque plein avec Twenty et ses plafonds mémoire ne sont pas posés (parente, 07/11/2026, 22 h). Autre nœud : changer les deux valeurs et revérifier les ports tailnet 15433 et 16380.
 
 ## AGPL : à chaque image de prod
 
@@ -28,7 +28,7 @@ Trois lignes de tests et un yarn y portent le marqueur `check-no-secrets:allow` 
 
 ## Limites d'infra à garder en tête
 
-Disque d'`ovh-prod` : 40 Go libres et alerte à 20 Go. Twenty en prend moins de 1 Go sans client : à signaler à `infra` si la croissance dépasse 15 Go.
+Si `ovh-prod` est confirmé : disque : 40 Go libres et alerte à 20 Go. Twenty en prend moins de 1 Go sans client : à signaler à `infra` si la croissance dépasse 15 Go.
 
 ## Chiffres (staging, bastion partagé, 6 cœurs, 07/11/2026, image `staging-f427e79`)
 
