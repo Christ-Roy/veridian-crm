@@ -2,7 +2,7 @@ import { METHOD_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common';
 
 // La source et non `twenty-shared/utils` : le paquet compilé masquerait un sabotage de la garde.
-import { createSingleNavigation } from '../../../../../../../twenty-shared/src/utils/navigation/createSingleNavigation';
+import { createSingleNavigation } from '../../../../../../twenty-shared/src/utils/navigation/createSingleNavigation';
 
 import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
