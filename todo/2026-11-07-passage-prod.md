@@ -1,22 +1,30 @@
 # Passage de Twenty en prod : ce qui reste, chiffres à l'appui
 
 Décisions tranchées (parente, 07/11/2026) : pas de migration, archive intacte, base neuve ; « Veridian CRM » ;
-`crm.app.veridian.site`. Job prêt, non déployé : `deploy/crm-prod.nomad.hcl`. `nomad-v preflight` refuse pour les seuls
-manques listés ici.
+`crm.app.veridian.site` ; double authentification au Hub seul. Nœud retenu par `infra` : `ovh-prod`.
+Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBackRest) et `deploy/crm-prod.nomad.hcl` (serveur, worker).
 
-## Prérequis hors de ce dépôt
+## Ce qui bloque, dans l'ordre
 
-| Qui | Quoi | Mesure de fin |
-|---|---|---|
-| infra | nœud : 2 cœurs réservés, 4 Go, 20 Go de disque (`noeud_provider`) | `nomad-v plan` place le job |
-| infra | `jobs/WORKLOAD-CONTRACTS.tsv` : `crm saas-prod B growth availability-99.9 5 15 local-state local-gap false`, `jobs/SOURCES.tsv` : `deploy/crm-prod.nomad.hcl` sur `origin/main` | `nomad-v preflight` vert |
-| infra | sauvegarde : ligne `crm\|twenty\|twenty\|10` dans `backups/prod-r2-backup-remote.sh`, plus le volume `storage` | restauration relue |
-| infra | surveillance : cible blackbox `crm.app.veridian.site/healthz` dans `mon-prometheus`, ligne dans `monitoring/sonde-prod.sh`, `alertes-grafana.py` | alerte vue sur un arrêt |
-| infra | `trivy` absent du runner de build : la CI sort « non abouti » ; `nomad-v preflight` échoue sur nos images faute de `--image-src remote` | scan rendu dans la CI et le preflight |
-| Robert, par la parente | rendre public le code du fork (AGPL) : le lien du pied de page mène sinon à un 404 pour un client | lien ouvert hors session |
-| Nous | secrets neufs `nomad/jobs/crm`, DNS `crm.app` et `*.crm.app`, volumes, promotion de l'image sur `main`, Hub de prod pointé sur `CRM_*` | parcours sur `crm.app` |
+1. **`infra` donne le signal** après la bascule Hub de 23h, même nœud : rien avant.
+2. **`infra` déclare** `@job crm-db prod` dans `nodes/fusibles-io.conf` (seul ✗ de `nomad-v preflight deploy/crm-db.nomad.hcl`) et ajoute `crm-db` à `jobs/SOURCES.tsv`.
+3. **La parente fait rendre public le code du fork** par Robert (AGPL) : le lien du pied de page mène sinon à un 404 pour un client. Bloque l'ouverture aux clients, pas le déploiement.
 
-Au jour J : capture réseau sur le démarrage et le parcours (`capture-sortante.sh`), comparer les variables au staging, `parcours-staging.py`.
+## Passage
+
+1. Secrets neufs, jamais ceux du staging, en hexadécimal car ils entrent dans des URL :
+   `nomad/jobs/crm-db` : `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, plus `SFTP_REPO_*` et `PGBACKREST_CIPHER_PASS` posés par `infra` ;
+   `nomad/jobs/crm` : les mêmes `POSTGRES_PASSWORD` et `REDIS_PASSWORD`, `APP_SECRET`, `HUB_API_SECRET`.
+2. Volumes sur `ovh-prod`, commandes en tête de chaque job. DNS `crm.app` et `*.crm.app` : vérifier qu'ils pointent sur l'ingress du nœud.
+3. Promouvoir `staging` sur `main`, ou laisser `jobs/SOURCES.tsv` sur `origin/staging` tant que `main` n'existe pas : à décider avec `infra`.
+4. `echo oui | timeout 280 nomad-v deploy deploy/crm-db.nomad.hcl`, puis `deploy/crm-prod.nomad.hcl`. La base doit être saine avant le serveur : pas de tâche d'attente, le `restart` couvre.
+5. Épreuves sur ce qui est servi : `capture-sortante.sh` lancée dès le démarrage (elle vise un conteneur du job, à adapter : `crm-db` ne redémarre plus avec l'app), `parcours-staging.py https://crm.app.veridian.site`, `charge-staging.py` hors heures de bureau sur ce nœud partagé, comparer les variables au staging, `pnpm test:systeme` avec `TWENTY_URL=https://crm.app.veridian.site`.
+6. Écrire à `infra` dès que le service répond : blackbox, `sonde-prod.sh`, stanza, dépôt et drill pgBackRest, volume `storage`.
+7. Pointer le Hub de prod sur `CRM_*` : URL et secret, à faire avec la session Hub.
+
+## Limites d'infra à garder en tête
+
+Disque d'`ovh-prod` : 40 Go libres et alerte à 20 Go. Twenty en prend moins de 1 Go sans client : à signaler à `infra` si la croissance dépasse 15 Go.
 
 ## Chiffres (staging, bastion partagé, 6 cœurs, 07/11/2026, image `staging-f427e79`)
 
@@ -34,5 +42,6 @@ Au jour J : capture réseau sur le démarrage et le parcours (`capture-sortante.
 ## Limites connues
 
 - `EMAIL_DRIVER=logger` : aucun email ne part, envois de workflow compris, et le rebrand des gabarits (`twenty-emails`) reste à faire si on branche un relais.
-- Un seul groupe Nomad : mettre à jour l'image redémarre aussi Postgres et Redis, coupure égale au démarrage.
+- Mettre à jour l'image coupe le serveur le temps de son démarrage, environ 2 min. Base et file de tâches restent up.
+- `crm-db` et le lien par `nomadService` n'ont jamais tourné : le premier déploiement est leur première épreuve.
 - Pas de volume réel testé au-delà de 5 000 sociétés. Fonctions Veridian retirées : `VERIDIAN-PATCHES.md`, « Retiré ou reporté ».

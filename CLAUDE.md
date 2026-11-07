@@ -14,7 +14,7 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
   est `veridian-hub/docs/CONTRAT-HUB.md` (§3.8, §5, §6bis.8.0) : c'est lui qui fait foi. Pas de base commune, pas d'OIDC.
 - **Rien ne sort sans décision.** Télémétrie, enrichissement, logos, iframes tierces, marketplace : coupés, et
   prouvés par capture réseau et navigateur (`VERIDIAN-PATCHES.md`). Un nouveau canal amont est une anomalie.
-- **Staging d'abord.** Staging : `crm.staging.veridian.site`, privé au tailnet, base neuve. Le job de prod (`deploy/crm-prod.nomad.hcl`) attend un nœud.
+- **Staging d'abord.** Staging : `crm.staging.veridian.site`, privé au tailnet, base neuve. Prod : `deploy/crm-db.nomad.hcl` et `deploy/crm-prod.nomad.hcl` sur `ovh-prod`, ordre dans `todo/2026-11-07-passage-prod.md`.
 
 **Décisions (07/11/2026) :** pas de migration, archive `~/veridian/archives/crm-decommission-2026-09-23/` intacte, base neuve ;
 marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,

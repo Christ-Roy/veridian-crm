@@ -1,18 +1,16 @@
 # crm : Twenty v2.56.1 en production, jumeau de crm-staging (VERIDIAN-PATCHES.md).
-# PAS ENCORE DÉPLOYÉ : attend un nœud, la décision de marque et les prérequis de
-# todo/2026-11-07-passage-prod.md. Tout écart avec crm-staging se justifie ici :
+# PAS ENCORE DÉPLOYÉ : ordre et prérequis dans todo/2026-11-07-passage-prod.md.
+# La base vit dans crm-db (deploy/crm-db.nomad.hcl), trouvée par nomadService. Tout écart avec crm-staging se justifie ici :
 # nom, domaine, Hub de prod, priorité, volumes, routeur public, réservations mesurées.
 #
-# Secrets (Nomad var nomad/jobs/crm) : APP_SECRET, POSTGRES_PASSWORD, HUB_API_SECRET,
+# Secrets (Nomad var nomad/jobs/crm) : APP_SECRET, POSTGRES_PASSWORD, REDIS_PASSWORD, HUB_API_SECRET,
 # neufs, jamais ceux du staging. Volumes à créer une fois sur le nœud :
-#   sudo install -d -o 70 -g 70 /opt/veridian-prod/crm/db
-#   sudo install -d -o 999 -g 999 /opt/veridian-prod/crm/redis
 #   sudo install -d -o 1000 -g 1000 /opt/veridian-prod/crm/storage
 
 variable "noeud_provider" {
   type        = string
-  default     = "a-choisir"
-  description = "meta.provider du nœud retenu : la valeur par défaut ne place rien, on choisit en le mesurant."
+  default     = "ovh-prod"
+  description = "meta.provider du nœud, retenu par infra le 07/11/2026 : celui de crm-db."
 }
 
 variable "image_tag" {
@@ -42,7 +40,7 @@ job "crm" {
 
     restart {
       attempts = 10
-      interval = "15m"
+      interval = "10m"
       delay    = "20s"
       mode     = "delay"
     }
@@ -79,103 +77,6 @@ job "crm" {
       }
     }
 
-    task "crm-postgres" {
-      driver = "docker"
-      lifecycle {
-        hook    = "prestart"
-        sidecar = true
-      }
-      config {
-        labels = {
-          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
-          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
-          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
-          "site.veridian.node"  = "${node.unique.name}"
-          "site.veridian.tier"  = "saas-prod"
-          "site.veridian.app"   = "crm"
-        }
-        security_opt = ["no-new-privileges:true"]
-        image        = "postgres:16-alpine"
-        volumes      = ["/opt/veridian-prod/crm/db:/var/lib/postgresql/data"]
-      }
-      template {
-        destination = "secrets/pg.env"
-        perms       = "600"
-        env         = true
-        data        = <<EOH
-POSTGRES_USER=twenty
-POSTGRES_DB=twenty
-{{ with nomadVar "nomad/jobs/crm" }}
-POSTGRES_PASSWORD={{ .POSTGRES_PASSWORD }}
-{{ end }}
-EOH
-      }
-      resources {
-        cpu        = 300
-        memory     = 256
-        memory_max = 1024
-      }
-    }
-
-    task "crm-redis" {
-      driver = "docker"
-      lifecycle {
-        hook    = "prestart"
-        sidecar = true
-      }
-      config {
-        labels = {
-          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
-          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
-          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
-          "site.veridian.node"  = "${node.unique.name}"
-          "site.veridian.tier"  = "saas-prod"
-          "site.veridian.app"   = "crm"
-        }
-        security_opt = ["no-new-privileges:true"]
-        image        = "redis:7-alpine"
-        args         = ["--maxmemory-policy", "noeviction", "--appendonly", "yes"]
-        volumes      = ["/opt/veridian-prod/crm/redis:/data"]
-      }
-      resources {
-        cpu        = 100
-        memory     = 192
-        memory_max = 512
-      }
-    }
-
-    # Les tâches d'un groupe démarrent en parallèle : on attend Postgres avant les
-    # migrations du serveur plutôt que de compter sur un crash puis un redémarrage.
-    task "crm-wait-postgres" {
-      lifecycle {
-        hook    = "prestart"
-        sidecar = false
-      }
-      driver = "docker"
-      config {
-        labels = {
-          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
-          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
-          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
-          "site.veridian.node"  = "${node.unique.name}"
-          "site.veridian.tier"  = "saas-prod"
-          "site.veridian.app"   = "crm"
-        }
-        security_opt = ["no-new-privileges:true"]
-        image        = "postgres:16-alpine"
-        command      = "/bin/sh"
-        args = [
-          "-ec",
-          "for i in $(seq 1 120); do pg_isready -h 127.0.0.1 -p 5432 -U twenty && exit 0; sleep 1; done; exit 1",
-        ]
-      }
-      resources {
-        cpu        = 20
-        memory     = 32
-        memory_max = 64
-      }
-    }
-
     task "crm-server" {
       driver = "docker"
       user   = "1000"
@@ -198,6 +99,7 @@ EOH
         destination = "secrets/server.env"
         perms       = "600"
         env         = true
+        change_mode = "noop"
         data        = <<EOH
 NODE_PORT=3000
 SERVER_URL=https://crm.app.veridian.site
@@ -216,17 +118,19 @@ AUTH_GOOGLE_ENABLED=false
 MESSAGING_PROVIDER_GMAIL_ENABLED=false
 CALENDAR_PROVIDER_GOOGLE_ENABLED=false
 EMAIL_DRIVER=logger
-REDIS_URL=redis://127.0.0.1:6379
 STORAGE_TYPE=local
-PGHOST=127.0.0.1
 PGUSER=twenty
 PGDATABASE=twenty
 {{ with nomadVar "nomad/jobs/crm" }}
 APP_SECRET={{ .APP_SECRET }}
 HUB_API_SECRET={{ .HUB_API_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
-PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
-{{ end }}
+{{ $pg := .POSTGRES_PASSWORD }}{{ $redis := .REDIS_PASSWORD }}
+{{ range nomadService "crm-db-pg" }}PGHOST={{ .Address }}
+PGPORT={{ .Port }}
+PG_DATABASE_URL=postgres://twenty:{{ $pg }}@{{ .Address }}:{{ .Port }}/twenty
+{{ end }}{{ range nomadService "crm-db-redis" }}REDIS_URL=redis://:{{ $redis }}@{{ .Address }}:{{ .Port }}
+{{ end }}{{ end }}
 EOH
       }
       resources {
@@ -259,6 +163,7 @@ EOH
         destination = "secrets/worker.env"
         perms       = "600"
         env         = true
+        change_mode = "noop"
         data        = <<EOH
 SERVER_URL=https://crm.app.veridian.site
 FRONTEND_URL=https://crm.app.veridian.site
@@ -268,18 +173,20 @@ IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
 MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 EMAIL_DRIVER=logger
-REDIS_URL=redis://127.0.0.1:6379
 STORAGE_TYPE=local
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
-PGHOST=127.0.0.1
 PGUSER=twenty
 PGDATABASE=twenty
 {{ with nomadVar "nomad/jobs/crm" }}
 APP_SECRET={{ .APP_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
-PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
-{{ end }}
+{{ $pg := .POSTGRES_PASSWORD }}{{ $redis := .REDIS_PASSWORD }}
+{{ range nomadService "crm-db-pg" }}PGHOST={{ .Address }}
+PGPORT={{ .Port }}
+PG_DATABASE_URL=postgres://twenty:{{ $pg }}@{{ .Address }}:{{ .Port }}/twenty
+{{ end }}{{ range nomadService "crm-db-redis" }}REDIS_URL=redis://:{{ $redis }}@{{ .Address }}:{{ .Port }}
+{{ end }}{{ end }}
 EOH
       }
       resources {
