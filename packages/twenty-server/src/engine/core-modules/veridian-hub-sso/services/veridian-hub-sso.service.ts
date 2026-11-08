@@ -1,3 +1,9 @@
+import {
+  decidePlanUpdate,
+  type PlanUpdateDecision,
+  type PlanUpdateRequest,
+  type StoredPlan,
+} from 'src/engine/core-modules/veridian-hub-sso/utils/decide-plan-update.util';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -43,7 +49,7 @@ const PROVISION_LOCK_MS = 5 * 60 * 1000;
 const hubUserKey = (hubUserId: string) => `veridian.hub_user:${hubUserId}`;
 const hubTenantKey = (tenantId: string) => `veridian.hub_tenant:${tenantId}`;
 
-type TenantLink = { ownerEmail: string; plan: string };
+type TenantLink = { ownerEmail: string } & StoredPlan;
 
 export type ProvisionResult =
   | { status: 'conflict' | 'in_progress' | 'identity_conflict' }
@@ -314,6 +320,26 @@ export class VeridianHubSsoService {
           value: link.value as unknown as TenantLink,
         }
       : null;
+  }
+
+  // CONTRAT-BILLING v2 §3: stored on the tenant link, read back by the Hub reconcile, limits nothing.
+  async updateTenantPlan(body: PlanUpdateRequest): Promise<PlanUpdateDecision> {
+    const tenantId = typeof body.tenant_id === 'string' ? body.tenant_id : '';
+    const link = tenantId
+      ? await this.keyValuePairRepository.findOne({
+          where: { key: hubTenantKey(tenantId), userId: IsNull() },
+        })
+      : null;
+    const current = (link?.value as unknown as TenantLink | undefined) ?? null;
+    const decision = decidePlanUpdate(body, current, new Date());
+
+    if (decision.kind === 'apply' && link) {
+      await this.keyValuePairRepository.update(link.id, {
+        value: { ...current, ...decision.next } as unknown as JSON,
+      });
+    }
+
+    return decision;
   }
 
   // CONTRAT-HUB §5.1.
@@ -682,6 +708,7 @@ export class VeridianHubSsoService {
         subdomain,
         role: link?.ownerEmail === email ? 'owner' : 'member',
         plan: link?.plan ?? null,
+        plan_source: link?.planSource ?? null,
         status: activationStatus.toLowerCase(),
       }),
     );

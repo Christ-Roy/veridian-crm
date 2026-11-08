@@ -69,6 +69,9 @@ exige packages/twenty-front/src/modules/side-panel/pages/workflow/action/compone
 refuse packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatGptTwentyAppUrl"
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$job" "VERIDIAN_AI_DISABLED=true"; done
 
+# Le plan vient du Hub (CONTRAT-BILLING v2 §3) : la route existe et ne limite rien.
+exige "$SERVEUR/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller.ts" "@Post('api/tenants/update-plan')"
+
 # Un workflow invalide échoue sans job ni message utile : on le voit ici, avant le push.
 if python3 -c "import yaml" 2>/dev/null; then
   python3 -c "import sys,yaml; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" .github/workflows/*.y*ml 2>/dev/null \

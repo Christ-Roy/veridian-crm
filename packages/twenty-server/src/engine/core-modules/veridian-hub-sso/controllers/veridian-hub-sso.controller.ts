@@ -290,6 +290,31 @@ export class VeridianHubSsoController {
     });
   }
 
+  // CONTRAT-BILLING v2 §3. Body errors follow CONTRAT-HUB §5.10.
+  @Post('api/tenants/update-plan')
+  async updatePlan(
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response)) {
+      return;
+    }
+
+    const decision = await this.veridianHubSsoService.updateTenantPlan(
+      request.body ?? {},
+    );
+
+    if (decision.kind === 'reject') {
+      return response.status(decision.status).json({
+        error: decision.error,
+        message: decision.error,
+        ...(decision.details ? { details: decision.details } : {}),
+      });
+    }
+
+    return response.status(200).json(decision.response);
+  }
+
   @Post('api/tenants/:tenantId/sync-member')
   async syncMember(
     @Param('tenantId') tenantId: string,

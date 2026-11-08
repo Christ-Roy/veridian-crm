@@ -150,6 +150,35 @@ requete = "/api/users/by-email?email=" + urllib.parse.quote(EMAIL, safe="")
 code, texte = lecture(requete, "")
 controle("GET /api/users/by-email", code == 200 and json.loads(texte).get("found") is True and len(json.loads(texte)["workspaces"]) == NB, f"{code} {texte[:120]}")
 
+# ── 2bis. plan posé par le Hub (CONTRAT-BILLING v2 §3) : stocké, relu, rien de limité
+t0 = locataires[0][0]
+def plan_hub(plan, source="stripe", cle=None, **extra):
+    corps = {"contract_version": "2.0", "tenant_id": t0, "plan": plan, "plan_source": source,
+             "effective_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "stripe_subscription_id": None,
+             "idempotency_key": cle or str(uuid.uuid4()), "reason": "parcours"}
+    corps.update(extra)
+    return signe("/api/tenants/update-plan", corps)
+def plan_lu():
+    c, t = lecture(requete, "")
+    w = [x for x in json.loads(t).get("workspaces", []) if x.get("tenant_id") == t0] if c == 200 else []
+    return (w[0].get("plan"), w[0].get("plan_source")) if w else (None, None)
+code, _ = signe("/api/tenants/update-plan", {"tenant_id": t0}, signer=False)
+controle("update-plan sans signature : 401", code == 401, str(code))
+cle = str(uuid.uuid4())
+code, texte = plan_hub("pro", cle=cle)
+controle("update-plan pro : 200 et previous_plan", code == 200 and json.loads(texte).get("previous_plan") == "free", f"{code} {texte[:140]}")
+controle("plan relu par le Hub : pro", plan_lu() == ("pro", "stripe"), str(plan_lu()))
+code2, texte2 = plan_hub("pro", cle=cle)
+controle("rejeu de la même clé : même réponse", code2 == 200 and json.loads(texte2) == json.loads(texte), f"{code2} {texte2[:80]}")
+controle("plan hors enum : 400 invalid_plan", plan_hub("freemium")[0] == 400)
+controle("version majeure inconnue : 400", plan_hub("pro", contract_version="3.0")[0] == 400)
+controle("tenant inconnu : 404", signe("/api/tenants/update-plan", {"contract_version": "2.0", "tenant_id": str(uuid.uuid4()), "plan": "pro", "plan_source": "stripe", "effective_at": "2026-11-08T00:00:00Z", "idempotency_key": str(uuid.uuid4())})[0] == 404)
+code, _ = plan_hub("business", "grant_manual")
+code2, texte2 = plan_hub("free", "downgrade_auto")
+controle("plan offert immunisé : 409 plan_source_immutable", code == 200 and code2 == 409 and "plan_source_immutable" in texte2, f"{code} {code2}")
+controle("plan offert conservé", plan_lu() == ("business", "grant_manual"), str(plan_lu()))
+controle("retour free par grant_manual", plan_hub("free", "grant_manual")[0] == 200 and plan_lu()[0] == "free", str(plan_lu()))
+
 # ── 3. lien signé, navigateur
 cible = BASE + "/objects/people"
 code, texte = signe("/api/sso/issue-magic-link", {"hub_user_id": HUB_ID, "email": EMAIL, "next": "https://evil.example/x"})

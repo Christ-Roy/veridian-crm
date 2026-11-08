@@ -20,7 +20,8 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,
 mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Passage en prod : `todo/2026-11-07-passage-prod.md`.
 
-**Décisions (08/11/2026) :** pas de plan CRM au Hub : ni `update-plan` ni Stripe, le plan reçu est gardé sans effet.
+**Décisions (08/11/2026) :** le plan vient du Hub par `POST /api/tenants/update-plan` (CONTRAT-BILLING v2 §3), stocké
+sur le lien tenant et relu par `by-email` ; il ne limite rien (PRICING-VERIDIAN). Pas de marque blanche dans Twenty : rien à réserver à Business.
 Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true` refuse le drapeau `AI` à tout rôle, MCP reste.
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
@@ -45,9 +46,9 @@ jamais affichés), usage par le CLI natif `twenty` (`twenty-admin run <ws> -- �
 | SSO OIDC/SAML | module `sso` | EE | interdit ; le rebond Hub le remplace |
 | Workspaces | multi-workspace par sous-domaine, provisioning par nos routes Hub | AGPL | |
 
-**Plans :** référence `veridian-hub/docs/PRICING-VERIDIAN.md` : générosité maximale, aucune limite appliquée, aucun
-écran de facturation. Le plan reçu du Hub est gardé dans `core.keyValuePair` (`free`, `freemium`, `starter`, `pro`,
-`business`, `enterprise`, `lifetime_site_vitrine`, `lifetime_partner`, `internal`), sans effet dans l'app.
+**Plans :** référence `veridian-hub/docs/PRICING-VERIDIAN.md` : générosité maximale, aucune limite, aucun écran de
+facturation. Plan et source dans `core.keyValuePair` (lien tenant) ; `update-plan` n'accepte que l'enum canonique,
+le provisioning garde aussi les anciens noms.
 
 ## 2. Licence : ligne rouge
 
