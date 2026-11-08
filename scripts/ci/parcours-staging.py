@@ -390,8 +390,8 @@ with sync_playwright() as p:
     page.goto(json.loads(texte)["magic_link_url"], wait_until="domcontentloaded")
     page.wait_for_timeout(12000)
     page.goto(racine + "/settings/profile", wait_until="domcontentloaded")
-    page.wait_for_timeout(9000)
-    page.locator("#nav-item-logout").click(timeout=15000)
+    # L'élément lui-même, pas un délai fixe : 9 s n'ont pas suffi en prod le 09/11/2026.
+    page.locator("#nav-item-logout").click(timeout=60000)
     page.wait_for_timeout(9000)
     corps = page.inner_text("body")
     controle("déconnexion : page locale, pas de rebond", "Continuer" in corps and urlparse(page.url).hostname == urlparse(racine).hostname, page.url[:90])
