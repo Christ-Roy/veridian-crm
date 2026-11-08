@@ -49,7 +49,7 @@ job "crm-staging" {
     restart {
       attempts = 10
       interval = "15m"
-      delay    = "20s"
+      delay    = "2s"
       mode     = "delay"
     }
 

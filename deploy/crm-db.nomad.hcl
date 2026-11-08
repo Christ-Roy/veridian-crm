@@ -32,7 +32,7 @@ job "crm-db" {
     restart {
       attempts = 10
       interval = "10m"
-      delay    = "15s"
+      delay    = "2s"
       mode     = "delay"
     }
 

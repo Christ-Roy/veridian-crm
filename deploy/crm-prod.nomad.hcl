@@ -54,7 +54,7 @@ job "crm" {
     restart {
       attempts = 10
       interval = "10m"
-      delay    = "20s"
+      delay    = "2s" # retour après plantage : 5,8 s contre 26 s mesurés sur le CMS (parente, 09/11/2026)
       mode     = "delay"
     }
 
@@ -194,7 +194,7 @@ EOH
     restart {
       attempts = 10
       interval = "10m"
-      delay    = "20s"
+      delay    = "2s"
       mode     = "delay"
     }
 
