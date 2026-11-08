@@ -7,6 +7,9 @@ export const PLAN_SOURCES = [
   'downgrade_auto',
 ];
 
+// Stored only: no read-only mode until Robert lifts an enforcement flag (off by default).
+export const TRIAL_STATUSES = ['none', 'trial_active', 'expired', 'paid'];
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Enough to answer a Hub retry; older keys cannot come back after a newer change.
@@ -18,6 +21,8 @@ export type StoredPlan = {
   planUpdatedAt?: string;
   idempotencyKeys?: string[];
   lastResponse?: object;
+  trialStatus?: string | null;
+  trialEndsAt?: string | null;
 };
 
 export type PlanUpdateRequest = {
@@ -27,6 +32,8 @@ export type PlanUpdateRequest = {
   plan_source?: unknown;
   effective_at?: unknown;
   idempotency_key?: unknown;
+  trial_status?: unknown;
+  trial_ends_at?: unknown;
 };
 
 export type PlanUpdateDecision =
@@ -49,6 +56,8 @@ export const decidePlanUpdate = (
     plan_source: planSource,
     effective_at: effectiveAt,
     idempotency_key: idempotencyKey,
+    trial_status: trialStatus,
+    trial_ends_at: trialEndsAt,
   } = body;
 
   if (
@@ -78,6 +87,23 @@ export const decidePlanUpdate = (
       status: 400,
       error: 'invalid_payload',
       details: { allowed_plan_sources: PLAN_SOURCES },
+    };
+  }
+
+  // Optional fields: absent keeps what was stored, a wrong value is refused.
+  if (
+    (trialStatus !== undefined &&
+      trialStatus !== null &&
+      !(isString(trialStatus) && TRIAL_STATUSES.includes(trialStatus))) ||
+    (trialEndsAt !== undefined &&
+      trialEndsAt !== null &&
+      !(isString(trialEndsAt) && !Number.isNaN(Date.parse(trialEndsAt))))
+  ) {
+    return {
+      kind: 'reject',
+      status: 400,
+      error: 'invalid_payload',
+      details: { allowed_trial_statuses: TRIAL_STATUSES },
     };
   }
 
@@ -126,6 +152,12 @@ export const decidePlanUpdate = (
         ...(current.idempotencyKeys ?? []),
       ].slice(0, KEPT_IDEMPOTENCY_KEYS),
       lastResponse: response,
+      ...(trialStatus !== undefined
+        ? { trialStatus: trialStatus as string | null }
+        : {}),
+      ...(trialEndsAt !== undefined
+        ? { trialEndsAt: trialEndsAt as string | null }
+        : {}),
     },
     response,
   };

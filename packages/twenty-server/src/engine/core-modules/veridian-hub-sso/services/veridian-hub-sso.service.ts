@@ -709,6 +709,8 @@ export class VeridianHubSsoService {
         role: link?.ownerEmail === email ? 'owner' : 'member',
         plan: link?.plan ?? null,
         plan_source: link?.planSource ?? null,
+        trial_status: link?.trialStatus ?? null,
+        trial_ends_at: link?.trialEndsAt ?? null,
         status: activationStatus.toLowerCase(),
       }),
     );

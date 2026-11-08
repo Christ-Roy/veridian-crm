@@ -111,4 +111,41 @@ describe('update-plan (CONTRAT-BILLING v2 §3)', () => {
     expect(d.next.idempotencyKeys).toHaveLength(20);
     expect(d.next.idempotencyKeys?.[0]).toBe(corps().idempotency_key);
   });
+  it('stocke trial_status et trial_ends_at sans rien appliquer', () => {
+    const d = decidePlanUpdate(
+      corps({
+        trial_status: 'trial_active',
+        trial_ends_at: '2026-11-23T00:00:00.000Z',
+      }),
+      lien,
+      now,
+    );
+
+    if (d.kind !== 'apply') throw new Error('attendu apply');
+    expect(d.next).toMatchObject({
+      trialStatus: 'trial_active',
+      trialEndsAt: '2026-11-23T00:00:00.000Z',
+    });
+  });
+
+  it("sans champs d'essai : ce qui était stocké reste", () => {
+    const d = decidePlanUpdate(
+      corps(),
+      { plan: 'free', trialStatus: 'expired' },
+      now,
+    );
+
+    if (d.kind !== 'apply') throw new Error('attendu apply');
+    expect(d.next).not.toHaveProperty('trialStatus');
+  });
+
+  it.each([{ trial_status: 'essai' }, { trial_ends_at: 'bientot' }])(
+    '400 sur %o',
+    (extra) => {
+      expect(decidePlanUpdate(corps(extra), lien, now)).toMatchObject({
+        status: 400,
+        error: 'invalid_payload',
+      });
+    },
+  );
 });
