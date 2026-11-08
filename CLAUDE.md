@@ -20,10 +20,11 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,
 mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Passage en prod : `todo/2026-11-07-passage-prod.md`.
 
-**Décisions (08/11/2026, parente) :** Twenty est une app `client_only` tant que le Hub n'a pas de plan CRM : pas
-d'`update-plan` ni de Stripe, le plan reçu est gardé sans effet. Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true`
-refuse le drapeau `AI` à tout rôle, MCP reste. Un espace se crée par l'activation de `twenty` au Hub (`app-access`),
-qui appelle `/api/tenants/provision` ; l'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
+**Décisions (08/11/2026) :** pas de plan CRM au Hub : ni `update-plan` ni Stripe, le plan reçu est gardé sans effet.
+Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true` refuse le drapeau `AI` à tout rôle, MCP reste.
+L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
+ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
+`metadata.crm` pour reconcile, nom du Hub poussé). L'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
 **Accès agent :** skill `twenty-cli` : `twenty-admin agent:grant` (clé rôle Admin + webhook, rangés dans `~/credentials`,
 jamais affichés), usage par le CLI natif `twenty` (`twenty-admin run <ws> -- …`).
 
