@@ -220,7 +220,11 @@ with sync_playwright() as p:
     textes = {}
     for chemin in ["/objects/companies", "/objects/opportunities", "/settings/applications", "/settings/ai", "/objects/dashboards"]:
         page.goto(racine + chemin, wait_until="domcontentloaded")
-        page.wait_for_timeout(6000)
+        try:
+            page.wait_for_function("document.body && document.body.innerText.length > 200", timeout=60000)
+        except Exception:
+            pass
+        page.wait_for_timeout(3000)
         textes[chemin] = re.sub(r"\s+", " ", page.inner_text("body"))
     # Aucun fournisseur IA (VERIDIAN_AI_DISABLED) : ni chat ni écran de modèles, MCP seul reste.
     controle("navigation sans onglet IA", not re.search(r"Home AI Settings", textes["/objects/companies"]), textes["/objects/companies"][:60])
@@ -292,7 +296,12 @@ with sync_playwright() as p:
     controle("marque : titre du navigateur", "Twenty" not in page.title() and page.locator("link[rel=manifest]").count() > 0, page.title())
     for chemin in ["/settings/general", "/settings/profile", "/settings/members", "/settings/ai", "/settings/applications", "/settings/billing", "/objects/people", "/objects/companies", "/getting-started"]:
         page.goto(racine + chemin, wait_until="domcontentloaded")
-        page.wait_for_timeout(5000)
+        # Un rendu réel, pas un délai fixe : 5 s ne suffisaient pas sur un nœud chargé (26 caractères lus).
+        try:
+            page.wait_for_function("document.body && document.body.innerText.length > 200", timeout=60000)
+        except Exception:
+            pass
+        page.wait_for_timeout(1500)
         reste = [l.strip() for l in page.locator("body").inner_text().splitlines() if "Twenty" in l and "Basé sur Twenty" not in l]
         controle(f"marque : {chemin} sans le nom amont, {len(page.locator('body').inner_text())} caractères lus", not reste and len(page.locator("body").inner_text()) > 40, str(reste)[:200])
     controle("général : pas de suppression du workspace", not visible("Delete workspace"))
