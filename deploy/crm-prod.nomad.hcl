@@ -15,7 +15,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-ba4577a" # promu après parcours en staging (08/11/2026, update-plan et essai)
+  default = "staging-6c53836" # promu après parcours en staging (09/11/2026, coupures)
 }
 
 job "crm" {
