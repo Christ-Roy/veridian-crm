@@ -25,7 +25,20 @@ job "crm" {
 
   group "stack" {
     count          = 1
-    shutdown_delay = "5s"
+    shutdown_delay = "30s"
+
+    # Bleu-vert, comme hub : le canari démarre à côté (environ 2 min de démarrage Nest), Traefik ne le sert qu'une fois
+    # /healthz vert, puis la promotion arrête l'ancienne après shutdown_delay. Pas de canary_tags : deux définitions du
+    # même routeur, Traefik l'écarte (404 mesurés sur hub le 07/11/2026). Pendant le canari, la mémoire réservée double.
+    update {
+      max_parallel      = 1
+      canary            = 1
+      auto_promote      = true
+      min_healthy_time  = "30s"
+      healthy_deadline  = "20m"
+      progress_deadline = "30m"
+      auto_revert       = true
+    }
 
     constraint {
       attribute = "${meta.provider}"
@@ -64,6 +77,13 @@ job "crm" {
         "traefik.http.routers.crm.tls.certresolver=letsencrypt",
         "traefik.http.routers.crm.tls.domains[0].main=crm.app.veridian.site",
         "traefik.http.routers.crm.tls.domains[0].sans=*.crm.app.veridian.site",
+        "traefik.http.routers.crm.middlewares=crm-retry@nomad",
+        # Ne pas changer ces tags dans un déploiement ordinaire (voir hub.nomad.hcl).
+        "traefik.http.services.crm.loadbalancer.healthcheck.path=/healthz",
+        "traefik.http.services.crm.loadbalancer.healthcheck.interval=2s",
+        "traefik.http.services.crm.loadbalancer.healthcheck.timeout=1s",
+        "traefik.http.middlewares.crm-retry.retry.attempts=4",
+        "traefik.http.middlewares.crm-retry.retry.initialinterval=200ms",
       ]
       check {
         type     = "http"
@@ -113,6 +133,7 @@ AUTH_MICROSOFT_ENABLED=false
 HUB_URL=https://app.veridian.site
 HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
+VERIDIAN_AI_DISABLED=true
 MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 AUTH_GOOGLE_ENABLED=false
 MESSAGING_PROVIDER_GMAIL_ENABLED=false
@@ -171,6 +192,7 @@ IS_MULTIWORKSPACE_ENABLED=true
 DEFAULT_SUBDOMAIN=app
 IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
+VERIDIAN_AI_DISABLED=true
 MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local

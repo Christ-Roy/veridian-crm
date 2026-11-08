@@ -649,11 +649,12 @@ export class VeridianHubSsoService {
     const rows: {
       workspaceId: string;
       displayName: string;
+      subdomain: string;
       activationStatus: string;
       tenantKey: string | null;
       link: TenantLink | null;
     }[] = await this.userRepository.query(
-      `SELECT w.id AS "workspaceId", w."displayName", w."activationStatus",
+      `SELECT w.id AS "workspaceId", w."displayName", w.subdomain, w."activationStatus",
               k.key AS "tenantKey", k.value AS link
          FROM core."user" u
          JOIN core."userWorkspace" uw ON uw."userId" = u.id AND uw."deletedAt" IS NULL
@@ -665,12 +666,20 @@ export class VeridianHubSsoService {
     );
 
     return rows.map(
-      ({ workspaceId, displayName, activationStatus, tenantKey, link }) => ({
+      ({
+        workspaceId,
+        displayName,
+        subdomain,
+        activationStatus,
+        tenantKey,
+        link,
+      }) => ({
         workspace_id: workspaceId,
         tenant_id: tenantKey
           ? tenantKey.slice('veridian.hub_tenant:'.length)
           : null,
         workspace_name: displayName,
+        subdomain,
         role: link?.ownerEmail === email ? 'owner' : 'member',
         plan: link?.plan ?? null,
         status: activationStatus.toLowerCase(),

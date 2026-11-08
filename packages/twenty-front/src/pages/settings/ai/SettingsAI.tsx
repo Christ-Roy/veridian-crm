@@ -45,7 +45,7 @@ export const SettingsAI = () => {
   const isInboxEnabled = useIsFeatureEnabled(
     FeatureFlagKey.IS_AI_CHAT_INBOX_ENABLED,
   );
-  const tabs = getSettingsAiTabs(isInboxEnabled);
+  const tabs = getSettingsAiTabs(isInboxEnabled, canReadSystemPrompts);
   const activeTabId = useSettingsActiveTabId(
     SETTINGS_AI_TABS.COMPONENT_INSTANCE_ID,
     tabs.map((tab) => tab.id),

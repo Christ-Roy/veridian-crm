@@ -6,6 +6,7 @@ import { AgentMenuItem } from '@/side-panel/pages/workflow/action/components/Age
 import { ToolMenuItem } from '@/side-panel/pages/workflow/action/components/ToolMenuItem';
 import { WorkflowActionMenuItems } from '@/side-panel/pages/workflow/action/components/WorkflowActionMenuItems';
 import { sortWorkflowActionLogicFunctions } from '@/side-panel/pages/workflow/action/utils/sortWorkflowActionLogicFunctions';
+import { useHasPermissionFlag } from '@/settings/roles/hooks/useHasPermissionFlag';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useWorkspaceFeatureFlagsMap } from '@/workspace/hooks/useWorkspaceFeatureFlagsMap';
 import { type WorkflowActionType } from '@/workflow/types/Workflow';
@@ -27,6 +28,7 @@ import {
 import {
   FeatureFlagKey,
   FindManyAgentsDocument,
+  PermissionFlagType,
 } from '~/generated-metadata/graphql';
 
 export type WorkflowActionSelection = {
@@ -57,6 +59,7 @@ export const SidePanelWorkflowSelectAction = ({
   );
 
   const featureFlagsMap = useWorkspaceFeatureFlagsMap();
+  const hasAiPermission = useHasPermissionFlag(PermissionFlagType.AI);
 
   const isActionEnabled = ({ type }: { type: WorkflowActionType }) => {
     // Hidden from the picker only, so the AI workflow tools can still add it
@@ -87,6 +90,7 @@ export const SidePanelWorkflowSelectAction = ({
 
   const { data: agentsData } = useQuery(FindManyAgentsDocument, {
     fetchPolicy: 'cache-and-network',
+    skip: !hasAiPermission,
   });
 
   const stepAgents = (agentsData?.findManyAgents ?? []).filter(
@@ -123,15 +127,19 @@ export const SidePanelWorkflowSelectAction = ({
         onClick={handleActionClick}
       />
 
-      <SidePanelWorkflowSelectStepTitle>
-        {t`AI`}
-      </SidePanelWorkflowSelectStepTitle>
-      <WorkflowActionMenuItems
-        actions={aiActions.filter(isActionEnabled)}
-        onClick={handleActionClick}
-      />
+      {hasAiPermission && (
+        <>
+          <SidePanelWorkflowSelectStepTitle>
+            {t`AI`}
+          </SidePanelWorkflowSelectStepTitle>
+          <WorkflowActionMenuItems
+            actions={aiActions.filter(isActionEnabled)}
+            onClick={handleActionClick}
+          />
+        </>
+      )}
 
-      {stepAgents.length > 0 && (
+      {hasAiPermission && stepAgents.length > 0 && (
         <>
           <SidePanelWorkflowSelectStepTitle>
             {t`Agents`}

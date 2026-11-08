@@ -1,5 +1,6 @@
 import { type PermissionFlagType } from 'twenty-shared/constants';
 
+import { isPermissionFlagDisabledByVeridian } from 'src/engine/core-modules/veridian-ai/is-permission-flag-disabled-by-veridian.util';
 import { type FlatRolePermissionFlagMaps } from 'src/engine/metadata-modules/flat-role-permission-flag/types/flat-role-permission-flag-maps.type';
 import { type FlatRole } from 'src/engine/metadata-modules/flat-role/types/flat-role.type';
 import { flatRoleHasPermissionFlag } from 'src/engine/metadata-modules/flat-role/utils/flat-role-has-permission-flag.util';
@@ -14,9 +15,10 @@ export const isPermissionFlagGrantedToFlatRole = ({
   permissionFlag: PermissionFlagType;
   flatRolePermissionFlagMaps: FlatRolePermissionFlagMaps;
 }): boolean =>
-  hasRoleWideAccessToPermissionFlag({ role: flatRole, permissionFlag }) ||
-  flatRoleHasPermissionFlag({
-    flatRole,
-    permissionFlag,
-    flatRolePermissionFlagMaps,
-  });
+  !isPermissionFlagDisabledByVeridian(permissionFlag) &&
+  (hasRoleWideAccessToPermissionFlag({ role: flatRole, permissionFlag }) ||
+    flatRoleHasPermissionFlag({
+      flatRole,
+      permissionFlag,
+      flatRolePermissionFlagMaps,
+    }));

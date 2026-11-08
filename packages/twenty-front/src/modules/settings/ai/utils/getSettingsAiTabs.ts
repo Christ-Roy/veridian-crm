@@ -9,7 +9,12 @@ import {
   IconTool,
 } from 'twenty-ui/icon';
 
-export const getSettingsAiTabs = (isInboxEnabled: boolean) => [
+// Veridian: without the AI flag (no provider wired), only the MCP tab is useful.
+export const getSettingsAiTabs = (
+  isInboxEnabled: boolean,
+  hasAiPermission = true,
+) =>
+  [
   ...(isInboxEnabled
     ? [
         {
@@ -44,4 +49,6 @@ export const getSettingsAiTabs = (isInboxEnabled: boolean) => [
     title: t`Usage`,
     Icon: IconChartBar,
   },
-];
+].filter(
+    (tab) => hasAiPermission || tab.id === SETTINGS_AI_TABS.TABS_IDS.MCP,
+  );

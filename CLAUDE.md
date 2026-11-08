@@ -20,6 +20,27 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,
 mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Reste avant prod : `todo/2026-11-07-passage-prod.md`.
 
+## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
+
+| Brique | Natif | Licence | Usage Veridian |
+|---|---|---|---|
+| Clés API | `createApiKey(name, expiresAt, roleId)` + `generateApiKeyToken` (`/metadata`), REST `rest/metadata/apiKeys` ; une clé porte un rôle, `getApiKeyRoles` liste les assignables (rôle standard `Admin`) | AGPL | accès agent : rôle Admin. La commande `workspace:generate-api-key` refuse hors dev/test |
+| Webhooks | `createWebhook(targetUrl, operations, secret, roleId)`, signature HMAC SHA-256 du corps, filtrés par rôle ; sortie par `SecureHttpClient` (SSRF : privé bloqué sauf `OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS`) | AGPL | accès agent |
+| API | REST `/rest/*`, GraphQL `/graphql` et `/metadata`, sur l'hôte du workspace ou le domaine nu avec une clé | AGPL | |
+| MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous |
+| Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
+| CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` ; ne crée pas de clé | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
+| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, déployés par `twenty app apply` | MIT | pas d'app Veridian à ce jour |
+| IA | chat, agents, compétences, actions IA des workflows, tout derrière le drapeau de permission `AI` ; fournisseurs par clés d'env | AGPL | aucun fournisseur : drapeau `AI` forcé à faux (`VERIDIAN_AI_DISABLED`) |
+| Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
+| Facturation | Stripe, plans, crédits, `usage-limit` : 211 fichiers Enterprise | EE | inutilisable : `IS_BILLING_ENABLED=false`, aucune limite appliquée sans elle |
+| SSO OIDC/SAML | module `sso` | EE | interdit ; le rebond Hub le remplace |
+| Workspaces | multi-workspace par sous-domaine, provisioning par nos routes Hub | AGPL | |
+
+**Plans :** référence `veridian-hub/docs/PRICING-VERIDIAN.md` : générosité maximale, aucune limite appliquée, aucun
+écran de facturation. Le plan reçu du Hub est gardé dans `core.keyValuePair` (`free`, `freemium`, `starter`, `pro`,
+`business`, `enterprise`, `lifetime_site_vitrine`, `lifetime_partner`, `internal`), sans effet dans l'app.
+
 ## 2. Licence : ligne rouge
 
 Chaque fichier `/* @license Enterprise */` (685 en v2.56.1) est sous licence commerciale :

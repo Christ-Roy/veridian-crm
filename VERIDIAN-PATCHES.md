@@ -25,6 +25,8 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `utils/i18n/dynamicActivate.ts` + `veridian-brand/replaceBrandInMessages.ts` (`twenty-front`) | « Twenty » devient « Veridian CRM » au chargement du catalogue, toutes langues, `.po` intacts | `.github/TRADEMARK.md` : un fork exploité porte son nom | `marque.veridian.spec.ts`, parcours |
 | `index.html`, `public/manifest.json`, `public/images/` (`scripts/ci/marque.sh`), `title-utils.ts` (`twenty-front`) | nom et icône du Hub, images à nom identique, images sociales distantes retirées | idem, et plus d'appel à raw.githubusercontent.com | `patch-survival.sh`, parcours |
 | `SettingsNavigationDrawerContent.tsx` (`twenty-front`) | mention « Basé sur Twenty, AGPL » et lien vers le code | AGPL | `patch-survival.sh`, parcours |
+| `build-is-permission-flag-granted.util.ts`, `is-permission-flag-granted-to-flat-role.util.ts` + `veridian-ai/` | drapeau `AI` refusé à tout rôle si `VERIDIAN_AI_DISABLED=true` | aucun fournisseur IA (Robert) : chat, agents, compétences, actions IA disparaissent et sont refusés côté serveur, MCP reste | `ia-coupee.veridian.spec.ts`, `patch-survival.sh`, parcours |
+| `getSettingsAiTabs.ts`, `SettingsAI.tsx`, `SidePanelWorkflowSelectAction.tsx`, `buildMcpSetupCategories.tsx` (`twenty-front`) | sans le drapeau `AI` : onglet MCP seul, pas de section IA ni Agents dans les workflows ; carte ChatGPT retirée | pas de menu mort ; la carte ouvrait l'app ChatGPT du cloud Twenty | `patch-survival.sh`, parcours |
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
 ## Code neuf
@@ -38,7 +40,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `POST /api/tenants/:id/sync-member`, `POST /api/veridian/workspaces/:id/attach-member` | ajoute un membre | §5.18.3, §5.22.2 |
 | `POST /api/tenants/:id/remove-member` | retire un membre, données conservées | §5.19.2 |
 | `POST /api/hub/users/sync`, `GET /api/hub/users` | copie nom, email et suppression ; liste pour l'audit | §3.8 |
-| `GET /api/users/by-email` | workspaces d'une adresse | §5.12 |
+| `GET /api/users/by-email` | workspaces d'une adresse, avec leur sous-domaine (accès agent) | §5.12 |
 | `GET /welcome` | rebond `auto=1` une seule fois ; après déconnexion, en iframe ou après un essai : page « Continuer » sans `auto` | §6bis.8.0 |
 
 `HubOnlyIdentityGuard` refuse inscription, connexion par mot de passe, invitations, changement d'email ou de
@@ -55,6 +57,7 @@ Hors du lot, arbitré par le Hub le 06/11/2026 : `update-plan`, `suspend`, `resu
 | twenty-telemetry.com, au signup | `TELEMETRY_ENABLED=false` |
 | registry.npmjs.org et unpkg.com, au démarrage | `MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false` |
 | connexion par mot de passe | `AUTH_PASSWORD_ENABLED=false` |
+| IA (avec le patch ci-dessus) | `VERIDIAN_AI_DISABLED=true` |
 
 ## Inerts sans configuration, laissés tels quels
 

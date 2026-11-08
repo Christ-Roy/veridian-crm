@@ -217,9 +217,16 @@ with sync_playwright() as p:
         if not cliques or "/objects" in page.url:
             break
 
+    textes = {}
     for chemin in ["/objects/companies", "/objects/opportunities", "/settings/applications", "/settings/ai", "/objects/dashboards"]:
         page.goto(racine + chemin, wait_until="domcontentloaded")
         page.wait_for_timeout(6000)
+        textes[chemin] = re.sub(r"\s+", " ", page.inner_text("body"))
+    # Aucun fournisseur IA (VERIDIAN_AI_DISABLED) : ni chat ni écran de modèles, MCP seul reste.
+    controle("navigation sans onglet IA", not re.search(r"Home AI Settings", textes["/objects/companies"]), textes["/objects/companies"][:60])
+    ia = textes["/settings/ai"]
+    controle("Paramètres > AI réduit à MCP", "MCP client configuration" in ia and not re.search(r"\bModels\b|\bSkills\b|\bUsage\b", ia), ia[ia.find("AI MCP"):][:80])
+    controle("pas de carte ChatGPT du cloud Twenty", "ChatGPT" not in ia)
     ligne = page.get_by_text(re.compile("My First Dashboard", re.I)).first
     if ligne.count():
         ligne.click(timeout=10000)

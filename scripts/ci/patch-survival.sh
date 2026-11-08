@@ -61,6 +61,14 @@ exige packages/twenty-front/src/modules/navigation/components/SettingsNavigation
 exige "$SERVEUR/engine/core-modules/auth/auth.module.ts" "SignInUpService,
   ],"
 
+# Aucun fournisseur IA : le drapeau AI se refuse aux deux points de calcul, l'interface n'offre que MCP.
+exige "$SERVEUR/engine/permissions/role/utils/build-is-permission-flag-granted.util.ts" "!isPermissionFlagDisabledByVeridian(permissionFlag)"
+exige "$SERVEUR/engine/metadata-modules/flat-role/utils/is-permission-flag-granted-to-flat-role.util.ts" "!isPermissionFlagDisabledByVeridian(permissionFlag)"
+exige packages/twenty-front/src/pages/settings/ai/SettingsAI.tsx "getSettingsAiTabs(isInboxEnabled, canReadSystemPrompts)"
+exige packages/twenty-front/src/modules/side-panel/pages/workflow/action/components/SidePanelWorkflowSelectAction.tsx "skip: !hasAiPermission"
+refuse packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatGptTwentyAppUrl"
+for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$job" "VERIDIAN_AI_DISABLED=true"; done
+
 # Un workflow invalide échoue sans job ni message utile : on le voit ici, avant le push.
 if python3 -c "import yaml" 2>/dev/null; then
   python3 -c "import sys,yaml; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" .github/workflows/*.y*ml 2>/dev/null \

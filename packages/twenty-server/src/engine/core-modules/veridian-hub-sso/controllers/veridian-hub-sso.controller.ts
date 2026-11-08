@@ -36,6 +36,7 @@ const SUPPORTED_PLANS = [
   'freemium',
   'starter',
   'pro',
+  'business',
   'enterprise',
   'lifetime_site_vitrine',
   'lifetime_partner',

@@ -10,7 +10,6 @@ import GooseLogo from '@/settings/mcp/assets/mcp-clients/goose.svg';
 import JetBrainsLogo from '@/settings/mcp/assets/mcp-clients/jetbrains.svg';
 import LibreChatLogo from '@/settings/mcp/assets/mcp-clients/librechat.svg';
 import LmStudioLogo from '@/settings/mcp/assets/mcp-clients/lm-studio.svg';
-import OpenAiLogo from '@/settings/mcp/assets/mcp-clients/openai.svg';
 import RaycastLogo from '@/settings/mcp/assets/mcp-clients/raycast.svg';
 import ReplitLogo from '@/settings/mcp/assets/mcp-clients/replit.svg';
 import VsCodeLogo from '@/settings/mcp/assets/mcp-clients/vs-code.svg';
@@ -43,14 +42,6 @@ export const buildMcpSetupCategories = ({
     description: t`Open a maintained integration or prefill clients that accept MCP install links.`,
     showManualConfigurationAfter: true,
     cards: [
-      {
-        title: t`ChatGPT`,
-        badge: t`Official app`,
-        description: t`Open Twenty's official ChatGPT integration for your workspace.`,
-        ctaLabel: t`Open`,
-        href: MCP_SETUP.chatGptTwentyAppUrl,
-        logo: <McpClientLogo src={OpenAiLogo} invertInDarkMode />,
-      },
       {
         title: t`Claude`,
         badge: t`Preset link`,
