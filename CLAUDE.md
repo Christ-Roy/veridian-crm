@@ -14,11 +14,11 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
   est `veridian-hub/docs/CONTRAT-HUB.md` (§3.8, §5, §6bis.8.0) : c'est lui qui fait foi. Pas de base commune, pas d'OIDC.
 - **Rien ne sort sans décision.** Télémétrie, enrichissement, logos, iframes tierces, marketplace : coupés, et
   prouvés par capture réseau et navigateur (`VERIDIAN-PATCHES.md`). Un nouveau canal amont est une anomalie.
-- **Staging d'abord.** Staging : `crm.staging.veridian.site`, privé au tailnet, base neuve. Prod préparée, non déployée : `deploy/crm-db.nomad.hcl` et `deploy/crm-prod.nomad.hcl`, nœud et moment donnés par `infra`. La reprise se fait depuis `todo/2026-11-07-passage-prod.md`.
+- **Staging d'abord, puis prod.** Staging : `crm.staging.veridian.site`, privé au tailnet. Prod depuis le 08/11/2026 : `crm.app.veridian.site` sur `ovh-prod`, jobs `crm-db` puis `crm`, branchée au Hub de prod. `main` = `staging` à chaque mise en prod.
 
 **Décisions (07/11/2026) :** pas de migration, archive `~/veridian/archives/crm-decommission-2026-09-23/` intacte, base neuve ;
 marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,
-mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Reste avant prod : `todo/2026-11-07-passage-prod.md`.
+mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Passage en prod : `todo/2026-11-07-passage-prod.md`.
 
 **Décisions (08/11/2026, parente) :** Twenty est une app `client_only` tant que le Hub n'a pas de plan CRM : pas
 d'`update-plan` ni de Stripe, le plan reçu est gardé sans effet. Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true`
@@ -103,6 +103,8 @@ en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twent
 - **Prod :** `crm-db` (Postgres, Redis, pgBackRest, job séparé) puis `crm` : groupe `stack` (serveur) en canari
   sans `canary_tags`, santé active Traefik, `shutdown_delay` 30 s ; groupe `worker` hors canari. Réservations
   données par `infra` (non reprenable mesuré + 30 à 50 %, plafond = pointe × 1,5). Jamais de base sur `rise`.
+- **Piège (08/11/2026) :** derrière Traefik par le tailnet, `TRUST_PROXY` doit inclure `100.64.0.0/10`, sinon Twenty se croit en
+  http et refuse le cookie de session : le rebond du Hub finit sur la page de connexion. Le parcours le vérifie.
 - **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).
 - Capacité mesurée : `todo/2026-11-07-passage-prod.md`. Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
 
