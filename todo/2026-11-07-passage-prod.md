@@ -22,9 +22,15 @@ Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBack
 sans `deploy/`, `docs/`, `todo/`, `scripts/`, `.github`, environnements de test ni manifestes k8s. `publication.patch`
 reprend les marqueurs anti-fuite de la première publication (07/11, `7a319d05b4`) : s'il ne s'applique plus, le refaire.
 
-## Reste
+## Charge en prod (09/11/2026, 00:25 UTC, ovh-prod, image `staging-6c53836`)
 
-- `charge-staging.py` contre la prod, hors heures de bureau (chiffres du staging seulement à ce jour).
+5 000 sociétés insérées à 484/s, puis 30 s par palier, sans temps de réflexion, 0 erreur partout :
+1 client 10 req/s p95 110 ms · 5 clients 37 req/s p95 181 ms · 20 clients 50 req/s p95 589 ms · 50 clients 58 req/s
+p95 1 446 ms. Plafond d'un seul processus Node (charge de la machine 3,9 sur 6 cœurs). Un humain fait environ une
+requête toutes les 5 s : quelque 300 utilisateurs actifs avant de passer le serveur à 2 instances (`count = 2` du groupe
+`stack`, +800 Mio réservés, à voir avec `infra` : ovh-prod est réservé à environ 70 %).
+
+## Reste
 - Promotion suivante : publier le code, tag, push `staging` puis `main`, `nomad-v deploy`, parcours et preuve agent.
 
 ## Limites d'infra à garder en tête
