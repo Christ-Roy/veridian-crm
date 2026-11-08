@@ -13,6 +13,8 @@ Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBack
   témoin vu ; `twenty-admin --env prod agent:preuve` vert.
 - Hub de prod branché (`fee7dfe`) : `CRM_API_URL`, `CRM_HUB_API_SECRET` dans `nomad/jobs/hub/stack`.
 - `infra` : stanza `crm-db`, première sauvegarde complète, audit horaire ; reste chez elle le drill et la sonde blackbox.
+- Même jour, soir : `update-plan` (CONTRAT-BILLING v2 §3) puis `trial_status` en prod (`staging-ba4577a`, 143/143 sondes
+  pendant la bascule) ; plans réels posés par le Hub (Robert en `pro`), relus par `by-email`.
 
 ## AGPL : à chaque image de prod
 

@@ -21,7 +21,8 @@ marque « Veridian CRM » sur les seules chaînes visibles, au chargement du cat
 mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Passage en prod : `todo/2026-11-07-passage-prod.md`.
 
 **Décisions (08/11/2026) :** le plan vient du Hub par `POST /api/tenants/update-plan` (CONTRAT-BILLING v2 §3), stocké
-sur le lien tenant et relu par `by-email` ; il ne limite rien (PRICING-VERIDIAN). Pas de marque blanche dans Twenty : rien à réserver à Business.
+sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` ; rien n'est limité ni mis en lecture seule
+(PRICING-VERIDIAN, décision de Robert pour lever un drapeau). Pas de marque blanche dans Twenty : rien à réserver à Business.
 Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true` refuse le drapeau `AI` à tout rôle, MCP reste.
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
