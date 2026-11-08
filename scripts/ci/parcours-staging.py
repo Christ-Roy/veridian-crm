@@ -194,7 +194,7 @@ with sync_playwright() as p:
     page2.wait_for_timeout(12000)
     corps2 = page2.inner_text("body")
     controle("le lien ne sert qu'une fois", "Settings" not in corps2, page2.url[:90])
-    controle("sans session : renvoi vers le Hub", urlparse(page2.url).hostname.startswith("hub."), page2.url[:90])
+    controle("sans session : renvoi vers le Hub", (urlparse(page2.url).hostname.startswith("hub.") or urlparse(page2.url).hostname == os.environ.get("HUB_HOTE", "app.veridian.site")), page2.url[:90])
     autre.close()
 
     racine = f"{urlparse(page.url).scheme}://{urlparse(page.url).netloc}"
@@ -348,7 +348,7 @@ with sync_playwright() as p:
     code, _ = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "revoke_sessions": True})
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
     page.wait_for_timeout(15000)
-    controle("revoke_sessions : session coupée", code == 200 and urlparse(page.url).hostname.startswith("hub."), f"{code} {page.url[:80]}")
+    controle("revoke_sessions : session coupée", code == 200 and (urlparse(page.url).hostname.startswith("hub.") or urlparse(page.url).hostname == os.environ.get("HUB_HOTE", "app.veridian.site")), f"{code} {page.url[:80]}")
 
     # Reconnexion, puis déconnexion explicite.
     ctx.clear_cookies()

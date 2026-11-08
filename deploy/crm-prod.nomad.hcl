@@ -122,6 +122,9 @@ job "crm" {
         change_mode = "noop"
         data        = <<EOH
 NODE_PORT=3000
+# Traefik joint le serveur par le tailnet : sans lui dans TRUST_PROXY, X-Forwarded-Proto est ignoré, le serveur se croit
+# en http et refuse le cookie de session à l'origine https (connexion par le Hub cassée, mesuré le 08/11/2026).
+TRUST_PROXY=loopback, linklocal, uniquelocal, 100.64.0.0/10
 SERVER_URL=https://crm.app.veridian.site
 FRONTEND_URL=https://crm.app.veridian.site
 IS_MULTIWORKSPACE_ENABLED=true
