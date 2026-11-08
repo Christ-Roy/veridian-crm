@@ -183,7 +183,9 @@ with sync_playwright() as p:
     page.wait_for_timeout(15000)
     page.screenshot(path=f"{OUT}/1-apres-rebond.png")
     corps = page.inner_text("body")
-    connecte = "/welcome" not in page.url and "/verify" not in page.url and "Continue with" not in corps
+    # Sur le domaine de l'app : une page de connexion du Hub n'est pas une arrivée (faux OK du 08/11/2026 en prod).
+    hote_final = urlparse(page.url).hostname or ""
+    connecte = (hote_final == DOMAINE or hote_final.endswith("." + DOMAINE)) and "/welcome" not in page.url and "/verify" not in page.url and "Continue with" not in corps
     controle("le lien connecte l'utilisateur", connecte, f"{page.url[:70]} | {corps[:90]!r}")
 
     autre = nav.new_context(viewport={"width": 1400, "height": 900})
