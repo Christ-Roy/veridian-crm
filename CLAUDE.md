@@ -28,7 +28,10 @@ L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hu
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
 `metadata.crm` pour reconcile, nom du Hub poussé). L'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
 **Accès agent :** skill `twenty-cli` : `twenty-admin agent:grant` (clé rôle Admin + webhook, rangés dans `~/credentials`,
-jamais affichés), usage par le CLI natif `twenty` (`twenty-admin run <ws> -- …`).
+jamais affichés), usage par le CLI natif `twenty` (`twenty-admin run <ws> -- …`), `import` (bulk JSONL/CSV par l'API),
+`compte:mail` (boîte IMAP/SMTP/CalDAV d'un membre, mot de passe lu dans les credentials, jamais affiché).
+**Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
+code client (aucun exécuteur sûr ; isolé après Patroni : `todo/2026-11-08-executeur-isole.md`), réglages en base.
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
