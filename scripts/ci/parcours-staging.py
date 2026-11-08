@@ -262,6 +262,9 @@ with sync_playwright() as p:
     ia = textes["/settings/ai"]
     controle("Paramètres > AI réduit à MCP", "MCP client configuration" in ia and not re.search(r"\bModels\b|\bSkills\b|\bUsage\b", ia), ia[ia.find("AI MCP"):][:80])
     controle("pas de carte ChatGPT du cloud Twenty", "ChatGPT" not in ia)
+    # Menus morts retirés : e-mailing de Twenty (Notifuse fait foi), console de logs sans ClickHouse.
+    controle("navigation sans Campaigns", "Campaigns" not in textes["/objects/companies"], textes["/objects/companies"][:120])
+    controle("réglages sans interrupteur Logs", not re.search(r"\bLogs\b", textes["/settings/applications"]), textes["/settings/applications"][-80:])
     ligne = page.get_by_text(re.compile("My First Dashboard", re.I)).first
     if ligne.count():
         ligne.click(timeout=10000)

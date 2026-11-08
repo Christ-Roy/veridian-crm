@@ -1,3 +1,4 @@
+import { isWorkflowActionDisabledByVeridian } from 'src/engine/core-modules/veridian-coupures/is-workflow-action-disabled-by-veridian.util';
 import { Injectable } from '@nestjs/common';
 
 import { msg } from '@lingui/core/macro';
@@ -727,6 +728,13 @@ export class WorkflowVersionStepOperationsWorkspaceService {
     type: WorkflowActionType;
     workspaceId: string;
   }) {
+    if (isWorkflowActionDisabledByVeridian(type)) {
+      throw new WorkflowVersionStepException(
+        `WorkflowActionType '${type}' is not enabled`,
+        WorkflowVersionStepExceptionCode.INVALID_REQUEST,
+      );
+    }
+
     const featureFlag = WORKFLOW_ACTION_FEATURE_FLAGS[type];
 
     if (

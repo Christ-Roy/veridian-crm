@@ -72,6 +72,14 @@ for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$jo
 # Le plan vient du Hub (CONTRAT-BILLING v2 §3) : la route existe et ne limite rien.
 exige "$SERVEUR/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller.ts" "@Post('api/tenants/update-plan')"
 
+# Menus morts retirés (parente, 08/11/2026) : e-mailing de Twenty, console sans ClickHouse, code client.
+exige packages/twenty-front/src/modules/navigation-menu-item/common/utils/filterAndSortNavigationMenuItems.ts "VERIDIAN_HIDDEN_OBJECT_NAMES"
+exige packages/twenty-front/src/modules/navigation-menu-item/display/folder/hooks/useNavigationMenuItemsByFolder.ts "itemsInFolder.length > 0 && sortedItems.length === 0"
+exige packages/twenty-front/src/modules/log-console/hooks/useIsLogConsoleAllowed.ts "&& isClickHouseConfigured"
+exige packages/twenty-front/src/modules/side-panel/pages/workflow/action/components/SidePanelWorkflowSelectAction.tsx "if (type === 'CODE')"
+exige "$SERVEUR/modules/workflow/workflow-builder/workflow-version-step/workflow-version-step-operations.workspace-service.ts" "isWorkflowActionDisabledByVeridian(type)"
+for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$job" "IS_CONFIG_VARIABLES_IN_DB_ENABLED=false"; done
+
 # Un workflow invalide échoue sans job ni message utile : on le voit ici, avant le push.
 if python3 -c "import yaml" 2>/dev/null; then
   python3 -c "import sys,yaml; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" .github/workflows/*.y*ml 2>/dev/null \

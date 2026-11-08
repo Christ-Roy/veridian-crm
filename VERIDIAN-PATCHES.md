@@ -27,6 +27,8 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `SettingsNavigationDrawerContent.tsx` (`twenty-front`) | mention « Basé sur Twenty, AGPL » et lien vers le code | AGPL | `patch-survival.sh`, parcours |
 | `build-is-permission-flag-granted.util.ts`, `is-permission-flag-granted-to-flat-role.util.ts` + `veridian-ai/` | drapeau `AI` refusé à tout rôle si `VERIDIAN_AI_DISABLED=true` | aucun fournisseur IA (Robert) : chat, agents, compétences, actions IA disparaissent et sont refusés côté serveur, MCP reste | `ia-coupee.veridian.spec.ts`, `patch-survival.sh`, parcours |
 | `getSettingsAiTabs.ts`, `SettingsAI.tsx`, `SidePanelWorkflowSelectAction.tsx`, `buildMcpSetupCategories.tsx` (`twenty-front`) | sans le drapeau `AI` : onglet MCP seul, pas de section IA ni Agents dans les workflows ; carte ChatGPT retirée | pas de menu mort ; la carte ouvrait l'app ChatGPT du cloud Twenty | `patch-survival.sh`, parcours |
+| `filterAndSortNavigationMenuItems.ts`, `useNavigationMenuItemsByFolder.ts`, `useIsLogConsoleAllowed.ts`, `SidePanelWorkflowSelectAction.tsx` (`twenty-front`) | Campaigns et Listes retirés du menu (et leur dossier vidé), console Logs sans ClickHouse masquée, action Code absente | pas de menu mort : envoi de Twenty sur `LOG` (Notifuse fait foi), logs dans ClickHouse que nous n'avons pas, code client jamais exécuté | `patch-survival.sh`, parcours |
+| `workflow-version-step-operations.workspace-service.ts` + `veridian-coupures/` | étapes Code, fonction et IA refusées à la création quand elles ne peuvent pas s'exécuter | pas d'exécution de code client en multi-client (parente, 08/11/2026) | `actions-coupees.veridian.spec.ts`, `patch-survival.sh` |
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
 ## Code neuf
@@ -59,6 +61,7 @@ Hors du lot, arbitré par le Hub le 06/11/2026 : `suspend`, `resume`, `health`, 
 | registry.npmjs.org et unpkg.com, au démarrage | `MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false` |
 | connexion par mot de passe | `AUTH_PASSWORD_ENABLED=false` |
 | IA (avec le patch ci-dessus) | `VERIDIAN_AI_DISABLED=true` |
+| réglages modifiables depuis l'interface (le job fait seul foi) | `IS_CONFIG_VARIABLES_IN_DB_ENABLED=false` |
 
 ## Inerts sans configuration, laissés tels quels
 

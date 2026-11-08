@@ -91,6 +91,11 @@ export const useNavigationMenuItemsByFolder = () => {
         objectMetadataItems,
       );
 
+      // Veridian: a folder emptied by hidden items is a dead menu; a folder created empty stays.
+      if (itemsInFolder.length > 0 && sortedItems.length === 0) {
+        return acc;
+      }
+
       acc.push({
         id: folder.id,
         folderName: folder.folderName,

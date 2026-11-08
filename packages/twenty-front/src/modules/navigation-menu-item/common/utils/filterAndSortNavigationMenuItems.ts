@@ -7,6 +7,9 @@ import {
 import { isDefined, isNativePageKey } from 'twenty-shared/utils';
 import { type NavigationMenuItem } from '~/generated-metadata/graphql';
 
+// Veridian: Notifuse is the only emailing tool; Twenty campaigns would send nowhere (EMAILING_DOMAIN_DRIVER=LOG).
+const VERIDIAN_HIDDEN_OBJECT_NAMES = ['messageCampaign', 'messageList'];
+
 export const filterAndSortNavigationMenuItems = (
   navigationMenuItems: NavigationMenuItem[],
   views: Pick<View, 'id' | 'objectMetadataId' | 'key'>[],
@@ -49,7 +52,9 @@ export const filterAndSortNavigationMenuItems = (
         return (
           isDefined(item.targetObjectMetadataId) &&
           activeObjectMetadataItems.some(
-            (meta) => meta.id === item.targetObjectMetadataId,
+            (meta) =>
+              meta.id === item.targetObjectMetadataId &&
+              !VERIDIAN_HIDDEN_OBJECT_NAMES.includes(meta.nameSingular),
           )
         );
       }

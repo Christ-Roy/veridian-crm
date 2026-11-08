@@ -62,6 +62,11 @@ export const SidePanelWorkflowSelectAction = ({
   const hasAiPermission = useHasPermissionFlag(PermissionFlagType.AI);
 
   const isActionEnabled = ({ type }: { type: WorkflowActionType }) => {
+    // Veridian runs no client code (LOGIC_FUNCTION_TYPE disabled); the server refuses the step too.
+    if (type === 'CODE') {
+      return false;
+    }
+
     // Hidden from the picker only, so the AI workflow tools can still add it
     if (type === 'WAIT_FOR_EVENT') {
       return featureFlagsMap[FeatureFlagKey.IS_AI_CHAT_INBOX_ENABLED] === true;
