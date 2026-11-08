@@ -239,10 +239,15 @@ with sync_playwright() as p:
       return [
         await f('/graphql', 'mutation($i:UUID!){updateWorkspaceMember(id:$i,data:{name:{firstName:"Pirate"}}){id name{firstName}}}', {i: id}),
         await f('/metadata', 'mutation($i:UpdateWorkspaceMemberSettingsInput!){updateWorkspaceMemberSettings(input:$i)}', {i: {workspaceMemberId: id, update: {name: {firstName: 'Pirate2'}}}}),
+        await f('/metadata', '{findManyAgents{id}}', {}),
+        await f('/metadata', '{skills{id}}', {}),
       ];
     }""", h)
     controle("renommage par /graphql refusé", '"Pirate"' not in essais[0], essais[0][:120])
     controle("renommage par /metadata refusé", "Identity is managed" in essais[1], essais[1][:120])
+    # IA coupée côté serveur, pas seulement masquée : un appel direct de l'Admin est refusé.
+    for i, nom in ((2, "agents"), (3, "compétences")):
+        controle(f"IA refusée par l'API ({nom})", '"errors"' in essais[i] and ("PERMISSION" in essais[i].upper() or "FORBIDDEN" in essais[i].upper()), essais[i][:140])
     tiers = [f.url for f in page.frames if urlparse(f.url).hostname and DOMAINE not in f.url]
     controle("tableau de bord sans iframe tiers", not tiers, str(tiers)[:100])
 
