@@ -20,6 +20,13 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,
 mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`. Reste avant prod : `todo/2026-11-07-passage-prod.md`.
 
+**Décisions (08/11/2026, parente) :** Twenty est une app `client_only` tant que le Hub n'a pas de plan CRM : pas
+d'`update-plan` ni de Stripe, le plan reçu est gardé sans effet. Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true`
+refuse le drapeau `AI` à tout rôle, MCP reste. Un espace se crée par l'activation de `twenty` au Hub (`app-access`),
+qui appelle `/api/tenants/provision` ; l'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
+**Accès agent :** skill `twenty-cli` : `twenty-admin agent:grant` (clé rôle Admin + webhook, rangés dans `~/credentials`,
+jamais affichés), usage par le CLI natif `twenty` (`twenty-admin run <ws> -- …`).
+
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
 | Brique | Natif | Licence | Usage Veridian |
@@ -93,6 +100,10 @@ en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twent
 - **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
   `timeout` (`restart-task` lancé sans le faire : écritures Nomad du parc bloquées 83 min le 07/11/2026).
 - Démarrage lent : chaque étape d'entrée recharge Nest. Environ 2 min au calme, plus de 20 min sur un nœud saturé.
+- **Prod :** `crm-db` (Postgres, Redis, pgBackRest, job séparé) puis `crm` : groupe `stack` (serveur) en canari
+  sans `canary_tags`, santé active Traefik, `shutdown_delay` 30 s ; groupe `worker` hors canari. Réservations
+  données par `infra` (non reprenable mesuré + 30 à 50 %, plafond = pointe × 1,5). Jamais de base sur `rise`.
+- **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).
 - Capacité mesurée : `todo/2026-11-07-passage-prod.md`. Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
 
 ## 6. Sync amont

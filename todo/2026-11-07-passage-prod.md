@@ -1,30 +1,41 @@
 # Passage de Twenty en prod : ce qui reste, chiffres à l'appui
 
 Décisions tranchées (parente, 07/11/2026) : pas de migration, archive intacte, base neuve ; « Veridian CRM » ;
-`crm.app.veridian.site` ; double authentification au Hub seul. Nœud pressenti par `infra` : `ovh-prod`, non confirmé.
+`crm.app.veridian.site` ; double authentification au Hub seul. Nœud : `ovh-prod`, confirmé par `infra` le 08/11.
 Jobs prêts, non déployés : `deploy/crm-db.nomad.hcl` (Postgres, Redis, pgBackRest) et `deploy/crm-prod.nomad.hcl` (serveur, worker).
 
-## Ce qui bloque, dans l'ordre
+## État au 08/11/2026, 11 h
 
-1. **`infra` donne le nœud et le moment.** `ovh-prod`, inscrit dans les deux jobs (`noeud_provider`, contrainte de `crm-db`), n'est pas confirmé : il serait presque plein avec Twenty et ses plafonds mémoire ne sont pas posés (parente, 07/11/2026, 22 h). Autre nœud : changer les deux valeurs et revérifier les ports tailnet 15433 et 16380.
+- Nœud `ovh-prod` confirmé par `infra` pour `crm` et `crm-db`. Fenêtre : nuit du 08/11, après Notifuse, CMS et
+  Prospection (à partir de 23 h). `infra` réveille la session ; rien en prod avant son message.
+- Réservations d'`infra` posées, worker hors canari, `nomad-v preflight` vert sur les deux jobs (commit `0eaaaece8a`).
+- Secrets neufs posés (hex) : `nomad/jobs/crm` (APP_SECRET, POSTGRES_PASSWORD, REDIS_PASSWORD, HUB_API_SECRET) et
+  `nomad/jobs/crm-db` (mêmes mots de passe). `infra` y remplace SFTP_REPO_* et PGBACKREST_CIPHER_PASS par un dépôt neuf.
+  Côté bastion : `CRM_HUB_API_SECRET_PROD` dans `.all-creds.env`.
+- DNS : `crm.app` et `*.crm.app` résolvent déjà par le joker `*.app.veridian.site` (`infra`).
+- Image candidate : `staging-d7f9354` (IA coupée), parcours staging 68 OK, preuve agent verte, le 08/11.
 
 ## AGPL : à chaque image de prod
 
-Code publié sur https://github.com/Christ-Roy/veridian-crm-source (un commit, sans historique, publié par la parente depuis `7a319d05b4`), lien du pied de page dessus.
-Il doit correspondre à ce qui est servi : republier avant chaque prod, sans `.env.test`, `deploy/`, `docs/`, `todo/`, `scripts/ci/`, `.github`, ni les manifestes k8s d'exemple.
-Trois lignes de tests et un yarn y portent le marqueur `check-no-secrets:allow` ou une construction à l'exécution, la fixture granola est construite par join : reporter le même changement si ces fichiers bougent.
+`scripts/agpl/publier-source.sh` publie sur https://github.com/Christ-Roy/veridian-crm-source le code exact de l'image,
+sans `deploy/`, `docs/`, `todo/`, `scripts/`, `.github`, environnements de test ni manifestes k8s. `publication.patch`
+reprend les marqueurs anti-fuite de la première publication (07/11, `7a319d05b4`) : s'il ne s'applique plus, le refaire.
 
-## Passage
+## Passage (cette nuit)
 
-1. Secrets neufs, jamais ceux du staging, en hexadécimal car ils entrent dans des URL :
-   `nomad/jobs/crm-db` : `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, plus `SFTP_REPO_*` et `PGBACKREST_CIPHER_PASS` posés par `infra` ;
-   `nomad/jobs/crm` : les mêmes `POSTGRES_PASSWORD` et `REDIS_PASSWORD`, `APP_SECRET`, `HUB_API_SECRET`.
-2. Volumes sur `ovh-prod`, commandes en tête de chaque job. DNS `crm.app` et `*.crm.app` : vérifier qu'ils pointent sur l'ingress du nœud.
-3. Promouvoir `staging` sur `main` le jour du déploiement ; `infra` bascule alors `jobs/SOURCES.tsv` dessus (sa décision : le banc ne doit pas changer la source de la prod). Le contrat, `SOURCES` et le fusible I/O sont posés, `nomad-v preflight` vert sur les deux jobs.
-4. `echo oui | timeout 280 nomad-v deploy deploy/crm-db.nomad.hcl`, puis `deploy/crm-prod.nomad.hcl`. La base doit être saine avant le serveur : pas de tâche d'attente, le `restart` couvre.
-5. Épreuves sur ce qui est servi : `capture-sortante.sh` lancée dès le démarrage (elle vise un conteneur du job, à adapter : `crm-db` ne redémarre plus avec l'app), `parcours-staging.py https://crm.app.veridian.site`, `charge-staging.py` hors heures de bureau sur ce nœud partagé, comparer les variables au staging, `pnpm test:systeme` avec `TWENTY_URL=https://crm.app.veridian.site`.
-6. Écrire à `infra` dès que le service répond : blackbox, `sonde-prod.sh`, stanza, dépôt et drill pgBackRest, volume `storage`.
-7. Pointer le Hub de prod sur `CRM_*` : URL et secret, à faire avec la session Hub.
+1. `scripts/agpl/publier-source.sh <commit de l'image>` ; vérifier le lien du pied de page.
+2. Tag de l'image dans `deploy/crm-prod.nomad.hcl`, push `staging`, promotion `staging` sur `main` ; prévenir `infra`
+   (SOURCES.tsv sur `main`).
+3. Volumes sur `ovh-prod` (commandes en tête des jobs). `echo oui | timeout 280 nomad-v deploy deploy/crm-db.nomad.hcl`,
+   base saine, puis `deploy/crm-prod.nomad.hcl`.
+4. Épreuves sur ce qui est servi : `capture-sortante.sh` dès le démarrage (vise `crm-db`), `parcours-staging.py
+   https://crm.app.veridian.site`, `twenty-admin --env prod agent:preuve`, comparer les variables au staging.
+5. Hub prod : `CRM_API_URL=https://crm.app.veridian.site` dans `deploy/hub.nomad.hcl` (dépôt veridian-hub, `main`),
+   `CRM_HUB_API_SECRET` dans `nomad/jobs/hub/stack` (modèle de hub-staging), égal à `HUB_API_SECRET` de `nomad/jobs/crm`.
+6. Parcours réel depuis le Hub de prod : compte prouvé, `hub app-access <email> --app twenty --enabled true`, ouvrir
+   la carte, arriver à son nom ; puis `pnpm test:systeme` (cas Twenty de `01-arrivee` et `08`) à zéro échec.
+7. Écrire à `infra` : blackbox, `sonde-prod.sh`, stanza et drill pgBackRest, volume `storage`. `charge-staging.py`
+   hors heures de bureau.
 
 ## Limites d'infra à garder en tête
 
