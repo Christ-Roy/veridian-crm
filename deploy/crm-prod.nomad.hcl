@@ -29,7 +29,7 @@ job "crm" {
 
     # Bleu-vert, comme hub : le canari démarre à côté (environ 2 min de démarrage Nest), Traefik ne le sert qu'une fois
     # /healthz vert, puis la promotion arrête l'ancienne après shutdown_delay. Pas de canary_tags : deux définitions du
-    # même routeur, Traefik l'écarte (404 mesurés sur hub le 07/11/2026). Pendant le canari, la mémoire réservée double.
+    # même routeur, Traefik l'écarte (404 mesurés sur hub le 07/11/2026). Le canari ne double que le serveur (800 Mio).
     update {
       max_parallel      = 1
       canary            = 1
@@ -156,9 +156,42 @@ EOH
       }
       resources {
         cpu        = 1000
-        memory     = 1280
-        memory_max = 2560
+        memory     = 800
+        memory_max = 1800
       }
+    }
+  }
+
+  # Le worker n'a ni port ni service : hors canari (infra, 08/11/2026), il redémarre seul pendant la bascule du serveur.
+  # La file Redis garde les tâches le temps de son démarrage.
+  group "worker" {
+    count = 1
+
+    update {
+      max_parallel      = 1
+      canary            = 0
+      health_check      = "task_states"
+      min_healthy_time  = "30s"
+      healthy_deadline  = "20m"
+      progress_deadline = "30m"
+      auto_revert       = true
+    }
+
+    constraint {
+      attribute = "${meta.provider}"
+      value     = var.noeud_provider
+    }
+
+    reschedule {
+      attempts  = 0
+      unlimited = false
+    }
+
+    restart {
+      attempts = 10
+      interval = "10m"
+      delay    = "20s"
+      mode     = "delay"
     }
 
     task "crm-worker" {
@@ -213,8 +246,8 @@ EOH
       }
       resources {
         cpu        = 600
-        memory     = 1100
-        memory_max = 1792
+        memory     = 832
+        memory_max = 1600
       }
     }
   }

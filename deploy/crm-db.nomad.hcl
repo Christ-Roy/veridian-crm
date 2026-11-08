@@ -106,7 +106,7 @@ EOH
 
       template {
         destination = "secrets/pg.env"
-        perms       = "600"   # secret: lisible du seul proprietaire
+        perms       = "600" # secret: lisible du seul proprietaire
         env         = true
         data        = <<EOH
 TZ=UTC
@@ -151,9 +151,9 @@ EOH
         }
       }
       resources {
-        cpu = 200
-        memory     = 192
-        memory_max = 2000
+        cpu        = 200
+        memory     = 256
+        memory_max = 3072
       }
     }
 
@@ -201,7 +201,7 @@ EOH
 
       template {
         destination = "secrets/pgbackrest.env"
-        perms       = "600"   # secret: lisible du seul proprietaire
+        perms       = "600" # secret: lisible du seul proprietaire
         env         = true
         data        = <<EOH
 TZ=UTC
@@ -287,8 +287,8 @@ EOH
       }
       resources {
         cpu        = 100
-        memory     = 192
-        memory_max = 512
+        memory     = 64
+        memory_max = 256
       }
     }
   }
