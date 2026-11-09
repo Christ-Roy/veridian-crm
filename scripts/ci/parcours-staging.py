@@ -412,7 +412,13 @@ with sync_playwright() as p:
     navs = []
     pn.on("request", lambda q: navs.append(q.url) if q.is_navigation_request() else None)
     pn.goto(BASE + "/settings/profile", wait_until="commit", timeout=120000)
-    pn.wait_for_timeout(25000)
+    # Jusqu'à 90 s pour le rebond (25 s fixes ne suffisaient pas sur un bastion saturé, 09/11/2026),
+    # puis 10 s de plus pour qu'une boucle éventuelle ait le temps de se montrer.
+    for _ in range(90):
+        if any("bounce/prepare" in u for u in navs):
+            break
+        pn.wait_for_timeout(1000)
+    pn.wait_for_timeout(10000)
     vers_hub = [u for u in navs if "bounce/prepare" in u]
     controle("domaine nu : pas de boucle", len(navs) < 12, f"{len(navs)} navigations")
     controle("domaine nu : rebond auto vers la page demandée", bool(vers_hub) and "auto=1" in vers_hub[0] and "settings%2Fprofile" in vers_hub[0], (vers_hub or [pn.url])[0][:150])
