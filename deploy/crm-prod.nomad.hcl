@@ -115,6 +115,7 @@ job "crm" {
         "traefik.http.middlewares.crm-retry.retry.initialinterval=200ms",
       ]
       check {
+        name     = "vivacite"
         type     = "http"
         path     = "/healthz"
         interval = "20s"
@@ -123,6 +124,15 @@ job "crm" {
           limit = 30
           grace = "15m"
         }
+      }
+      # Base joignable (09/11/2026) : /healthz ne la lit pas. Ce check sort l'instance de la rotation Traefik pendant
+      # une bascule pg-saas sans la tuer (pas de check_restart : une base absente ne fait pas redémarrer en boucle).
+      check {
+        name     = "base"
+        type     = "http"
+        path     = "/healthz/base"
+        interval = "5s"
+        timeout  = "3s"
       }
     }
 

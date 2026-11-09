@@ -24,6 +24,7 @@ exige "$SERVEUR/modules/contact-creation-manager/services/create-company.service
 exige "$SERVEUR/engine/core-modules/tool/tools/search-help-center-tool/search-help-center-tool.ts" "HELP_CENTER_SEARCH_ENABLED"
 exige "$SERVEUR/engine/core-modules/core-engine.module.ts" "VeridianHubSsoModule"
 exige "$SERVEUR/engine/core-modules/core-engine.module.ts" "VeridianHubMcpModule"
+exige "$SERVEUR/engine/core-modules/core-engine.module.ts" "VeridianPgModule"
 exige "$SERVEUR/engine/api/mcp/constants/mcp-excluded-tool-names.constant.ts" ": ['search_help_center']),"
 exige "$SERVEUR/engine/api/mcp/services/mcp-protocol.service.ts" "COMMON_PRELOAD_TOOLS.filter((name) => !MCP_EXCLUDED_TOOL_NAMES.has(name))"
 exige "$SERVEUR/database/typeorm/core/core.datasource.ts" "...getVeridianPgPoolResilience()"
