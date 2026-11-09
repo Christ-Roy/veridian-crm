@@ -83,6 +83,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, boucle du domaine nu, garde d'identité, marque : chaque comportement retiré casse la spec | à chaque CI |
 | `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, connexion, déconnexion, navigateur sans hôte tiers, écrans sans action réservée au Hub ni nom amont | oui, plusieurs fois |
 | `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier, espace jetable | mesure, à rejouer sur le nœud de prod |
+| `scripts/ci/preuve-mcp-hub.py <url_mcp> <hub_user_id>` | JWT du Hub sur `/mcp` : connu, inconnu, `tenant_*`, aide hors MCP | prod 401 avant le module (09/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
@@ -109,6 +110,7 @@ en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twent
 - **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe), depuis le 09/11/2026 ; `crm-db` retiré, dumps au froid. Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis : sans `REDIS_URL` le serveur sort au démarrage, 8 min de coupure le 09/11) en canari
   sans `canary_tags`, santé active Traefik, `shutdown_delay` 30 s ; groupe `worker` hors canari. Réservations
   données par `infra` (non reprenable mesuré + 30 à 50 %, plafond = pointe × 1,5). Jamais de base sur `rise`.
+- **pg-saas (09/11/2026) :** budget 24 connexions (pool 8 serveur, 4 worker) ; check Nomad `base` sans redémarrage ; santé Traefik 3 s ; `count = 2` quand ovh-prod aura la RAM.
 - **Piège (08/11/2026) :** derrière Traefik par le tailnet, `TRUST_PROXY` doit inclure `100.64.0.0/10`, sinon Twenty se croit en
   http et refuse le cookie de session : le rebond du Hub finit sur la page de connexion. Le parcours le vérifie.
 - **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).

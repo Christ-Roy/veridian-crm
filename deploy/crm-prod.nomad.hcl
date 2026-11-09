@@ -107,10 +107,11 @@ job "crm" {
         "traefik.http.routers.crm.tls.domains[0].main=crm.app.veridian.site",
         "traefik.http.routers.crm.tls.domains[0].sans=*.crm.app.veridian.site",
         "traefik.http.routers.crm.middlewares=crm-retry@nomad",
-        # Ne pas changer ces tags dans un déploiement ordinaire (voir hub.nomad.hcl).
+        # Ne pas changer ces tags dans un déploiement ordinaire (voir hub.nomad.hcl). Délai 1 s → 3 s le 09/11/2026
+        # (déploiement annoncé, parente) : sous 50 utilisateurs /healthz dépassait 1 s, Traefik retirait la seule instance.
         "traefik.http.services.crm.loadbalancer.healthcheck.path=/healthz",
         "traefik.http.services.crm.loadbalancer.healthcheck.interval=2s",
-        "traefik.http.services.crm.loadbalancer.healthcheck.timeout=1s",
+        "traefik.http.services.crm.loadbalancer.healthcheck.timeout=3s",
         "traefik.http.middlewares.crm-retry.retry.attempts=4",
         "traefik.http.middlewares.crm-retry.retry.initialinterval=200ms",
       ]
