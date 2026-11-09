@@ -249,10 +249,15 @@ with sync_playwright() as p:
             break
 
     textes = {}
+    # Le menu latéral seul dépasse 200 caractères : sur /settings/ai on attend le contenu de la page, pas le menu
+    # (lu « Home Settings … » sans le bloc MCP, 09/11/2026, nœud chargé).
+    contenu = {"/settings/ai": "MCP client configuration"}
     for chemin in ["/objects/companies", "/objects/opportunities", "/settings/applications", "/settings/ai", "/objects/dashboards"]:
         page.goto(racine + chemin, wait_until="domcontentloaded")
         try:
             page.wait_for_function("document.body && document.body.innerText.length > 200", timeout=60000)
+            if chemin in contenu:
+                page.get_by_text(contenu[chemin]).first.wait_for(timeout=60000)
         except Exception:
             pass
         page.wait_for_timeout(3000)
@@ -472,6 +477,9 @@ code2, _ = rebond(HUB_ID, EMAIL)
 controle("compte supprimé par le Hub : plus de lien", code == 200 and code2 == 400, f"{code} {code2}")
 code, texte = lecture("/api/hub/users", "")
 controle("compte de test retiré de la liste", code == 200 and EMAIL not in texte, str(code))
+# Contrôle d'absence (parente, 09/11/2026) : aucun compte de parcours ne survit, ni celui-ci ni un d'un passage tué.
+restes = sorted(set(re.findall(r"parcours\+\d+@veridian\.site", texte)))
+controle("aucun compte parcours+* restant", code == 200 and not restes, str(restes)[:200])
 print(f"EMAIL {EMAIL}")
 print(f"VERDICT : {'ÉCHEC ' + str(echecs) if echecs else 'parcours réussi'}")
 sys.exit(1 if echecs else 0)

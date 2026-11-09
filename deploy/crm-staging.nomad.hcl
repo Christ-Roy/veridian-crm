@@ -239,6 +239,9 @@ HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
 VERIDIAN_AI_DISABLED=true
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
+# Budget de connexions pg-saas (parente, 09/11/2026) : 8 par pool, 2 pools (cœur, workspace).
+PG_POOL_MAX_CONNECTIONS=8
+PG_POOL_IDLE_TIMEOUT_MS=60000
 # Porte MCP du Hub (CONTRAT-MCP) : JWT ES256 du Hub, aud = l'URL inscrite au registre du Hub.
 VERIDIAN_HUB_MCP_ISSUER=https://hub.staging.veridian.site
 VERIDIAN_HUB_MCP_AUDIENCE=https://crm.staging.veridian.site/mcp
@@ -299,6 +302,9 @@ IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
 VERIDIAN_AI_DISABLED=true
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
+# Budget de connexions pg-saas (parente, 09/11/2026) : 4 par pool, 2 pools (cœur, workspace).
+PG_POOL_MAX_CONNECTIONS=4
+PG_POOL_IDLE_TIMEOUT_MS=60000
 MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 EMAIL_DRIVER=logger
 REDIS_URL=redis://127.0.0.1:6379
