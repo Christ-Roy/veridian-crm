@@ -126,7 +126,7 @@ job "crm" {
       }
     }
 
-    task "attente-dependances" {
+    task "crm-attente-dependances" {
       driver = "docker"
       lifecycle {
         hook    = "prestart"
@@ -271,7 +271,7 @@ EOH
       mode     = "delay"
     }
 
-    task "attente-dependances" {
+    task "crm-attente-dependances" {
       driver = "docker"
       lifecycle {
         hook    = "prestart"
@@ -400,7 +400,7 @@ EOH
       }
     }
 
-    task "redis" {
+    task "crm-redis" {
       driver          = "docker"
       shutdown_delay  = "5s"
       config {
