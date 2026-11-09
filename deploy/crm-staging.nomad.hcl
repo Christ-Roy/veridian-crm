@@ -35,6 +35,14 @@ job "crm-staging" {
   group "stack" {
     count = 1
 
+    # Démarrage de 2 à plus de 20 min sur un nœud chargé : le défaut de Nomad (5 min) déclarait en échec
+    # un déploiement dont le serveur finissait de démarrer (09/11/2026).
+    update {
+      min_healthy_time  = "30s"
+      healthy_deadline  = "20m"
+      progress_deadline = "30m"
+    }
+
     constraint {
       attribute = "${meta.provider}"
       value     = "contabo"

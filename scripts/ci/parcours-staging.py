@@ -356,12 +356,12 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
 
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
-    page.wait_for_timeout(8000)
+    # Attentes sur le rendu, pas des délais fixes : staging sur un bastion saturé dépassait les 8 s (09/11/2026).
+    creer = page.locator("button:visible").filter(has_text=re.compile(r"^Create$")).first
+    creer.wait_for(timeout=60000)
+    page.wait_for_timeout(1500)
     avant = page.get_by_text("PersonneParcours").count()
-    for bouton in page.locator("button:visible").all():
-        if bouton.inner_text().strip() == "Create":
-            bouton.click(timeout=8000)
-            break
+    creer.click(timeout=15000)
     page.wait_for_timeout(4000)
     page.mouse.click(1180, 98)
     page.wait_for_timeout(1500)
@@ -371,7 +371,10 @@ with sync_playwright() as p:
     page.keyboard.press("Control+Enter")
     page.wait_for_timeout(6000)
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
-    page.wait_for_timeout(9000)
+    try:
+        page.get_by_text("PersonneParcours").nth(avant).wait_for(timeout=60000)
+    except Exception:
+        pass
     page.screenshot(path=f"{OUT}/2-personnes.png")
     controle("personne créée et relue après rechargement", page.get_by_text("PersonneParcours").count() > avant)
     # Lecture de session, celle que la batterie du Hub utilise.
