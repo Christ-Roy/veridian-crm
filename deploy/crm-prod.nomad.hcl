@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-49df2e5" # 09/11/2026 : /healthz/base, aide en ligne hors MCP, règle tenant_id
+  default = "staging-4e21eb3" # 09/11/2026 : page d erreur Veridian CRM, plafonds de pool (budget pg-saas)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
