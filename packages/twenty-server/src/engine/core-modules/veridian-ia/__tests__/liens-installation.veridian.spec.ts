@@ -1,37 +1,132 @@
 import { LiensInstallationService } from 'src/engine/core-modules/veridian-ia/services/liens-installation.service';
 import { parseLiensInstallation } from 'src/engine/core-modules/veridian-ia/utils/parse-liens-installation.util';
 
+const CLAUDE =
+  'https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Veridian&connectorUrl=https%3A%2F%2Fapp.veridian.site%2Fapi%2Fmcp';
+
+// Shape served by the Hub in prod on 10/11/2026 (?app=twenty), trimmed.
 const HUB_LIENS = {
   url: 'https://app.veridian.site/api/mcp',
-  claude:
-    'https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Veridian&connectorUrl=https%3A%2F%2Fapp.veridian.site%2Fapi%2Fmcp',
-  chatgpt: 'https://chatgpt.com/#settings/Connectors',
-  cursor:
-    'cursor://anysphere.cursor-deeplink/mcp/install?name=veridian&config=e30%3D',
-  vscode: 'https://vscode.dev/redirect?url=vscode%3Amcp%2Finstall',
   claudeCode:
     'claude mcp add --transport http veridian https://app.veridian.site/api/mcp',
-  instructions: { chatgpt: 'Collez l’adresse Veridian.' },
+  assistants: [
+    {
+      cle: 'claude',
+      libelle: 'Ajouter à Claude',
+      installation: CLAUDE,
+      etape: null,
+    },
+    {
+      cle: 'chatgpt',
+      libelle: 'Ouvrir ChatGPT',
+      installation: 'https://chatgpt.com/#settings/Connectors',
+      etape: 'Ajoutez un serveur MCP et collez l’adresse Veridian.',
+    },
+    {
+      cle: 'cursor',
+      libelle: 'Ajouter à Cursor',
+      installation:
+        'cursor://anysphere.cursor-deeplink/mcp/install?name=veridian&config=e30%3D',
+      etape: null,
+    },
+    {
+      cle: 'vscode',
+      libelle: 'Ajouter à VS Code',
+      installation: 'https://vscode.dev/redirect?url=vscode%3Amcp%2Finstall',
+      etape: null,
+    },
+  ],
+  app: {
+    cle: 'twenty',
+    nom: 'CRM',
+    phrase: 'Une seule connexion Veridian : votre IA accède à CRM.',
+  },
 };
 
+const withAssistant = (index: number, patch: object) => ({
+  ...HUB_LIENS,
+  assistants: HUB_LIENS.assistants.map((assistant, i) =>
+    i === index ? { ...assistant, ...patch } : assistant,
+  ),
+});
+
 describe('parseLiensInstallation', () => {
-  it('keeps the links the Hub publishes', () => {
-    expect(parseLiensInstallation(HUB_LIENS)).toMatchObject({
-      claude: HUB_LIENS.claude,
-      instructionsChatgpt: 'Collez l’adresse Veridian.',
+  it('keeps the assistants, labels, steps and app sentence the Hub publishes', () => {
+    const liens = parseLiensInstallation(HUB_LIENS);
+
+    expect(liens?.assistants.map((assistant) => assistant.cle)).toEqual([
+      'claude',
+      'chatgpt',
+      'cursor',
+      'vscode',
+    ]);
+    expect(liens?.assistants[0]).toEqual({
+      cle: 'claude',
+      libelle: 'Ajouter à Claude',
+      installation: CLAUDE,
+      etape: null,
     });
+    expect(liens?.assistants[1].etape).toContain('serveur MCP');
+    expect(liens?.phrase).toContain('CRM');
   });
 
-  it('refuses a link that points anywhere else, javascript: included', () => {
-    expect(
-      parseLiensInstallation({ ...HUB_LIENS, claude: 'javascript:alert(1)' }),
-    ).toBeNull();
-    expect(
-      parseLiensInstallation({
+  it('trusts the Hub on hosts and paths: a moved link keeps its button', () => {
+    const liens = parseLiensInstallation(
+      withAssistant(1, { installation: 'https://chat.openai.com/plugins' }),
+    );
+
+    expect(liens?.assistants[1].installation).toBe(
+      'https://chat.openai.com/plugins',
+    );
+  });
+
+  it('shows an assistant the Hub adds tomorrow', () => {
+    const liens = parseLiensInstallation({
+      ...HUB_LIENS,
+      assistants: [
+        ...HUB_LIENS.assistants,
+        {
+          cle: 'codex',
+          libelle: 'Ajouter à Codex',
+          installation: 'https://codex.example/add',
+          etape: null,
+        },
+      ],
+    });
+
+    expect(liens?.assistants.map((assistant) => assistant.cle)).toContain(
+      'codex',
+    );
+  });
+
+  it('drops only links a browser must not open, and reports key and origin', () => {
+    const rejetes: object[] = [];
+    const liens = parseLiensInstallation(
+      {
         ...HUB_LIENS,
-        cursor: 'https://evil.example/cursor',
-      }),
+        assistants: [
+          ...HUB_LIENS.assistants,
+          { cle: 'a', libelle: 'x', installation: 'javascript:alert(1)' },
+          { cle: 'b', libelle: 'x', installation: 'data:text/html,hi' },
+          { cle: 'c', libelle: 'x', installation: 'http://claude.ai/x?u=1' },
+        ],
+      },
+      (rejete) => rejetes.push(rejete),
+    );
+
+    expect(liens?.assistants).toHaveLength(4);
+    expect(rejetes).toEqual([
+      { cle: 'a', origine: 'javascript:' },
+      { cle: 'b', origine: 'data:' },
+      { cle: 'c', origine: 'http:' },
+    ]);
+  });
+
+  it('refuses a body without a valid address or assistant', () => {
+    expect(
+      parseLiensInstallation({ ...HUB_LIENS, url: 'http://x' }),
     ).toBeNull();
+    expect(parseLiensInstallation({ ...HUB_LIENS, assistants: [] })).toBeNull();
     expect(parseLiensInstallation({ url: HUB_LIENS.url })).toBeNull();
     expect(parseLiensInstallation('<html>')).toBeNull();
   });
@@ -56,13 +151,13 @@ describe('LiensInstallationService', () => {
 
     expect(await service.get()).toMatchObject({
       disponible: true,
-      claude: HUB_LIENS.claude,
+      url: HUB_LIENS.url,
     });
     await service.get();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://app.veridian.site/api/mcp/liens-installation',
+      'https://app.veridian.site/api/mcp/liens-installation?app=twenty',
       expect.anything(),
     );
   });

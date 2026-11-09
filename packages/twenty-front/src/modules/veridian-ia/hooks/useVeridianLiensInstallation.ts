@@ -4,14 +4,18 @@ import { REACT_APP_SERVER_BASE_URL } from '~/config';
 
 // Read through our own server, which validates the Hub links and answers `disponible: false`
 // when the Hub is down: the buttons then stay hidden instead of leading nowhere.
+export type VeridianAssistant = {
+  cle: string;
+  libelle: string;
+  installation: string;
+  etape: string | null;
+};
+
 export type VeridianLiensInstallation = {
   url: string;
-  claude: string;
-  chatgpt: string;
-  cursor: string;
-  vscode: string;
+  assistants: VeridianAssistant[];
   claudeCode: string;
-  instructionsChatgpt: string;
+  phrase: string;
 };
 
 export type VeridianLiensEtat = 'chargement' | 'indisponible' | 'pret';

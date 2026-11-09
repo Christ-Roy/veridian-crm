@@ -278,11 +278,12 @@ with sync_playwright() as p:
         page.get_by_text(attendu).first.wait_for(timeout=60000)
     except Exception:
         pass
-    claude = page.locator('a[href^="https://claude.ai/customize/connectors"]')
+    hrefs = page.evaluate("() => [...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))")
     if liens.get("disponible"):
-        controle("Brancher mon IA : bouton Claude vers l'ajout du connecteur", claude.count() == 1 and claude.first.get_attribute("href") == liens.get("claude"), str(claude.count()))
+        attendu_claude = next((a["installation"] for a in liens.get("assistants", []) if a.get("cle") == "claude"), None)
+        controle("Brancher mon IA : bouton Claude vers l'ajout du connecteur", attendu_claude is not None and hrefs.count(attendu_claude) == 1, f"{hrefs.count(attendu_claude)} {str(attendu_claude)[:60]}")
     else:
-        controle("Brancher mon IA : Hub muet, aucun bouton, message clair", claude.count() == 0 and page.get_by_text(attendu).count() > 0, page.inner_text("body")[-120:].replace("\n", " "))
+        controle("Brancher mon IA : Hub muet, aucun bouton, message clair", page.get_by_text("Connect your AI to Veridian").count() == 0 and page.get_by_text(attendu).count() > 0, page.inner_text("body")[-120:].replace("\n", " "))
     # Menus morts retirés : e-mailing de Twenty (Notifuse fait foi), console de logs sans ClickHouse.
     controle("navigation sans Campaigns", "Campaigns" not in textes["/objects/companies"], textes["/objects/companies"][:120])
     controle("réglages sans interrupteur Logs", not re.search(r"\bLogs\b", textes["/settings/applications"]), textes["/settings/applications"][-80:])

@@ -50,7 +50,7 @@ export class LiensInstallationService {
 
     try {
       const response = await fetch(
-        `${hubUrl.replace(/\/+$/, '')}/api/mcp/liens-installation`,
+        `${hubUrl.replace(/\/+$/, '')}/api/mcp/liens-installation?app=twenty`,
         { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
       );
 
@@ -60,7 +60,12 @@ export class LiensInstallationService {
         return null;
       }
 
-      const liens = parseLiensInstallation(await response.json());
+      const liens = parseLiensInstallation(await response.json(), (rejete) =>
+        // Visible in obs: a button the Hub serves but Twenty does not show.
+        this.logger.warn(
+          `Hub install link dropped: cle=${rejete.cle} origine=${rejete.origine}`,
+        ),
+      );
 
       if (!liens) {
         this.logger.warn('Hub install links: unexpected shape, ignored');

@@ -106,7 +106,8 @@ if [ "${1:-}" = "--statique" ]; then
 fi
 
 cd packages/twenty-server || exit 2
-npx jest --config jest.config.mjs --testPathPattern '\.veridian\.spec\.ts$' --passWithNoTests=false
+# Un seul processus : sur le runner, des workers jest tués par SIGBUS faisaient tomber la CI (09/11/2026, deux fois).
+npx jest --config jest.config.mjs --runInBand --testPathPattern '\.veridian\.spec\.ts$' --passWithNoTests=false
 code=$?
 [ "$code" -eq 0 ] || echec=1
 exit "$echec"
