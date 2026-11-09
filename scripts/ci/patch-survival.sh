@@ -67,6 +67,7 @@ exige "$SERVEUR/engine/metadata-modules/flat-role/utils/is-permission-flag-grant
 exige packages/twenty-front/src/pages/settings/ai/SettingsAI.tsx "getSettingsAiTabs(isInboxEnabled, canReadSystemPrompts)"
 exige packages/twenty-front/src/modules/side-panel/pages/workflow/action/components/SidePanelWorkflowSelectAction.tsx "skip: !hasAiPermission"
 refuse packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatGptTwentyAppUrl"
+exige packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatgpt.com/#settings/Connectors"
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$job" "VERIDIAN_AI_DISABLED=true"; done
 
 # Le plan vient du Hub (CONTRAT-BILLING v2 §3) : la route existe et ne limite rien.

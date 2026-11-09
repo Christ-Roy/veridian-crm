@@ -10,6 +10,7 @@ import GooseLogo from '@/settings/mcp/assets/mcp-clients/goose.svg';
 import JetBrainsLogo from '@/settings/mcp/assets/mcp-clients/jetbrains.svg';
 import LibreChatLogo from '@/settings/mcp/assets/mcp-clients/librechat.svg';
 import LmStudioLogo from '@/settings/mcp/assets/mcp-clients/lm-studio.svg';
+import OpenAiLogo from '@/settings/mcp/assets/mcp-clients/openai.svg';
 import RaycastLogo from '@/settings/mcp/assets/mcp-clients/raycast.svg';
 import ReplitLogo from '@/settings/mcp/assets/mcp-clients/replit.svg';
 import VsCodeLogo from '@/settings/mcp/assets/mcp-clients/vs-code.svg';
@@ -42,6 +43,15 @@ export const buildMcpSetupCategories = ({
     description: t`Open a maintained integration or prefill clients that accept MCP install links.`,
     showManualConfigurationAfter: true,
     cards: [
+      // Veridian: not Twenty's official ChatGPT app (it opens their cloud); ChatGPT connects to this workspace's MCP URL.
+      {
+        title: t`ChatGPT`,
+        badge: t`Connector`,
+        description: t`In ChatGPT Developer mode, create a connector with the MCP URL below.`,
+        ctaLabel: t`Open`,
+        href: 'https://chatgpt.com/#settings/Connectors',
+        logo: <McpClientLogo src={OpenAiLogo} invertInDarkMode />,
+      },
       {
         title: t`Claude`,
         badge: t`Preset link`,

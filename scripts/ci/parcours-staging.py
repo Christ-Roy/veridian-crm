@@ -261,7 +261,8 @@ with sync_playwright() as p:
     controle("navigation sans onglet IA", not re.search(r"Home AI Settings", textes["/objects/companies"]), textes["/objects/companies"][:60])
     ia = textes["/settings/ai"]
     controle("Paramètres > AI réduit à MCP", "MCP client configuration" in ia and not re.search(r"\bModels\b|\bSkills\b|\bUsage\b", ia), ia[ia.find("AI MCP"):][:80])
-    controle("pas de carte ChatGPT du cloud Twenty", "ChatGPT" not in ia)
+    # ChatGPT se branche sur notre MCP (connecteur), jamais sur l'app officielle du cloud Twenty (Robert, 09/11/2026).
+    controle("carte ChatGPT vers notre MCP, pas l'app du cloud Twenty", "ChatGPT" in ia and "Official app" not in ia and "Developer mode" in ia, ia[ia.find("ChatGPT"):][:90])
     # Menus morts retirés : e-mailing de Twenty (Notifuse fait foi), console de logs sans ClickHouse.
     controle("navigation sans Campaigns", "Campaigns" not in textes["/objects/companies"], textes["/objects/companies"][:120])
     controle("réglages sans interrupteur Logs", not re.search(r"\bLogs\b", textes["/settings/applications"]), textes["/settings/applications"][-80:])
