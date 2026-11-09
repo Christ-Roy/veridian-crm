@@ -6,7 +6,8 @@ Signe des JWT comme la porte du Hub (clé MCP_SIGNING_JWK lue dans Nomad, jamais
   2. compte inconnu : 401 hub_user_unknown, sans création ;
   3. audience d'une autre app : 401 invalid_hub_token ;
   4. jeton signé par une autre clé sous le même kid : 401 ;
-  5. tenant_id inconnu : l'identité tient, l'espace de l'utilisateur sert (200).
+  5. tenant_id inconnu : 403 tenant_not_linked, jamais un repli sur un autre espace ;
+  6. search_help_center absent de tools/list tant que la recherche en ligne est coupée.
 
 Usage : preuve-mcp-hub.py <url_mcp> <hub_user_id connu> [chemin Nomad de la clé]
 Codes : 0 vrai, 1 faux, 2 mesure non aboutie.
@@ -88,6 +89,7 @@ def main():
     code, rep = appel(url, token, "tools/list", ident=2)
     outils = [o["name"] for o in rep.get("result", {}).get("tools", [])]
     controle("compte connu : tools/list", code == 200 and len(outils) > 0, f"{code} {len(outils)} outils {outils[:6]}")
+    controle("aide en ligne coupée : search_help_center absent", "search_help_center" not in outils, str(len(outils)))
     lecture = next((o for o in outils if o.startswith("find_") and "people" in o or o in ("find_people", "find_many_people")), None)
     if lecture is None:
         lecture = next((o for o in outils if o.startswith("find")), None)
@@ -103,7 +105,7 @@ def main():
          "jti": str(uuid.uuid4())},
         cle, algorithm="ES256", headers={"kid": kid, "typ": "JWT"})
     code, rep = appel(url, jeton_tenant, "initialize")
-    controle("tenant_id inconnu : l'identité tient (200)", code == 200 and "result" in rep, f"{code} {str(rep)[:120]}")
+    controle("tenant_id inconnu : 403 tenant_not_linked, jamais un autre espace", code == 403 and "tenant_not_linked" in json.dumps(rep), f"{code} {str(rep)[:120]}")
 
     code, rep = appel(url, jeton(cle, kid, url, str(uuid.uuid4())), "initialize")
     controle("compte inconnu : 401 hub_user_unknown", code == 401 and "hub_user_unknown" in json.dumps(rep), f"{code} {str(rep)[:160]}")

@@ -190,16 +190,13 @@ export class VeridianHubMcpAuthService {
       };
     }
 
-    const workspaceId = await this.resolveWorkspaceId(link.userId, claims);
+    const workspace = await this.resolveWorkspace(link.userId, claims);
 
-    if (!workspaceId) {
-      return {
-        kind: 'refused',
-        status: 403,
-        error: 'no_workspace',
-        message: 'This Hub user has no active Veridian CRM workspace.',
-      };
+    if (workspace.kind === 'refused') {
+      return workspace;
     }
+
+    const { workspaceId } = workspace;
 
     try {
       const { token } = await this.accessTokenService.generateAccessToken({
@@ -223,12 +220,15 @@ export class VeridianHubMcpAuthService {
     }
   }
 
-  // The workspace comes from the user's memberships (or the Hub-signed tenant), never from the AI,
-  // and is always one the user belongs to.
-  private async resolveWorkspaceId(
+  // Rule shared by every app (parente, 09/11/2026): no tenant_id, the user's default workspace;
+  // a tenant_id the AI chose is honoured or refused by name, never swapped for another workspace.
+  private async resolveWorkspace(
     userId: string,
     claims: HubMcpClaims,
-  ): Promise<string | null> {
+  ): Promise<
+    | { kind: 'ok'; workspaceId: string }
+    | Extract<HubMcpAuthResult, { kind: 'refused' }>
+  > {
     const memberships = await this.userWorkspaceRepository.find({
       where: { userId },
       relations: { workspace: true },
@@ -242,24 +242,44 @@ export class VeridianHubMcpAuthService {
       )
       .map((membership) => membership.workspaceId);
 
-    if (claims.tenant_id) {
-      const tenant = await this.keyValuePairRepository.findOne({
-        where: {
-          key: `veridian.hub_tenant:${claims.tenant_id}`,
-          userId: IsNull(),
-        },
-      });
-
-      // An unknown tenant never invalidates the identity: the user's own workspace serves instead.
-      if (
-        tenant?.workspaceId &&
-        activeWorkspaceIds.includes(tenant.workspaceId)
-      ) {
-        return tenant.workspaceId;
-      }
+    if (!claims.tenant_id) {
+      return activeWorkspaceIds[0]
+        ? { kind: 'ok', workspaceId: activeWorkspaceIds[0] }
+        : {
+            kind: 'refused',
+            status: 403,
+            error: 'no_workspace',
+            message: 'This Hub user has no active Veridian CRM workspace.',
+          };
     }
 
-    return activeWorkspaceIds[0] ?? null;
+    const tenant = await this.keyValuePairRepository.findOne({
+      where: {
+        key: `veridian.hub_tenant:${claims.tenant_id}`,
+        userId: IsNull(),
+      },
+    });
+
+    if (!tenant?.workspaceId) {
+      return {
+        kind: 'refused',
+        status: 403,
+        error: 'tenant_not_linked',
+        message: 'This Hub space has no Veridian CRM workspace.',
+      };
+    }
+
+    if (!activeWorkspaceIds.includes(tenant.workspaceId)) {
+      return {
+        kind: 'refused',
+        status: 403,
+        error: 'tenant_forbidden',
+        message:
+          'This Hub user is not a member of that Veridian CRM workspace.',
+      };
+    }
+
+    return { kind: 'ok', workspaceId: tenant.workspaceId };
   }
 
   private remember(jti: string, accessToken: string, expiresAt: number) {
