@@ -226,7 +226,7 @@ export class FrontendService {
       response
         .status(503)
         .type('text')
-        .send('Unable to load Twenty. Please try again.');
+        .send('Unable to load Veridian CRM. Please try again.');
     }
   }
 }

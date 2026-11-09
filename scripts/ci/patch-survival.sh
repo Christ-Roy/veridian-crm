@@ -49,6 +49,7 @@ refuse() {
     echo "PATCH ABSENT : $1 propose de nouveau « $2 »"; echec=1
   fi
 }
+refuse "$SERVEUR/engine/core-modules/frontend/frontend.service.ts" "Unable to load Twenty"
 refuse packages/twenty-front/src/pages/settings/members/SettingsWorkspaceMembers.tsx "SettingsWorkspaceMembersInviteTab"
 refuse packages/twenty-front/src/pages/settings/profile/SettingsProfile.tsx "<DeleteAccount"
 refuse packages/twenty-front/src/pages/settings/profile/SettingsProfile.tsx "Two Factor Authentication"
