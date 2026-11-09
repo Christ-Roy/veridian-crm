@@ -260,9 +260,9 @@ with sync_playwright() as p:
     # Aucun fournisseur IA (VERIDIAN_AI_DISABLED) : ni chat ni écran de modèles, MCP seul reste.
     controle("navigation sans onglet IA", not re.search(r"Home AI Settings", textes["/objects/companies"]), textes["/objects/companies"][:60])
     ia = textes["/settings/ai"]
-    controle("Paramètres > AI réduit à MCP", "MCP client configuration" in ia and not re.search(r"\bModels\b|\bSkills\b|\bUsage\b", ia), ia[ia.find("AI MCP"):][:80])
+    controle("Paramètres > AI réduit à MCP", "MCP client configuration" in ia and not re.search(r"\bModels\b|\bSkills\b|\bUsage\b", ia), (ia[ia.find("AI MCP"):] if "AI MCP" in ia else ia)[:160].replace("\n", " "))
     # ChatGPT se branche sur notre MCP (connecteur), jamais sur l'app officielle du cloud Twenty (Robert, 09/11/2026).
-    controle("carte ChatGPT vers notre MCP, pas l'app du cloud Twenty", "ChatGPT" in ia and "Official app" not in ia and "Developer mode" in ia, ia[ia.find("ChatGPT"):][:90])
+    controle("carte ChatGPT vers notre MCP, pas l'app du cloud Twenty", "ChatGPT" in ia and "Official app" not in ia and "Developer mode" in ia, (ia[ia.find("ChatGPT"):] if "ChatGPT" in ia else ia)[:160].replace("\n", " "))
     # Menus morts retirés : e-mailing de Twenty (Notifuse fait foi), console de logs sans ClickHouse.
     controle("navigation sans Campaigns", "Campaigns" not in textes["/objects/companies"], textes["/objects/companies"][:120])
     controle("réglages sans interrupteur Logs", not re.search(r"\bLogs\b", textes["/settings/applications"]), textes["/settings/applications"][-80:])
