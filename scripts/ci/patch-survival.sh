@@ -23,6 +23,8 @@ exige "$SERVEUR/engine/core-modules/auth/services/sign-in-up.service.ts" "if (!T
 exige "$SERVEUR/modules/contact-creation-manager/services/create-company.service.ts" "if (!TWENTY_COMPANIES_BASE_URL)"
 exige "$SERVEUR/engine/core-modules/tool/tools/search-help-center-tool/search-help-center-tool.ts" "HELP_CENTER_SEARCH_ENABLED"
 exige "$SERVEUR/engine/core-modules/core-engine.module.ts" "VeridianHubSsoModule"
+exige "$SERVEUR/engine/core-modules/core-engine.module.ts" "VeridianHubMcpModule"
+exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "forRoutes({ path: ApiPath.Mcp"
 exige packages/twenty-front/src/pages/auth/SignInUp.tsx "useRedirectToHubLogin();"
 exige packages/twenty-front/src/modules/domain-manager/hooks/useRedirect.ts "createSingleNavigation"
 exige packages/twenty-front/src/modules/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo.ts "data:image/gif"

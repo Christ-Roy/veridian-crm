@@ -40,7 +40,7 @@ code client (aucun exécuteur sûr ; isolé après Patroni : `todo/2026-11-08-ex
 | Clés API | `createApiKey(name, expiresAt, roleId)` + `generateApiKeyToken` (`/metadata`), REST `rest/metadata/apiKeys` ; une clé porte un rôle, `getApiKeyRoles` liste les assignables (rôle standard `Admin`) | AGPL | accès agent : rôle Admin. La commande `workspace:generate-api-key` refuse hors dev/test |
 | Webhooks | `createWebhook(targetUrl, operations, secret, roleId)`, signature HMAC SHA-256 du corps, filtrés par rôle ; sortie par `SecureHttpClient` (SSRF : privé bloqué sauf `OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS`) | AGPL | accès agent |
 | API | REST `/rest/*`, GraphQL `/graphql` et `/metadata`, sur l'hôte du workspace ou le domaine nu avec une clé | AGPL | |
-| MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous |
+| MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous ; la porte MCP du Hub y entre avec son JWT (`veridian-hub-mcp/`, CONTRAT-MCP) |
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
 | CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` ; ne crée pas de clé | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
 | SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, déployés par `twenty app apply` | MIT | pas d'app Veridian à ce jour |
