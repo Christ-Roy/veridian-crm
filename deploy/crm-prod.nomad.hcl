@@ -149,12 +149,12 @@ PGDATABASE=twenty
 {{ with nomadVar "nomad/jobs/crm" }}
 APP_SECRET={{ .APP_SECRET }}
 HUB_API_SECRET={{ .HUB_API_SECRET }}
-PGPASSWORD={{ .PG_SAAS_PASSWORD }}
-{{ $pg := .PG_SAAS_PASSWORD }}{{ $redis := .REDIS_PASSWORD }}
-PGHOST=172.26.64.1
-PGPORT=15432
-PG_DATABASE_URL=postgres://twenty:{{ $pg }}@172.26.64.1:15432/twenty
-{{ range nomadService "crm-db-redis" }}REDIS_URL=redis://:{{ $redis }}@{{ .Address }}:{{ .Port }}
+PGPASSWORD={{ .POSTGRES_PASSWORD }}
+{{ $pg := .POSTGRES_PASSWORD }}{{ $redis := .REDIS_PASSWORD }}
+{{ range nomadService "crm-db-pg" }}PGHOST={{ .Address }}
+PGPORT={{ .Port }}
+PG_DATABASE_URL=postgres://twenty:{{ $pg }}@{{ .Address }}:{{ .Port }}/twenty
+{{ end }}{{ range nomadService "crm-db-redis" }}REDIS_URL=redis://:{{ $redis }}@{{ .Address }}:{{ .Port }}
 {{ end }}{{ end }}
 EOH
       }
@@ -240,12 +240,12 @@ PGUSER=twenty
 PGDATABASE=twenty
 {{ with nomadVar "nomad/jobs/crm" }}
 APP_SECRET={{ .APP_SECRET }}
-PGPASSWORD={{ .PG_SAAS_PASSWORD }}
-{{ $pg := .PG_SAAS_PASSWORD }}{{ $redis := .REDIS_PASSWORD }}
-PGHOST=172.26.64.1
-PGPORT=15432
-PG_DATABASE_URL=postgres://twenty:{{ $pg }}@172.26.64.1:15432/twenty
-{{ range nomadService "crm-db-redis" }}REDIS_URL=redis://:{{ $redis }}@{{ .Address }}:{{ .Port }}
+PGPASSWORD={{ .POSTGRES_PASSWORD }}
+{{ $pg := .POSTGRES_PASSWORD }}{{ $redis := .REDIS_PASSWORD }}
+{{ range nomadService "crm-db-pg" }}PGHOST={{ .Address }}
+PGPORT={{ .Port }}
+PG_DATABASE_URL=postgres://twenty:{{ $pg }}@{{ .Address }}:{{ .Port }}/twenty
+{{ end }}{{ range nomadService "crm-db-redis" }}REDIS_URL=redis://:{{ $redis }}@{{ .Address }}:{{ .Port }}
 {{ end }}{{ end }}
 EOH
       }
@@ -253,81 +253,6 @@ EOH
         cpu        = 600
         memory     = 832
         memory_max = 1600
-      }
-    }
-  }
-
-  # Redis du CRM : sorti de crm-db (purge apres migration vers pg-saas, 09/11/2026). Meme port tailnet, meme volume
-  # de donnees (AOF conserve), meme nom de service crm-db-redis : les gabarits applicatifs ne changent pas.
-  group "redis" {
-    count = 1
-
-    constraint {
-      attribute = "${meta.provider}"
-      value     = var.noeud_provider
-    }
-
-    reschedule {
-      attempts  = 0
-      unlimited = false
-    }
-
-    restart {
-      attempts = 10
-      interval = "10m"
-      delay    = "2s"
-      mode     = "delay"
-    }
-
-    network {
-      mode = "bridge"
-      port "redis" {
-        static       = 16380
-        to           = 6379
-        host_network = "tailscale"
-      }
-    }
-
-    task "redis" {
-      driver = "docker"
-      config {
-        security_opt = ["no-new-privileges:true"]
-        labels = {
-          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
-          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
-          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
-          "site.veridian.node"  = "${node.unique.name}"
-          "site.veridian.tier"  = "saas-prod"
-          "site.veridian.app"   = "crm"
-        }
-        image   = "redis:7-alpine"
-        ports   = ["redis"]
-        command = "redis-server"
-        args    = ["--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes", "--maxmemory-policy", "noeviction", "--loglevel", "warning"]
-        volumes = ["/opt/veridian-prod/crm-db/redis:/data"]
-      }
-      template {
-        destination = "secrets/redis.env"
-        perms       = "600"
-        env         = true
-        data        = <<EOH
-{{ with nomadVar "nomad/jobs/crm" }}REDIS_PASSWORD={{ .REDIS_PASSWORD }}{{ end }}
-EOH
-      }
-      service {
-        name     = "crm-db-redis"
-        provider = "nomad"
-        port     = "redis"
-        check {
-          type     = "tcp"
-          interval = "20s"
-          timeout  = "5s"
-        }
-      }
-      resources {
-        cpu        = 100
-        memory     = 64
-        memory_max = 256
       }
     }
   }
