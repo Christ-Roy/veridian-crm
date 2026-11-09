@@ -223,7 +223,8 @@ export class VeridianHubMcpAuthService {
     }
   }
 
-  // The workspace comes from the user's memberships (or the Hub-signed tenant), never from the AI.
+  // The workspace comes from the user's memberships (or the Hub-signed tenant), never from the AI,
+  // and is always one the user belongs to.
   private async resolveWorkspaceId(
     userId: string,
     claims: HubMcpClaims,
@@ -249,10 +250,13 @@ export class VeridianHubMcpAuthService {
         },
       });
 
-      return tenant?.workspaceId &&
+      // An unknown tenant never invalidates the identity: the user's own workspace serves instead.
+      if (
+        tenant?.workspaceId &&
         activeWorkspaceIds.includes(tenant.workspaceId)
-        ? tenant.workspaceId
-        : null;
+      ) {
+        return tenant.workspaceId;
+      }
     }
 
     return activeWorkspaceIds[0] ?? null;

@@ -5,7 +5,8 @@ Signe des JWT comme la porte du Hub (clé MCP_SIGNING_JWK lue dans Nomad, jamais
   1. compte connu : initialize, tools/list, puis un outil en lecture : 200 ;
   2. compte inconnu : 401 hub_user_unknown, sans création ;
   3. audience d'une autre app : 401 invalid_hub_token ;
-  4. jeton signé par une autre clé sous le même kid : 401.
+  4. jeton signé par une autre clé sous le même kid : 401 ;
+  5. tenant_id inconnu : l'identité tient, l'espace de l'utilisateur sert (200).
 
 Usage : preuve-mcp-hub.py <url_mcp> <hub_user_id connu> [chemin Nomad de la clé]
 Codes : 0 vrai, 1 faux, 2 mesure non aboutie.
@@ -91,11 +92,18 @@ def main():
     if lecture is None:
         lecture = next((o for o in outils if o.startswith("find")), None)
     if lecture:
-        code, rep = appel(url, token, "tools/call", {"name": lecture, "arguments": {"limit": 1}}, ident=3)
+        code, rep = appel(url, token, "tools/call", {"name": lecture, "arguments": {"limit": 1, "select": ["id"]}}, ident=3)
         erreur = rep.get("result", {}).get("isError") or "error" in rep
         controle(f"compte connu : tools/call {lecture}", code == 200 and not erreur, f"{code} {str(rep)[:160]}")
     else:
         controle("compte connu : un outil de lecture existe", False, str(outils[:20]))
+
+    jeton_tenant = jwt.encode(
+        {**jwt.decode(token, options={"verify_signature": False}), "tenant_id": str(uuid.uuid4()),
+         "jti": str(uuid.uuid4())},
+        cle, algorithm="ES256", headers={"kid": kid, "typ": "JWT"})
+    code, rep = appel(url, jeton_tenant, "initialize")
+    controle("tenant_id inconnu : l'identité tient (200)", code == 200 and "result" in rep, f"{code} {str(rep)[:120]}")
 
     code, rep = appel(url, jeton(cle, kid, url, str(uuid.uuid4())), "initialize")
     controle("compte inconnu : 401 hub_user_unknown", code == 401 and "hub_user_unknown" in json.dumps(rep), f"{code} {str(rep)[:160]}")
