@@ -1,6 +1,6 @@
 # crm : Twenty v2.56.1 en production, jumeau de crm-staging (VERIDIAN-PATCHES.md).
-# Base : pg-saas, entrée fixe 172.26.64.1:15432, base twenty. Redis : groupe `redis` de ce job, sur le tailnet
-# de ovh-prod, port 16381, volume /opt/veridian-prod/crm/redis. REDIS_URL et PG_DATABASE_URL sont posés en dur :
+# Base : pg-saas (entrée fixe du bridge Nomad), base twenty. Redis : groupe `redis` de ce job, sur le tailnet
+# de ovh-prod, volume /opt/veridian-prod/crm/redis. REDIS_URL et PG_DATABASE_URL sont posés en dur :
 # aucune course au rendu d'un nomadService (cause de la bascule annulée du 09/11/2026).
 # La tâche `attente-dependances` (prestart) attend la base et Redis avant le serveur et le worker. Elle remplace
 # l'entrypoint de l'image : sinon /app/entrypoint.sh lancerait les migrations en parallèle du serveur.
@@ -132,6 +132,18 @@ job "crm" {
         hook    = "prestart"
         sidecar = false
       }
+      user   = "1000"
+      template {
+        destination = "secrets/attente.env"
+        perms       = "600"
+        env         = true
+        data        = <<EOH
+ATTENTE_PG_HOTE=${var.pg_hote}
+ATTENTE_PG_PORT=${var.pg_port}
+ATTENTE_REDIS_HOTE=${var.redis_hote}
+ATTENTE_REDIS_PORT=${var.redis_port}
+EOH
+      }
       config {
         labels = {
           "site.veridian.job"   = "${NOMAD_JOB_NAME}"
@@ -145,7 +157,7 @@ job "crm" {
         cap_drop     = ["ALL"]
         image        = "ghcr.io/christ-roy/veridian-crm:${var.image_tag}"
         entrypoint   = ["node"]
-        args = ["-e", "const n=require('net');const t=(h,p)=>new Promise(r=>{const s=n.connect(p,h);s.setTimeout(3000);s.once('connect',()=>{s.destroy();r(true)});s.once('error',()=>{s.destroy();r(false)});s.once('timeout',()=>{s.destroy();r(false)})});(async()=>{for(let i=0;i<300;i++){if(await t('${var.pg_hote}',${var.pg_port})&&await t('${var.redis_hote}',${var.redis_port})){console.log('base et redis joignables');process.exit(0)}await new Promise(r=>setTimeout(r,2000))}console.log('base ou redis injoignable apres 10 min');process.exit(1)})()"]
+        args = ["-e", "const n=require('net');const t=(h,p)=>new Promise(r=>{const s=n.connect(+p,h);s.setTimeout(3000);s.once('connect',()=>{s.destroy();r(true)});s.once('error',()=>{s.destroy();r(false)});s.once('timeout',()=>{s.destroy();r(false)})});(async()=>{for(let i=0;i<300;i++){if(await t(process.env.ATTENTE_PG_HOTE,process.env.ATTENTE_PG_PORT)&&await t(process.env.ATTENTE_REDIS_HOTE,process.env.ATTENTE_REDIS_PORT)){console.log('base et redis joignables');process.exit(0)}await new Promise(r=>setTimeout(r,2000))}console.log('base ou redis injoignable apres 10 min');process.exit(1)})()"]
       }
       resources {
         cpu        = 100
@@ -227,7 +239,7 @@ EOH
   group "worker" {
     count = 1
 
-    # Bridge Nomad, comme le serveur : l'entrée pg-saas 172.26.64.1:15432 n'est joignable que depuis ce réseau.
+    # Bridge Nomad, comme le serveur : l entrée pg-saas n est joignable que depuis ce réseau.
     network {
       mode = "bridge"
     }
@@ -265,6 +277,18 @@ EOH
         hook    = "prestart"
         sidecar = false
       }
+      user   = "1000"
+      template {
+        destination = "secrets/attente.env"
+        perms       = "600"
+        env         = true
+        data        = <<EOH
+ATTENTE_PG_HOTE=${var.pg_hote}
+ATTENTE_PG_PORT=${var.pg_port}
+ATTENTE_REDIS_HOTE=${var.redis_hote}
+ATTENTE_REDIS_PORT=${var.redis_port}
+EOH
+      }
       config {
         labels = {
           "site.veridian.job"   = "${NOMAD_JOB_NAME}"
@@ -278,7 +302,7 @@ EOH
         cap_drop     = ["ALL"]
         image        = "ghcr.io/christ-roy/veridian-crm:${var.image_tag}"
         entrypoint   = ["node"]
-        args = ["-e", "const n=require('net');const t=(h,p)=>new Promise(r=>{const s=n.connect(p,h);s.setTimeout(3000);s.once('connect',()=>{s.destroy();r(true)});s.once('error',()=>{s.destroy();r(false)});s.once('timeout',()=>{s.destroy();r(false)})});(async()=>{for(let i=0;i<300;i++){if(await t('${var.pg_hote}',${var.pg_port})&&await t('${var.redis_hote}',${var.redis_port})){console.log('base et redis joignables');process.exit(0)}await new Promise(r=>setTimeout(r,2000))}console.log('base ou redis injoignable apres 10 min');process.exit(1)})()"]
+        args = ["-e", "const n=require('net');const t=(h,p)=>new Promise(r=>{const s=n.connect(+p,h);s.setTimeout(3000);s.once('connect',()=>{s.destroy();r(true)});s.once('error',()=>{s.destroy();r(false)});s.once('timeout',()=>{s.destroy();r(false)})});(async()=>{for(let i=0;i<300;i++){if(await t(process.env.ATTENTE_PG_HOTE,process.env.ATTENTE_PG_PORT)&&await t(process.env.ATTENTE_REDIS_HOTE,process.env.ATTENTE_REDIS_PORT)){console.log('base et redis joignables');process.exit(0)}await new Promise(r=>setTimeout(r,2000))}console.log('base ou redis injoignable apres 10 min');process.exit(1)})()"]
       }
       resources {
         cpu        = 100
@@ -345,7 +369,7 @@ EOH
     }
   }
 
-  # Redis du CRM : sorti de crm-db. Port 16381 et volume propres : le Redis de crm-db (16380, /opt/veridian-prod/crm-db/redis)
+  # Redis du CRM : sorti de crm-db. Port et volume propres : le Redis de crm-db (16380, /opt/veridian-prod/crm-db/redis)
   # reste en place jusqu'à la purge de crm-db, il est le retour arrière. Le volume est une copie de son AOF, prise gel en main.
   group "redis" {
     count = 1
