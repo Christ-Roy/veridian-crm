@@ -98,3 +98,5 @@ Image officielle sans coupure : registry.npmjs.org, unpkg.com, twenty-telemetry.
 démarrage et à l'inscription ; dans le navigateur, twenty-icons.com et tradingview. Notre image : silence sur
 démarrage complet et parcours, témoin vu, navigateur sans hôte tiers. Épreuves vues échouer : limite remise
 à 5, fichier Enterprise modifié, envoi par nom, envoi par IP directe.
+
+**Pool PostgreSQL (09/11/2026)** : `veridian-pg/pg-pool-resilience.util.ts`, étalé dans `core.datasource.ts` et `workspace-query-executor.service.ts` : connexion bornée (`PG_POOL_CONNECTION_TIMEOUT_MS`, 10 s), keepalive TCP, durée de vie maximale (`PG_POOL_MAX_LIFETIME_S`, 30 min). Pendant une bascule pg-saas, l'entrée TCP accepte sans qu'aucun primaire réponde : sans borne, `pool.connect()` attendait sans fin (pages à 180 s). Spec sur un socket muet, vue échouer sans la borne.

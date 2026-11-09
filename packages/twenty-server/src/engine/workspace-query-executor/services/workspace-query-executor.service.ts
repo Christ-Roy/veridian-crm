@@ -19,6 +19,7 @@ import {
 } from 'src/engine/twenty-orm/exceptions/twenty-orm.exception';
 import { ClientQueryExecutor } from 'src/engine/workspace-query-executor/client-query-executor';
 import { PoolQueryExecutor } from 'src/engine/workspace-query-executor/pool-query-executor';
+import { getVeridianPgPoolResilience } from 'src/engine/core-modules/veridian-pg/pg-pool-resilience.util';
 import { type QueryExecutor } from 'src/engine/workspace-query-executor/types/query-executor.type';
 import { runInRollbackSafeTransaction } from 'src/engine/workspace-query-executor/utils/run-in-rollback-safe-transaction.util';
 
@@ -114,6 +115,7 @@ export class WorkspaceQueryExecutorService
     queryTimeoutMs: number;
   }): Pool {
     const pool = new Pool({
+      ...getVeridianPgPoolResilience(),
       connectionString,
       types: DATE_ONLY_POOL_TYPES,
       max: this.twentyConfigService.get('PG_POOL_MAX_CONNECTIONS'),
