@@ -2,6 +2,8 @@ export enum SettingsPath {
   ProfilePage = 'profile',
   TwoFactorAuthenticationStrategyConfig = 'profile/two-factor-authentication/:twoFactorAuthenticationStrategy',
   Experience = 'experience',
+  // Veridian: « Brancher mon IA », open to every member.
+  VeridianIa = 'connect-ai',
   Accounts = 'accounts',
   AccountDetail = 'accounts/detail/:connectedAccountId',
   BuiltInAccountApp = 'accounts/apps/:applicationId',

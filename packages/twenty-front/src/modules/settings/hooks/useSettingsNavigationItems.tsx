@@ -24,6 +24,7 @@ import {
   IconDoorEnter,
   IconHelpCircle,
   IconHierarchy,
+  IconPlug,
   IconMail,
   IconMessage,
   IconMessageCircle,
@@ -91,6 +92,11 @@ const useSettingsNavigationItems = (): SettingsNavigationSection[] => {
           label: t`Experience`,
           path: SettingsPath.Experience,
           Icon: IconColorSwatch,
+        },
+        {
+          label: t`Connect your AI`,
+          path: SettingsPath.VeridianIa,
+          Icon: IconPlug,
         },
         {
           label: isAppPreferencesEnabled ? t`Apps preferences` : t`Accounts`,

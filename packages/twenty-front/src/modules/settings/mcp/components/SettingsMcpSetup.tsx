@@ -5,6 +5,7 @@ import { LightCopyIconButton } from '@/ui/input/components/LightCopyIconButton';
 import ModelContextProtocolLogo from '@/settings/mcp/assets/model-context-protocol-logo.svg?react';
 import { SettingsMcpSetupCard } from '@/settings/mcp/components/SettingsMcpSetupCard';
 import { buildMcpSetupCategories } from '@/settings/mcp/utils/buildMcpSetupCategories';
+import { VeridianIaSetup } from '@/veridian-ia/components/VeridianIaSetup';
 import {
   buildMcpConfig,
   buildMcpServerUrl,
@@ -56,6 +57,7 @@ export const SettingsMcpSetup = () => {
 
   return (
     <StyledMcpSetupContainer>
+      <VeridianIaSetup />
       {categories.map((category) => (
         <Fragment key={category.title}>
           <Section.Root>

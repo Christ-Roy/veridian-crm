@@ -450,6 +450,12 @@ const SettingsExperience = lazy(() =>
   ),
 );
 
+const SettingsVeridianIa = lazy(() =>
+  import('~/pages/settings/veridian-ia/SettingsVeridianIa').then((module) => ({
+    default: module.SettingsVeridianIa,
+  })),
+);
+
 const SettingsAccounts = lazy(() =>
   import('~/pages/settings/accounts/SettingsAccounts').then((module) => ({
     default: module.SettingsAccounts,
@@ -809,6 +815,7 @@ const createSettingsRouteElements = ({
       element={<SettingsTwoFactorAuthenticationMethod />}
     />
     <Route path={SettingsPath.Experience} element={<SettingsExperience />} />
+    <Route path={SettingsPath.VeridianIa} element={<SettingsVeridianIa />} />
     <Route
       element={
         <SettingsProtectedRouteWrapper

@@ -268,6 +268,21 @@ with sync_playwright() as p:
     controle("Paramètres > AI réduit à MCP", "MCP client configuration" in ia and not re.search(r"\bModels\b|\bSkills\b|\bUsage\b", ia), (ia[ia.find("AI MCP"):] if "AI MCP" in ia else ia)[:160].replace("\n", " "))
     # ChatGPT se branche sur notre MCP (connecteur), jamais sur l'app officielle du cloud Twenty (Robert, 09/11/2026).
     controle("carte ChatGPT vers notre MCP, pas l'app du cloud Twenty", "ChatGPT" in ia and "Official app" not in ia and "Developer mode" in ia, (ia[ia.find("ChatGPT"):] if "ChatGPT" in ia else ia)[:160].replace("\n", " "))
+    # « Brancher mon IA » (Robert, 09/11/2026) : page ouverte à tout membre, boutons tirés des liens du Hub,
+    # et rien de cliquable quand le Hub ne les sert pas.
+    _, brut = http(BASE + "/veridian/ia/liens")
+    liens = json.loads(brut) if brut.startswith("{") else {}
+    page.goto(racine + "/settings/connect-ai", wait_until="domcontentloaded")
+    attendu = "Connect your AI to Veridian" if liens.get("disponible") else "not reachable right now"
+    try:
+        page.get_by_text(attendu).first.wait_for(timeout=60000)
+    except Exception:
+        pass
+    claude = page.locator('a[href^="https://claude.ai/customize/connectors"]')
+    if liens.get("disponible"):
+        controle("Brancher mon IA : bouton Claude vers l'ajout du connecteur", claude.count() == 1 and claude.first.get_attribute("href") == liens.get("claude"), str(claude.count()))
+    else:
+        controle("Brancher mon IA : Hub muet, aucun bouton, message clair", claude.count() == 0 and page.get_by_text(attendu).count() > 0, page.inner_text("body")[-120:].replace("\n", " "))
     # Menus morts retirés : e-mailing de Twenty (Notifuse fait foi), console de logs sans ClickHouse.
     controle("navigation sans Campaigns", "Campaigns" not in textes["/objects/companies"], textes["/objects/companies"][:120])
     controle("réglages sans interrupteur Logs", not re.search(r"\bLogs\b", textes["/settings/applications"]), textes["/settings/applications"][-80:])
