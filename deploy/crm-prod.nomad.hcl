@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-ac623bd" # 09/11/2026 : JWT du Hub sur /mcp, règle tenant_id, pool pg résilient
+  default = "staging-49df2e5" # 09/11/2026 : /healthz/base, aide en ligne hors MCP, règle tenant_id
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
