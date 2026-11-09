@@ -15,7 +15,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-6c53836" # promu après parcours en staging (09/11/2026, coupures)
+  default = "staging-bf247f3" # promu après parcours en staging (09/11/2026, carte ChatGPT)
 }
 
 job "crm" {
