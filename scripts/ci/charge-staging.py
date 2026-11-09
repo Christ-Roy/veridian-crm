@@ -6,7 +6,7 @@ L'espace et son compte sont retirés à la fin. Le chiffre vaut pour la machine 
 Usage : HUB_API_SECRET=... charge-staging.py <url> [nb-societes] [secondes-par-palier]
 Sortie : 0 mesure rendue · 1 erreurs au-delà de 1 % à un palier · 2 mesure non aboutie
 """
-import atexit, hashlib, hmac, json, os, signal, statistics, sys, threading, time, urllib.error, urllib.request, uuid
+import atexit, hashlib, hmac, json, os, re, signal, statistics, sys, threading, time, urllib.error, urllib.request, uuid
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
@@ -45,6 +45,13 @@ def nettoyer():
     if provisionne:
         print("espace retiré", signe(f"/api/tenants/{LOCATAIRE}", methode="DELETE")[0], flush=True)
     signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True})
+    # Contrôle d'absence (parente, 09/11/2026) : ni ce compte ni celui d'un passage tué ne survit.
+    code, texte = signe("/api/hub/users")
+    restes = sorted(set(re.findall(r"charge\+\d+@veridian\.site", texte)))
+    if code != 200 or restes:
+        print(f"ECHEC comptes charge+* restants : {code} {restes[:5]}", flush=True)
+        os._exit(1)
+    print("OK    aucun compte charge+* restant", flush=True)
 
 
 atexit.register(nettoyer)
