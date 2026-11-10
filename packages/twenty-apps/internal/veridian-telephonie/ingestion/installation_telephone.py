@@ -2,6 +2,7 @@
 
     crm-telephonie telephone cle       --env prod --workspace veridian-4   # clé du rôle « Téléphone », une fois
     crm-telephonie telephone installer --env prod --workspace veridian-4   # code, accès, service, démarrage
+    crm-telephonie telephone relancer  --env prod --workspace veridian-4   # Termux tué par Android : tout repart
 
 La clé est créée sur le bastion (rebond signé du Hub, au nom du membre rangé avec la clé Admin), rangée dans
 ~/credentials (`TWENTY_<ENV>_<WS>_TELEPHONE_*`), puis écrite sur le téléphone en 600 : elle passe par des tubes
@@ -94,3 +95,33 @@ def installer(env, workspace):
     if "com.termux.boot" not in boot:
         print("⚠ Termux:Boot absent : sans lui, l'agent ne repart pas après un redémarrage du téléphone.")
     return 0
+
+
+TERMUX = "/data/data/com.termux/files"
+
+
+def relancer(env=None, workspace=None):
+    """Termux tué (mémoire, installation d'un module, composant modifié) : relance services, agent et sshd sans
+    toucher à l'écran. adb exécute sous l'uid de Termux (build debuggable, run-as) et lui envoie RUN_COMMAND, ce que
+    Termux n'accepte qu'avec allow-external-apps (la commande reste réservée aux apps qui ont sa permission)."""
+    proprietes = f"{TERMUX}/home/.termux/termux.properties"
+    commandes = [
+        f"run-as com.termux sh -c 'mkdir -p {TERMUX}/home/.termux; grep -q \"^allow-external-apps *= *true\" "
+        f"{proprietes} 2>/dev/null || echo \"allow-external-apps = true\" >> {proprietes}'",
+        f"run-as com.termux /system/bin/am startservice --user 0 -n com.termux/com.termux.app.RunCommandService "
+        f"-a com.termux.RUN_COMMAND --es com.termux.RUN_COMMAND_PATH {TERMUX}/usr/bin/sh --esa "
+        f"com.termux.RUN_COMMAND_ARGUMENTS '-c,. {TERMUX}/usr/etc/profile.d/start-services.sh; termux-wake-lock' "
+        f"--ez com.termux.RUN_COMMAND_BACKGROUND true",
+    ]
+    for commande in commandes:
+        resultat = subprocess.run(["pixel", "shell", commande], capture_output=True, text=True, timeout=60)
+        if "Exception" in resultat.stdout + resultat.stderr:
+            raise c.NonAbouti(f"relance refusée : {(resultat.stdout + resultat.stderr).strip()[-200:]}")
+    for _ in range(12):
+        processus = subprocess.run(["pixel", "shell", "ps -A -o ARGS"], capture_output=True, text=True,
+                                   timeout=60).stdout
+        if "telephone.py" in processus and "sshd" in processus:
+            print("agent et sshd relancés")
+            return 0
+        subprocess.run(["sleep", "5"])
+    raise c.NonAbouti("agent ou sshd toujours absents après la relance")

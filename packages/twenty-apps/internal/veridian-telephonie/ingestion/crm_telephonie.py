@@ -9,7 +9,7 @@ par ssh à chaque lancement, jamais écrite ni affichée.
     crm-telephonie app apply --env prod    --workspace veridian-4
     crm-telephonie ingerer   --env prod    --workspace veridian-4 [--sources pixel,enregistrements,s10e] [--essai]
     crm-telephonie dossier   --env prod    --workspace veridian-4 [--champ etiquette] [--essai]
-    crm-telephonie telephone cle|installer --env prod --workspace veridian-4   # agent du Pixel (telephone.py)
+    crm-telephonie telephone cle|installer|relancer --env prod --workspace veridian-4   # agent du Pixel
 
 Idempotence : chaque appel ou message porte un `idSource` unique calculé depuis la source (date à la
 milliseconde, numéro, sens, empreinte du texte), identique quel que soit le téléphone qui l'a gardé. Un rejeu
@@ -624,7 +624,7 @@ def main(argv=None):
     for nom in ("ingerer", "app", "dossier", "telephone"):
         p = sous.add_parser(nom)
         if nom == "telephone":
-            p.add_argument("action", choices=("cle", "installer"))
+            p.add_argument("action", choices=("cle", "installer", "relancer"))
         if nom == "app":
             p.add_argument("action", choices=("plan", "apply"))
             p.add_argument("--prune", action="store_true",
@@ -646,7 +646,8 @@ def main(argv=None):
         import installation_telephone
 
         try:
-            action = installation_telephone.creer_cle if arguments.action == "cle" else installation_telephone.installer
+            action = {"cle": installation_telephone.creer_cle, "installer": installation_telephone.installer,
+                      "relancer": installation_telephone.relancer}[arguments.action]
             return action(arguments.env, arguments.workspace)
         except NonAbouti as erreur:
             print(f"NON ABOUTI : {erreur}", file=sys.stderr)

@@ -37,6 +37,12 @@ Pièges mesurés le 10/11/2026 :
   et `pixel shell "run-as com.termux …"` exécute sous l'uid de Termux sans écran (réarmer sshd, `sv`).
 - Termux:Boot doit être ouvert une fois à la main, sinon Android ne lui livre pas le démarrage.
 - runit n'arrête que l'agent : ses enfants (whisper) sont suivis et tués avec lui sur SIGTERM.
+- **Changer l'état d'un composant de Termux le tue aussi** (`cmd package disable …`, mesuré). Désactivé le 10/11 :
+  `TermuxFileReceiverActivity`, qui s'offrait pour ouvrir images et PDF à la place des apps de Robert.
+- Termux tué : `crm-telephonie telephone relancer` relance services, agent et sshd sans écran (`run-as` +
+  `RUN_COMMAND`, qui exige `allow-external-apps = true` dans `~/.termux/termux.properties`).
+- MMS : le fournisseur n'est ouvert qu'au shell ; l'agent passe par adb vers lui-même (127.0.0.1:5555). Port
+  fermé après un redémarrage : MMS non lus jusqu'à sa réouverture, appels et SMS continuent.
 
 L'audio vit **une fois** dans le stockage de Twenty (sauvegardé avec le CRM) ; `~/sauvegardes/appels-pixel/`
 reste la source brute sur `mail`. Un clic sur l'enregistrement l'ouvre dans le navigateur, qui le lit.
