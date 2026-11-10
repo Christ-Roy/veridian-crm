@@ -84,6 +84,8 @@ def installer(env, workspace):
     _ecrire(f"{service}/run", SERVICE_RUN, "700")
     _pixel(f"mkdir -p {service}/log && ln -sf $PREFIX/share/termux-services/svlogger {service}/log/run")
     _ecrire("~/.termux/boot/demarrer", DEMARRAGE, "700")
+    # sshd en service runit : il repart seul quand Android tue Termux, plus besoin de le retaper à l'écran.
+    _pixel("command -v sv-enable >/dev/null && . $PREFIX/etc/profile.d/start-services.sh && sv-enable sshd")
     # Le service se lance dans la session Termux en cours ; Termux:Boot le relancera après un redémarrage.
     print(_pixel(f". $PREFIX/etc/profile.d/start-services.sh; sv-enable crm-telephone >/dev/null 2>&1; "
                  "sv restart crm-telephone; sleep 3; sv status crm-telephone").strip())

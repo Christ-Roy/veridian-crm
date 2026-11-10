@@ -36,6 +36,8 @@ JEMREC = Path("/sdcard/Recordings/JemRec")
 WHISPER = HOME / "whisper.cpp" / "build" / "bin" / "whisper-cli"
 MODELE = HOME / "whisper.cpp" / "models" / "ggml-small.bin"
 ATTENTE_MAX_S = 120
+# whisper small occupe ~1 Go : sous ce seuil de mémoire libre, Android tuerait Termux (et l'agent) pour la reprendre.
+MEMOIRE_MIN_TRANSCRIPTION_KO = 2_000_000
 PERSONNES_VALIDES_S = 1800
 
 TYPES_TERMUX_APPEL = {"INCOMING": "1", "OUTGOING": "2", "MISSED": "3", "VOICEMAIL": "4", "REJECTED": "5",
@@ -105,6 +107,13 @@ def transcrire_un(chemin):
     sortie.write_text("\n".join(lignes) + "\n", encoding="utf-8")
 
 
+def memoire_libre_ko():
+    for ligne in Path("/proc/meminfo").read_text().splitlines():
+        if ligne.startswith("MemAvailable:"):
+            return int(ligne.split()[1])
+    return 0
+
+
 def enregistrements_locaux():
     enregistrements = []
     for debut, direction, chemin, _ in c.lire_enregistrements(JEMREC):
@@ -149,7 +158,7 @@ class Agent:
 
     def transcrire_en_attente(self):
         """Un enregistrement à la fois : le passage suivant porte la transcription sur l'appel."""
-        if not (WHISPER.exists() and MODELE.exists()):
+        if not (WHISPER.exists() and MODELE.exists()) or memoire_libre_ko() < MEMOIRE_MIN_TRANSCRIPTION_KO:
             return False
         for _, _, chemin, texte in enregistrements_locaux():
             if not texte:
