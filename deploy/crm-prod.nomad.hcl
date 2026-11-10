@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-4e21eb3" # 09/11/2026 : page d erreur Veridian CRM, plafonds de pool (budget pg-saas)
+  default = "staging-3bf118f" # 10/11/2026 : Connect your AI (liens de la porte MCP du Hub)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
