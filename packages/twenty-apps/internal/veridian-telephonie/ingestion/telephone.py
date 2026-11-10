@@ -107,6 +107,21 @@ def transcrire_un(chemin):
     sortie.write_text("\n".join(lignes) + "\n", encoding="utf-8")
 
 
+def reprendre_transcriptions(appels, existants):
+    """Un appel déjà transcrit dans le CRM (par pixel-appels, ou avant un redémarrage) ne repasse pas par whisper."""
+    par_source = {e.get("idSource"): e for e in existants}
+    par_seconde = {c.cle_seconde("appels", e): e for e in existants}
+    for appel in appels:
+        fichiers = (appel.get("_fichiers") or {}).get("enregistrement")
+        if not fichiers:
+            continue
+        existant = par_source.get(appel["idSource"]) or par_seconde.get(c.cle_seconde("appels", appel))
+        cache = ETAT / "transcriptions" / f"{fichiers[0].stem}.txt"
+        if existant and existant.get("transcription") and not cache.exists():
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(existant["transcription"], encoding="utf-8")
+
+
 def memoire_libre_ko():
     for ligne in Path("/proc/meminfo").read_text().splitlines():
         if ligne.startswith("MemAvailable:"):
@@ -146,6 +161,8 @@ class Agent:
         erreurs = 0
         for pluriel, voulus in (("appels", appels), ("textMessages", messages)):
             existants = self.twenty.tout_lister(pluriel, 'appareil[eq]:PIXEL_8_PRO')
+            if pluriel == "appels":
+                reprendre_transcriptions(appels, existants)
             creations, complements, _ = c.planifier(pluriel, voulus, existants, index)
             if creations or complements:
                 log(f"{pluriel} : {len(creations)} à créer, {len(complements)} à compléter")
@@ -183,6 +200,8 @@ def main(argv=None):
     parseur.add_argument("--une-fois", action="store_true")
     arguments = parseur.parse_args(argv)
     ETAT.mkdir(parents=True, exist_ok=True)
+    for reste in (ETAT / "transcriptions").glob("*.wav"):
+        reste.unlink()  # laissé par un arrêt brutal pendant une transcription
     acces = json.loads(CONFIG.read_text())
     agent = Agent(c.Twenty(acces["url"].rstrip("/"), acces["cle"]))
     while True:
