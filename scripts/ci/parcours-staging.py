@@ -80,7 +80,13 @@ HUB_ID = str(uuid.uuid4())
 locataires = []
 
 
+nettoye = []
+
+
 def nettoyer():
+    if nettoye:
+        return
+    nettoye.append(True)
     for locataire, _ in locataires:
         t = str(int(time.time() * 1000))
         s = hmac.new(SECRET.encode(), f"{t}.".encode(), hashlib.sha256).hexdigest()
@@ -93,8 +99,14 @@ def nettoyer():
     signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "deleted": True})
 
 
+def arret(*_):
+    # Playwright bloque le fil principal : un sys.exit levé ici n'atteignait jamais atexit (restes du 10/11/2026).
+    nettoyer()
+    os._exit(2)
+
+
 atexit.register(nettoyer)
-signal.signal(signal.SIGTERM, lambda *_: sys.exit(2))
+signal.signal(signal.SIGTERM, arret)
 
 # ── 1. identité fermée : le Hub seul
 controle("inscription directe refusée", refus("mutation($e:String!,$p:String!){signUp(email:$e,password:$p){tokens{accessOrWorkspaceAgnosticToken{token}}}}", {"e": EMAIL, "p": MDP}))
