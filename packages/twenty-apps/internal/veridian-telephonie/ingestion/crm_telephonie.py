@@ -8,6 +8,7 @@ par ssh à chaque lancement, jamais écrite ni affichée.
     crm-telephonie app plan  --env staging --workspace cheerful-yellow-zebra
     crm-telephonie app apply --env prod    --workspace veridian-4
     crm-telephonie ingerer   --env prod    --workspace veridian-4 [--sources pixel,enregistrements,s10e] [--essai]
+    crm-telephonie dossier   --env prod    --workspace veridian-4 [--champ etiquette] [--essai]
 
 Idempotence : chaque appel ou message porte un `idSource` unique calculé depuis la source (date à la
 milliseconde, numéro, sens, empreinte du texte), identique quel que soit le téléphone qui l'a gardé. Un rejeu
@@ -564,19 +565,41 @@ def commande_app(arguments):
     return subprocess.run(commande, cwd=APP_DIR, env=environnement).returncode
 
 
+def commande_dossier(arguments):
+    """Dossier de la barre latérale par valeur d'un champ SELECT (voir barre_laterale.py)."""
+    import barre_laterale
+
+    try:
+        return barre_laterale.organiser(Twenty(*charger_acces(arguments.env, arguments.workspace)), arguments.objet,
+                                        arguments.champ, arguments.nom, arguments.essai)
+    except NonAbouti as erreur:
+        print(f"NON ABOUTI : {erreur}", file=sys.stderr)
+        return 2
+    except RuntimeError as erreur:
+        print(f"ÉCHEC : {erreur}", file=sys.stderr)
+        return 1
+
+
 def main(argv=None):
     parseur = argparse.ArgumentParser(prog="crm-telephonie", description=__doc__.split("\n")[0])
     sous = parseur.add_subparsers(dest="commande", required=True)
-    for nom in ("ingerer", "app"):
+    for nom in ("ingerer", "app", "dossier"):
         p = sous.add_parser(nom)
         if nom == "app":
             p.add_argument("action", choices=("plan", "apply"))
+        if nom == "dossier":
+            p.add_argument("--objet", default="person")
+            p.add_argument("--champ", default="etiquette")
+            p.add_argument("--nom", default="People")
+            p.add_argument("--essai", action="store_true")
         p.add_argument("--env", choices=("staging", "prod"), required=True)
         p.add_argument("--workspace", required=True, help="sous-domaine du workspace (twenty-admin workspaces)")
         if nom == "ingerer":
             p.add_argument("--sources", default=",".join(SOURCES))
             p.add_argument("--essai", action="store_true", help="lit tout, calcule le plan, n'écrit rien")
     arguments = parseur.parse_args(argv)
+    if arguments.commande == "dossier":
+        return commande_dossier(arguments)
     return commande_ingerer(arguments) if arguments.commande == "ingerer" else commande_app(arguments)
 
 

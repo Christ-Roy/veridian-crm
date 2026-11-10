@@ -11,6 +11,7 @@ Les appels et les SMS de Robert dans la timeline de chaque personne du CRM.
 | relations `person` ↔ `appels` / `textMessages` | rattachement à une personne, `SET_NULL` si la personne est supprimée |
 | types d'activité `appelLinked`, `textMessageLinked` | Twenty écrit seul la ligne sur la timeline de la personne au rattachement, **ancrée à la date de l'appel ou du message** (`happensAtFieldUniversalIdentifier`), pas au moment de l'import |
 | entrées de menu Appels, SMS | listes filtrables |
+| onglets **Appels** et **SMS** de la fiche Person (après Calendar) | la relation en tableau (titre, début, enregistrement, transcription ; aperçu, date, canal), du plus récent au plus ancien, filtrée sur la fiche courante (`isCurrentRecordSelected`) |
 
 Aucun patch du fork, aucune fonction serveur (le code client est coupé chez Veridian) : uniquement le mécanisme
 natif des apps de Twenty v2.56 (`twenty-sdk`). Le rôle par défaut n'accorde rien.
@@ -25,6 +26,7 @@ crm-telephonie app plan  --env staging --workspace cheerful-yellow-zebra   # dif
 crm-telephonie app apply --env prod    --workspace veridian-4              # installe ou met à jour l'app
 crm-telephonie ingerer   --env prod    --workspace veridian-4 --essai      # plan d'ingestion, rien n'est écrit
 crm-telephonie ingerer   --env prod    --workspace veridian-4              # écrit
+crm-telephonie dossier   --env prod    --workspace veridian-4              # barre latérale : People ▸ tous, une entrée par étiquette
 ```
 
 `--sources pixel,enregistrements,s10e` (défaut : les trois). Le Pixel est lu par le shell seul
@@ -37,6 +39,11 @@ commande la lit par ssh à chaque lancement, sans l'écrire ni l'afficher. `app`
 
 Codes de sortie : 0 fait, 1 une écriture a échoué, 2 une source ou l'API n'a pas répondu.
 
+`dossier` lit les valeurs du champ SELECT `etiquette` de Person dans le CRM (rien en dur) et crée, par
+l'API de métadonnées du workspace, une vue filtrée par valeur et un dossier « People » qui range l'entrée native
+de l'objet (tous les contacts) et une entrée par vue. Rejouable : seule une étiquette nouvelle ajoute quelque
+chose. Un dossier Twenty s'ouvre et se ferme sans naviguer ; « People » en est la première entrée.
+
 ## Règles
 
 - **Idempotent** : `idSource` est calculé depuis la source (date à la milliseconde, numéro, sens, empreinte du
@@ -48,6 +55,8 @@ Codes de sortie : 0 fait, 1 une écriture a échoué, 2 une source ou l'API n'a 
 - **`app apply` toujours en `--no-prune`** (la commande l'impose) : un champ retiré du source ne supprime rien.
 - 🔴 **`twenty app uninstall` supprime les objets de l'app ET leurs données** (appels, SMS, fichiers). Ne jamais
   désinstaller ; un identifiant de `src/identifiants.ts` ne change jamais (changer l'un = supprimer l'entité).
+- Les vues des onglets restent en visibilité workspace : une vue `UNLISTED` n'est pas servie au navigateur et le
+  tableau resterait vide (vu le 10/11/2026). Sans le filtre « fiche courante », le tableau montre toutes les lignes.
 - Version : `engines.twenty` et `twenty-sdk` suivent le serveur (2.56). Après un sync amont, rejouer
   `yarn twenty app build` puis `crm-telephonie app plan` sur le staging.
 

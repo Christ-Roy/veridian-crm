@@ -58,3 +58,34 @@ export const TEXT_MESSAGES_NAVIGATION_MENU_ITEM_UNIVERSAL_IDENTIFIER =
 
 export const DEFAULT_ROLE_UNIVERSAL_IDENTIFIER =
   '9e86979b-b988-449f-8a81-b607b10234f8';
+
+// Vues des onglets Appels et SMS de la fiche Person (colonnes du tableau, tri du plus récent au plus ancien).
+export const APPELS_PERSONNE_VIEW = {
+  view: '55e6d911-9bc3-4b2c-90e9-6c76f6f124e8',
+  fields: {
+    titre: '419d8229-733b-4cb9-b104-75e918e7636d',
+    debutLe: '8367aadf-fb78-4e63-bf7e-c45af4380c52',
+    enregistrement: '52292188-492f-413c-8303-17a82e4424de',
+    transcription: '90a3ba2d-6f2b-43a7-a5d5-0455eda49bc3',
+    canal: '89c8ae38-7897-4a83-9d58-f6fc3d686f0b',
+  },
+  sort: '2c9523c9-d41f-47bb-9aa9-da6c30f5039f',
+  filtrePersonne: '60c6aa10-683b-4b23-b8d4-749ec1e6996d',
+} as const;
+
+export const SMS_PERSONNE_VIEW = {
+  view: 'aa8fd77b-dd3f-421a-9bbb-bdcfb607dda1',
+  fields: {
+    apercu: '9601fba3-b140-44ee-ace1-12c2a642a049',
+    envoyeLe: 'cdfebda8-535e-4710-8126-4af0e2a7b580',
+    texte: 'd9b7534a-285c-4a92-aad0-9f23627db014',
+    canal: '877c2b6e-6a39-4199-b25a-c1d1172c85cd',
+  },
+  sort: '8185281d-b17c-4540-9ce3-688fe2d84878',
+  filtrePersonne: '3de78213-286e-4c6d-bd8b-c605e428bd81',
+} as const;
+
+export const APPELS_TAB_UNIVERSAL_IDENTIFIER = 'efbe683c-4f2c-4d06-bee2-a4b079bd4670';
+export const APPELS_TAB_WIDGET_UNIVERSAL_IDENTIFIER = 'd0753bcb-c57b-47a9-89f7-547c271cd796';
+export const SMS_TAB_UNIVERSAL_IDENTIFIER = 'bb7c8499-966b-4c34-846e-4082e2ab9d71';
+export const SMS_TAB_WIDGET_UNIVERSAL_IDENTIFIER = 'f5a7f137-3b41-4080-9fec-b802a53bbb95';

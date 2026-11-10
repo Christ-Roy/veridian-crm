@@ -114,3 +114,38 @@ class Plan(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Dossier(unittest.TestCase):
+    def setUp(self):
+        import barre_laterale
+
+        self.b = barre_laterale
+        self.objet = {"id": "obj"}
+        self.champ = {"id": "champ", "options": [{"label": "Pro", "value": "PRO", "position": 1},
+                                                  {"label": "Famille", "value": "FAMILLE", "position": 0}]}
+        self.entree = {"id": "e1", "type": "OBJECT", "targetObjectMetadataId": "obj", "folderId": None, "position": 2}
+
+    def test_premier_lancement_cree_tout_dans_l_ordre_des_valeurs(self):
+        plan = self.b.plan_dossier(self.objet, self.champ, [], {}, [self.entree], "People")
+        self.assertEqual([o["value"] for o in plan["vues_a_creer"]], ["FAMILLE", "PRO"])
+        self.assertIsNone(plan["dossier"])
+        self.assertEqual(len(plan["entrees_a_creer"]), 2)
+
+    def test_rejeu_ne_cree_rien(self):
+        vues = [{"id": "v1", "objectMetadataId": "obj"}, {"id": "v2", "objectMetadataId": "obj"}]
+        filtres = {"v1": [{"fieldMetadataId": "champ", "operand": "IS", "value": '["FAMILLE"]'}],
+                   "v2": [{"fieldMetadataId": "champ", "operand": "IS", "value": '["PRO"]'}]}
+        dossier = {"id": "d", "type": "FOLDER", "name": "People"}
+        elements = [dossier, dict(self.entree, folderId="d"),
+                    {"id": "e2", "type": "VIEW", "viewId": "v1", "folderId": "d"},
+                    {"id": "e3", "type": "VIEW", "viewId": "v2", "folderId": "d"}]
+        plan = self.b.plan_dossier(self.objet, self.champ, vues, filtres, elements, "People")
+        self.assertEqual((plan["vues_a_creer"], plan["entrees_a_creer"]), ([], []))
+
+    def test_nouvelle_etiquette_ajoutee_seule(self):
+        self.champ["options"].append({"label": "Voisins", "value": "VOISINS", "position": 2})
+        vues = [{"id": "v1", "objectMetadataId": "obj"}]
+        filtres = {"v1": [{"fieldMetadataId": "champ", "operand": "IS", "value": '["FAMILLE"]'}]}
+        plan = self.b.plan_dossier(self.objet, self.champ, vues, filtres, [self.entree], "People")
+        self.assertEqual([o["value"] for o in plan["vues_a_creer"]], ["PRO", "VOISINS"])
