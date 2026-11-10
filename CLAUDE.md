@@ -87,13 +87,12 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
-Prod : `scripts/ci/parcours-node02.sh <dossier>` (node02). Codes : 0 vrai, 1 faux, 2 mesure non aboutie. Le secret : `CRM_HUB_API_SECRET_STAGING` dans `.all-creds.env`.
-Le parcours crée et retire son compte de test ; une capture couvre le démarrage seulement si elle démarre avant lui.
+Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
+Il retire son compte et vérifie qu'aucun `parcours+*` ne reste. Piège (10/11) : sous Playwright, un `sys.exit` sur SIGTERM n'atteint pas `atexit` ; le gestionnaire nettoie lui-même.
 
 Avec `lourd`, `dist` est effacé à chaque copie : `nx run twenty-shared:build` avant toute spec.
 
-Lecture d'une session depuis le navigateur, sur l'hôte du workspace (cookie `__Host-twenty-session`, pas de jeton
-en localStorage) : `POST /metadata`, `credentials: 'include'`, en-tête `x-twenty-session-cookie: 1`, `{currentUser{email}}`.
+Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'`, `x-twenty-session-cookie: 1`.
 
 ## 5. Construire et déployer
 
