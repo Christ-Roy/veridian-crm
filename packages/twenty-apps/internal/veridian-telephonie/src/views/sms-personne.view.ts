@@ -14,6 +14,7 @@ export default defineView({
     { universalIdentifier: SMS_PERSONNE_VIEW.fields.apercu, fieldMetadataUniversalIdentifier: TEXT_MESSAGE_FIELDS.apercu, position: 0, isVisible: true, size: 420 },
     { universalIdentifier: SMS_PERSONNE_VIEW.fields.texte, fieldMetadataUniversalIdentifier: TEXT_MESSAGE_FIELDS.texte, position: 2, isVisible: false, size: 300 },
     { universalIdentifier: SMS_PERSONNE_VIEW.fields.canal, fieldMetadataUniversalIdentifier: TEXT_MESSAGE_FIELDS.canal, position: 3, isVisible: true, size: 110 },
+    { universalIdentifier: SMS_PERSONNE_VIEW.fields.piecesJointes, fieldMetadataUniversalIdentifier: TEXT_MESSAGE_FIELDS.piecesJointes, position: 4, isVisible: true, size: 220 },
   ],
   // Le tableau de l'onglet ne montre que les lignes de la personne affichée (filtre « fiche courante » natif).
   filters: [

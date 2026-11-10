@@ -9,6 +9,7 @@ par ssh à chaque lancement, jamais écrite ni affichée.
     crm-telephonie app apply --env prod    --workspace veridian-4
     crm-telephonie ingerer   --env prod    --workspace veridian-4 [--sources pixel,enregistrements,s10e] [--essai]
     crm-telephonie dossier   --env prod    --workspace veridian-4 [--champ etiquette] [--essai]
+    crm-telephonie telephone cle|installer --env prod --workspace veridian-4   # agent du Pixel (telephone.py)
 
 Idempotence : chaque appel ou message porte un `idSource` unique calculé depuis la source (date à la
 milliseconde, numéro, sens, empreinte du texte), identique quel que soit le téléphone qui l'a gardé. Un rejeu
@@ -24,6 +25,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import shlex
@@ -36,7 +38,10 @@ import uuid
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-PARIS = ZoneInfo("Europe/Paris")
+try:
+    PARIS = ZoneInfo("Europe/Paris")
+except Exception:  # noqa: BLE001 — Termux : Python sans base des fuseaux, l'heure locale du téléphone fait foi
+    PARIS = None
 APP_DIR = Path(__file__).resolve().parent.parent
 BASTION = os.environ.get("CRM_TELEPHONIE_BASTION", "contabo-storage")
 ENREGISTREMENTS = Path.home() / "sauvegardes" / "appels-pixel"
@@ -46,6 +51,10 @@ SOURCES = ("pixel", "enregistrements", "s10e")
 # Identifiant universel du champ FILES `enregistrement` (src/identifiants.ts) : l'upload s'y adresse
 # directement, sans chercher l'identifiant propre à l'installation.
 ENREGISTREMENT_FIELD_UNIVERSAL_IDENTIFIER = "c01c8436-0ce4-4d41-b142-e067326f3236"
+PIECES_JOINTES_FIELD_UNIVERSAL_IDENTIFIER = "5ba4ce60-1e5b-4abc-86c8-e5fa019a077c"
+CHAMPS_FICHIERS = {"enregistrement": ENREGISTREMENT_FIELD_UNIVERSAL_IDENTIFIER,
+                   "piecesJointes": PIECES_JOINTES_FIELD_UNIVERSAL_IDENTIFIER}
+MAX_PIECES_JOINTES = 10
 
 TYPES_APPEL = {"1": "ENTRANT", "2": "SORTANT", "3": "MANQUE", "4": "MESSAGERIE", "5": "REJETE", "6": "BLOQUE",
                "7": "ENTRANT"}
@@ -281,11 +290,16 @@ def lire_s10e(dossier=S10E):
         adresses = [c["address"] for c in correspondants.get(mms["_id"], []) if c["type"] == voulu]
         textes = [p.get("text") or "" for p in pieces.get(mms["_id"], []) if p.get("ct") == "text/plain"]
         jointes = [p["ct"] for p in pieces.get(mms["_id"], []) if p.get("ct") not in ("text/plain", "application/smil")]
+        fichiers = [f for p in pieces.get(mms["_id"], []) if p.get("ct") not in ("text/plain", "application/smil")
+                    for f in sorted((dossier / "mms-pieces-jointes").glob(f"mms{mms['_id']}-piece{p['_id']}.*"))]
         texte = "\n".join(t for t in textes if t)
         if jointes:
             texte = (texte + "\n" if texte else "") + f"[{len(jointes)} pièce(s) jointe(s) : {', '.join(sorted(set(jointes)))}]"
         numero = next((a for a in adresses if normaliser_numero(a)), adresses[0] if adresses else None)
-        messages.append(message(mms["date"], numero, None, texte, "", "GALAXY_S10E", canal="MMS", sens=sens))
+        mms_message = message(mms["date"], numero, None, texte, "", "GALAXY_S10E", canal="MMS", sens=sens)
+        if fichiers:
+            mms_message["_fichiers"] = {"piecesJointes": fichiers[:MAX_PIECES_JOINTES]}
+        messages.append(mms_message)
     return appels, messages
 
 
@@ -296,7 +310,8 @@ def lire_enregistrements(dossier=ENREGISTREMENTS):
         m = re.fullmatch(r"(\d{8})_(\d{6})_(in|out)", chemin.stem)
         if not m:
             continue
-        debut = dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").replace(tzinfo=PARIS)
+        debut = dt.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S")
+        debut = debut.replace(tzinfo=PARIS) if PARIS else debut.astimezone()
         texte = chemin.with_suffix(".txt")
         resultat.append((int(debut.timestamp() * 1000), "ENTRANT" if m.group(3) == "in" else "SORTANT", chemin,
                          texte.read_text(encoding="utf-8").strip() if texte.exists() else ""))
@@ -304,16 +319,16 @@ def lire_enregistrements(dossier=ENREGISTREMENTS):
 
 
 def associer_enregistrements(appels, enregistrements):
-    """Pose `_fichier` et `transcription` sur l'appel du même sens le plus proche dans le temps."""
+    """Pose `_fichiers` (enregistrement) et `transcription` sur l'appel du même sens le plus proche dans le temps."""
     orphelins = []
     for debut, direction, chemin, transcription in enregistrements:
         candidats = [a for a in appels if a["direction"] == direction
-                     and abs(a["_ms"] - debut) <= TOLERANCE_ENREGISTREMENT_S * 1000 and "_fichier" not in a]
+                     and abs(a["_ms"] - debut) <= TOLERANCE_ENREGISTREMENT_S * 1000 and "_fichiers" not in a]
         if not candidats:
             orphelins.append(chemin.name)
             continue
         choisi = min(candidats, key=lambda a: abs(a["_ms"] - debut))
-        choisi["_fichier"] = chemin
+        choisi["_fichiers"] = {"enregistrement": [chemin]}
         if transcription:
             choisi["transcription"] = transcription
     return orphelins
@@ -330,10 +345,11 @@ def dedoublonner(enregistrements):
 # ---------------------------------------------------------------- Twenty
 
 
-def charger_acces(env, workspace):
-    if os.environ.get("TWENTY_API_URL") and os.environ.get("TWENTY_API_KEY"):
+def charger_acces(env, workspace, suffixe=""):
+    """Clé du workspace sur le bastion ; suffixe « TELEPHONE_ » pour celle du rôle Téléphone."""
+    if not suffixe and os.environ.get("TWENTY_API_URL") and os.environ.get("TWENTY_API_KEY"):
         return os.environ["TWENTY_API_URL"].rstrip("/"), os.environ["TWENTY_API_KEY"]
-    prefixe = f"TWENTY_{env.upper()}_{workspace.upper().replace('-', '_')}_"
+    prefixe = f"TWENTY_{env.upper()}_{workspace.upper().replace('-', '_')}_{suffixe}"
     lecteur = ("import sys,json\nv={}\nfor l in open('/home/brunon5/credentials/.all-creds.env'):\n"
                " k,_,x=l.rstrip('\\n').partition('=')\n if k in sys.argv[1:]: v[k]=x.strip().strip('\"').strip(\"'\")\n"
                "print(json.dumps(v))")
@@ -392,19 +408,20 @@ class Twenty:
     def modifier(self, pluriel, identifiant, champs):
         return self.requete("PATCH", f"/rest/{pluriel}/{identifiant}", champs)
 
-    def televerser_enregistrement(self, chemin):
-        """Upload GraphQL multipart vers le champ FILES ; le fichier reste temporaire tant qu'aucun record ne le porte."""
+    def televerser(self, chemin, champ_uid):
+        """Upload GraphQL multipart vers un champ FILES ; le fichier reste temporaire tant qu'aucun record ne le porte."""
         operations = {
             "query": "mutation($file: Upload!, $uid: String!) { uploadFilesFieldFileByUniversalIdentifier("
                      "file: $file, fieldMetadataUniversalIdentifier: $uid) { id path } }",
-            "variables": {"file": None, "uid": ENREGISTREMENT_FIELD_UNIVERSAL_IDENTIFIER},
+            "variables": {"file": None, "uid": champ_uid},
         }
         frontiere = uuid.uuid4().hex
         parties = []
         for nom, valeur in (("operations", json.dumps(operations)), ("map", json.dumps({"0": ["variables.file"]}))):
             parties.append(f'--{frontiere}\r\nContent-Disposition: form-data; name="{nom}"\r\n\r\n{valeur}\r\n'.encode())
         parties.append(f'--{frontiere}\r\nContent-Disposition: form-data; name="0"; filename="{chemin.name}"\r\n'
-                       f"Content-Type: audio/ogg\r\n\r\n".encode() + chemin.read_bytes() + b"\r\n")
+                       f"Content-Type: {mimetypes.guess_type(chemin.name)[0] or 'application/octet-stream'}\r\n\r\n".encode()
+                       + chemin.read_bytes() + b"\r\n")
         parties.append(f"--{frontiere}--\r\n".encode())
         reponse = self.requete("POST", "/metadata", donnees=b"".join(parties),
                                entetes={"Content-Type": f"multipart/form-data; boundary={frontiere}",
@@ -428,40 +445,51 @@ def vide(valeur):
     return valeur in (None, "", [], {}) or (isinstance(valeur, dict) and not any(valeur.values()))
 
 
+def cle_seconde(pluriel, enregistrement):
+    """Même numéro, même seconde, même sens (et même texte pour un SMS) : le même événement, quelle que soit
+    la source. Le journal d'appels lu par adb est à la milliseconde, celui de Termux à la seconde."""
+    if pluriel == "appels":
+        return (enregistrement.get("numero"), (enregistrement.get("debutLe") or "")[:19], enregistrement.get("direction"))
+    return (enregistrement.get("numero"), (enregistrement.get("envoyeLe") or "")[:19], enregistrement.get("sens"),
+            empreinte(enregistrement.get("texte") or ""))
+
+
 def planifier(pluriel, voulus, existants, index):
     """Créations et compléments. Un champ déjà rempli dans le CRM n'est jamais réécrit."""
     par_source = {e.get("idSource"): e for e in existants if e.get("idSource")}
+    par_seconde = {cle_seconde(pluriel, e): e for e in existants}
     creations, complements, bilan = [], [], {"sans_personne": 0}
     for voulu in voulus:
         personne = index.get(voulu["_e164"]) if voulu["_e164"] else None
         if not personne:
             bilan["sans_personne"] += 1
-        existant = par_source.get(voulu["idSource"])
+        existant = par_source.get(voulu["idSource"]) or par_seconde.get(cle_seconde(pluriel, voulu))
         if existant is None:
             corps = {k: voulu[k] for k in CHAMPS[pluriel] if k in voulu}
             if personne:
                 corps["personId"] = personne
-            creations.append((corps, voulu.get("_fichier")))
+            creations.append((corps, voulu.get("_fichiers")))
             continue
         champs = {k: voulu[k] for k in CHAMPS[pluriel] if k in voulu and not vide(voulu[k]) and vide(existant.get(k))}
         if personne and vide(existant.get("personId")):
             champs["personId"] = personne
-        fichier = voulu.get("_fichier") if pluriel == "appels" and vide(existant.get("enregistrement")) else None
-        if champs or fichier:
-            complements.append((existant["id"], champs, fichier))
+        fichiers = {k: v for k, v in (voulu.get("_fichiers") or {}).items() if vide(existant.get(k))} or None
+        if champs or fichiers:
+            complements.append((existant["id"], champs, fichiers))
     return creations, complements, bilan
 
 
-def avec_fichier(twenty, corps, fichier):
-    if fichier:
-        corps = dict(corps, enregistrement=[{"fileId": twenty.televerser_enregistrement(fichier),
-                                              "label": fichier.name}])
+def avec_fichiers(twenty, corps, fichiers):
+    """Téléverse les fichiers de chaque champ FILES puis les porte sur le record, dans la même écriture."""
+    for champ, chemins in (fichiers or {}).items():
+        corps = dict(corps, **{champ: [{"fileId": twenty.televerser(chemin, CHAMPS_FICHIERS[champ]),
+                                        "label": chemin.name} for chemin in chemins]})
     return corps
 
 
 def ecrire(twenty, pluriel, creations, complements):
     erreurs = 0
-    # Les appels avec enregistrement passent un par un : le fichier téléversé doit être porté dans la foulée.
+    # Un record avec fichiers passe seul : le fichier téléversé doit être porté dans la foulée.
     simples = [c for c, f in creations if not f]
     for debut in range(0, len(simples), LOT):
         try:
@@ -473,13 +501,13 @@ def ecrire(twenty, pluriel, creations, complements):
             print(f"  ✗ lot {pluriel} {debut} : {erreur}", file=sys.stderr)
     for corps, fichier in [(c, f) for c, f in creations if f]:
         try:
-            twenty.creer_lot(pluriel, [avec_fichier(twenty, corps, fichier)])
+            twenty.creer_lot(pluriel, [avec_fichiers(twenty, corps, fichier)])
         except RuntimeError as erreur:
             erreurs += 1
             print(f"  ✗ {corps['idSource']} : {erreur}", file=sys.stderr)
     for identifiant, champs, fichier in complements:
         try:
-            twenty.modifier(pluriel, identifiant, avec_fichier(twenty, champs, fichier))
+            twenty.modifier(pluriel, identifiant, avec_fichiers(twenty, champs, fichier))
         except RuntimeError as erreur:
             erreurs += 1
             print(f"  ✗ {identifiant} : {erreur}", file=sys.stderr)
@@ -530,9 +558,10 @@ def commande_ingerer(arguments):
             existants = twenty.tout_lister(pluriel)
             creations, complements, bilan = planifier(pluriel, voulus, existants, index)
             rattaches = sum(1 for c, _ in creations if "personId" in c)
-            fichiers = sum(1 for _, f in creations if f) + sum(1 for *_, f in complements if f)
+            fichiers = sum(len(v) for _, f in creations if f for v in f.values()) + \
+                sum(len(v) for *_, f in complements if f for v in f.values())
             print(f"{pluriel} : {len(voulus)} lus, {len(existants)} déjà au CRM → {len(creations)} à créer "
-                  f"({rattaches} rattachés), {len(complements)} à compléter, {fichiers} enregistrements à téléverser, "
+                  f"({rattaches} rattachés), {len(complements)} à compléter, {fichiers} fichiers à téléverser, "
                   f"{bilan['sans_personne']} sans personne connue")
             if not arguments.essai:
                 erreurs += ecrire(twenty, pluriel, creations, complements)
@@ -588,8 +617,10 @@ def commande_dossier(arguments):
 def main(argv=None):
     parseur = argparse.ArgumentParser(prog="crm-telephonie", description=__doc__.split("\n")[0])
     sous = parseur.add_subparsers(dest="commande", required=True)
-    for nom in ("ingerer", "app", "dossier"):
+    for nom in ("ingerer", "app", "dossier", "telephone"):
         p = sous.add_parser(nom)
+        if nom == "telephone":
+            p.add_argument("action", choices=("cle", "installer"))
         if nom == "app":
             p.add_argument("action", choices=("plan", "apply"))
             p.add_argument("--prune", action="store_true",
@@ -607,6 +638,15 @@ def main(argv=None):
     arguments = parseur.parse_args(argv)
     if arguments.commande == "dossier":
         return commande_dossier(arguments)
+    if arguments.commande == "telephone":
+        import installation_telephone
+
+        try:
+            action = installation_telephone.creer_cle if arguments.action == "cle" else installation_telephone.installer
+            return action(arguments.env, arguments.workspace)
+        except NonAbouti as erreur:
+            print(f"NON ABOUTI : {erreur}", file=sys.stderr)
+            return 2
     return commande_ingerer(arguments) if arguments.commande == "ingerer" else commande_app(arguments)
 
 

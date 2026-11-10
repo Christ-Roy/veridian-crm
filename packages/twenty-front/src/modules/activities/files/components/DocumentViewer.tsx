@@ -7,6 +7,8 @@ import {
   fetchCsvPreview,
 } from '@/activities/files/utils/fetchCsvPreview';
 import { getFileType } from '@/activities/files/utils/getFileType';
+import { VeridianAudioPreview } from '@/veridian-audio/components/VeridianAudioPreview';
+import { getVeridianAudioMimeType } from '@/veridian-audio/utils/getVeridianAudioMimeType';
 import DocViewer, { DocViewerRenderers } from '@cyntler/react-doc-viewer';
 import '@cyntler/react-doc-viewer/dist/index.css';
 import { styled } from '@linaria/react';
@@ -205,6 +207,15 @@ export const DocumentViewer = ({
       fetchCsvPreview(documentUrl).then(setCsvPreview);
     }
   }, [documentUrl, fileExtension]);
+
+  // Veridian (VERIDIAN-PATCHES.md) : l'audio se lit dans l'aperçu au lieu de « non prévisualisable ».
+  if (isDefined(getVeridianAudioMimeType(fileExtension))) {
+    return (
+      <StyledDocumentViewerContainer>
+        <VeridianAudioPreview audioName={documentName} audioUrl={documentUrl} />
+      </StyledDocumentViewerContainer>
+    );
+  }
 
   if (!isPreviewable) {
     return (

@@ -15,6 +15,19 @@ Les appels et les SMS de Robert dans la timeline de chaque personne du CRM.
 Aucun patch du fork, aucune fonction serveur (le code client est coupé chez Veridian) : uniquement le mécanisme
 natif des apps de Twenty v2.56 (`twenty-sdk`). Le rôle par défaut n'accorde rien.
 
+Les pièces jointes des MMS (images, vidéos) vont dans `piecesJointes` (colonne de l'onglet SMS, aperçu natif
+au clic). L'audio se lit dans l'aperçu grâce au patch `veridian-audio` du front (sans lui, un clic télécharge).
+
+## L'agent du téléphone (sans serveur ni tâche planifiée)
+
+Robert (10/11/2026) : le téléphone parle directement au CRM. `ingestion/telephone.py` tourne sous Termux sur
+le Pixel, démarré par Termux:Boot et relancé par termux-services. Il se réveille à chaque enregistrement JemRec
+fini (inotify) et au plus tard toutes les 2 minutes ; il ne contacte le CRM que si le journal d'appels, les SMS
+ou les enregistrements ont changé. Il transcrit lui-même avec whisper.cpp (modèle `small`, priorité basse). Sa
+clé porte le rôle « Téléphone » de l'app (personnes en lecture, appels et SMS en écriture, upload), pas Admin.
+Termux lit le journal à la seconde : le plan rapproche donc aussi par numéro, seconde et sens (`cle_seconde`),
+sans doublon avec l'historique importé par `mail`. Installation : `crm-telephonie telephone installer`.
+
 L'audio vit **une fois** dans le stockage de Twenty (sauvegardé avec le CRM) ; `~/sauvegardes/appels-pixel/`
 reste la source brute sur `mail`. Un clic sur l'enregistrement l'ouvre dans le navigateur, qui le lit.
 
