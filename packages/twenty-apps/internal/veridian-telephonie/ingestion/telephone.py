@@ -21,6 +21,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -43,6 +44,30 @@ PERSONNES_VALIDES_S = 1800
 TYPES_TERMUX_APPEL = {"INCOMING": "1", "OUTGOING": "2", "MISSED": "3", "VOICEMAIL": "4", "REJECTED": "5",
                       "BLOCKED": "6", "ANSWERED_EXTERNALLY": "7"}
 TYPES_TERMUX_SMS = {"inbox": "1", "sent": "2", "draft": "3", "outbox": "4", "failed": "5", "queued": "6"}
+
+
+ENFANTS = set()
+
+
+def _arreter(signum, _frame):
+    """runit n'envoie SIGTERM qu'à l'agent : ses enfants (whisper, ffmpeg) s'arrêtent avec lui, sans orphelin."""
+    for enfant in list(ENFANTS):
+        enfant.kill()
+    sys.exit(128 + signum)
+
+
+def executer_suivi(commande, delai):
+    enfant = subprocess.Popen(commande, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    ENFANTS.add(enfant)
+    try:
+        sortie, _ = enfant.communicate(timeout=delai)
+    finally:
+        ENFANTS.discard(enfant)
+        if enfant.poll() is None:
+            enfant.kill()
+    if enfant.returncode != 0:
+        raise subprocess.CalledProcessError(enfant.returncode, commande[0])
+    return sortie
 
 
 def log(message):
@@ -90,15 +115,14 @@ def transcrire_un(chemin):
     sortie = ETAT / "transcriptions" / f"{chemin.stem}.txt"
     sortie.parent.mkdir(parents=True, exist_ok=True)
     wav = ETAT / "transcriptions" / f"{chemin.stem}.wav"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(chemin), "-ac", "1", "-ar", "16000", str(wav)],
-                   check=True, timeout=600)
+    executer_suivi(["ffmpeg", "-v", "error", "-y", "-i", str(chemin), "-ac", "1", "-ar", "16000", str(wav)], 600)
     try:
-        resultat = subprocess.run(["nice", "-n", "15", str(WHISPER), "-m", str(MODELE), "-l", "fr", "-t", "4", "-np",
-                                   "-f", str(wav)], capture_output=True, text=True, check=True, timeout=3600)
+        sortie_whisper = executer_suivi(["nice", "-n", "15", str(WHISPER), "-m", str(MODELE), "-l", "fr", "-t", "4",
+                                         "-np", "-f", str(wav)], 3600)
     finally:
         wav.unlink(missing_ok=True)
     lignes = []
-    for ligne in resultat.stdout.splitlines():
+    for ligne in sortie_whisper.splitlines():
         if ligne.startswith("[") and "-->" in ligne and "]" in ligne:
             horodatage, texte = ligne[1:].split("]", 1)
             debut, fin = (secondes(x.strip().split(".")[0]) + float("0." + x.strip().split(".")[1])
@@ -177,6 +201,12 @@ class Agent:
         """Un enregistrement à la fois : le passage suivant porte la transcription sur l'appel."""
         if not (WHISPER.exists() and MODELE.exists()) or memoire_libre_ko() < MEMOIRE_MIN_TRANSCRIPTION_KO:
             return False
+        if not any(not texte for *_, texte in enregistrements_locaux()):
+            return False
+        # Avant whisper, le CRM : l'appel a peut-être déjà sa transcription (pixel-appels, instance précédente).
+        appels = appels_locaux()
+        c.associer_enregistrements(appels, enregistrements_locaux())
+        reprendre_transcriptions(appels, self.twenty.tout_lister("appels", 'appareil[eq]:PIXEL_8_PRO'))
         for _, _, chemin, texte in enregistrements_locaux():
             if not texte:
                 log(f"transcription de {chemin.name}")
@@ -199,6 +229,7 @@ def main(argv=None):
     parseur = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parseur.add_argument("--une-fois", action="store_true")
     arguments = parseur.parse_args(argv)
+    signal.signal(signal.SIGTERM, _arreter)
     ETAT.mkdir(parents=True, exist_ok=True)
     for reste in (ETAT / "transcriptions").glob("*.wav"):
         reste.unlink()  # laissé par un arrêt brutal pendant une transcription
@@ -213,7 +244,12 @@ def main(argv=None):
             code = 2
         if arguments.une_fois:
             return code
-        if not agent.transcrire_en_attente():
+        try:
+            transcrit = agent.transcrire_en_attente()
+        except (c.NonAbouti, RuntimeError, OSError, ValueError) as erreur:
+            log(f"transcription remise à plus tard : {erreur}")
+            transcrit = False
+        if not transcrit:
             attendre_un_enregistrement()
 
 
