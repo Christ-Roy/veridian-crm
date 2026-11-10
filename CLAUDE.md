@@ -87,7 +87,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
-Codes : 0 vrai, 1 faux, 2 mesure non aboutie. Le secret : `CRM_HUB_API_SECRET_STAGING` dans `.all-creds.env`.
+Prod : `scripts/ci/parcours-node02.sh <dossier>` (node02). Codes : 0 vrai, 1 faux, 2 mesure non aboutie. Le secret : `CRM_HUB_API_SECRET_STAGING` dans `.all-creds.env`.
 Le parcours crée et retire son compte de test ; une capture couvre le démarrage seulement si elle démarre avant lui.
 
 Avec `lourd`, `dist` est effacé à chaque copie : `nx run twenty-shared:build` avant toute spec.
