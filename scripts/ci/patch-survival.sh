@@ -72,7 +72,7 @@ exige packages/twenty-front/src/modules/activities/timeline-activities/utils/get
 refuse packages/twenty-front/src/modules/activities/timeline-activities/utils/getTimelineActivityAuthorFullName.ts "return 'Twenty'"
 exige packages/twenty-front/src/modules/activities/files/components/DocumentViewer.tsx "<VeridianAudioPreview audioName={documentName} audioUrl={documentUrl} />"
 # L'app Téléphonie installe son schéma en --no-prune : un champ retiré du source ne supprime aucune donnée.
-exige packages/twenty-apps/internal/veridian-telephonie/ingestion/crm_telephonie.py '"--no-prune"'
+exige packages/twenty-apps/veridian/telephonie/ingestion/crm_telephonie.py '"--no-prune"'
 exige packages/twenty-front/index.html "<title>Veridian CRM</title>"
 exige packages/twenty-front/public/manifest.json '"name": "Veridian CRM"'
 exige packages/twenty-front/src/modules/navigation/components/SettingsNavigationDrawerContent.tsx "Basé sur Twenty, AGPL"

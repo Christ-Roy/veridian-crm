@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# crm-telephonie : lanceur du plugin Veridian « Téléphonie » (appels et SMS dans le CRM Twenty).
+# Exécute toujours le code poussé sur origin/staging de veridian-crm, jamais un checkout local au hasard.
+# Sur une machine vierge, il s'amorce seul : clone partiel du seul dossier du plugin, Node 24 à côté.
+#
+#   install -m 755 packages/twenty-apps/veridian/telephonie/bin/crm-telephonie ~/.local/bin/
+#   crm-telephonie installer --env prod --workspace <sous-domaine>
+#
+# Mode d'emploi : packages/twenty-apps/veridian/telephonie/README.md
+set -euo pipefail
+D="$HOME/.local/share/crm-telephonie"
+DEPOT="$D/depot"
+PLUGIN="packages/twenty-apps/veridian/telephonie"
+SOURCE="https://github.com/Christ-Roy/veridian-crm.git"
+
+if [ ! -d "$DEPOT/.git" ]; then
+  mkdir -p "$D"
+  git clone -q --filter=blob:none --no-checkout --sparse "$SOURCE" "$DEPOT"
+fi
+git -C "$DEPOT" sparse-checkout set --no-cone "/$PLUGIN/" >/dev/null
+if git -C "$DEPOT" fetch -q origin staging; then
+  git -C "$DEPOT" checkout -q --detach FETCH_HEAD
+else
+  echo "⚠ crm-telephonie : origin/staging injoignable, code local $(git -C "$DEPOT" rev-parse --short HEAD)" >&2
+fi
+
+if [ ! -x "$D/node/bin/node" ]; then
+  V=$(curl -fsSL https://nodejs.org/dist/index.json \
+      | python3 -c "import json,sys;print(next(r['version'] for r in json.load(sys.stdin) if r['version'].startswith('v24.') and r['lts']))")
+  curl -fsSL "https://nodejs.org/dist/$V/node-$V-linux-x64.tar.xz" | tar -xJ -C "$D"
+  mv "$D/node-$V-linux-x64" "$D/node"
+fi
+export PATH="$D/node/bin:$PATH" COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
+APP="$DEPOT/$PLUGIN"
+case "${1:-}" in
+  app|installer)
+    if [ ! -d "$APP/node_modules" ] || [ "$APP/yarn.lock" -nt "$APP/node_modules" ]; then
+      (cd "$APP" && corepack yarn install --immutable >&2)
+    fi
+    ;;
+esac
+exec python3 "$APP/ingestion/crm_telephonie.py" "$@"

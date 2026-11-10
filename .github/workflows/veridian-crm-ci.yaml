@@ -39,12 +39,12 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: packages/twenty-apps/internal/veridian-telephonie
+        working-directory: packages/twenty-apps/veridian/telephonie
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version-file: packages/twenty-apps/internal/veridian-telephonie/.nvmrc
+          node-version-file: packages/twenty-apps/veridian/telephonie/.nvmrc
       - run: corepack enable && yarn install --immutable
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'

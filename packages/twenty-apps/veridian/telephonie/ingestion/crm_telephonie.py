@@ -5,6 +5,7 @@ Lancement manuel, rejouable, aucune tâche planifiée. Tourne sur la station `ma
 (`pixel shell`, `ssh pixel`) et les sauvegardes. La clé API du workspace reste sur le bastion : elle est lue
 par ssh à chaque lancement, jamais écrite ni affichée.
 
+    crm-telephonie installer --env prod --workspace veridian-4   # tout, de zéro, rejouable (voir README)
     crm-telephonie app plan  --env staging --workspace cheerful-yellow-zebra
     crm-telephonie app apply --env prod    --workspace veridian-4
     crm-telephonie ingerer   --env prod    --workspace veridian-4 [--sources pixel,enregistrements,s10e] [--essai]
@@ -603,6 +604,40 @@ def commande_app(arguments):
     return subprocess.run(commande, cwd=APP_DIR, env=environnement).returncode
 
 
+def commande_installer(arguments):
+    """Tout, de zéro, dans l'ordre : app (objets, onglets, timeline, rôle), dossier People, historique, agent du
+    Pixel. Rejouable : chaque étape est idempotente. S'arrête à la première étape qui échoue."""
+    import installation_telephone
+
+    etapes = [
+        ("app Twenty", lambda: commande_app(argparse.Namespace(action="apply", prune=False, env=arguments.env,
+                                                                workspace=arguments.workspace))),
+        ("dossier People", lambda: commande_dossier(argparse.Namespace(objet="person", champ="etiquette",
+                                                                       nom="People", essai=False, env=arguments.env,
+                                                                       workspace=arguments.workspace))),
+    ]
+    if not arguments.sans_historique:
+        etapes.append(("historique", lambda: commande_ingerer(argparse.Namespace(
+            sources=",".join(SOURCES), essai=False, env=arguments.env, workspace=arguments.workspace))))
+    if not arguments.sans_telephone:
+        etapes += [("clé du téléphone", lambda: installation_telephone.creer_cle(arguments.env, arguments.workspace)),
+                   ("agent du téléphone", lambda: installation_telephone.installer(arguments.env, arguments.workspace))]
+    for nom, etape in etapes:
+        print(f"── {nom}", flush=True)
+        try:
+            code = etape()
+        except NonAbouti as erreur:
+            print(f"NON ABOUTI : {erreur}", file=sys.stderr)
+            code = 2
+        if code:
+            print(f"arrêt à « {nom} » (code {code}) ; corriger puis relancer : les étapes faites ne se refont pas",
+                  file=sys.stderr)
+            return code
+    print("installé : app, dossier People" + ("" if arguments.sans_historique else ", historique")
+          + ("" if arguments.sans_telephone else ", agent du téléphone"))
+    return 0
+
+
 def commande_dossier(arguments):
     """Dossier de la barre latérale par valeur d'un champ SELECT (voir barre_laterale.py)."""
     import barre_laterale
@@ -621,8 +656,11 @@ def commande_dossier(arguments):
 def main(argv=None):
     parseur = argparse.ArgumentParser(prog="crm-telephonie", description=__doc__.split("\n")[0])
     sous = parseur.add_subparsers(dest="commande", required=True)
-    for nom in ("ingerer", "app", "dossier", "telephone"):
+    for nom in ("installer", "ingerer", "app", "dossier", "telephone"):
         p = sous.add_parser(nom)
+        if nom == "installer":
+            p.add_argument("--sans-historique", action="store_true", help="ne reprend pas l'historique (S10e, Pixel)")
+            p.add_argument("--sans-telephone", action="store_true", help="n'installe pas l'agent du Pixel")
         if nom == "telephone":
             p.add_argument("action", choices=("cle", "installer", "relancer"))
         if nom == "app":
@@ -640,6 +678,8 @@ def main(argv=None):
             p.add_argument("--sources", default=",".join(SOURCES))
             p.add_argument("--essai", action="store_true", help="lit tout, calcule le plan, n'écrit rien")
     arguments = parseur.parse_args(argv)
+    if arguments.commande == "installer":
+        return commande_installer(arguments)
     if arguments.commande == "dossier":
         return commande_dossier(arguments)
     if arguments.commande == "telephone":

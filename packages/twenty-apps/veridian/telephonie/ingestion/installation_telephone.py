@@ -42,7 +42,7 @@ print("créée " + cle["id"])
 '''
 
 SERVICE_RUN = """#!/data/data/com.termux/files/usr/bin/sh
-# Agent téléphone → CRM (veridian-crm, packages/twenty-apps/internal/veridian-telephonie). Relancé par runit.
+# Agent téléphone → CRM (veridian-crm, packages/twenty-apps/veridian/telephonie). Relancé par runit.
 exec 2>&1
 exec python3 -u "$HOME/crm-telephone/telephone.py"
 """

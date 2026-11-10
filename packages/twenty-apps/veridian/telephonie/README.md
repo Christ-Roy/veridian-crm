@@ -1,6 +1,39 @@
-# Téléphonie Veridian (app Twenty)
+# Téléphonie Veridian (plugin Veridian du CRM, app Twenty)
 
-Les appels et les SMS de Robert dans la timeline de chaque personne du CRM.
+Les appels, SMS et MMS de Robert dans la fiche de chaque personne du CRM : timeline, onglets Appels et SMS,
+enregistrements lisibles sur place, transcriptions, pièces jointes. Le téléphone les envoie lui-même.
+
+## Reproduire de zéro (une machine, un workspace, un téléphone)
+
+```bash
+install -m 755 packages/twenty-apps/veridian/telephonie/bin/crm-telephonie ~/.local/bin/   # une fois par machine
+crm-telephonie installer --env prod --workspace veridian-4                                 # tout, rejouable
+```
+
+Le lanceur s'amorce seul (clone partiel du plugin à `origin/staging`, Node 24) et `installer` enchaîne, chaque
+étape idempotente, arrêt à la première qui échoue :
+
+1. **app Twenty** : objets `appel` et `textMessage`, relations Person, types de timeline, onglets, vues, rôle
+   « Téléphone » (`app apply --no-prune`) ;
+2. **dossier People** : une entrée par valeur du champ `etiquette` de Person ;
+3. **historique** : journal et SMS du Pixel, enregistrements, sauvegarde du Galaxy S10e (`--sans-historique` pour sauter) ;
+4. **téléphone** : clé API du rôle Téléphone, puis agent Termux, services, démarrage au boot (`--sans-telephone`).
+
+Prérequis, hors plugin : la clé Admin du workspace sur le bastion (`twenty-admin --env <env> agent:grant <ws>`,
+skill `twenty-cli`), l'accès `ssh pixel` / `pixel shell` au téléphone (skill `android`), Termux:Boot ouvert une
+fois à la main sur le téléphone. Côté CRM, deux patchs du front vivent hors du plugin, car une app ne peut pas
+changer le code de Twenty : `twenty-front/src/modules/veridian-audio/` (l'audio se lit dans l'aperçu au lieu
+d'être téléchargé) et `veridian-brand/getVeridianSystemAuthorFullName.ts` (pas de « Twenty » devant les lignes).
+Ils sont dans l'image du CRM, inscrits dans `VERIDIAN-PATCHES.md` et gardés par `scripts/ci/patch-survival.sh`.
+
+| Dossier | Contenu |
+|---|---|
+| `src/` | l'app Twenty (SDK) : objets, champs, relations, timeline, vues, onglets, rôles |
+| `ingestion/crm_telephonie.py` | CLI : installer, ingerer, app, dossier, telephone |
+| `ingestion/telephone.py` | agent du Pixel (Termux) |
+| `ingestion/installation_telephone.py`, `ingestion/barre_laterale.py` | installation du téléphone, dossier People |
+| `ingestion/tests/` | tests sans réseau (CI, job `app-telephonie`) |
+| `bin/crm-telephonie` | lanceur à copier dans `~/.local/bin` |
 
 ## Ce que l'app installe
 
