@@ -55,6 +55,7 @@ LIBELLES_SENS = {"RECU": "Reçu", "ENVOYE": "Envoyé", "BROUILLON": "Brouillon",
 # Écart toléré entre l'heure du nom de fichier JemRec et le début noté au journal d'appels.
 TOLERANCE_ENREGISTREMENT_S = 90
 LOT = 50
+PAUSE_ENTRE_LOTS_S = 0.3
 
 
 class NonAbouti(Exception):
@@ -461,6 +462,8 @@ def ecrire(twenty, pluriel, creations, complements):
     for debut in range(0, len(simples), LOT):
         try:
             twenty.creer_lot(pluriel, simples[debut:debut + LOT])
+            # Chaque création rattachée réveille le worker (ligne de timeline) : on laisse respirer la base.
+            time.sleep(PAUSE_ENTRE_LOTS_S)
         except RuntimeError as erreur:
             erreurs += 1
             print(f"  ✗ lot {pluriel} {debut} : {erreur}", file=sys.stderr)
@@ -532,6 +535,13 @@ def commande_ingerer(arguments):
     except NonAbouti as erreur:
         print(f"NON ABOUTI : {erreur}", file=sys.stderr)
         return 2
+    except RuntimeError as erreur:
+        if "not found" in str(erreur):
+            print(f"ÉCHEC : objets de l'app absents du workspace ; installer d'abord : crm-telephonie app apply "
+                  f"--env {arguments.env} --workspace {arguments.workspace}", file=sys.stderr)
+        else:
+            print(f"ÉCHEC : {erreur}", file=sys.stderr)
+        return 1
     if orphelins:
         print(f"⚠ enregistrements sans appel du même sens à ±{TOLERANCE_ENREGISTREMENT_S} s : {', '.join(orphelins)}")
     if arguments.essai:
