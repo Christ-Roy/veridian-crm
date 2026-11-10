@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-3bf118f" # 10/11/2026 : Connect your AI (liens de la porte MCP du Hub)
+  default = "staging-c90bab2" # 10/11/2026 : auteur système « Veridian CRM » dans la timeline (app Téléphonie)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
