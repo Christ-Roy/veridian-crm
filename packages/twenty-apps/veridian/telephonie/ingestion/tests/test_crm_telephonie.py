@@ -55,6 +55,7 @@ class Sources(unittest.TestCase):
     def test_titres_lisibles(self):
         self.assertEqual(c.appel(0, "+33612345678", 192, "1", "", "PIXEL_8_PRO")["titre"], "Entrant · 3 min 12 s")
         self.assertEqual(c.appel(0, "+33612345678", 0, "3", "", "PIXEL_8_PRO")["titre"], "Manqué")
+        self.assertEqual(c.appel(0, "+33612345678", 0, "2", "", "PIXEL_8_PRO")["titre"], "Sortant · sans réponse")
         self.assertEqual(c.appel(0, "+33612345678", 3725, "2", "", "PIXEL_8_PRO")["titre"], "Sortant · 1 h 02 min")
         self.assertEqual(c.apercu_message("ENVOYE", "a\nb"), "Envoyé · a b")
 
@@ -129,6 +130,16 @@ class Plan(unittest.TestCase):
         creations, complements, _ = c.planifier("appels", [termux], [existant], self.index)
         self.assertEqual((creations, complements), ([], []))
 
+    def test_titre_de_l_outil_mis_a_jour_titre_retouche_garde(self):
+        sans_reponse = c.appel(1, "+33612345678", 0, "2", "", "PIXEL_8_PRO")
+        existant = {k: sans_reponse[k] for k in c.CHAMPS["appels"] if k in sans_reponse}
+        existant.update(id="r1", personId="alice", titre="Sortant")
+        _, complements, _ = c.planifier("appels", [sans_reponse], [existant], self.index)
+        self.assertEqual(complements[0][1], {"titre": "Sortant · sans réponse"})
+        existant["titre"] = "Rappel promis à Alice"
+        _, complements, _ = c.planifier("appels", [sans_reponse], [existant], self.index)
+        self.assertEqual(complements, [])
+
     def test_numero_inconnu_reste_sans_lien(self):
         inconnu = c.appel(1, "+33600000000", 5, "1", "", "PIXEL_8_PRO")
         creations, _, bilan = c.planifier("appels", [inconnu], [], self.index)
@@ -138,6 +149,19 @@ class Plan(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Inconnus(unittest.TestCase):
+    def test_classement_par_frequence_sans_les_rattaches(self):
+        appels = [{"numero": "+33600000001", "personId": None, "debutLe": "2026-01-02", "nomSurTelephone": "Plombier"},
+                  {"numero": "+33600000001", "personId": None, "debutLe": "2026-03-04", "nomSurTelephone": ""},
+                  {"numero": "+33600000002", "personId": "p", "debutLe": "2026-05-06"}]
+        sms = [{"numero": "CIC", "personId": None, "envoyeLe": "2026-02-01"},
+               {"numero": "+33600000001", "personId": None, "envoyeLe": "2026-04-01"}]
+        lignes = c.resumer_inconnus(appels, sms)
+        self.assertEqual([l["numero"] for l in lignes], ["+33600000001", "CIC"])
+        self.assertEqual((lignes[0]["appels"], lignes[0]["sms"], lignes[0]["dernier"]), (2, 1, "2026-04-01"))
+        self.assertEqual(lignes[0]["noms"], {"Plombier"})
 
 
 class Dossier(unittest.TestCase):

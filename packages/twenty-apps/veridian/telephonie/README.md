@@ -87,7 +87,9 @@ crm-telephonie app plan  --env staging --workspace cheerful-yellow-zebra   # dif
 crm-telephonie app apply --env prod    --workspace veridian-4              # installe ou met à jour l'app
 crm-telephonie ingerer   --env prod    --workspace veridian-4 --essai      # plan d'ingestion, rien n'est écrit
 crm-telephonie ingerer   --env prod    --workspace veridian-4              # écrit
-crm-telephonie dossier   --env prod    --workspace veridian-4              # barre latérale : People ▸ tous, une entrée par étiquette
+crm-telephonie dossier   --env prod    --workspace veridian-4              # barre latérale : People ▸ tous, étiquettes, à rattacher
+crm-telephonie inconnus  --env prod    --workspace veridian-4 --top 25     # numéros sans personne, du plus fréquent
+crm-telephonie telephone revoquer --env prod --workspace veridian-4        # téléphone perdu : clé révoquée (403), agent coupé
 ```
 
 `--sources pixel,enregistrements,s10e` (défaut : les trois). Le Pixel est lu par le shell seul
@@ -109,6 +111,8 @@ chose. Un dossier Twenty s'ouvre et se ferme sans naviguer ; « People » en est
 
 - **Idempotent** : `idSource` est calculé depuis la source (date à la milliseconde, numéro, sens, empreinte du
   texte), le même quel que soit le téléphone qui a gardé l'appel. Un rejeu ne crée rien.
+- **Titres** : un appel sortant sans réponse s'intitule « Sortant · sans réponse ». Un titre n'est réécrit que s'il est
+  exactement celui que l'outil avait posé (ancienne règle) ; un titre retouché à la main ne bouge plus.
 - **Compléter, jamais écraser** : un rejeu remplit les champs vides (personne importée depuis, enregistrement
   arrivé après) et laisse intact ce qui est posé, rattachement manuel compris.
 - **Aucune personne créée** : rattachement par numéro E.164 contre les téléphones des personnes du workspace.

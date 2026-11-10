@@ -12,6 +12,8 @@ workspace), pas par l'app, parce que le champ appartient au workspace (import de
 import json
 
 LIBELLE_TOUS = "Tous les contacts"
+# Vues de l'app Téléphonie rangées en fin de dossier : appels et SMS sans personne, pour créer les contacts manquants.
+VUES_A_RATTACHER = ("Appels à rattacher", "SMS à rattacher")
 
 
 def _metadonnees(twenty, requete, variables=None):
@@ -109,6 +111,13 @@ def organiser(twenty, nom_objet="person", nom_champ="etiquette", nom_dossier="Pe
         _metadonnees(twenty, "mutation($i:UpdateOneNavigationMenuItemInput!){ updateNavigationMenuItem(input:$i){ id } }",
                      {"i": {"id": entree_objet["id"], "update": {"folderId": dossier["id"], "position": 0,
                                                                  "name": LIBELLE_TOUS}}})
+    ids_a_rattacher = [v["id"] for nom in VUES_A_RATTACHER for v in vues if v["name"] == nom]
+    deja = {e.get("viewId") for e in elements if e.get("folderId") == dossier["id"]}
+    for rang, identifiant in enumerate(ids_a_rattacher, start=len(plan["options"]) + 1):
+        if identifiant not in deja:
+            _metadonnees(twenty, "mutation($i:CreateNavigationMenuItemInput!){ createNavigationMenuItem(input:$i)"
+                                 "{ id } }", {"i": {"type": "VIEW", "viewId": identifiant, "folderId": dossier["id"],
+                                                    "position": rang}})
     for rang, option in enumerate(plan["options"], start=1):
         if option in plan["entrees_a_creer"]:
             _metadonnees(twenty, "mutation($i:CreateNavigationMenuItemInput!){ createNavigationMenuItem(input:$i)"

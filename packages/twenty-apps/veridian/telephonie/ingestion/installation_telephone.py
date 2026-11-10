@@ -3,12 +3,14 @@
     crm-telephonie telephone cle       --env prod --workspace veridian-4   # clé du rôle « Téléphone », une fois
     crm-telephonie telephone installer --env prod --workspace veridian-4   # code, accès, service, démarrage
     crm-telephonie telephone relancer  --env prod --workspace veridian-4   # Termux tué par Android : tout repart
+    crm-telephonie telephone revoquer  --env prod --workspace veridian-4   # téléphone perdu : la clé ne vaut plus rien
 
 La clé est créée sur le bastion (rebond signé du Hub, au nom du membre rangé avec la clé Admin), rangée dans
 ~/credentials (`TWENTY_<ENV>_<WS>_TELEPHONE_*`), puis écrite sur le téléphone en 600 : elle passe par des tubes
 ssh, jamais par l'écran ni par un fichier de `mail`. Rejouable : installer remplace le code par celui de
 origin/staging et redémarre l'agent ; la clé existante est gardée.
 """
+import hashlib
 import json
 import shlex
 import subprocess
@@ -125,3 +127,45 @@ def relancer(env=None, workspace=None):
             return 0
         subprocess.run(["sleep", "5"])
     raise c.NonAbouti("agent ou sshd toujours absents après la relance")
+
+
+REVOQUER_CLE = r'''
+import sys
+sys.path.insert(0, "/home/brunon5/.claude/skills/twenty-cli/bin")
+import twenty_admin as ta
+env, ws = sys.argv[1], sys.argv[2]
+p = ta.prefixe(env, ws)
+creds = ta.lire_creds()
+cle_id = creds.get(p + "_TELEPHONE_API_KEY_ID")
+if not cle_id:
+    print("aucune clé Téléphone rangée"); sys.exit(1)
+client = ta.Client(env)
+origine, jeton, _ = client.session(creds[p + "_EMAIL"], ws)
+client.gql(origine, "mutation($i:RevokeApiKeyInput!){revokeApiKey(input:$i){id}}", {"i": {"id": cle_id}}, jeton)
+ta.ecrire_creds({}, retirer=[p + "_TELEPHONE_API_URL", p + "_TELEPHONE_API_KEY", p + "_TELEPHONE_API_KEY_ID"])
+print("révoquée " + cle_id)
+'''
+
+
+def revoquer(env, workspace):
+    """Téléphone perdu ou volé : la clé du rôle Téléphone est révoquée dans le CRM (l'API répond alors 403) et
+    retirée du bastion. Si le téléphone répond encore, l'agent s'arrête et son accès est effacé. Pour repartir :
+    `crm-telephonie telephone cle` puis `installer`."""
+    _, cle = c.charger_acces(env, workspace, suffixe="TELEPHONE_")
+    empreinte = hashlib.sha256(cle.encode()).hexdigest()
+    distante = "sudo -u brunon5 python3 -c " + shlex.quote(REVOQUER_CLE) + f" {shlex.quote(env)} {shlex.quote(workspace)}"
+    print("clé Téléphone :", c.executer(["ssh", c.BASTION, distante], delai=120).strip())
+    try:
+        # Le téléphone n'est arrêté que s'il porte cette clé-là : révoquer une clé de staging ne coupe pas la prod.
+        sur_le_telephone = _pixel("python3 -c 'import json,hashlib,os;print(hashlib.sha256(json.load(open("
+                                  "os.path.expanduser(\"~/.config/crm-telephone/acces.json\")))[\"cle\"].encode())"
+                                  ".hexdigest())' 2>/dev/null || true", delai=60).strip()
+        if sur_le_telephone != empreinte:
+            print("le téléphone porte une autre clé : agent laissé en marche")
+            return 0
+        _pixel(". $PREFIX/etc/profile.d/start-services.sh; sv down crm-telephone; rm -f ~/.config/crm-telephone/acces.json",
+               delai=60)
+        print("téléphone joint : agent arrêté, accès effacé")
+    except (c.NonAbouti, subprocess.SubprocessError, OSError):
+        print("téléphone injoignable : la clé est révoquée de toute façon, l'agent ne peut plus rien écrire")
+    return 0

@@ -10,7 +10,8 @@ par ssh à chaque lancement, jamais écrite ni affichée.
     crm-telephonie app apply --env prod    --workspace veridian-4
     crm-telephonie ingerer   --env prod    --workspace veridian-4 [--sources pixel,enregistrements,s10e] [--essai]
     crm-telephonie dossier   --env prod    --workspace veridian-4 [--champ etiquette] [--essai]
-    crm-telephonie telephone cle|installer|relancer --env prod --workspace veridian-4   # agent du Pixel
+    crm-telephonie telephone cle|installer|relancer|revoquer --env prod --workspace veridian-4   # agent du Pixel
+    crm-telephonie inconnus  --env prod --workspace veridian-4 [--top 25]   # contacts qui manquent, par fréquence
 
 Idempotence : chaque appel ou message porte un `idSource` unique calculé depuis la source (date à la
 milliseconde, numéro, sens, empreinte du texte), identique quel que soit le téléphone qui l'a gardé. Un rejeu
@@ -158,6 +159,16 @@ def duree_lisible(secondes):
 
 
 def titre_appel(direction, duree):
+    libelle = LIBELLES_DIRECTION.get(direction, "Appel")
+    if direction == "SORTANT" and not duree:
+        return f"{libelle} · sans réponse"
+    if direction in ("MANQUE", "REJETE", "BLOQUE") or not duree:
+        return libelle
+    return f"{libelle} · {duree_lisible(duree)}"
+
+
+def titre_ancien(direction, duree):
+    """Titre que l'outil posait avant le 10/11/2026 (« Sortant » pour un appel sans réponse)."""
     libelle = LIBELLES_DIRECTION.get(direction, "Appel")
     if direction in ("MANQUE", "REJETE", "BLOQUE") or not duree:
         return libelle
@@ -476,6 +487,11 @@ def planifier(pluriel, voulus, existants, index):
             creations.append((corps, voulu.get("_fichiers")))
             continue
         champs = {k: voulu[k] for k in CHAMPS[pluriel] if k in voulu and not vide(voulu[k]) and vide(existant.get(k))}
+        # Un titre reste celui de l'outil tant que personne ne l'a retouché : on le met à la règle du jour, sinon
+        # on n'y touche pas (compléter sans écraser vaut aussi pour une saisie à la main).
+        if (pluriel == "appels" and existant.get("titre") != voulu["titre"]
+                and existant.get("titre") == titre_ancien(voulu["direction"], voulu["dureeSecondes"])):
+            champs["titre"] = voulu["titre"]
         if personne and vide(existant.get("personId")):
             champs["personId"] = personne
         fichiers = {k: v for k, v in (voulu.get("_fichiers") or {}).items() if vide(existant.get(k))} or None
@@ -638,6 +654,40 @@ def commande_installer(arguments):
     return 0
 
 
+def resumer_inconnus(appels, messages):
+    """Numéros sans personne, du plus fréquent au moins fréquent : nombre d'appels et de SMS, dernier contact,
+    noms vus sur les téléphones. Pur, testé sans réseau."""
+    par_numero = {}
+    for pluriel, liste, date in (("appels", appels, "debutLe"), ("sms", messages, "envoyeLe")):
+        for e in liste:
+            if e.get("personId") or not e.get("numero"):
+                continue
+            ligne = par_numero.setdefault(e["numero"], {"numero": e["numero"], "appels": 0, "sms": 0, "dernier": "",
+                                                        "noms": set()})
+            ligne[pluriel] += 1
+            ligne["dernier"] = max(ligne["dernier"], e.get(date) or "")
+            if e.get("nomSurTelephone"):
+                ligne["noms"].add(e["nomSurTelephone"])
+    return sorted(par_numero.values(), key=lambda l: (-(l["appels"] + l["sms"]), l["numero"]))
+
+
+def commande_inconnus(arguments):
+    """Les contacts qui manquent au CRM, classés : à créer par l'import des contacts, jamais par cet outil."""
+    try:
+        twenty = Twenty(*charger_acces(arguments.env, arguments.workspace))
+        lignes = resumer_inconnus(twenty.tout_lister("appels"), twenty.tout_lister("textMessages"))
+    except NonAbouti as erreur:
+        print(f"NON ABOUTI : {erreur}", file=sys.stderr)
+        return 2
+    print(f"{len(lignes)} numéros sans personne ; les {min(arguments.top, len(lignes))} plus fréquents :")
+    print(f"{'numéro':<16} {'appels':>6} {'SMS':>5}  {'dernier':<10}  noms vus sur le téléphone")
+    for l in lignes[:arguments.top]:
+        mobile = "" if normaliser_numero(l["numero"]) else " (code court ou nom)"
+        print(f"{l['numero']:<16} {l['appels']:>6} {l['sms']:>5}  {l['dernier'][:10]:<10}  "
+              f"{', '.join(sorted(l['noms'])) or '—'}{mobile}")
+    return 0
+
+
 def commande_dossier(arguments):
     """Dossier de la barre latérale par valeur d'un champ SELECT (voir barre_laterale.py)."""
     import barre_laterale
@@ -656,13 +706,15 @@ def commande_dossier(arguments):
 def main(argv=None):
     parseur = argparse.ArgumentParser(prog="crm-telephonie", description=__doc__.split("\n")[0])
     sous = parseur.add_subparsers(dest="commande", required=True)
-    for nom in ("installer", "ingerer", "app", "dossier", "telephone"):
+    for nom in ("installer", "ingerer", "app", "dossier", "telephone", "inconnus"):
         p = sous.add_parser(nom)
+        if nom == "inconnus":
+            p.add_argument("--top", type=int, default=25)
         if nom == "installer":
             p.add_argument("--sans-historique", action="store_true", help="ne reprend pas l'historique (S10e, Pixel)")
             p.add_argument("--sans-telephone", action="store_true", help="n'installe pas l'agent du Pixel")
         if nom == "telephone":
-            p.add_argument("action", choices=("cle", "installer", "relancer"))
+            p.add_argument("action", choices=("cle", "installer", "relancer", "revoquer"))
         if nom == "app":
             p.add_argument("action", choices=("plan", "apply"))
             p.add_argument("--prune", action="store_true",
@@ -678,6 +730,8 @@ def main(argv=None):
             p.add_argument("--sources", default=",".join(SOURCES))
             p.add_argument("--essai", action="store_true", help="lit tout, calcule le plan, n'écrit rien")
     arguments = parseur.parse_args(argv)
+    if arguments.commande == "inconnus":
+        return commande_inconnus(arguments)
     if arguments.commande == "installer":
         return commande_installer(arguments)
     if arguments.commande == "dossier":
@@ -687,7 +741,8 @@ def main(argv=None):
 
         try:
             action = {"cle": installation_telephone.creer_cle, "installer": installation_telephone.installer,
-                      "relancer": installation_telephone.relancer}[arguments.action]
+                      "relancer": installation_telephone.relancer,
+                      "revoquer": installation_telephone.revoquer}[arguments.action]
             return action(arguments.env, arguments.workspace)
         except NonAbouti as erreur:
             print(f"NON ABOUTI : {erreur}", file=sys.stderr)

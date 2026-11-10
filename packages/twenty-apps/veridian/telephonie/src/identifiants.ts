@@ -92,3 +92,28 @@ export const SMS_TAB_WIDGET_UNIVERSAL_IDENTIFIER = 'f5a7f137-3b41-4080-9fec-b802
 // Rôle de la clé API posée sur le téléphone : lire les personnes, écrire appels et SMS, téléverser l'audio.
 export const TELEPHONE_ROLE_UNIVERSAL_IDENTIFIER =
   '60406d82-290f-4059-87ca-45270e8e792f';
+
+// Vues « à rattacher » : appels et SMS sans personne, regroupés par numéro, pour créer les contacts qui manquent.
+export const APPELS_A_RATTACHER_VIEW = {
+  view: '3e00af08-1a15-4388-9d0b-c39604dc3880',
+  fields: {
+    titre: 'b3d9c58f-9a95-475c-9adf-845a53691c7a',
+    numero: 'a3ef0a14-ece4-4510-bcdc-23b24140f97b',
+    nomSurTelephone: '469fbc20-0ac6-4bba-990a-c818e1bbe13d',
+    debutLe: 'af836c99-d301-4b59-b9a6-ecbbc7081383',
+  },
+  filtreSansPersonne: '605372a2-2d62-400c-8420-d198a613516d',
+  triNumero: 'fdc3ac97-9c98-4ccf-81e9-68ca8f359ae7',
+  triDate: '2a4e9495-09ef-4a53-afff-330609afe833',
+} as const;
+
+export const SMS_A_RATTACHER_VIEW = {
+  view: 'ea865a4e-c0c9-4614-90b2-fdc037b34efe',
+  fields: {
+    apercu: '591e4190-9a70-4e44-ab7f-ad5c19152bde',
+    numero: 'bac2ace4-e408-4e5d-a535-9ef5be9a491a',
+    envoyeLe: '946eee4f-86a7-4150-ac31-99960ec40be2',
+  },
+  filtreSansPersonne: 'cae7d1a2-5b61-489a-a337-901cbaa0ab20',
+  triNumero: '2a3d740d-9c9c-4f07-9cae-d1339c916be9',
+} as const;
