@@ -26,7 +26,17 @@ fini (inotify) et au plus tard toutes les 2 minutes ; il ne contacte le CRM que 
 ou les enregistrements ont changé. Il transcrit lui-même avec whisper.cpp (modèle `small`, priorité basse). Sa
 clé porte le rôle « Téléphone » de l'app (personnes en lecture, appels et SMS en écriture, upload), pas Admin.
 Termux lit le journal à la seconde : le plan rapproche donc aussi par numéro, seconde et sens (`cle_seconde`),
-sans doublon avec l'historique importé par `mail`. Installation : `crm-telephonie telephone installer`.
+sans doublon avec l'historique importé par `mail`. Installation : `crm-telephonie telephone cle` (une fois), puis
+`crm-telephonie telephone installer` (rejouable : code d'origin/staging, accès, services runit `crm-telephone` et
+`sshd`, script Termux:Boot `~/.termux/boot/demarrer`). Journal : `$PREFIX/var/log/sv/crm-telephone/current`.
+
+Pièges mesurés le 10/11/2026 :
+- **Installer un module Termux (Termux:Boot) tue Termux** : il rejoint l'uid partagé, Android recalcule les
+  permissions et arrête tout l'uid (« permissions revoked »), sshd compris. Les permissions restent accordées.
+- Le Termux du Pixel est un build GitHub *debuggable* : un module doit venir de la même source (F-Droid refusé),
+  et `pixel shell "run-as com.termux …"` exécute sous l'uid de Termux sans écran (réarmer sshd, `sv`).
+- Termux:Boot doit être ouvert une fois à la main, sinon Android ne lui livre pas le démarrage.
+- runit n'arrête que l'agent : ses enfants (whisper) sont suivis et tués avec lui sur SIGTERM.
 
 L'audio vit **une fois** dans le stockage de Twenty (sauvegardé avec le CRM) ; `~/sauvegardes/appels-pixel/`
 reste la source brute sur `mail`. Un clic sur l'enregistrement l'ouvre dans le navigateur, qui le lit.
