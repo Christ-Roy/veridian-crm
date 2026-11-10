@@ -105,6 +105,68 @@ def sms_locaux():
     return messages
 
 
+ADB_LOCAL = ["adb", "-s", "127.0.0.1:5555"]
+
+
+def adb_local(*commande, binaire=False, delai=60):
+    """Le shell adb du téléphone vers lui-même (uid 2000) : seul à pouvoir lire le fournisseur des MMS."""
+    resultat = subprocess.run(ADB_LOCAL + ["exec-out" if binaire else "shell", *commande], capture_output=True,
+                              text=not binaire, timeout=delai)
+    if resultat.returncode != 0:
+        raise c.NonAbouti(f"adb local : code {resultat.returncode}")
+    return resultat.stdout
+
+
+def mms_locaux():
+    """MMS du Pixel, texte et pièces jointes. Au mieux : sans adb (port 5555 fermé après un redémarrage), aucun MMS
+    lu, et les appels et SMS passent quand même."""
+    try:
+        subprocess.run(["adb", "connect", "127.0.0.1:5555"], capture_output=True, timeout=30)
+        liste = c.parser_content_query(adb_local("content", "query", "--uri", "content://mms", "--projection",
+                                                 "_id:date:msg_box"), ["_id", "date", "msg_box"])
+    except (c.NonAbouti, subprocess.SubprocessError, OSError) as erreur:
+        log(f"MMS non lus : {erreur}")
+        return []
+    messages = []
+    for mms in liste:
+        sens = "RECU" if mms["msg_box"] == "1" else "ENVOYE"
+        voulu = "137" if sens == "RECU" else "151"
+        adresses = [a["address"] for a in c.parser_content_query(
+            adb_local("content", "query", "--uri", f"content://mms/{int(mms['_id'])}/addr", "--projection",
+                      "address:type"), ["address", "type"]) if a["type"] == voulu]
+        parties = c.parser_content_query(adb_local("content", "query", "--uri", "content://mms/part", "--where",
+                                                   f"mid={int(mms['_id'])}", "--projection", "_id:ct:name"),
+                                         ["_id", "ct", "name"])
+        textes, fichiers, types = [], [], []
+        for partie in parties:
+            if partie["ct"] == "application/smil":
+                continue
+            if partie["ct"] == "text/plain":
+                sortie = adb_local("content", "query", "--uri", "content://mms/part", "--where",
+                                   f"_id={int(partie['_id'])}", "--projection", "text")
+                if "text=" in sortie:
+                    textes.append(sortie.split("text=", 1)[1].rstrip("\n"))
+                continue
+            extension = (partie.get("name") or "").rsplit(".", 1)[-1] if "." in (partie.get("name") or "") else \
+                partie["ct"].split("/")[-1]
+            chemin = ETAT / "mms" / f"mms{mms['_id']}-piece{partie['_id']}.{extension}"
+            if not chemin.exists():
+                chemin.parent.mkdir(parents=True, exist_ok=True)
+                chemin.write_bytes(adb_local("content", "read", "--uri", f"content://mms/part/{int(partie['_id'])}",
+                                             binaire=True, delai=300))
+            fichiers.append(chemin)
+            types.append(partie["ct"])
+        texte = "\n".join(t for t in textes if t)
+        if types:
+            texte = (texte + "\n" if texte else "") + f"[{len(types)} pièce(s) jointe(s) : {', '.join(sorted(set(types)))}]"
+        numero = next((a for a in adresses if c.normaliser_numero(a)), adresses[0] if adresses else None)
+        message = c.message(int(mms["date"]) * 1000, numero, None, texte, "", "PIXEL_8_PRO", canal="MMS", sens=sens)
+        if fichiers:
+            message["_fichiers"] = {"piecesJointes": fichiers[:c.MAX_PIECES_JOINTES]}
+        messages.append(message)
+    return messages
+
+
 def transcription(chemin):
     fichier = ETAT / "transcriptions" / f"{chemin.stem}.txt"
     return fichier.read_text(encoding="utf-8").strip() if fichier.exists() else ""
@@ -178,12 +240,13 @@ class Agent:
         return self.index
 
     def passage(self):
-        appels, messages = appels_locaux(), sms_locaux()
+        appels, messages = appels_locaux(), sms_locaux() + mms_locaux()
         enregistrements = enregistrements_locaux()
         c.associer_enregistrements(appels, enregistrements)
         empreinte = hashlib.sha1(json.dumps(
             [sorted(a["idSource"] + a.get("transcription", "")[:1] + str(bool(a.get("_fichiers"))) for a in appels),
-             sorted(m["idSource"] for m in messages)]).encode()).hexdigest()
+             sorted(m["idSource"] + str(len((m.get("_fichiers") or {}).get("piecesJointes", []))) for m in messages)]
+        ).encode()).hexdigest()
         if empreinte == self.empreinte_envoyee:
             return 0
         index = self.personnes()
