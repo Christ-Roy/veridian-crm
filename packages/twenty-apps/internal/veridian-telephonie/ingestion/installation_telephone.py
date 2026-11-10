@@ -73,7 +73,10 @@ def creer_cle(env, workspace):
 
 def installer(env, workspace):
     url, cle = c.charger_acces(env, workspace, suffixe="TELEPHONE_")
-    _pixel("yes | pkg install -y termux-services inotify-tools ffmpeg tzdata >/dev/null 2>&1; command -v sv inotifywait ffmpeg")
+    for paquet, outil in (("termux-services", "sv-enable"), ("inotify-tools", "inotifywait"), ("ffmpeg", "ffmpeg")):
+        # Un par un : une installation groupée qui échoue sur un paquet n'installait rien, sans le dire.
+        _pixel(f"command -v {outil} >/dev/null || (yes | pkg install -y {paquet} >/dev/null 2>&1); command -v {outil}",
+               delai=900)
     for nom in ("crm_telephonie.py", "telephone.py"):
         _ecrire(f"~/crm-telephone/{nom}", (c.APP_DIR / "ingestion" / nom).read_text(encoding="utf-8"), "700")
     _ecrire("~/.config/crm-telephone/acces.json", json.dumps({"url": url, "cle": cle}))

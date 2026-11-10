@@ -42,6 +42,10 @@ try:
     PARIS = ZoneInfo("Europe/Paris")
 except Exception:  # noqa: BLE001 — Termux : Python sans base des fuseaux, l'heure locale du téléphone fait foi
     PARIS = None
+
+# Lancé en script, ce module est __main__ : les modules voisins qui l'importent doivent retrouver le même
+# (mêmes classes d'exception), pas une seconde copie.
+sys.modules.setdefault("crm_telephonie", sys.modules[__name__])
 APP_DIR = Path(__file__).resolve().parent.parent
 BASTION = os.environ.get("CRM_TELEPHONIE_BASTION", "contabo-storage")
 ENREGISTREMENTS = Path.home() / "sauvegardes" / "appels-pixel"
