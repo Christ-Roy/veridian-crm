@@ -14,6 +14,10 @@ class Normalisation(unittest.TestCase):
                      "+330612345678"):
             self.assertEqual(c.normaliser_numero(brut), "+33612345678", brut)
 
+    def test_indicatif_double_comme_twenty(self):
+        self.assertEqual(c.normaliser_numero("+3333612345678"), "+33612345678")
+        self.assertEqual(c.normaliser_numero("+33336123456"), "+33336123456")
+
     def test_codes_courts_noms_et_masques_sans_numero(self):
         for brut in ("660", "CIC", "Telegram", "", None, "36179", "+12"):
             self.assertIsNone(c.normaliser_numero(brut), brut)

@@ -79,6 +79,9 @@ def normaliser_numero(brut):
             # +330612… : le zéro national recopié après l'indicatif français.
             if chiffres.startswith("330") and len(chiffres) == 12:
                 chiffres = "33" + chiffres[3:]
+            # +33 33 6… : indicatif saisi deux fois dans le carnet ; Twenty le range sans le doublon.
+            if chiffres.startswith("3333") and len(chiffres) == 13:
+                chiffres = chiffres[2:]
             return "+" + chiffres
         return None
     if texte.isdigit() and len(texte) == 10 and texte.startswith("0"):
