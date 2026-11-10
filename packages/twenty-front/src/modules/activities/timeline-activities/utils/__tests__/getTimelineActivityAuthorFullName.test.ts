@@ -47,7 +47,7 @@ describe('getTimelineActivityAuthorFullName', () => {
     expect(result).toBe('Jane Smith');
   });
 
-  it('should return "Twenty" if the workspace member is not defined', () => {
+  it('should return "Veridian CRM" if the workspace member is not defined', () => {
     const event = {};
     const currentWorkspaceMember = {
       id: '123',
@@ -58,6 +58,24 @@ describe('getTimelineActivityAuthorFullName', () => {
       currentWorkspaceMember as CurrentWorkspaceMember,
     );
 
-    expect(result).toBe('Twenty');
+    expect(result).toBe('Veridian CRM');
+  });
+
+  it('should return no author for a self-describing Veridian telephony row', () => {
+    const event = {
+      timelineActivityTypeSnapshot: {
+        universalIdentifier: '85be64c1-4057-4bc1-a2f7-b4a160ee1999',
+      },
+    };
+    const currentWorkspaceMember = {
+      id: '123',
+    };
+
+    const result = getTimelineActivityAuthorFullName(
+      event as TimelineActivity,
+      currentWorkspaceMember as CurrentWorkspaceMember,
+    );
+
+    expect(result).toBe('');
   });
 });

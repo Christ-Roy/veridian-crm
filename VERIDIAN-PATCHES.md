@@ -23,6 +23,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `getting-started/services/getting-started.service.ts` | étape INVITE_TEAM filtrée | pas d'invitation interne | `patch-survival.sh` |
 | `twenty-server/package.json`, `yarn.lock` | `@modelcontextprotocol/sdk` 1.32.0 (amont 1.30.0) | 4 HIGH corrigées, à retirer dès que l'amont suit | trivy sur l'image |
 | `utils/i18n/dynamicActivate.ts` + `veridian-brand/replaceBrandInMessages.ts` (`twenty-front`) | « Twenty » devient « Veridian CRM » au chargement du catalogue, toutes langues, `.po` intacts | `.github/TRADEMARK.md` : un fork exploité porte son nom | `marque.veridian.spec.ts`, parcours |
+| `timeline-activities/utils/getTimelineActivityAuthorFullName.ts` + `veridian-brand/getVeridianSystemAuthorFullName.ts` (`twenty-front`) | auteur d'une activité sans membre : « Veridian CRM » au lieu du littéral « Twenty », aucun pour les lignes d'appel et de SMS de l'app Téléphonie | littéral hors catalogue, la marque fuyait sur chaque ligne système ; « Appel Entrant · 3 min » se lit seul | `patch-survival.sh`, test amont adapté |
 | `index.html`, `public/manifest.json`, `public/images/` (`scripts/ci/marque.sh`), `title-utils.ts` (`twenty-front`) | nom et icône du Hub, images à nom identique, images sociales distantes retirées | idem, et plus d'appel à raw.githubusercontent.com | `patch-survival.sh`, parcours |
 | `SettingsNavigationDrawerContent.tsx` (`twenty-front`) | mention « Basé sur Twenty, AGPL » et lien vers le code | AGPL | `patch-survival.sh`, parcours |
 | `build-is-permission-flag-granted.util.ts`, `is-permission-flag-granted-to-flat-role.util.ts` + `veridian-ai/` | drapeau `AI` refusé à tout rôle si `VERIDIAN_AI_DISABLED=true` | aucun fournisseur IA (Robert) : chat, agents, compétences, actions IA disparaissent et sont refusés côté serveur, MCP reste | `ia-coupee.veridian.spec.ts`, `patch-survival.sh`, parcours |
@@ -32,6 +33,8 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `.github/workflows/` | workflows amont supprimés, un seul `veridian-crm-ci.yaml` | loi 7, aucun runner hébergé | à revérifier à chaque sync |
 
 ## Code neuf
+
+`packages/twenty-apps/internal/veridian-telephonie/` (10/11/2026) : app Twenty (SDK natif, aucun patch, aucune fonction serveur) qui ajoute les objets `appel` et `textMessage` reliés à Person, et deux types d'activité `linked` ancrés à la date de l'appel ou du message, donc visibles dans la timeline de la personne ; l'audio vit dans le champ FILES. Ingestion manuelle et idempotente `ingestion/crm_telephonie.py` (Pixel, enregistrements JemRec, sauvegarde S10e). Mode d'emploi et pièges : son `README.md`. 🔴 `twenty app uninstall` supprime les objets et leurs données.
 
 `core-modules/veridian-hub-sso/`, le Hub seule source d'identité (décision Robert, 06/11/2026) :
 

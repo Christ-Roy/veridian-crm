@@ -1,6 +1,7 @@
 import { t } from '@lingui/core/macro';
 import { type TimelineActivity } from '@/activities/timeline-activities/types/TimelineActivity';
 import { type CurrentWorkspaceMember } from '@/auth/states/currentWorkspaceMemberState';
+import { getVeridianSystemAuthorFullName } from '@/veridian-brand/getVeridianSystemAuthorFullName';
 import { isDefined } from 'twenty-shared/utils';
 
 export const getTimelineActivityAuthorFullName = (
@@ -12,5 +13,6 @@ export const getTimelineActivityAuthorFullName = (
       ? t`You`
       : `${event.workspaceMember?.name.firstName} ${event.workspaceMember?.name.lastName}`;
   }
-  return 'Twenty';
+  // Veridian (VERIDIAN-PATCHES.md) : ni « Twenty » ni auteur devant une ligne qui se décrit seule.
+  return getVeridianSystemAuthorFullName(event);
 };

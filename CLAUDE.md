@@ -43,7 +43,7 @@ code client (aucun exécuteur sûr ; isolé après Patroni : `todo/2026-11-08-ex
 | MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous ; la porte MCP du Hub y entre avec son JWT (`veridian-hub-mcp/`, CONTRAT-MCP) |
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
 | CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` ; ne crée pas de clé | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
-| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, déployés par `twenty app apply` | MIT | pas d'app Veridian à ce jour |
+| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, déployés par `twenty app apply` | MIT | app `veridian-telephonie` (appels, SMS) : `packages/twenty-apps/internal/`, son README |
 | IA | chat, agents, compétences, actions IA des workflows, tout derrière le drapeau de permission `AI` ; fournisseurs par clés d'env | AGPL | aucun fournisseur : drapeau `AI` forcé à faux (`VERIDIAN_AI_DISABLED`) |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
 | Facturation | Stripe, plans, crédits, `usage-limit` : 211 fichiers Enterprise | EE | inutilisable : `IS_BILLING_ENABLED=false`, aucune limite appliquée sans elle |

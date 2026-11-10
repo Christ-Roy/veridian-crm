@@ -1,0 +1,123 @@
+import { defineObject, FieldType } from 'twenty-sdk/define';
+
+import {
+  TEXT_MESSAGE_FIELDS,
+  TEXT_MESSAGE_UNIVERSAL_IDENTIFIER,
+} from '../identifiants';
+
+// `message` est déjà l'objet standard des emails : d'où `textMessage`. Un SMS, un MMS ou, plus tard, un
+// message WhatsApp ou Telegram ; `canal` les distingue.
+export default defineObject({
+  universalIdentifier: TEXT_MESSAGE_UNIVERSAL_IDENTIFIER,
+  nameSingular: 'textMessage',
+  namePlural: 'textMessages',
+  labelSingular: 'SMS',
+  labelPlural: 'SMS et messages',
+  description: 'SMS, MMS ou message de messagerie, rattaché à une personne',
+  icon: 'IconMessage',
+  labelIdentifierFieldMetadataUniversalIdentifier: TEXT_MESSAGE_FIELDS.apercu,
+  fields: [
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.apercu,
+      type: FieldType.TEXT,
+      name: 'apercu',
+      label: 'Aperçu',
+      description: 'Début du texte, affiché dans la timeline',
+      icon: 'IconAbc',
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.texte,
+      type: FieldType.TEXT,
+      name: 'texte',
+      label: 'Texte',
+      icon: 'IconMessage',
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.sens,
+      type: FieldType.SELECT,
+      name: 'sens',
+      label: 'Sens',
+      icon: 'IconArrowsLeftRight',
+      isNullable: true,
+      defaultValue: null,
+      options: [
+        { id: '7f215dcb-39bf-4e25-9b53-db0ed5e94080', value: 'RECU', label: 'Reçu', position: 0, color: 'green' },
+        { id: '68c2a314-50b2-4f0a-86bf-0f7b5478b3a6', value: 'ENVOYE', label: 'Envoyé', position: 1, color: 'blue' },
+        { id: 'e844c275-79d1-4190-8db2-ccea148a9ae1', value: 'BROUILLON', label: 'Brouillon', position: 2, color: 'gray' },
+        { id: '8fcdb24d-11c9-4302-a685-22e7251ad497', value: 'ECHEC', label: 'Échec', position: 3, color: 'red' },
+      ],
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.canal,
+      type: FieldType.SELECT,
+      name: 'canal',
+      label: 'Canal',
+      icon: 'IconAntenna',
+      defaultValue: `'SMS'`,
+      options: [
+        { id: '7f58d181-5338-44b3-be75-2a132c45a167', value: 'SMS', label: 'SMS', position: 0, color: 'blue' },
+        { id: '509a0916-d686-4a5b-a402-38915d55fbb7', value: 'MMS', label: 'MMS', position: 1, color: 'purple' },
+        { id: 'edcc0c45-6939-492e-8dd8-a154adb5649b', value: 'WHATSAPP', label: 'WhatsApp', position: 2, color: 'green' },
+        { id: '18c35fab-9747-4f2a-bfc6-ebda7b57ecc9', value: 'TELEGRAM', label: 'Telegram', position: 3, color: 'sky' },
+        { id: '6f5fe8f9-a2d5-4803-b78a-d09193f312b9', value: 'AUTRE', label: 'Autre', position: 4, color: 'gray' },
+      ],
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.envoyeLe,
+      type: FieldType.DATE_TIME,
+      name: 'envoyeLe',
+      label: 'Date',
+      description: "Moment d'envoi ou de réception ; la timeline s'y ancre",
+      icon: 'IconCalendarClock',
+      isNullable: true,
+      defaultValue: null,
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.numero,
+      type: FieldType.TEXT,
+      name: 'numero',
+      label: 'Numéro',
+      description: 'Numéro E.164 quand il est connu, sinon l’expéditeur tel que noté (CIC, Telegram…)',
+      icon: 'IconPhone',
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.nomSurTelephone,
+      type: FieldType.TEXT,
+      name: 'nomSurTelephone',
+      label: 'Nom sur le téléphone',
+      icon: 'IconAddressBook',
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.piecesJointes,
+      type: FieldType.FILES,
+      name: 'piecesJointes',
+      label: 'Pièces jointes',
+      icon: 'IconPaperclip',
+      universalSettings: { maxNumberOfValues: 10 },
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.appareil,
+      type: FieldType.SELECT,
+      name: 'appareil',
+      label: 'Appareil',
+      icon: 'IconDeviceMobile',
+      isNullable: true,
+      defaultValue: null,
+      options: [
+        { id: '669de1ca-c025-4679-9002-be916077d250', value: 'PIXEL_8_PRO', label: 'Pixel 8 Pro', position: 0, color: 'blue' },
+        { id: '4218d567-1c3c-4129-bb18-5ad5879a9609', value: 'GALAXY_S10E', label: 'Galaxy S10e', position: 1, color: 'gray' },
+        { id: '32c3bc06-8953-4b5e-aa6a-2a12ab00b0b7', value: 'AUTRE', label: 'Autre', position: 2, color: 'gray' },
+      ],
+    },
+    {
+      universalIdentifier: TEXT_MESSAGE_FIELDS.idSource,
+      type: FieldType.TEXT,
+      name: 'idSource',
+      label: 'Identifiant source',
+      description: "Clé stable posée par l'ingestion, unique : un rejeu ne crée rien",
+      icon: 'IconKey',
+      isUnique: true,
+      isUIEditable: false,
+    },
+  ],
+});
