@@ -110,6 +110,11 @@ def transcription(chemin):
     return fichier.read_text(encoding="utf-8").strip() if fichier.exists() else ""
 
 
+def a_transcrire(chemin):
+    """Pas encore tenté. Un fichier vide marque un échec réel : on ne relance pas whisper en boucle dessus."""
+    return not (ETAT / "transcriptions" / f"{chemin.stem}.txt").exists()
+
+
 def transcrire_un(chemin):
     """whisper.cpp sur le téléphone, priorité basse. Sortie au format de pixel-appels : « [  0.0-  2.0] texte »."""
     sortie = ETAT / "transcriptions" / f"{chemin.stem}.txt"
@@ -141,7 +146,7 @@ def reprendre_transcriptions(appels, existants):
             continue
         existant = par_source.get(appel["idSource"]) or par_seconde.get(c.cle_seconde("appels", appel))
         cache = ETAT / "transcriptions" / f"{fichiers[0].stem}.txt"
-        if existant and existant.get("transcription") and not cache.exists():
+        if existant and existant.get("transcription") and not (cache.exists() and cache.read_text(encoding="utf-8").strip()):
             cache.parent.mkdir(parents=True, exist_ok=True)
             cache.write_text(existant["transcription"], encoding="utf-8")
 
@@ -201,20 +206,22 @@ class Agent:
         """Un enregistrement à la fois : le passage suivant porte la transcription sur l'appel."""
         if not (WHISPER.exists() and MODELE.exists()) or memoire_libre_ko() < MEMOIRE_MIN_TRANSCRIPTION_KO:
             return False
-        if not any(not texte for *_, texte in enregistrements_locaux()):
+        if not any(a_transcrire(chemin) for _, _, chemin, _ in enregistrements_locaux()):
             return False
         # Avant whisper, le CRM : l'appel a peut-être déjà sa transcription (pixel-appels, instance précédente).
         appels = appels_locaux()
         c.associer_enregistrements(appels, enregistrements_locaux())
         reprendre_transcriptions(appels, self.twenty.tout_lister("appels", 'appareil[eq]:PIXEL_8_PRO'))
-        for _, _, chemin, texte in enregistrements_locaux():
-            if not texte:
+        for _, _, chemin, _ in enregistrements_locaux():
+            if a_transcrire(chemin):
                 log(f"transcription de {chemin.name}")
                 try:
                     transcrire_un(chemin)
                 except (subprocess.SubprocessError, OSError, ValueError) as erreur:
                     log(f"transcription de {chemin.name} impossible : {erreur}")
-                    (ETAT / "transcriptions" / f"{chemin.stem}.txt").write_text("", encoding="utf-8")
+                    # Tué par un signal (mémoire reprise par Android) : on retentera. Sinon, échec réel, on le note.
+                    if not (isinstance(erreur, subprocess.CalledProcessError) and erreur.returncode < 0):
+                        (ETAT / "transcriptions" / f"{chemin.stem}.txt").write_text("", encoding="utf-8")
                 return True
         return False
 
