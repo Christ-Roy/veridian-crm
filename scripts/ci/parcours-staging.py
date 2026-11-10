@@ -406,14 +406,30 @@ with sync_playwright() as p:
 
     code, _ = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "revoke_sessions": True})
     page.goto(racine + "/objects/people", wait_until="domcontentloaded")
-    page.wait_for_timeout(15000)
+    # Jusqu'à 90 s pour le renvoi au Hub (15 s fixes ne suffisaient pas sur un bastion à 17 de charge, 10/11/2026).
+    hote_hub = os.environ.get("HUB_HOTE", "app.veridian.site")
+    for _ in range(90):
+        hote = urlparse(page.url).hostname or ""
+        if hote.startswith("hub.") or hote == hote_hub:
+            break
+        page.wait_for_timeout(1000)
     controle("revoke_sessions : session coupée", code == 200 and (urlparse(page.url).hostname.startswith("hub.") or urlparse(page.url).hostname == os.environ.get("HUB_HOTE", "app.veridian.site")), f"{code} {page.url[:80]}")
 
     # Reconnexion, puis déconnexion explicite.
     ctx.clear_cookies()
     _, texte = rebond(HUB_ID, EMAIL)
     page.goto(json.loads(texte)["magic_link_url"], wait_until="domcontentloaded")
-    page.wait_for_timeout(12000)
+    # Reconnexion attendue sur son résultat (la session lue), pas sur 12 s fixes.
+    def reconnecte():
+        try:
+            return "crm." in (urlparse(page.url).hostname or "") and EMAIL in page.evaluate(lire)
+        except Exception:
+            return False
+
+    for _ in range(90):
+        if reconnecte():
+            break
+        page.wait_for_timeout(1000)
     page.goto(racine + "/settings/profile", wait_until="domcontentloaded")
     # L'élément lui-même, pas un délai fixe : 9 s n'ont pas suffi en prod le 09/11/2026.
     page.locator("#nav-item-logout").click(timeout=60000)
