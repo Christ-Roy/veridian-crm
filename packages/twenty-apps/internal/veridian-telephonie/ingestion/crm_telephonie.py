@@ -561,7 +561,9 @@ def commande_ingerer(arguments):
 def commande_app(arguments):
     """`twenty app plan|apply` de l'app, avec la clé du workspace visé ; jamais de suppression implicite."""
     url, cle = charger_acces(arguments.env, arguments.workspace)
-    commande = ["yarn", "twenty", "app", arguments.action, "--no-prune", "--no-input"]
+    # --no-prune par défaut : un retrait du source ne supprime rien. --prune retire ce qui a quitté le source ;
+    # sans --yes ni saisie possible, Twenty refuse toujours de supprimer un objet ou un champ (donc des données).
+    commande = ["yarn", "twenty", "app", arguments.action, "--prune" if arguments.prune else "--no-prune", "--no-input"]
     if arguments.action == "apply":
         commande.append("--create")
     environnement = dict(os.environ, TWENTY_API_URL=url, TWENTY_API_KEY=cle)
@@ -590,6 +592,8 @@ def main(argv=None):
         p = sous.add_parser(nom)
         if nom == "app":
             p.add_argument("action", choices=("plan", "apply"))
+            p.add_argument("--prune", action="store_true",
+                           help="retire ce qui a quitté le source (jamais un objet ni un champ sans confirmation)")
         if nom == "dossier":
             p.add_argument("--objet", default="person")
             p.add_argument("--champ", default="etiquette")
