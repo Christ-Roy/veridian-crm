@@ -197,3 +197,37 @@ class Dossier(unittest.TestCase):
         filtres = {"v1": [{"fieldMetadataId": "champ", "operand": "IS", "value": '["FAMILLE"]'}]}
         plan = self.b.plan_dossier(self.objet, self.champ, vues, filtres, [self.entree], "People")
         self.assertEqual([o["value"] for o in plan["vues_a_creer"]], ["PRO", "VOISINS"])
+
+
+class EcritureIsolee(unittest.TestCase):
+    """Le 11/11, un enregistrement de 34 Mo coupait la connexion et le passage entier tombait : plus rien n'arrivait."""
+
+    class Twenty:
+        def __init__(self):
+            self.crees, self.modifies = [], []
+
+        def televerser(self, chemin, champ_uid):
+            if "gros" in chemin.name:
+                raise c.NonAbouti("PUT gros.ogg : Connection reset by peer")
+            return "fichier-" + chemin.stem
+
+        def creer_lot(self, pluriel, lot):
+            self.crees += lot
+
+        def modifier(self, pluriel, identifiant, champs):
+            self.modifies.append((identifiant, champs))
+
+    def test_un_fichier_en_echec_ne_bloque_ni_son_appel_ni_les_suivants(self):
+        twenty = self.Twenty()
+        dossier = Path(tempfile.mkdtemp())
+        gros, petit = dossier / "gros.txt", dossier / "petit.txt"
+        gros.write_text("x"), petit.write_text("y")
+        creations = [({"idSource": "a"}, {"piecesJointes": [gros]}), ({"idSource": "b"}, {"piecesJointes": [petit]}),
+                     ({"idSource": "c"}, None)]
+        complements = [("id-d", {"titre": "T"}, {"piecesJointes": [gros]})]
+        erreurs = c.ecrire(twenty, "appels", creations, complements)
+        self.assertEqual(erreurs, 2)
+        self.assertEqual(sorted(r["idSource"] for r in twenty.crees), ["a", "b", "c"])
+        self.assertEqual([r for r in twenty.crees if r["idSource"] == "a"][0].get("piecesJointes"), None)
+        self.assertEqual([r for r in twenty.crees if r["idSource"] == "b"][0]["piecesJointes"][0]["fileId"], "fichier-petit")
+        self.assertEqual(twenty.modifies, [("id-d", {"titre": "T"})])

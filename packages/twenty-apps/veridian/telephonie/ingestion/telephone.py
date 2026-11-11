@@ -24,6 +24,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -182,10 +183,12 @@ def transcrire_un(chemin):
     sortie = ETAT / "transcriptions" / f"{chemin.stem}.txt"
     sortie.parent.mkdir(parents=True, exist_ok=True)
     wav = ETAT / "transcriptions" / f"{chemin.stem}.wav"
-    executer_suivi(["ffmpeg", "-v", "error", "-y", "-i", str(chemin), "-ac", "1", "-ar", "16000", str(wav)], 600)
+    executer_suivi(["ffmpeg", "-v", "error", "-y", "-i", str(chemin), "-ac", "1", "-ar", "16000", str(wav)], 1800)
+    # Délai à la mesure de l'appel : une heure fixe tuait whisper sur les appels de 30 min et plus (11/11).
+    duree_s = wav.stat().st_size / 32_000
     try:
         sortie_whisper = executer_suivi(["nice", "-n", "15", str(WHISPER), "-m", str(MODELE), "-l", "fr", "-t", "4",
-                                         "-np", "-f", str(wav)], 3600)
+                                         "-np", "-f", str(wav)], max(3600, int(duree_s * 6)))
     finally:
         wav.unlink(missing_ok=True)
     lignes = []
@@ -232,6 +235,7 @@ class Agent:
         self.twenty = twenty
         self.index, self.index_le = {}, 0.0
         self.empreinte_envoyee = (ETAT / "derniere-empreinte").read_text() if (ETAT / "derniere-empreinte").exists() else ""
+        self.transcripteur = None
 
     def personnes(self):
         if time.time() - self.index_le > PERSONNES_VALIDES_S:
@@ -265,6 +269,18 @@ class Agent:
             (ETAT / "dernier-succes").write_text(dt.datetime.now().isoformat())
         return 1 if erreurs else 0
 
+    def transcrire_en_fond(self):
+        """La transcription tourne à côté de la boucle : un appel d'une heure ne retient plus les envois au CRM."""
+        if self.transcripteur and self.transcripteur.is_alive():
+            return
+        def tache():
+            try:
+                self.transcrire_en_attente()
+            except (c.NonAbouti, RuntimeError, OSError, ValueError) as erreur:
+                log(f"transcription remise à plus tard : {erreur}")
+        self.transcripteur = threading.Thread(target=tache, daemon=True)
+        self.transcripteur.start()
+
     def transcrire_en_attente(self):
         """Un enregistrement à la fois : le passage suivant porte la transcription sur l'appel."""
         if not (WHISPER.exists() and MODELE.exists()) or memoire_libre_ko() < MEMOIRE_MIN_TRANSCRIPTION_KO:
@@ -282,8 +298,11 @@ class Agent:
                     transcrire_un(chemin)
                 except (subprocess.SubprocessError, OSError, ValueError) as erreur:
                     log(f"transcription de {chemin.name} impossible : {erreur}")
-                    # Tué par un signal (mémoire reprise par Android) : on retentera. Sinon, échec réel, on le note.
-                    if not (isinstance(erreur, subprocess.CalledProcessError) and erreur.returncode < 0):
+                    # Tué par un signal (mémoire reprise par Android) ou délai dépassé : on retentera.
+                    # Sinon, échec réel, on le note pour ne pas relancer whisper en boucle.
+                    reessayable = isinstance(erreur, subprocess.TimeoutExpired) or (
+                        isinstance(erreur, subprocess.CalledProcessError) and erreur.returncode < 0)
+                    if not reessayable:
                         (ETAT / "transcriptions" / f"{chemin.stem}.txt").write_text("", encoding="utf-8")
                 return True
         return False
@@ -314,13 +333,8 @@ def main(argv=None):
             code = 2
         if arguments.une_fois:
             return code
-        try:
-            transcrit = agent.transcrire_en_attente()
-        except (c.NonAbouti, RuntimeError, OSError, ValueError) as erreur:
-            log(f"transcription remise à plus tard : {erreur}")
-            transcrit = False
-        if not transcrit:
-            attendre_un_enregistrement()
+        agent.transcrire_en_fond()
+        attendre_un_enregistrement()
 
 
 if __name__ == "__main__":

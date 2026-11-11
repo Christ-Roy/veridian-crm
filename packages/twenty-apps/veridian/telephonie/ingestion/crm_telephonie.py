@@ -424,27 +424,34 @@ class Twenty:
     def modifier(self, pluriel, identifiant, champs):
         return self.requete("PATCH", f"/rest/{pluriel}/{identifiant}", champs)
 
-    def televerser(self, chemin, champ_uid):
-        """Upload GraphQL multipart vers un champ FILES ; le fichier reste temporaire tant qu'aucun record ne le porte."""
-        operations = {
-            "query": "mutation($file: Upload!, $uid: String!) { uploadFilesFieldFileByUniversalIdentifier("
-                     "file: $file, fieldMetadataUniversalIdentifier: $uid) { id path } }",
-            "variables": {"file": None, "uid": champ_uid},
-        }
-        frontiere = uuid.uuid4().hex
-        parties = []
-        for nom, valeur in (("operations", json.dumps(operations)), ("map", json.dumps({"0": ["variables.file"]}))):
-            parties.append(f'--{frontiere}\r\nContent-Disposition: form-data; name="{nom}"\r\n\r\n{valeur}\r\n'.encode())
-        parties.append(f'--{frontiere}\r\nContent-Disposition: form-data; name="0"; filename="{chemin.name}"\r\n'
-                       f"Content-Type: {mimetypes.guess_type(chemin.name)[0] or 'application/octet-stream'}\r\n\r\n".encode()
-                       + chemin.read_bytes() + b"\r\n")
-        parties.append(f"--{frontiere}--\r\n".encode())
-        reponse = self.requete("POST", "/metadata", donnees=b"".join(parties),
-                               entetes={"Content-Type": f"multipart/form-data; boundary={frontiere}",
-                                        "apollo-require-preflight": "true"})
+    def graphql(self, requete, variables):
+        reponse = self.requete("POST", "/metadata", {"query": requete, "variables": variables})
         if reponse.get("errors"):
-            raise RuntimeError(f"upload {chemin.name} : {reponse['errors'][0].get('message')}")
-        return reponse["data"]["uploadFilesFieldFileByUniversalIdentifier"]["id"]
+            raise RuntimeError(reponse["errors"][0].get("message"))
+        return reponse["data"]
+
+    def televerser(self, chemin, champ_uid):
+        """Envoi direct vers un champ FILES : le serveur écrit le flux dans le stockage sans le garder en mémoire.
+
+        L'upload GraphQL multipart passe par streamToBuffer, plafonné à 5 Mo : au-delà, refus puis connexion
+        coupée (mesuré le 2026-11-11). L'envoi direct suit maxDirectUploadFileSize (1 Go)."""
+        taille = chemin.stat().st_size
+        cible = self.graphql(
+            "mutation($nom: String!, $taille: Float!, $uid: String!) { createFileUpload(filename: $nom, size: $taille,"
+            " fileFolder: FilesField, fieldMetadataUniversalIdentifier: $uid) { fileId uploadUrl contentType } }",
+            {"nom": chemin.name, "taille": taille, "uid": champ_uid})["createFileUpload"]
+        url = cible["uploadUrl"] if "://" in cible["uploadUrl"] else self.url + cible["uploadUrl"]
+        with chemin.open("rb") as flux:
+            envoi = urllib.request.Request(url, data=flux, method="PUT",
+                                           headers={"Content-Type": cible["contentType"], "Content-Length": str(taille)})
+            try:
+                urllib.request.urlopen(envoi, timeout=max(120, taille // 50_000)).close()
+            except urllib.error.HTTPError as erreur:
+                raise RuntimeError(f"PUT {chemin.name} : HTTP {erreur.code} {erreur.read()[:200]!r}") from erreur
+            except (urllib.error.URLError, TimeoutError, OSError) as erreur:
+                raise NonAbouti(f"PUT {chemin.name} : {erreur}") from erreur
+        self.graphql("mutation($id: String!) { completeFileUpload(fileId: $id) { id } }", {"id": cible["fileId"]})
+        return cible["fileId"]
 
 
 # ---------------------------------------------------------------- plan et écriture
@@ -500,15 +507,39 @@ def planifier(pluriel, voulus, existants, index):
     return creations, complements, bilan
 
 
+def compresser_audio(chemin):
+    """Opus mono 32 kbit/s : JemRec écrit en stéréo vers 140 kbit/s, deux voies identiques sur un appel opérateur.
+    Environ 4 fois plus léger sans perte utile pour la voix. L'original reste intact sur le téléphone."""
+    sortie = Path(os.environ.get("TMPDIR", "/tmp")) / f"{chemin.stem}.mono32.ogg"
+    try:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(chemin), "-ac", "1", "-c:a", "libopus", "-b:a", "32k",
+                        "-application", "voip", str(sortie)], check=True, capture_output=True, timeout=1800)
+    except (subprocess.SubprocessError, OSError):
+        sortie.unlink(missing_ok=True)
+        return chemin
+    return sortie if 0 < sortie.stat().st_size < chemin.stat().st_size else chemin
+
+
 def avec_fichiers(twenty, corps, fichiers):
     """Téléverse les fichiers de chaque champ FILES puis les porte sur le record, dans la même écriture."""
     for champ, chemins in (fichiers or {}).items():
-        corps = dict(corps, **{champ: [{"fileId": twenty.televerser(chemin, CHAMPS_FICHIERS[champ]),
-                                        "label": chemin.name} for chemin in chemins]})
+        portes = []
+        for chemin in chemins:
+            envoye = compresser_audio(chemin) if champ == "enregistrement" else chemin
+            try:
+                portes.append({"fileId": twenty.televerser(envoye, CHAMPS_FICHIERS[champ]), "label": chemin.name})
+            finally:
+                if envoye != chemin:
+                    envoye.unlink(missing_ok=True)
+        corps = dict(corps, **{champ: portes})
     return corps
 
 
+ECHECS = (RuntimeError, NonAbouti, OSError)
+
+
 def ecrire(twenty, pluriel, creations, complements):
+    """Chaque record est isolé : un fichier qui ne passe pas ne bloque ni son appel ni les suivants."""
     erreurs = 0
     # Un record avec fichiers passe seul : le fichier téléversé doit être porté dans la foulée.
     simples = [c for c, f in creations if not f]
@@ -517,21 +548,31 @@ def ecrire(twenty, pluriel, creations, complements):
             twenty.creer_lot(pluriel, simples[debut:debut + LOT])
             # Chaque création rattachée réveille le worker (ligne de timeline) : on laisse respirer la base.
             time.sleep(PAUSE_ENTRE_LOTS_S)
-        except RuntimeError as erreur:
+        except ECHECS as erreur:
             erreurs += 1
             print(f"  ✗ lot {pluriel} {debut} : {erreur}", file=sys.stderr)
     for corps, fichier in [(c, f) for c, f in creations if f]:
         try:
             twenty.creer_lot(pluriel, [avec_fichiers(twenty, corps, fichier)])
-        except RuntimeError as erreur:
+        except ECHECS as erreur:
             erreurs += 1
-            print(f"  ✗ {corps['idSource']} : {erreur}", file=sys.stderr)
+            print(f"  ✗ fichier de {corps['idSource']} : {erreur} ; record créé sans, fichier au prochain passage",
+                  file=sys.stderr)
+            try:
+                twenty.creer_lot(pluriel, [corps])
+            except ECHECS as erreur_record:
+                print(f"  ✗ {corps['idSource']} : {erreur_record}", file=sys.stderr)
     for identifiant, champs, fichier in complements:
         try:
             twenty.modifier(pluriel, identifiant, avec_fichiers(twenty, champs, fichier))
-        except RuntimeError as erreur:
+        except ECHECS as erreur:
             erreurs += 1
             print(f"  ✗ {identifiant} : {erreur}", file=sys.stderr)
+            if champs:
+                try:
+                    twenty.modifier(pluriel, identifiant, champs)
+                except ECHECS as erreur_champs:
+                    print(f"  ✗ champs de {identifiant} : {erreur_champs}", file=sys.stderr)
     return erreurs
 
 
