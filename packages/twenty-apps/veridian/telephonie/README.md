@@ -88,10 +88,11 @@ l'AMR. La transcription de Google fait foi quand le téléphone l'a ; sinon Para
 (raccroché, -47 dB) porte « (aucune parole détectée) ».
 
 **Transcription sur le téléphone.** Parakeet TDT 0.6B v3 q8_0 (`~/whisper.cpp/build/bin/parakeet-cli`, sortie
-`-ps` : jetons horodatés au centième, remis au format `[  0.0-  2.0] texte`), par tronçons d'environ 60 s coupés
-au milieu d'un silence (`silencedetect`), passés par lots de 8 au même `parakeet-cli` (modèle chargé une fois) :
-l'encodeur coûte plus que proportionnellement à la durée d'un bloc (16 s pour 60 s, 271 s pour 5 min), la mémoire
-reste bornée (720 Mo mesurés) et la reprise se fait au tronçon après un arrêt brutal. Appel de Hugo (32 min), le
+`-ps` : jetons horodatés au centième, remis au format `[  0.0-  2.0] texte`), par tronçons d'environ 30 s coupés
+au milieu d'un silence (`silencedetect`, ±7,5 s), passés par lots de 8 au même `parakeet-cli` (modèle chargé une
+fois, 2,3 s) : l'encodeur coûte plus que proportionnellement à la durée d'un bloc. Banc du 12/11 sur ce Pixel (5 min
+d'appel, q8_0, 4 fils) : tronçons de 30 s → 5,4 fois le temps réel (11 s par minute d'appel, RSS 872 Mo), 60 s →
+4,0x (1083 Mo), 150 s → 2,3x (1687 Mo) ; un bloc de 5 min, 271 s. La mémoire reste bornée et la reprise se fait au tronçon après un arrêt brutal. Appel de Hugo (32 min), le
 12/11 : 13 min, en concurrence avec un banc d'essai. Whisper small
 reste en secours si Parakeet échoue. Le plus récent passe d'abord. Garde batterie : toute transcription se met en
 pause sous 30 % hors charge (`dumpsys battery`, reprise au tronçon), en priorité basse (`nice 15`). L'audio est
@@ -102,7 +103,7 @@ main reste. Réglages sans toucher au
 code, `~/.config/crm-telephone/reglages.json` (clé par clé, voir `REGLAGES_DEFAUT`) :
 
 ```json
-{"moteurs": ["parakeet", "whisper"], "troncon_s": 60, "lot_troncons": 8, "batterie_min_pct": 30,
+{"moteurs": ["parakeet", "whisper"], "troncon_s": 30, "lot_troncons": 8, "batterie_min_pct": 30,
  "parakeet": {"modele": "~/whisper.cpp/models/ggml-parakeet-tdt-0.6b-v3-q8_0.bin", "fils": 4}}
 ```
 

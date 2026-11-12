@@ -65,9 +65,10 @@ REGLAGES_DEFAUT = {
     # whisper small occupe ~1 Go : sous ce seuil, Android tuerait Termux (et l'agent) pour reprendre la mémoire.
     "whisper": {"binaire": "~/whisper.cpp/build/bin/whisper-cli", "modele": "~/whisper.cpp/models/ggml-small.bin",
                 "fils": 4, "memoire_min_ko": 2_000_000, "langue": "fr"},
-    # Tronçons d'environ 60 s coupés sur un silence, passés par lots de 8 au même parakeet-cli (modèle chargé une
-    # fois) : l'encodeur coûte plus que proportionnellement à la durée d'un bloc ; reprise au tronçon après un arrêt.
-    "troncon_s": 60,
+    # Tronçons d'environ 30 s coupés sur un silence, passés par lots de 8 au même parakeet-cli (modèle chargé une
+    # fois, 2,3 s). Banc du 12/11 sur ce Pixel, 5 min d'appel, q8_0 -t 4 : 15 s → 4,7x le temps réel, 30 s → 5,4x
+    # (RSS 872 Mo), 60 s → 4,0x (1083 Mo), 90 s → 3,1x, 150 s → 2,3x (1687 Mo). Reprise au tronçon après un arrêt.
+    "troncon_s": 30,
     "lot_troncons": 8,
     "sonde_rapide_s": 10,
     "sonde_sms_s": 15,
@@ -515,7 +516,8 @@ def transcrire_parakeet(wav, regl, cede=lambda: False):
     if plan.exists():
         morceaux = json.loads(plan.read_text())
     else:
-        morceaux = troncons(duree, silences(wav), float(regl["troncon_s"]))
+        cible = float(regl["troncon_s"])
+        morceaux = troncons(duree, silences(wav), cible, marge=cible / 4)
         plan.write_text(json.dumps(morceaux))
     restants = [i for i in range(len(morceaux)) if not (travail / f"{i:04d}.json").exists()]
     debut_run, audio_run = time.time(), sum(morceaux[i][1] - morceaux[i][0] for i in restants)
