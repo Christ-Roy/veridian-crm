@@ -2,6 +2,7 @@
 # Construit l'APK signé, sur le bastion (jamais sur mail, le poste de Robert) :
 #   outils/construire.sh            # tests du contrat, puis app/build/outputs/apk/release/app-release.apk
 # Prérequis : JDK 17+, SDK Android (ANDROID_HOME) avec platforms;android-36, ndk;28.2.13676358, cmake;3.22.1.
+# GRADLE_ARGS : options de Gradle en plus (la CI borne la mémoire : runner plafonné à 3 Go).
 # Clé de signature : hors dépôt, dans $SIGNATURE_DIR (créée au premier passage, jamais affichée).
 set -euo pipefail
 ICI="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,11 +36,11 @@ fi
 
 # 3. fixtures du contrat à jour avec le Python de référence, tests, APK
 python3 outils/fixtures_contrat.py --verifier
-./gradlew -q -p contrat test
+./gradlew -q ${GRADLE_ARGS:-} -p contrat test
 export TELEPHONIE_SIGNATURE="$PROPRIETES"
 export TELEPHONIE_VERSION="${TELEPHONIE_VERSION:-$(git log -1 --format=%cd-%h --date=format:%Y%m%d.%H%M 2>/dev/null || echo dev)}"
 export TELEPHONIE_VERSION_CODE="${TELEPHONIE_VERSION_CODE:-$(date +%y%m%d%H)}"
-nice -n 10 ./gradlew -q --console=plain :app:assembleRelease
+nice -n 10 ./gradlew -q --console=plain ${GRADLE_ARGS:-} :app:assembleRelease
 APK=app/build/outputs/apk/release/app-release.apk
 "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate SHA-256" || {
   echo "APK non signé" >&2; exit 1; }

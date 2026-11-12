@@ -92,6 +92,9 @@ jobs:
         run: |
           set -euo pipefail
           export SIGNATURE_DIR="$RUNNER_TEMP/signature"
+          # Runner plafonné en mémoire (memory_max ci-runner) : le 12/11, le démon Gradle (-Xmx3g du dépôt) plus la
+          # compilation de ggml l'ont fait tuer. Démon unique borné, compilateur Kotlin dans le même processus.
+          export GRADLE_ARGS="--no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1200m -Dkotlin.compiler.execution.strategy=in-process -Pkotlin.compiler.execution.strategy=in-process"
           export TELEPHONIE_VERSION_CODE="$(TZ=Europe/Paris date +%y%m%d%H)"
           export TELEPHONIE_VERSION="$(TZ=Europe/Paris date +%Y%m%d.%H%M)-${GITHUB_SHA::10}"
           outils/construire.sh
