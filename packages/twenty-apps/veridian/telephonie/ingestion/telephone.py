@@ -28,6 +28,9 @@ modèle de transcription, cadences) : ~/.config/crm-telephone/reglages.json, voi
     python3 telephone.py            # boucle de l'agent
     python3 telephone.py --une-fois # un passage, pour éprouver
     python3 telephone.py --etat DOSSIER --acces FICHIER --jemrec DOSSIER   # copie d'essai isolée
+    python3 telephone.py retranscrire --fichier 20261111_150805_in | --depuis 2026-11-10 [--jusqua …] |
+                                      --moteur parakeet-tdt-0.6b-v3-q8_0 | --tout   # l'agent les refait
+    python3 telephone.py transcrire AUDIO [--troncon 30] [--chevauchement 1.5]      # sans état ni CRM
 """
 import argparse
 import datetime as dt
@@ -70,6 +73,9 @@ REGLAGES_DEFAUT = {
     # (RSS 872 Mo), 60 s → 4,0x (1083 Mo), 90 s → 3,1x, 150 s → 2,3x (1687 Mo). Reprise au tronçon après un arrêt.
     "troncon_s": 30,
     "lot_troncons": 8,
+    # Chevauchement entre tronçons (s) : le tronçon suivant commence plus tôt, ses mots d'avant la coupe sont
+    # écartés au recollage. 0 tant que le banc (référence large-v3) n'a pas montré qu'il rattrape des mots.
+    "chevauchement_s": 0.0,
     "sonde_rapide_s": 10,
     "sonde_sms_s": 15,
     "sonde_fournisseurs_s": 60,
@@ -363,13 +369,22 @@ def id_modele(moteur, regl_ou_chemin):
     return nom if nom.startswith(moteur) else f"{moteur}-{nom}"
 
 
+def recette(moteur, regl):
+    """Ce qui a produit une transcription, assez précis pour cibler et refaire celles-là : modèle, outil, découpe."""
+    if moteur == "parakeet":
+        texte = f"{id_modele('parakeet', regl)} · parakeet-cli · tronçons {regl['troncon_s']:g} s"
+        chevauchement = float(regl.get("chevauchement_s") or 0)
+        return texte + (f" · chevauchement {chevauchement:g} s" if chevauchement else "")
+    return f"{id_modele(moteur, regl)} · whisper-cli"
+
+
 def moteur_de(chemin):
     """« parakeet:parakeet-tdt-0.6b-v3-q8_0 », « whisper:whisper-small » ; vide pour une transcription d'avant le
     12/11 (whisper small sur ce téléphone, ou reprise du CRM)."""
     fichier = fichier_transcription(chemin, ".moteur")
     if not fichier.exists():
         return ""
-    famille, _, modele = fichier.read_text().strip().partition(":")
+    famille, _, modele = fichier.read_text().strip().split("\t")[0].partition(":")
     if famille in SOURCES_MOTEUR and modele.endswith(".bin"):  # marqueur du 12/11 au matin : nom de fichier
         modele = id_modele(famille, modele)
     return f"{famille}:{modele}"
@@ -381,8 +396,10 @@ def infos_transcription(chemin):
         return {}
     famille, _, modele = moteur_de(chemin).partition(":")
     infos = {"sourceTranscription": SOURCES_MOTEUR.get(famille)} if famille in SOURCES_MOTEUR else {}
-    if famille in SOURCES_MOTEUR and modele:
-        infos["moteurTranscription"] = modele
+    detail = fichier_transcription(chemin, ".moteur").read_text().strip().split("\t")[1:] \
+        if fichier_transcription(chemin, ".moteur").exists() else []
+    if famille in SOURCES_MOTEUR and (detail or modele):
+        infos["moteurTranscription"] = detail[0] if detail else modele
     return infos
 
 
@@ -411,6 +428,17 @@ def a_transcrire_fichier(chemin):
     return not fichier_transcription(chemin).exists()
 
 
+def a_refaire():
+    fichier = ETAT / "a-refaire.json"
+    return set(json.loads(fichier.read_text())) if fichier.exists() else set()
+
+
+def marquer_a_refaire(stems, ajouter=True):
+    fichier = ETAT / "a-refaire.json"
+    liste = a_refaire() | set(stems) if ajouter else a_refaire() - set(stems)
+    fichier.write_text(json.dumps(sorted(liste)))
+
+
 def a_ameliorer(chemin, regl):
     """Transcription d'un autre modèle que celui des réglages (whisper, ancien Parakeet), pas encore refaite."""
     voulu = id_modele("parakeet", regl)
@@ -432,15 +460,18 @@ def jetons_parakeet(sortie):
     return jetons
 
 
-def lignes_depuis_jetons(jetons, decalage=0.0, phrase_min_s=2.0, silence_s=1.2, ligne_max_s=12.0):
+def lignes_depuis_jetons(jetons, decalage=0.0, phrase_min_s=2.0, silence_s=1.2, ligne_max_s=12.0, a_partir_de=None):
     """Lignes « [  0.0-  2.0] texte », comme pixel-appels et whisper : une phrase par ligne, coupée aussi sur un
-    silence ou au-delà de ligne_max_s."""
+    silence ou au-delà de ligne_max_s. `a_partir_de` (s, absolu) écarte les mots du chevauchement, déjà rendus par
+    le tronçon précédent."""
     mots = []
     for debut, fin, texte, debut_mot in jetons:
         if debut_mot or not mots:
             mots.append([debut, fin, texte.replace("▁", "")])
         else:
             mots[-1][1], mots[-1][2] = max(mots[-1][1], fin), mots[-1][2] + texte
+    if a_partir_de is not None:
+        mots = [m for m in mots if m[0] + decalage >= a_partir_de - 0.05]
     lignes, courante = [], []
     for i, (debut, fin, texte) in enumerate(mots):
         if not texte:
@@ -510,7 +541,8 @@ def transcrire_parakeet(wav, regl, cede=lambda: False):
     60 s d'audio, 271 s pour 5 min, mesuré le 12/11). Chaque tronçon fait est gardé : reprise après un arrêt."""
     moteur = regl["parakeet"]
     duree = max(0.0, (wav.stat().st_size - 44) / 32_000)
-    travail = wav.with_name(f"{wav.stem}.{moteur['modele'].stem}.troncons")
+    chevauchement = float(regl.get("chevauchement_s") or 0)
+    travail = wav.with_name(f"{wav.stem}.{moteur['modele'].stem}.t{regl['troncon_s']}c{chevauchement:g}.troncons")
     travail.mkdir(exist_ok=True)
     plan = travail / "plan.json"
     if plan.exists():
@@ -530,6 +562,7 @@ def transcrire_parakeet(wav, regl, cede=lambda: False):
         try:
             for i in indices:
                 debut, fin = morceaux[i]
+                debut = max(0.0, debut - chevauchement) if i else debut
                 morceau = travail / f"{i:04d}.wav"
                 executer_suivi(["ffmpeg", "-v", "error", "-y", "-ss", str(debut), "-t", f"{fin - debut:.2f}", "-i",
                                 str(wav), "-c", "copy", str(morceau)], 600)
@@ -546,8 +579,9 @@ def transcrire_parakeet(wav, regl, cede=lambda: False):
             texte = par_fichier.get(f"{i:04d}.wav")
             if texte is None:
                 raise ValueError(f"parakeet-cli n'a rien rendu pour le tronçon {i} de {wav.name}")
-            (travail / f"{i:04d}.json").write_text(json.dumps(lignes_depuis_jetons(jetons_parakeet(texte),
-                                                                                  morceaux[i][0])))
+            depart_reel = max(0.0, morceaux[i][0] - chevauchement) if i else morceaux[i][0]
+            (travail / f"{i:04d}.json").write_text(json.dumps(lignes_depuis_jetons(
+                jetons_parakeet(texte), depart_reel, a_partir_de=morceaux[i][0] if i and chevauchement else None)))
     if restants:
         log(f"parakeet : {len(restants)} tronçons, {audio_run / 60:.1f} min d'audio en {time.time() - debut_run:.0f} s "
             f"({(time.time() - debut_run) / max(audio_run, 1) * 60:.0f} s par minute)")
@@ -611,7 +645,8 @@ def transcrire_un(chemin, regl, moteurs, cede=lambda: False):
                 fichier_transcription(chemin, ".anciennes.json").write_text(json.dumps(liste), encoding="utf-8")
                 fichier_transcription(chemin, ".ancienne.txt").unlink(missing_ok=True)
             sortie.write_text("\n".join(lignes) + "\n", encoding="utf-8")
-            fichier_transcription(chemin, ".moteur").write_text(f"{moteur}:{id_modele(moteur, regl)}\n")
+            fichier_transcription(chemin, ".moteur").write_text(
+                f"{moteur}:{id_modele(moteur, regl)}\t{recette(moteur, regl)} · {dt.date.today():%Y-%m-%d}\n")
             log(f"transcription {moteur} de {chemin.name} prête ({time.time() - debut:.0f} s)")
             wav.unlink(missing_ok=True)
             return True
@@ -925,9 +960,11 @@ class Agent:
         fichiers = [chemin for _, _, chemin, _ in enregistrements_locaux()] + list(self.vocaux_a_transcrire)
         fichiers.sort(key=lambda p: p.stem, reverse=True)
         nouveaux = [f for f in fichiers if a_transcrire_fichier(f)]
-        refaire = []
+        # Demandées par `retranscrire` (batterie permise), puis celles d'un autre modèle (en charge seulement).
+        forcees = a_refaire()
+        refaire = [f for f in fichiers if f.stem in forcees and f not in nouveaux]
         if regl.get("ameliorer_anciennes") and "parakeet" in regl["moteurs"] and en_charge():
-            refaire = [f for f in fichiers if a_ameliorer(f, regl)]
+            refaire += [f for f in fichiers if a_ameliorer(f, regl) and f not in refaire]
         return nouveaux, refaire
 
     def transcrire_en_fond(self, regl):
@@ -971,10 +1008,15 @@ class Agent:
         log(f"transcription de {cible.name}" + ("" if neuf else f" (refaite en {id_modele('parakeet', regl)})"))
         if neuf:
             cede = lambda: not transcription_permise(regl)  # noqa: E731
+        elif cible.stem in a_refaire():
+            cede = lambda: bool(self.a_faire(regl)[0]) or not transcription_permise(regl)  # noqa: E731
         else:
             cede = lambda: bool(self.a_faire(regl)[0]) or not en_charge()  # noqa: E731
         try:
-            return transcrire_un(cible, regl, moteurs, cede)
+            fait = transcrire_un(cible, regl, moteurs, cede)
+            if fait:
+                marquer_a_refaire([cible.stem], ajouter=False)
+            return fait
         except Preempte:
             log(f"transcription de {cible.name} en pause (batterie, ou un enregistrement neuf passe d'abord)")
             return False
@@ -987,8 +1029,9 @@ class Agent:
                 fichier_transcription(cible).write_text("", encoding="utf-8")
                 fichier_transcription(cible, ".moteur").write_text("echec:\n")
             elif not reessayable:
-                # Refaite sans succès : l'ancienne reste, on ne retente plus avec ce modèle.
+                # Refaite sans succès : l'ancienne reste, on ne la retente plus avec ce modèle.
                 fichier_transcription(cible, ".moteur").write_text(f"echec-parakeet:{id_modele('parakeet', regl)}\n")
+                marquer_a_refaire([cible.stem], ajouter=False)
             return False
 
     # -- les sondes : elles réveillent les fils concernés, rien d'autre
@@ -1053,8 +1096,80 @@ def surveiller_enregistrements(flux):
         time.sleep(30)
 
 
+def selection(fichiers, arguments):
+    """Les enregistrements visés par `retranscrire` : par nom, par période (AAAA-MM-JJ du nom), par moteur."""
+    choisis = []
+    for chemin in fichiers:
+        jour = f"{chemin.stem[:4]}-{chemin.stem[4:6]}-{chemin.stem[6:8]}"
+        if arguments.fichier and chemin.stem not in arguments.fichier and chemin.name not in arguments.fichier:
+            continue
+        if (arguments.depuis and jour < arguments.depuis) or (arguments.jusqua and jour > arguments.jusqua):
+            continue
+        moteur = infos_transcription(chemin).get("moteurTranscription") or moteur_de(chemin) or "inconnu"
+        if arguments.moteur and arguments.moteur not in moteur:
+            continue
+        choisis.append(chemin)
+    return choisis
+
+
+def commande_retranscrire(arguments):
+    """Met en file les transcriptions à refaire ; l'agent qui tourne les prend après les appels neufs, avec le
+    modèle et la découpe des réglages ; le CRM n'est remplacé que s'il porte encore celle de l'outil."""
+    if not (arguments.fichier or arguments.depuis or arguments.jusqua or arguments.moteur or arguments.tout):
+        print("préciser --fichier, --depuis/--jusqua, --moteur ou --tout", file=sys.stderr)
+        return 2
+    fichiers = [chemin for _, _, chemin, _ in enregistrements_locaux()] + \
+        sorted((ETAT / "messagerie").glob("*_messagerie.*"))
+    choisis = selection([f for f in fichiers if fichier_transcription(f).exists()], arguments)
+    marquer_a_refaire([f.stem for f in choisis])
+    print(f"{len(choisis)} transcription(s) mises en file ({len(a_refaire())} au total) : "
+          + ", ".join(f.stem for f in choisis[:10]) + (" …" if len(choisis) > 10 else ""))
+    return 0
+
+
+def commande_transcrire(arguments):
+    """Transcrit un fichier audio comme l'agent, sans toucher à son état ni au CRM (banc d'essai, contrôle)."""
+    global ETAT
+    regl = reglages()
+    if arguments.troncon:
+        regl["troncon_s"] = arguments.troncon
+    if arguments.chevauchement is not None:
+        regl["chevauchement_s"] = arguments.chevauchement
+    reel, ETAT = ETAT, Path(tempfile.mkdtemp(prefix="transcrire.", dir=str(ETAT / "tmp")))
+    try:
+        transcrire_un(arguments.audio, regl, [m for m in moteurs_prets(regl) if m == "parakeet"] or ["whisper"])
+        print(transcription(arguments.audio))
+        print(f"# {recette('parakeet', regl)}", file=sys.stderr)
+    finally:
+        for reste in sorted(ETAT.rglob("*"), reverse=True):
+            reste.rmdir() if reste.is_dir() else reste.unlink()
+        ETAT.rmdir()
+        ETAT = reel
+    return 0
+
+
 def main(argv=None):
     global ETAT, JEMREC, CONFIG
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] in (["retranscrire"], ["transcrire"]):
+        parseur = argparse.ArgumentParser(prog=f"telephone.py {argv[0]}")
+        if argv[0] == "retranscrire":
+            parseur.add_argument("--fichier", nargs="*", help="noms d'enregistrement (20261111_150805_in)")
+            parseur.add_argument("--depuis", help="AAAA-MM-JJ")
+            parseur.add_argument("--jusqua", help="AAAA-MM-JJ")
+            parseur.add_argument("--moteur", help="texte contenu dans le moteur (parakeet-tdt-0.6b-v3-q8_0, whisper)")
+            parseur.add_argument("--tout", action="store_true")
+        else:
+            parseur.add_argument("audio", type=Path)
+            parseur.add_argument("--troncon", type=float)
+            parseur.add_argument("--chevauchement", type=float)
+        parseur.add_argument("--etat", type=Path)
+        parseur.add_argument("--jemrec", type=Path)
+        arguments = parseur.parse_args(argv[1:])
+        ETAT, JEMREC = arguments.etat or ETAT, arguments.jemrec or JEMREC
+        (ETAT / "tmp").mkdir(parents=True, exist_ok=True)
+        tempfile.tempdir = str(ETAT / "tmp")
+        return commande_retranscrire(arguments) if argv[0] == "retranscrire" else commande_transcrire(arguments)
     parseur = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parseur.add_argument("--une-fois", action="store_true", help="un cycle de chaque type, sans fichiers ni transcription")
     parseur.add_argument("--etat", type=Path, help="dossier d'état (copie d'essai)")

@@ -107,6 +107,23 @@ code, `~/.config/crm-telephone/reglages.json` (clé par clé, voir `REGLAGES_DEF
  "parakeet": {"modele": "~/whisper.cpp/models/ggml-parakeet-tdt-0.6b-v3-q8_0.bin", "fils": 4}}
 ```
 
+**Refaire les transcriptions.** `moteurTranscription` porte la recette entière, par exemple
+`parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · 2026-11-12`. Sur le téléphone :
+
+```bash
+python3 ~/crm-telephone/telephone.py retranscrire --moteur parakeet-tdt-0.6b-v3-q8_0   # tout un moteur
+python3 ~/crm-telephone/telephone.py retranscrire --depuis 2026-11-10 --jusqua 2026-11-11  # une période
+python3 ~/crm-telephone/telephone.py retranscrire --fichier 20261111_150805_in            # un appel
+python3 ~/crm-telephone/telephone.py transcrire AUDIO --troncon 30 --chevauchement 1.5   # essai, sans état ni CRM
+```
+
+`retranscrire` met en file (`a-refaire.json`) ; l'agent les refait après les appels neufs, avec le modèle, la
+découpe et le chevauchement des réglages, sous la garde batterie. `chevauchement_s` (0 par défaut) fait commencer
+chaque tronçon plus tôt et écarte au recollage les mots déjà rendus par le précédent. Constat du banc le 12/11
+(référence large-v3 sur 5 min de l'appel de Hugo) : parakeet-cli q8_0 perd des blocs de parole selon la découpe
+(9 à 86 mots sur 895), souvent en début de tronçon ; la cause (moteur ou modèle) est en cours d'isolement. D'où
+la transcription secondaire et refaisable : le brut n'attend jamais.
+
 **Hors ligne.** Lecture et transcription ne demandent pas le réseau. Le CRM injoignable, l'envoi attend : une
 connexion TCP au CRM toutes les 10 s (au plus tôt 30 s après l'échec) dit quand il revient, et la lecture déjà
 faite part aussitôt. Un refus du CRM (HTTP) est retenté à 30 s, 1, 2, puis 5 min. Le client du téléphone

@@ -69,15 +69,84 @@ class ParakeetParLots(EtatIsole):
             return "".join(f"read_audio_data: reading audio data from '{f}' ...\n" + SORTIE_PARAKEET for f in fichiers)
 
         with mock.patch.object(t, "silences", return_value=[]), mock.patch.object(t, "executer_suivi", side_effect=executer):
-            (wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.troncons")).mkdir()
-            (wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.troncons") / "0000.json").write_text('["[  0.0-  1.0] déjà"]')
+            (wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.t60c0.troncons")).mkdir()
+            (wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.t60c0.troncons") / "0000.json").write_text('["[  0.0-  1.0] déjà"]')
             lignes = t.transcrire_parakeet(wav, regl)
         # 200 s en tronçons de 60 s : 4 tronçons, le premier déjà fait, les 3 autres en deux lots.
         self.assertEqual(appels_moteur, [["0001.wav", "0002.wav"], ["0003.wav"]])
         self.assertEqual(lignes[0], "[  0.0-  1.0] déjà")
         self.assertTrue(lignes[1].startswith("[ 60.1-"))
         self.assertEqual(len(lignes), 7)
-        self.assertFalse(wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.troncons").exists())
+        self.assertFalse(wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.t60c0.troncons").exists())
+
+
+class Chevauchement(EtatIsole):
+    def test_mots_du_chevauchement_ecartes_au_recollage(self):
+        # Tronçon extrait dès 88 s, coupe à 88,5 s : « Bonjour » (88,1 s) appartient au tronçon précédent.
+        lignes = t.lignes_depuis_jetons(t.jetons_parakeet(SORTIE_PARAKEET), decalage=88.0, a_partir_de=88.5)
+        self.assertEqual(lignes, ["[ 88.7- 90.5] Robert.", "[ 93.2- 94.7] Ça va, toi ?"])
+
+    def test_troncon_suivant_extrait_plus_tot(self):
+        wav = t.ETAT / "appel.wav"
+        wav.write_bytes(b"\0" * (44 + 32_000 * 100))
+        regl = dict(t.reglages(), troncon_s=60, chevauchement_s=2.0)
+        extraits = []
+
+        def executer(commande, _delai, flux="stdout"):
+            if commande[0] == "ffmpeg":
+                extraits.append(float(commande[commande.index("-ss") + 1]))
+                Path(commande[-1]).write_bytes(b"w")
+                return ""
+            return "".join(f"read_audio_data: reading audio data from '{f}' ...\n" + SORTIE_PARAKEET
+                           for f in commande if f.endswith(".wav"))
+
+        with mock.patch.object(t, "silences", return_value=[]), mock.patch.object(t, "executer_suivi", side_effect=executer):
+            lignes = t.transcrire_parakeet(wav, regl)
+        self.assertEqual(extraits, [0.0, 58.0])
+        # Second tronçon extrait dès 58 s : « Bonjour Robert. » (58,1-60,5 s) déjà rendu par le premier, écarté.
+        self.assertEqual(lignes, ["[  0.1-  2.5] Bonjour Robert.", "[  5.2-  6.7] Ça va, toi ?",
+                                  "[ 63.2- 64.7] Ça va, toi ?"])
+
+
+class Retranscrire(EtatIsole):
+    def preparer(self):
+        for nom, moteur in (("20261110_190443_in", "parakeet:parakeet-tdt-0.6b-v3-q8_0"),
+                            ("20261111_142116_in", "whisper:whisper-small"),
+                            ("20261112_093015_in", "parakeet:parakeet-tdt-0.6b-v3-q8_0\tparakeet-tdt-0.6b-v3-q8_0 · "
+                                                   "parakeet-cli · tronçons 30 s · 2026-11-12")):
+            (t.JEMREC / f"{nom}.ogg").write_bytes(b"x")
+            (t.ETAT / "transcriptions").mkdir(exist_ok=True)
+            (t.ETAT / "transcriptions" / f"{nom}.txt").write_text("texte")
+            (t.ETAT / "transcriptions" / f"{nom}.moteur").write_text(moteur + "\n")
+
+    def test_recette_complete_dans_le_crm(self):
+        self.preparer()
+        infos = t.infos_transcription(t.JEMREC / "20261112_093015_in.ogg")
+        self.assertEqual(infos["moteurTranscription"],
+                         "parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · 2026-11-12")
+        self.assertEqual(t.recette("parakeet", dict(t.reglages(), chevauchement_s=1.5)),
+                         "parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · chevauchement 1.5 s")
+
+    def test_par_periode_par_moteur_puis_l_agent_les_prend(self):
+        self.preparer()
+        with mock.patch("sys.stdout"):
+            self.assertEqual(t.main(["retranscrire", "--etat", str(t.ETAT), "--jemrec", str(t.JEMREC),
+                                     "--moteur", "parakeet-tdt"]), 0)
+        self.assertEqual(t.a_refaire(), {"20261110_190443_in", "20261112_093015_in"})
+        t.marquer_a_refaire(["20261110_190443_in", "20261112_093015_in"], ajouter=False)
+        with mock.patch("sys.stdout"):
+            t.main(["retranscrire", "--etat", str(t.ETAT), "--jemrec", str(t.JEMREC), "--depuis", "2026-11-11",
+                    "--jusqua", "2026-11-11"])
+        self.assertEqual(t.a_refaire(), {"20261111_142116_in"})
+        agent = t.Agent(FauxCRM(), t.reglages())
+        with mock.patch.object(t, "en_charge", return_value=False):
+            self.assertEqual([f.stem for f in agent.a_faire(agent.regl)[1]], ["20261111_142116_in"])
+        with mock.patch.object(t, "appels_locaux", return_value=[]), \
+                mock.patch.object(t, "moteurs_prets", return_value=["parakeet"]), \
+                mock.patch.object(t, "batterie", return_value=(80, False)), \
+                mock.patch.object(t, "transcrire_un", return_value=True):
+            self.assertTrue(agent.transcrire_en_attente(agent.regl, [], agent.a_faire(agent.regl)[1]))
+        self.assertEqual(t.a_refaire(), set())
 
 
 class Sondes(unittest.TestCase):
@@ -262,14 +331,16 @@ class Transcription(EtatIsole):
                 mock.patch.object(t, "transcrire_whisper", return_value=["[  0.0-  1.0] secours"]):
             self.assertTrue(t.transcrire_un(enregistrement, regl, ["parakeet", "whisper"]))
         self.assertEqual(t.transcription(enregistrement), "[  0.0-  1.0] secours")
-        self.assertEqual(t.infos_transcription(enregistrement),
-                         {"sourceTranscription": "WHISPER", "moteurTranscription": "whisper-small"})
+        infos = t.infos_transcription(enregistrement)
+        self.assertEqual(infos["sourceTranscription"], "WHISPER")
+        self.assertTrue(infos["moteurTranscription"].startswith("whisper-small · whisper-cli · 20"))
         self.assertFalse(t.fichier_transcription(enregistrement, ".wav").exists())
         self.assertTrue(t.a_ameliorer(enregistrement, regl))
         with mock.patch.object(t, "executer_suivi", side_effect=ffmpeg), \
                 mock.patch.object(t, "transcrire_parakeet", return_value=["[  0.0-  1.0] mieux"]):
             t.transcrire_un(enregistrement, regl, ["parakeet"])
-        self.assertEqual(t.infos_transcription(enregistrement)["moteurTranscription"], "parakeet-tdt-0.6b-v3-q8_0")
+        self.assertTrue(t.infos_transcription(enregistrement)["moteurTranscription"].startswith(
+            "parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · 20"))
         self.assertFalse(t.a_ameliorer(enregistrement, regl))
         # Changer de modèle dans les réglages rend tout refaisable.
         autre = dict(regl, parakeet=dict(regl["parakeet"], modele=Path("ggml-parakeet-tdt-0.6b-v3-f16.bin")))
