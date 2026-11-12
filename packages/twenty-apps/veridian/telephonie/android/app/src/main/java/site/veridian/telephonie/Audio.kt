@@ -31,42 +31,57 @@ object Audio {
         val sortie = ShortTampon(maxOf(1024, (format.getLongOrZero(MediaFormat.KEY_DURATION) / 1_000_000 * taux).toInt()))
         val info = MediaCodec.BufferInfo()
         var finEntree = false
+        // Toutes les entrées libres d'abord, puis toutes les sorties prêtes : un aller-retour par trame de 20 ms (attente
+        // de 10 ms à chaque tour) prenait 95 s pour 10 min d'appel, mesuré le 12/11.
+        var bloc = ShortArray(0)
+        var flotBloc = FloatArray(0)
         try {
-            while (true) {
-                if (!finEntree) {
-                    val i = codec.dequeueInputBuffer(10_000)
-                    if (i >= 0) {
-                        val n = extracteur.readSampleData(codec.getInputBuffer(i)!!, 0)
-                        if (n < 0) { codec.queueInputBuffer(i, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); finEntree = true }
-                        else { codec.queueInputBuffer(i, 0, n, extracteur.sampleTime, 0); extracteur.advance() }
-                    }
+            var fini = false
+            while (!fini) {
+                while (!finEntree) {
+                    val i = codec.dequeueInputBuffer(0)
+                    if (i < 0) break
+                    val n = extracteur.readSampleData(codec.getInputBuffer(i)!!, 0)
+                    if (n < 0) { codec.queueInputBuffer(i, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); finEntree = true }
+                    else { codec.queueInputBuffer(i, 0, n, extracteur.sampleTime, 0); extracteur.advance() }
                 }
-                val o = codec.dequeueOutputBuffer(info, 10_000)
-                if (o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    taux = codec.outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-                    voies = codec.outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                    flottant = codec.outputFormat.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
-                        codec.outputFormat.getInteger(MediaFormat.KEY_PCM_ENCODING) == android.media.AudioFormat.ENCODING_PCM_FLOAT
-                } else if (o >= 0) {
-                    val tampon = codec.getOutputBuffer(o)!!.order(ByteOrder.LITTLE_ENDIAN)
-                    tampon.position(info.offset); tampon.limit(info.offset + info.size)
-                    if (flottant) {
-                        val f = tampon.asFloatBuffer()
-                        for (t in 0 until f.remaining() / voies) {
-                            var somme = 0f
-                            for (v in 0 until voies) somme += f.get(t * voies + v)
-                            sortie.ajouter((somme / voies * 32767f).coerceIn(-32768f, 32767f).toInt().toShort())
+                var o = codec.dequeueOutputBuffer(info, 5_000)
+                while (o != MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    if (o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        taux = codec.outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        voies = codec.outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                        flottant = codec.outputFormat.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
+                            codec.outputFormat.getInteger(MediaFormat.KEY_PCM_ENCODING) == android.media.AudioFormat.ENCODING_PCM_FLOAT
+                    } else if (o >= 0) {
+                        val tampon = codec.getOutputBuffer(o)!!.order(ByteOrder.LITTLE_ENDIAN)
+                        tampon.position(info.offset); tampon.limit(info.offset + info.size)
+                        if (flottant) {
+                            val f = tampon.asFloatBuffer()
+                            val n = f.remaining()
+                            if (flotBloc.size < n) flotBloc = FloatArray(n)
+                            f.get(flotBloc, 0, n)
+                            var t = 0
+                            while (t + voies <= n) {
+                                var somme = 0f
+                                for (v in 0 until voies) somme += flotBloc[t + v]
+                                sortie.ajouter((somme / voies * 32767f).coerceIn(-32768f, 32767f).toInt().toShort()); t += voies
+                            }
+                        } else {
+                            val sb = tampon.asShortBuffer()
+                            val n = sb.remaining()
+                            if (bloc.size < n) bloc = ShortArray(n)
+                            sb.get(bloc, 0, n)
+                            var t = 0
+                            while (t + voies <= n) {
+                                var somme = 0
+                                for (v in 0 until voies) somme += bloc[t + v]
+                                sortie.ajouter((somme / voies).toShort()); t += voies
+                            }
                         }
-                    } else {
-                        val s = tampon.asShortBuffer()
-                        for (t in 0 until s.remaining() / voies) {
-                            var somme = 0
-                            for (v in 0 until voies) somme += s.get(t * voies + v)
-                            sortie.ajouter((somme / voies).toShort())
-                        }
+                        codec.releaseOutputBuffer(o, false)
+                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) { fini = true; break }
                     }
-                    codec.releaseOutputBuffer(o, false)
-                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
+                    o = codec.dequeueOutputBuffer(info, 0)
                 }
             }
         } finally {
@@ -77,39 +92,37 @@ object Audio {
 
     private fun MediaFormat.getLongOrZero(cle: String) = if (containsKey(cle)) getLong(cle) else 0L
 
-    /** Rééchantillonnage par sinc fenêtré (Hann, 16 zéros de chaque côté, table de 512 phases). */
+    /** Rééchantillonnage par sinc fenêtré (Hann, 8 zéros de chaque côté, table de 256 phases, entrée bordée de
+     *  zéros : pas de test de bornes dans la boucle). */
     fun reechantillonner(pcm: Pcm, taux: Int): ShortArray {
         if (pcm.taux == taux) return pcm.echantillons
-        val entree = pcm.echantillons
         val rapport = pcm.taux.toDouble() / taux
-        val coupure = minOf(1.0, 1.0 / rapport) * 0.97
-        val zeros = 16
-        val demi = Math.ceil(zeros / coupure).toInt()
-        val phases = 512
-        val noyau = Array(phases) { p ->
+        val coupure = minOf(1.0, 1.0 / rapport) * 0.95
+        val demi = Math.ceil(8 / coupure).toInt()
+        val largeur = 2 * demi
+        val phases = 256
+        val noyau = FloatArray(phases * largeur)
+        for (p in 0 until phases) {
             val fraction = p.toDouble() / phases
-            DoubleArray(2 * demi) { k ->
+            for (k in 0 until largeur) {
                 val x = (k - demi + 1) - fraction
                 val fenetre = if (Math.abs(x) >= demi) 0.0 else 0.5 * (1 + Math.cos(Math.PI * x / demi))
                 val s = if (x == 0.0) 1.0 else Math.sin(Math.PI * x * coupure) / (Math.PI * x * coupure)
-                coupure * s * fenetre
+                noyau[p * largeur + k] = (coupure * s * fenetre).toFloat()
             }
         }
-        val n = ((entree.size.toLong() * taux) / pcm.taux).toInt()
+        val entree = FloatArray(pcm.echantillons.size + 2 * largeur)
+        for (i in pcm.echantillons.indices) entree[i + largeur] = pcm.echantillons[i].toFloat()
+        val n = ((pcm.echantillons.size.toLong() * taux) / pcm.taux).toInt()
         val sortie = ShortArray(n)
         for (i in 0 until n) {
             val t = i * rapport
-            val base = Math.floor(t).toInt()
-            val phase = ((t - base) * phases).toInt().coerceIn(0, phases - 1)
-            val h = noyau[phase]
-            var somme = 0.0
-            var k = 0
-            var j = base - demi + 1
-            while (k < h.size) {
-                if (j in entree.indices) somme += entree[j] * h[k]
-                k++; j++
-            }
-            sortie[i] = somme.coerceIn(-32768.0, 32767.0).toInt().toShort()
+            val base = t.toInt()
+            val h = ((t - base) * phases).toInt().coerceIn(0, phases - 1) * largeur
+            val j0 = base - demi + 1 + largeur
+            var somme = 0f
+            for (k in 0 until largeur) somme += entree[j0 + k] * noyau[h + k]
+            sortie[i] = somme.coerceIn(-32768f, 32767f).toInt().toShort()
         }
         return sortie
     }
@@ -144,7 +157,7 @@ object Audio {
         try {
             while (true) {
                 if (!finEntree) {
-                    val i = codec.dequeueInputBuffer(10_000)
+                    val i = codec.dequeueInputBuffer(0)
                     if (i >= 0) {
                         val tampon = codec.getInputBuffer(i)!!.order(ByteOrder.LITTLE_ENDIAN)
                         val n = minOf(tampon.capacity() / 2, pcm.size - position, taux / 50 * 10)
@@ -158,7 +171,7 @@ object Audio {
                         }
                     }
                 }
-                val o = codec.dequeueOutputBuffer(info, 10_000)
+                val o = codec.dequeueOutputBuffer(info, 1_000)
                 if (o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     piste = muxer.addTrack(codec.outputFormat); muxer.start()
                 } else if (o >= 0) {

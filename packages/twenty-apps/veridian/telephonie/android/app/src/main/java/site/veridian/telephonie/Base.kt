@@ -147,6 +147,16 @@ class Base(ctx: Context) : SQLiteOpenHelper(ctx, "telephonie.db", null, 1) {
             arrayOf(System.currentTimeMillis() + delaiMs, id))
     }
 
+    /** Attente du Wi-Fi : reporté sans compter un essai de plus. */
+    @Synchronized
+    fun televersementAttendWifi(id: Long, delaiMs: Long) {
+        writableDatabase.execSQL("UPDATE televersements SET prochain=? WHERE id=?", arrayOf(System.currentTimeMillis() + delaiMs, id))
+    }
+
+    /** Le Wi-Fi est là : tout fichier en attente repart maintenant. */
+    @Synchronized
+    fun televersementsLibres() { writableDatabase.execSQL("UPDATE televersements SET prochain=0") }
+
     /** Remet l'élément en tête de file (vérification après un téléversement, transcription prête). */
     @Synchronized
     fun reveiller(pluriel: String, idSource: String) {

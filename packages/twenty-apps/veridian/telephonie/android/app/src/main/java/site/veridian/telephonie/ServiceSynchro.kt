@@ -48,6 +48,7 @@ class ServiceSynchro : Service() {
     @Volatile private var derniereSonde: String? = null
     @Volatile private var rafaleJusqua = 0L
     private var dernierEtatAppel = TelephonyManager.CALL_STATE_IDLE
+    @Volatile private var nonFacture = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -129,6 +130,11 @@ class ServiceSynchro : Service() {
         val cm = getSystemService(ConnectivityManager::class.java)
         reseau = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) { handler.postDelayed({ synchro.demanderVidange(); sonder() }, 2000) }
+            override fun onCapabilitiesChanged(network: Network, caps: android.net.NetworkCapabilities) {
+                val libre = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+                if (libre && !nonFacture) synchro.reveillerFichiers()
+                nonFacture = libre
+            }
         }.also { cm.registerDefaultNetworkCallback(it) }
     }
 

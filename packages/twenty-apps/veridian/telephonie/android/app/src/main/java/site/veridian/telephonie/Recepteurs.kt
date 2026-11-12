@@ -57,6 +57,8 @@ class EcouteNotifications : NotificationListenerService() {
 class Vidange(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         ServiceSynchro.demarrer(applicationContext, origine = "WorkManager")
+        if (!(applicationContext.getSystemService(android.net.ConnectivityManager::class.java).isActiveNetworkMetered))
+            Synchro.de(applicationContext).reveillerFichiers()
         return if (Synchro.de(applicationContext).vider(depuisTravail = true)) Result.success() else Result.retry()
     }
 }

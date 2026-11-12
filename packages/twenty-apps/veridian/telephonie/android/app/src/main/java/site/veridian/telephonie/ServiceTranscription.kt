@@ -54,7 +54,9 @@ class ServiceTranscription : Service() {
     }
 
     private fun boucle() {
-        Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+        // Nice 9, pas THREAD_PRIORITY_BACKGROUND (10) : à partir de 10, Android range le fil (et les fils de ggml qu'il
+        // crée) dans le groupe d'arrière-plan, sur les petits cœurs : 34 s par minute d'appel mesurées le 12/11.
+        Process.setThreadPriority(9)
         var inactifDepuis = System.currentTimeMillis()
         while (true) {
             val travail = try { unTour() } catch (e: Throwable) { Journal.erreur("transcription", e); false }
@@ -109,7 +111,9 @@ class ServiceTranscription : Service() {
 
     /** Lignes de la transcription, ou null si elle a cédé la place (reprise au tronçon). */
     private fun transcrire(audio: File, cede: () -> Boolean): List<String>? {
+        val avantDecodage = System.currentTimeMillis()
         val pcm = pcm16k(audio)
+        Journal.log("audio : ${"%.1f".format(java.util.Locale.ROOT, pcm.size / 16_000.0 / 60)} min décodées en ${System.currentTimeMillis() - avantDecodage} ms")
         val duree = pcm.size / 16_000.0
         val cible = reglages.tronconS
         val chevauchement = reglages.chevauchementS
@@ -157,7 +161,11 @@ class ServiceTranscription : Service() {
             val octets = f.readBytes()
             return ShortArray(octets.size / 2).also { ByteBuffer.wrap(octets).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(it) }
         }
-        val pcm = Audio.reechantillonner(Audio.decoder(audio), 16_000)
+        val t0 = System.currentTimeMillis()
+        val brut = Audio.decoder(audio)
+        val t1 = System.currentTimeMillis()
+        val pcm = Audio.reechantillonner(brut, 16_000)
+        Journal.log("audio : décodage ${t1 - t0} ms (${brut.taux} Hz), rééchantillonnage ${System.currentTimeMillis() - t1} ms")
         val b = ByteBuffer.allocate(pcm.size * 2).order(ByteOrder.LITTLE_ENDIAN)
         b.asShortBuffer().put(pcm)
         File(f.path + ".part").apply { writeBytes(b.array()); renameTo(f) }
@@ -173,7 +181,7 @@ class ServiceTranscription : Service() {
         contexte = Parakeet.charger(modele.path)
         if (contexte == 0L) throw EchecMoteur("modèle illisible : ${modele.name}")
         contexteDe = modele.path
-        Journal.log("parakeet : modèle chargé en ${System.currentTimeMillis() - debut} ms")
+        Journal.log("parakeet : modèle chargé en ${System.currentTimeMillis() - debut} ms (${Parakeet.infos().trim()}, ${reglages.fils} fils)")
     }
 
     private fun liberer() {
@@ -225,6 +233,7 @@ object Parakeet {
     /** Contexte du modèle (0 si illisible). */
     @JvmStatic external fun charger(chemin: String): Long
     @JvmStatic external fun liberer(contexte: Long)
+    @JvmStatic external fun infos(): String
 
     /** Jetons, une ligne par jeton : « t0\tt1\tdébut_de_mot(0|1)\ttexte » (centièmes de s) ; null si le moteur échoue. */
     @JvmStatic external fun transcrireOctets(contexte: Long, pcm: FloatArray, fils: Int): ByteArray?

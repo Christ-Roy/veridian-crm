@@ -52,3 +52,8 @@ Java_site_veridian_telephonie_Parakeet_transcrireOctets(JNIEnv * env, jclass, jl
     env->SetByteArrayRegion(octets, 0, (jsize) sortie.size(), reinterpret_cast<const jbyte *>(sortie.data()));
     return octets;
 }
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_site_veridian_telephonie_Parakeet_infos(JNIEnv * env, jclass) {
+    return env->NewStringUTF(parakeet_print_system_info());
+}

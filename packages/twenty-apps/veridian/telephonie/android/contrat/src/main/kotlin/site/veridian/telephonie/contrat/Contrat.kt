@@ -104,6 +104,9 @@ object Contrat {
     /** `round(x, n)` de Python. */
     fun pyRound(x: Double, n: Int): Double = BigDecimal(x).setScale(n, RoundingMode.HALF_EVEN).toDouble()
 
+    fun sha256(texte: String): String =
+        MessageDigest.getInstance("SHA-256").digest(texte.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+
     fun sha1(texte: String): String =
         MessageDigest.getInstance("SHA-1").digest(texte.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 

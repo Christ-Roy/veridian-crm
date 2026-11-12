@@ -77,8 +77,16 @@ charger le modèle, attente si un `parakeet-cli` ou `whisper-cli` tourne (banc d
 au CRM est reprise, pas refaite. `moteurTranscription` porte la recette, outil compris
 (`libparakeet (whisper.cpp d2c6f05, jni)`). Whisper small, secours de l'agent Termux, n'est pas embarqué.
 
+Mesuré le 12/11 sur ce Pixel (10,6 min d'appel) : Parakeet 129 s, soit 12 s par minute d'appel (Termux :
+11 s), modèle chargé en 1,3 à 2,5 s. Il fallait SVE2 et OpenMP (sans eux : 25 s par minute) et une priorité nice 9
+(à `THREAD_PRIORITY_BACKGROUND`, Android met les fils de ggml sur les petits cœurs : 34 s par minute). Le décodage
+de l'Opus de JemRec par MediaCodec coûte encore environ 7 s par minute d'appel (rééchantillonnage : 0,4 s).
+
 Audio : décodage et Opus mono 32 kbit/s par les codecs d'Android (pas de ffmpeg) ; envoi direct
-`createFileUpload` → `PUT` en flux → `completeFileUpload`, jamais le multipart (plafonné à 5 Mo).
+`createFileUpload` → `PUT` en flux → `completeFileUpload`, jamais le multipart (plafonné à 5 Mo). Un fichier ne part
+qu'une fois son record créé ; un échec est retenté sans limite, de 30 s à 30 min (le délai double, WorkManager sous
+contrainte réseau). `audio_wifi_apres_echecs` (réglage, 0 par défaut) : après ce nombre d'échecs de suite sur réseau
+facturé, le fichier attend le Wi-Fi ; 0 = n'importe quel réseau (Robert a un forfait illimité, 12/11/2026).
 
 ## Construire (bastion), installer, piloter
 

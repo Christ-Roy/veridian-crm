@@ -21,7 +21,8 @@ class Reglages(ctx: Context) {
     val miroir get() = mode != "ecriture"
 
     val url: String? get() = prefs.getString("url", null)
-    val cle: String? get() = prefs.getString("cle", null)
+    /** Clé du rôle « Téléphone », chiffrée par une clé AES du Keystore Android (non exportable) ; jamais journalisée. */
+    val cle: String? get() = prefs.getString("cle_chiffree", null)?.let { Coffre.dechiffrer(it) }
 
     fun nombre(cle: String): Double = prefs.getString("r.$cle", null)?.toDoubleOrNull() ?: DEFAUT.getValue(cle)
     fun texte(cle: String): String = prefs.getString("r.$cle", null) ?: DEFAUT_TEXTE.getValue(cle)
@@ -32,6 +33,9 @@ class Reglages(ctx: Context) {
     val memoireMinKo get() = nombre("memoire_min_ko").toLong()
     val fils get() = nombre("fils").toInt()
     val ameliorerAnciennes get() = nombre("ameliorer_anciennes") != 0.0
+    /** Après ce nombre d'échecs de suite sur réseau facturé, un fichier attend le Wi-Fi ; 0 = n'importe quel réseau
+     *  (Robert, 12/11/2026 : « j'ai illimité »). Le backoff de 30 s à 30 min, sans limite, s'applique toujours. */
+    val echecsAvantWifi get() = nombre("audio_wifi_apres_echecs").toInt()
     val appareil get() = texte("appareil")
     val jemrec get() = File(texte("jemrec"))
 
@@ -44,7 +48,8 @@ class Reglages(ctx: Context) {
         val acces = File(dossierExterne, "acces.json")
         if (acces.exists()) {
             val j = JSONObject(acces.readText())
-            prefs.edit().putString("url", j.getString("url").trimEnd('/')).putString("cle", j.getString("cle")).commit()
+            prefs.edit().putString("url", j.getString("url").trimEnd('/')).putString("cle_chiffree", Coffre.chiffrer(j.getString("cle")))
+                .remove("cle").commit()
             acces.delete()
             faits += "accès"
         }
@@ -63,12 +68,15 @@ class Reglages(ctx: Context) {
     }
 
     fun resume(): JSONObject = JSONObject().put("mode", mode).put("crm", url != null && cle != null)
+        .put("cle_sha256_12", cle?.let { site.veridian.telephonie.contrat.Contrat.sha256(it).take(12) })
         .put("modele", modele.path).put("modele_present", modele.exists()).put("troncon_s", tronconS)
         .put("chevauchement_s", chevauchementS).put("batterie_min_pct", batterieMinPct).put("fils", fils)
+        .put("audio_wifi_apres_echecs", echecsAvantWifi)
 
     companion object {
         val DEFAUT = mapOf("troncon_s" to 30.0, "chevauchement_s" to 0.0, "batterie_min_pct" to 30.0,
-            "memoire_min_ko" to 1_500_000.0, "fils" to 4.0, "ameliorer_anciennes" to 1.0)
+            "memoire_min_ko" to 1_500_000.0, "fils" to 4.0, "ameliorer_anciennes" to 1.0,
+            "audio_wifi_apres_echecs" to 0.0)
         val DEFAUT_TEXTE = mapOf("appareil" to "PIXEL_8_PRO", "jemrec" to "/sdcard/Recordings/JemRec", "modele" to "")
     }
 }
@@ -109,4 +117,33 @@ object Json {
         is Number -> if (x.toDouble() == Math.floor(x.toDouble())) x.toLong().toString() else x.toString()
         else -> JSONObject.quote(x.toString())
     }
+}
+
+/** Chiffrement par une clé AES-GCM du Keystore Android (alias « crm »), créée au premier usage. */
+object Coffre {
+    private const val ALIAS = "crm"
+
+    private fun cle(): javax.crypto.SecretKey {
+        val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (ks.getKey(ALIAS, null) as? javax.crypto.SecretKey)?.let { return it }
+        val g = javax.crypto.KeyGenerator.getInstance(android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        g.init(android.security.keystore.KeyGenParameterSpec.Builder(ALIAS,
+            android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE).build())
+        return g.generateKey()
+    }
+
+    fun chiffrer(texte: String): String {
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply { init(javax.crypto.Cipher.ENCRYPT_MODE, cle()) }
+        val b = java.util.Base64.getEncoder()
+        return b.encodeToString(c.iv) + ":" + b.encodeToString(c.doFinal(texte.toByteArray()))
+    }
+
+    fun dechiffrer(valeur: String): String? = try {
+        val (iv, donnees) = valeur.split(":").map { java.util.Base64.getDecoder().decode(it) }
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply {
+            init(javax.crypto.Cipher.DECRYPT_MODE, cle(), javax.crypto.spec.GCMParameterSpec(128, iv)) }
+        String(c.doFinal(donnees))
+    } catch (e: Exception) { Journal.erreur("clé du CRM illisible", e); null }
 }

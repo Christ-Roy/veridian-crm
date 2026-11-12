@@ -331,6 +331,15 @@ class Synchro private constructor(val ctx: Context) {
                 val t = base.prochainTeleversement(audio, System.currentTimeMillis())
                 val tw = twenty()
                 if (t == null || tw == null || reglages.miroir) { synchronized(signal) { signal.wait(60_000) }; continue }
+                val seuil = reglages.echecsAvantWifi
+                if (seuil > 0 && t.essais >= seuil && reseauFacture()) {
+                    // `audio_wifi_apres_echecs` échecs de suite sur réseau facturé : le fichier attend un réseau non
+                    // facturé (le record et le texte sont déjà partis). 0 (défaut, forfait illimité de Robert) : tout réseau.
+                    base.televersementAttendWifi(t.id, 600_000)
+                    programmerWifi()
+                    Journal.log("fichier : ${t.essais} échecs sur réseau mobile, attend le Wi-Fi")
+                    continue
+                }
                 val debut = System.currentTimeMillis()
                 try {
                     val portes = t.chemins.map { File(it) }.filter { it.exists() }.map { porter(tw, t.champ, it) }
@@ -341,8 +350,11 @@ class Synchro private constructor(val ctx: Context) {
                     base.reveiller(t.pluriel, t.idSource)
                     demanderVidange()
                 } catch (e: NonAbouti) {
-                    base.televersementReporte(t.id, 30_000); Journal.log("fichier remis à plus tard : ${e.message}")
-                    programmerTravail()
+                    // Sans limite tant que le record existe : 30 s, 1, 2, 4… jusqu'à 30 min entre deux essais.
+                    val delai = minOf(1_800_000L, 30_000L shl minOf(t.essais, 6))
+                    base.televersementReporte(t.id, delai)
+                    Journal.log("fichier remis à ${delai / 1000} s (essai ${t.essais + 1}) : ${e.message}")
+                    programmerTravail(delai)
                 } catch (e: Exception) {
                     base.televersementReporte(t.id, minOf(300_000L, 30_000L shl minOf(t.essais, 4)))
                     Journal.erreur("fichier refusé, retenté", e)
@@ -364,6 +376,23 @@ class Synchro private constructor(val ctx: Context) {
                 if (envoye != source) envoye.delete()
             }
         }
+    }
+
+    private fun reseauFacture(): Boolean {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        return cm.isActiveNetworkMetered
+    }
+
+    /** Réseau non facturé (Wi-Fi) : les fichiers qui l'attendaient repartent. */
+    fun reveillerFichiers() {
+        base.televersementsLibres()
+        televersements.forEach { it.reveiller() }
+    }
+
+    private fun programmerWifi() {
+        val travail = OneTimeWorkRequestBuilder<Vidange>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build()).build()
+        WorkManager.getInstance(ctx).enqueueUniqueWork("fichiers-wifi", ExistingWorkPolicy.KEEP, travail)
     }
 
     val televersements = listOf(FilFichiers(true), FilFichiers(false)).onEach { it.isDaemon = true; it.start() }
