@@ -74,8 +74,9 @@ REGLAGES_DEFAUT = {
     "troncon_s": 30,
     "lot_troncons": 8,
     # Chevauchement entre tronçons (s) : le tronçon suivant commence plus tôt, ses mots d'avant la coupe sont
-    # écartés au recollage. 0 tant que le banc (référence large-v3) n'a pas montré qu'il rattrape des mots.
-    "chevauchement_s": 0.0,
+    # écartés au recollage. Banc du 12/11 contre large-v3 (5 min de l'appel de Hugo) : 0 s → 34 mots perdus en
+    # blocs, 1,5 s → 9, pour 8 % de temps en plus.
+    "chevauchement_s": 1.5,
     "sonde_rapide_s": 10,
     "sonde_sms_s": 15,
     "sonde_fournisseurs_s": 60,

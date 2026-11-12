@@ -57,7 +57,7 @@ class ParakeetParLots(EtatIsole):
     def test_un_seul_chargement_par_lot_et_reprise_au_troncon(self):
         wav = t.ETAT / "appel.wav"
         wav.write_bytes(b"\0" * (44 + 32_000 * 200))
-        regl = dict(t.reglages(), troncon_s=60, lot_troncons=2)
+        regl = dict(t.reglages(), troncon_s=60, lot_troncons=2, chevauchement_s=0)
         appels_moteur = []
 
         def executer(commande, _delai, flux="stdout"):
@@ -340,7 +340,7 @@ class Transcription(EtatIsole):
                 mock.patch.object(t, "transcrire_parakeet", return_value=["[  0.0-  1.0] mieux"]):
             t.transcrire_un(enregistrement, regl, ["parakeet"])
         self.assertTrue(t.infos_transcription(enregistrement)["moteurTranscription"].startswith(
-            "parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · 20"))
+            "parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · chevauchement 1.5 s · 20"))
         self.assertFalse(t.a_ameliorer(enregistrement, regl))
         # Changer de modèle dans les réglages rend tout refaisable.
         autre = dict(regl, parakeet=dict(regl["parakeet"], modele=Path("ggml-parakeet-tdt-0.6b-v3-f16.bin")))

@@ -103,7 +103,7 @@ main reste. Réglages sans toucher au
 code, `~/.config/crm-telephone/reglages.json` (clé par clé, voir `REGLAGES_DEFAUT`) :
 
 ```json
-{"moteurs": ["parakeet", "whisper"], "troncon_s": 30, "lot_troncons": 8, "batterie_min_pct": 30,
+{"moteurs": ["parakeet", "whisper"], "troncon_s": 30, "chevauchement_s": 1.5, "lot_troncons": 8, "batterie_min_pct": 30,
  "parakeet": {"modele": "~/whisper.cpp/models/ggml-parakeet-tdt-0.6b-v3-q8_0.bin", "fils": 4}}
 ```
 
@@ -118,10 +118,11 @@ python3 ~/crm-telephone/telephone.py transcrire AUDIO --troncon 30 --chevaucheme
 ```
 
 `retranscrire` met en file (`a-refaire.json`) ; l'agent les refait après les appels neufs, avec le modèle, la
-découpe et le chevauchement des réglages, sous la garde batterie. `chevauchement_s` (0 par défaut) fait commencer
+découpe et le chevauchement des réglages, sous la garde batterie. `chevauchement_s` (1,5 s par défaut : 34 mots perdus en blocs sans, 9 avec, +8 % de temps, mesuré contre large-v3) fait commencer
 chaque tronçon plus tôt et écarte au recollage les mots déjà rendus par le précédent. Constat du banc le 12/11
 (référence large-v3 sur 5 min de l'appel de Hugo) : parakeet-cli q8_0 perd des blocs de parole selon la découpe
-(9 à 86 mots sur 895), souvent en début de tronçon ; la cause (moteur ou modèle) est en cours d'isolement. D'où
+(9 à 86 mots sur 895), souvent en début de tronçon. C'est le modèle (sherpa-onnx rate les mêmes passages) ; le
+chevauchement en rattrape l'essentiel, un repli par tronçon (Canary 180M, langue forcée) reste à câbler. D'où
 la transcription secondaire et refaisable : le brut n'attend jamais.
 
 **Hors ligne.** Lecture et transcription ne demandent pas le réseau. Le CRM injoignable, l'envoi attend : une
