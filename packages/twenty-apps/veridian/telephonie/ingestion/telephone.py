@@ -710,6 +710,11 @@ def noter_delai(nom, secondes):
         fichier.write(f"{dt.datetime.now():%F %T}\t{nom}\t{secondes:.1f}\n")
 
 
+# Changer les règles du plan (un champ nouveau à compléter) change toutes les empreintes : le premier cycle après
+# un déploiement repasse tout au CRM au lieu de se croire à jour.
+VERSION_PLAN = "2026-11-12-moteur"
+
+
 class Flux:
     """Un type (appels, sms, mms, messagerie) : son fil, son réveil, son empreinte. Les types ne s'attendent pas :
     un SMS ne patiente jamais derrière un audio à téléverser ni derrière une transcription. Un cycle écrit d'abord
@@ -756,7 +761,7 @@ class Flux:
         """0 rien à faire ou fait, 1 une écriture refusée, 2 CRM injoignable (on retentera)."""
         debut = time.time()
         voulus = self.lire()
-        empreinte = hashlib.sha1(json.dumps(sorted(
+        empreinte = hashlib.sha1(json.dumps([VERSION_PLAN] + sorted(
             v["idSource"] + hashlib.sha1((v.get("transcription") or "").encode()).hexdigest()[:8]
             + str(sorted((k, len(f)) for k, f in (v.get("_fichiers") or {}).items())) for v in voulus)).encode()).hexdigest()
         if empreinte == self.empreinte_envoyee:

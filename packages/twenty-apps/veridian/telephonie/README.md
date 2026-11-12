@@ -76,8 +76,9 @@ les 7 messages vocaux (audio AMR copié) en 11,6 s, pendant que les 24 MMS se re
 | MMS, message vocal et son audio | dernier `_id` de `content://mms` et de `content://com.android.voicemail/voicemail`, toutes les 60 s, toutes les 15 s pendant 3 min après un appel ou un SMS reçu | ≤ 60 s |
 | filet | passage complet | 30 min (2 min si adb est fermé et les sondes muettes) |
 
-Coût mesuré le 12/11 : sonde rapide 0,03 s de CPU, une sonde de fournisseur 0,35 s (une machine Java par
-`content`) ; soit environ 3 % d'un cœur en moyenne, au lieu d'une relecture complète toutes les 2 minutes
+Coût mesuré le 12/11 (`time` côté adb, trois mesures) : sonde rapide 0,16 s de CPU, une sonde de fournisseur
+0,37 s (une machine Java par `content`) ; soit environ 190 s de CPU par heure, 5 % d'un cœur ou 0,7 % du
+téléphone, au lieu d'une relecture complète toutes les 2 minutes
 (dont 98 s d'adb pour relire les 24 MMS un par un : ils sont maintenant en cache, `~/.local/state/crm-telephone/mms/lus.json`).
 
 **Messagerie vocale.** Chaque message du fournisseur Voicemail (lu en uid 2000 par l'adb local) devient un Appel de
