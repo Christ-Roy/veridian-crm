@@ -1,0 +1,36 @@
+# App Android « Téléphonie CRM » : le contrat Kotlin rend exactement ce que rend le Python de référence
+# (ingestion/), sans SDK Android (JDK seul). L'APK se construit sur le bastion (outils/construire.sh), pas ici.
+# Push seulement (dépôt public : aucun code tiers sur un runner auto-hébergé), runners Veridian (loi 7).
+name: telephonie-android
+
+on:
+  push:
+    branches: [staging, main]
+    paths:
+      - packages/twenty-apps/veridian/telephonie/android/**
+      - packages/twenty-apps/veridian/telephonie/ingestion/crm_telephonie.py
+      - packages/twenty-apps/veridian/telephonie/ingestion/telephone.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contrat:
+    runs-on: [self-hosted, veridian-jit]
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: packages/twenty-apps/veridian/telephonie/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Fixtures à jour avec le Python de référence
+        run: python3 outils/fixtures_contrat.py --verifier
+      - name: Contrat Kotlin contre les fixtures
+        run: ./gradlew -p contrat test --console=plain
+      - if: always()
+        run: git clean -ffdx
