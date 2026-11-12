@@ -111,6 +111,8 @@ class ServiceTranscription : Service() {
 
     /** Lignes de la transcription, ou null si elle a cédé la place (reprise au tronçon). */
     private fun transcrire(audio: File, cede: () -> Boolean): List<String>? {
+        // Chargeur qui décroche (vu le 12/11 : sept reprises en 10 min) : céder avant de décoder ou de charger le modèle.
+        if (cede()) return null
         val avantDecodage = System.currentTimeMillis()
         val pcm = pcm16k(audio)
         Journal.log("audio : ${"%.1f".format(java.util.Locale.ROOT, pcm.size / 16_000.0 / 60)} min décodées en ${System.currentTimeMillis() - avantDecodage} ms")
@@ -125,7 +127,7 @@ class ServiceTranscription : Service() {
         else Decoupe.troncons(duree, Decoupe.silences(pcm), cible, cible / 4).also { m ->
             plan.writeText(JSONArray(m.map { JSONArray().put(it.first).put(it.second) }).toString()) }
         val restants = morceaux.indices.filter { !File(travail, "%04d.json".format(it)).exists() }
-        if (restants.isNotEmpty()) charger()
+        if (restants.isNotEmpty()) { if (cede()) return null; charger() }
         val debut = System.currentTimeMillis()
         for (i in restants) {
             if (cede()) return null

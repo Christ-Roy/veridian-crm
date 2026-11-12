@@ -68,7 +68,7 @@ class Commandes : BroadcastReceiver() {
             if (f.exists()) f.copyTo(File(externe, nom), overwrite = true) else File(externe, nom).delete()
         }
         val j = JSONObject().put("reglages", s.reglages.resume()).put("file", s.base.taille()).put("televersements", s.base.taille("televersements"))
-            .put("synchro", s.base.taille("synchro")).put("adb", s.adb.etat).put("demandes_transcription", s.transcriptions.lireDemandes().size)
+            .put("synchro", s.base.taille("synchro")).put("adb", s.adb.etat).put("demandes_transcription", org.json.JSONArray(s.transcriptions.lireDemandes().map { "${it.stem}:${it.mode}:${it.audio.exists()}:${s.transcriptions.fichier(it.audio).exists()}" }))
             .put("curseurs", JSONObject().also { o -> Synchro.Flux.entries.forEach { f -> o.put(f.nom, s.base.lire("curseur.${f.nom}")) } })
             .put("version", ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName)
         File(externe, "etat.json").writeText(j.toString(1))
