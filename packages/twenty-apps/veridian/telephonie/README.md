@@ -103,7 +103,7 @@ main reste. Réglages sans toucher au
 code, `~/.config/crm-telephone/reglages.json` (clé par clé, voir `REGLAGES_DEFAUT`) :
 
 ```json
-{"moteurs": ["parakeet", "whisper"], "troncon_s": 30, "chevauchement_s": 1.5, "lot_troncons": 8, "batterie_min_pct": 30,
+{"moteurs": ["parakeet", "whisper"], "troncon_s": 30, "chevauchement_s": 0, "lot_troncons": 8, "batterie_min_pct": 30,
  "parakeet": {"modele": "~/whisper.cpp/models/ggml-parakeet-tdt-0.6b-v3-q8_0.bin", "fils": 4}}
 ```
 
@@ -117,12 +117,15 @@ python3 ~/crm-telephone/telephone.py retranscrire --fichier 20261111_150805_in  
 python3 ~/crm-telephone/telephone.py transcrire AUDIO --troncon 30 --chevauchement 1.5   # essai, sans état ni CRM
 ```
 
-`retranscrire` met en file (`a-refaire.json`) ; l'agent les refait après les appels neufs, avec le modèle, la
-découpe et le chevauchement des réglages, sous la garde batterie. `chevauchement_s` (1,5 s par défaut : 34 mots perdus en blocs sans, 9 avec, +8 % de temps, mesuré contre large-v3) fait commencer
+`retranscrire` met en file (`a-refaire.json`) ; l'agent les refait après les appels neufs, en charge seulement
+(`--maintenant` pour un appel précis, sous la garde batterie), avec le modèle, la
+découpe et le chevauchement des réglages, sous la garde batterie. `chevauchement_s` (0 par défaut : il gagnait sur 5 min, mais perd sur l'appel entier de 32 min, 247 mots perdus en blocs contre 119, mesuré contre large-v3) fait commencer
 chaque tronçon plus tôt et écarte au recollage les mots déjà rendus par le précédent. Constat du banc le 12/11
 (référence large-v3 sur 5 min de l'appel de Hugo) : parakeet-cli q8_0 perd des blocs de parole selon la découpe
 (9 à 86 mots sur 895), souvent en début de tronçon. C'est le modèle (sherpa-onnx rate les mêmes passages) ; le
-chevauchement en rattrape l'essentiel, un repli par tronçon (Canary 180M, langue forcée) reste à câbler. D'où
+q8_0 en tronçons de 30 s sans chevauchement est le meilleur réglage mesuré sur un appel entier (écart 18,3 % à
+large-v3, q4_0 s'effondre à 40,5 %). Assurance possible, non câblée : un repli par tronçon (Canary 180M, langue
+forcée) quand Parakeet rend moins d'un mot par seconde (1 tronçon sur 65, 0 faux positif). D'où
 la transcription secondaire et refaisable : le brut n'attend jamais.
 
 **Hors ligne.** Lecture et transcription ne demandent pas le réseau. Le CRM injoignable, l'envoi attend : une

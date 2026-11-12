@@ -74,9 +74,9 @@ REGLAGES_DEFAUT = {
     "troncon_s": 30,
     "lot_troncons": 8,
     # Chevauchement entre tronçons (s) : le tronçon suivant commence plus tôt, ses mots d'avant la coupe sont
-    # écartés au recollage. Banc du 12/11 contre large-v3 (5 min de l'appel de Hugo) : 0 s → 34 mots perdus en
-    # blocs, 1,5 s → 9, pour 8 % de temps en plus.
-    "chevauchement_s": 1.5,
+    # écartés au recollage. Banc du 12/11 contre large-v3 : sur 5 min, 1,5 s gagnait (34 → 9 mots perdus en blocs) ;
+    # sur l'appel entier de 32 min, qui fait foi, il perd (0 s : 119 mots, écart 18,3 % ; 1,5 s : 247, 23,0 %).
+    "chevauchement_s": 0.0,
     "sonde_rapide_s": 10,
     "sonde_sms_s": 15,
     "sonde_fournisseurs_s": 60,
@@ -430,14 +430,20 @@ def a_transcrire_fichier(chemin):
 
 
 def a_refaire():
+    """{enregistrement: « maintenant » ou « en_charge »} : la file de `retranscrire`."""
     fichier = ETAT / "a-refaire.json"
-    return set(json.loads(fichier.read_text())) if fichier.exists() else set()
+    contenu = json.loads(fichier.read_text()) if fichier.exists() else {}
+    return contenu if isinstance(contenu, dict) else {stem: "en_charge" for stem in contenu}
 
 
-def marquer_a_refaire(stems, ajouter=True):
-    fichier = ETAT / "a-refaire.json"
-    liste = a_refaire() | set(stems) if ajouter else a_refaire() - set(stems)
-    fichier.write_text(json.dumps(sorted(liste)))
+def marquer_a_refaire(stems, ajouter=True, maintenant=False):
+    file = a_refaire()
+    for stem in stems:
+        if ajouter:
+            file[stem] = "maintenant" if maintenant else "en_charge"
+        else:
+            file.pop(stem, None)
+    (ETAT / "a-refaire.json").write_text(json.dumps(file, sort_keys=True))
 
 
 def a_ameliorer(chemin, regl):
@@ -962,7 +968,8 @@ class Agent:
         fichiers.sort(key=lambda p: p.stem, reverse=True)
         nouveaux = [f for f in fichiers if a_transcrire_fichier(f)]
         # Demandées par `retranscrire` (batterie permise), puis celles d'un autre modèle (en charge seulement).
-        forcees = a_refaire()
+        # Une retranscription en masse attend la charge ; `--maintenant` (un appel précis) part sous la garde batterie.
+        forcees = {stem for stem, mode in a_refaire().items() if mode == "maintenant" or en_charge()}
         refaire = [f for f in fichiers if f.stem in forcees and f not in nouveaux]
         if regl.get("ameliorer_anciennes") and "parakeet" in regl["moteurs"] and en_charge():
             refaire += [f for f in fichiers if a_ameliorer(f, regl) and f not in refaire]
@@ -1009,7 +1016,7 @@ class Agent:
         log(f"transcription de {cible.name}" + ("" if neuf else f" (refaite en {id_modele('parakeet', regl)})"))
         if neuf:
             cede = lambda: not transcription_permise(regl)  # noqa: E731
-        elif cible.stem in a_refaire():
+        elif a_refaire().get(cible.stem) == "maintenant":
             cede = lambda: bool(self.a_faire(regl)[0]) or not transcription_permise(regl)  # noqa: E731
         else:
             cede = lambda: bool(self.a_faire(regl)[0]) or not en_charge()  # noqa: E731
@@ -1122,7 +1129,7 @@ def commande_retranscrire(arguments):
     fichiers = [chemin for _, _, chemin, _ in enregistrements_locaux()] + \
         sorted((ETAT / "messagerie").glob("*_messagerie.*"))
     choisis = selection([f for f in fichiers if fichier_transcription(f).exists()], arguments)
-    marquer_a_refaire([f.stem for f in choisis])
+    marquer_a_refaire([f.stem for f in choisis], maintenant=arguments.maintenant)
     print(f"{len(choisis)} transcription(s) mises en file ({len(a_refaire())} au total) : "
           + ", ".join(f.stem for f in choisis[:10]) + (" …" if len(choisis) > 10 else ""))
     return 0
@@ -1160,6 +1167,8 @@ def main(argv=None):
             parseur.add_argument("--jusqua", help="AAAA-MM-JJ")
             parseur.add_argument("--moteur", help="texte contenu dans le moteur (parakeet-tdt-0.6b-v3-q8_0, whisper)")
             parseur.add_argument("--tout", action="store_true")
+            parseur.add_argument("--maintenant", action="store_true",
+                                 help="sans attendre la charge (garde batterie à 30 %% quand même)")
         else:
             parseur.add_argument("audio", type=Path)
             parseur.add_argument("--troncon", type=float)

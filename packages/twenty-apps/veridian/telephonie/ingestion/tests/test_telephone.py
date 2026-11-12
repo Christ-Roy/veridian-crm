@@ -132,13 +132,18 @@ class Retranscrire(EtatIsole):
         with mock.patch("sys.stdout"):
             self.assertEqual(t.main(["retranscrire", "--etat", str(t.ETAT), "--jemrec", str(t.JEMREC),
                                      "--moteur", "parakeet-tdt"]), 0)
-        self.assertEqual(t.a_refaire(), {"20261110_190443_in", "20261112_093015_in"})
+        self.assertEqual(set(t.a_refaire()), {"20261110_190443_in", "20261112_093015_in"})
         t.marquer_a_refaire(["20261110_190443_in", "20261112_093015_in"], ajouter=False)
         with mock.patch("sys.stdout"):
             t.main(["retranscrire", "--etat", str(t.ETAT), "--jemrec", str(t.JEMREC), "--depuis", "2026-11-11",
                     "--jusqua", "2026-11-11"])
-        self.assertEqual(t.a_refaire(), {"20261111_142116_in"})
+        self.assertEqual(t.a_refaire(), {"20261111_142116_in": "en_charge"})
         agent = t.Agent(FauxCRM(), t.reglages())
+        with mock.patch.object(t, "en_charge", return_value=False):
+            self.assertEqual(agent.a_faire(agent.regl)[1], [])  # en masse : attend la charge
+        with mock.patch("sys.stdout"):
+            t.main(["retranscrire", "--etat", str(t.ETAT), "--jemrec", str(t.JEMREC), "--fichier",
+                    "20261111_142116_in", "--maintenant"])
         with mock.patch.object(t, "en_charge", return_value=False):
             self.assertEqual([f.stem for f in agent.a_faire(agent.regl)[1]], ["20261111_142116_in"])
         with mock.patch.object(t, "appels_locaux", return_value=[]), \
@@ -146,7 +151,7 @@ class Retranscrire(EtatIsole):
                 mock.patch.object(t, "batterie", return_value=(80, False)), \
                 mock.patch.object(t, "transcrire_un", return_value=True):
             self.assertTrue(agent.transcrire_en_attente(agent.regl, [], agent.a_faire(agent.regl)[1]))
-        self.assertEqual(t.a_refaire(), set())
+        self.assertEqual(t.a_refaire(), {})
 
 
 class Sondes(unittest.TestCase):
@@ -340,7 +345,7 @@ class Transcription(EtatIsole):
                 mock.patch.object(t, "transcrire_parakeet", return_value=["[  0.0-  1.0] mieux"]):
             t.transcrire_un(enregistrement, regl, ["parakeet"])
         self.assertTrue(t.infos_transcription(enregistrement)["moteurTranscription"].startswith(
-            "parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · chevauchement 1.5 s · 20"))
+            "parakeet-tdt-0.6b-v3-q8_0 · parakeet-cli · tronçons 30 s · 20"))
         self.assertFalse(t.a_ameliorer(enregistrement, regl))
         # Changer de modèle dans les réglages rend tout refaisable.
         autre = dict(regl, parakeet=dict(regl["parakeet"], modele=Path("ggml-parakeet-tdt-0.6b-v3-f16.bin")))
