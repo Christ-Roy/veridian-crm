@@ -53,11 +53,12 @@ au clic). L'audio se lit dans l'aperçu grâce au patch `veridian-audio` du fron
 
 ## L'app Android du téléphone (depuis le 12/11/2026)
 
-Le Pixel envoie lui-même au CRM par une vraie app Android,  : service de premier plan,
+Le Pixel envoie lui-même au CRM par une vraie app Android, `site.veridian.telephonie` : service de premier plan,
 observateurs du journal d'appels, des SMS, des MMS et de JemRec, file SQLite vidée par WorkManager, messagerie
 vocale par adb vers le téléphone même, transcription Parakeet en JNI. Même contrat que ci-dessous (porté en Kotlin,
-vérifié contre ce code Python). Tout est dans [](android/README.md). L'agent Termux décrit
-ci-dessous est arrêté ( et fichier ), ses fichiers sont gardés pour revenir en arrière.
+vérifié contre ce code Python). Tout est dans [`android/README.md`](android/README.md). L'agent Termux décrit
+ci-dessous est arrêté (`sv down crm-telephone` et fichier `$PREFIX/var/service/crm-telephone/down`), ses fichiers
+sont gardés pour revenir en arrière (retirer `down`, `sv up crm-telephone`, puis la commande `mode miroir` de l'app).
 
 ## L'ancien agent Termux (arrêté le 12/11/2026, gardé pour revenir en arrière)
 
