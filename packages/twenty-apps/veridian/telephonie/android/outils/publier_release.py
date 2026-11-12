@@ -48,12 +48,14 @@ def release(tag, nom, notes, prerelease):
     """Release en BROUILLON (dépôt public : la publier est une décision de Robert). Un brouillon n'a pas de tag
     tant qu'il n'est pas publié : il se retrouve par son tag_name dans la liste (visible avec le jeton)."""
     _, liste = appel("GET", f"{API}/releases?per_page=100")
-    r = next((x for x in liste or [] if x["tag_name"] == tag), None)
+    # Un brouillon modifié peut perdre son tag (GitHub le montre « untagged-… », vu le 12/11) : retrouvé aussi par son nom.
+    r = next((x for x in liste or [] if x["tag_name"] == tag), None) or \
+        next((x for x in liste or [] if x.get("draft") and x["name"] == nom), None)
     if r is None:
         _, r = appel("POST", f"{API}/releases", {"tag_name": tag, "target_commitish": COMMIT, "name": nom, "body": notes,
                                                   "prerelease": prerelease, "draft": True, "make_latest": "false"})
     elif r.get("draft"):
-        _, r = appel("PATCH", f"{API}/releases/{r['id']}", {"name": nom, "body": notes, "target_commitish": COMMIT})
+        _, r = appel("PATCH", f"{API}/releases/{r['id']}", {"tag_name": tag, "name": nom, "body": notes, "target_commitish": COMMIT})
     else:
         # Publiée par Robert : on met à jour ses fichiers et son tag suit le dernier commit construit.
         _, r = appel("PATCH", f"{API}/releases/{r['id']}", {"name": nom, "body": notes, "make_latest": "false"})
