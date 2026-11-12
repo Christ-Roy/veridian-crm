@@ -75,7 +75,10 @@ class ServiceTranscription : Service() {
         val (niveau, charge) = batterie()
         val permise = charge || (niveau != null && niveau >= reglages.batterieMinPct)
         val neuves = demandes.filter { it.mode == "neuf" || it.mode == "maintenant" }
-        val cible = (if (permise) neuves.firstOrNull() else null) ?: (if (charge) demandes.firstOrNull { it.mode == "en_charge" } else null)
+        // Les reprises « en charge » (améliorations) exigent aussi le seuil de batterie : le 12/11, téléphone à 14 % sur
+        // un chargeur lent, une reprise de 1 h 42 empêchait la batterie de remonter.
+        val enChargePermise = charge && niveau != null && niveau >= reglages.batterieMinPct
+        val cible = (if (permise) neuves.firstOrNull() else null) ?: (if (enChargePermise) demandes.firstOrNull { it.mode == "en_charge" } else null)
             ?: return false
         if (!cible.audio.exists()) { transcriptions.retirer(cible.stem); return true }
         if (moteurEtranger()) { Journal.log("transcription : un autre moteur tourne, attente"); return false }
@@ -84,7 +87,7 @@ class ServiceTranscription : Service() {
         val cede: () -> Boolean = when (cible.mode) {
             "neuf" -> { { !batteriePermise() } }
             "maintenant" -> { { transcriptions.lireDemandes().any { it.mode == "neuf" } || !batteriePermise() } }
-            else -> { { transcriptions.lireDemandes().any { it.mode == "neuf" } || !batterie().second } }
+            else -> { { transcriptions.lireDemandes().any { it.mode == "neuf" } || !batterie().let { (n, c) -> c && n != null && n >= reglages.batterieMinPct } } }
         }
         Journal.log("transcription de ${cible.audio.name}" + if (neuf) "" else " (refaite)")
         try {
