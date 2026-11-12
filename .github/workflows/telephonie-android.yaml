@@ -12,6 +12,8 @@ on:
       - packages/twenty-apps/veridian/telephonie/android/**
       - packages/twenty-apps/veridian/telephonie/ingestion/crm_telephonie.py
       - packages/twenty-apps/veridian/telephonie/ingestion/telephone.py
+      - packages/twenty-apps/veridian/telephonie/src/**
+      - packages/twenty-apps/veridian/telephonie/LISEZMOI.md
       - .github/workflows/telephonie-android.yaml
   workflow_dispatch:
 
@@ -100,9 +102,12 @@ jobs:
           APK=app/build/outputs/apk/release/app-release.apk
           cp "$APK" "$RUNNER_TEMP/telephonie-crm.apk"
           (cd "$RUNNER_TEMP" && sha256sum telephonie-crm.apk > telephonie-crm.apk.sha256)
-          python3 outils/publier_release.py "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA" \
-            "$RUNNER_TEMP/telephonie-crm.apk" "$RUNNER_TEMP/telephonie-crm.apk.sha256"
+          # L'app Twenty (sources du SDK), pour un Twenty qui n'est pas le nôtre : voir LISEZMOI.md
+          tar czf "$RUNNER_TEMP/telephonie-twenty-app.tgz" -C ../.. telephonie/src telephonie/package.json \
+            telephonie/yarn.lock telephonie/tsconfig.json telephonie/.yarnrc.yml telephonie/.nvmrc telephonie/LISEZMOI.md
+          python3 outils/publier_release.py "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA" "$RUNNER_TEMP/telephonie-crm.apk" \
+            "$RUNNER_TEMP/telephonie-crm.apk.sha256" "$RUNNER_TEMP/telephonie-twenty-app.tgz"
       - if: always()
         run: |
-          rm -rf "$RUNNER_TEMP/signature" "$RUNNER_TEMP/telephonie-crm.apk"*
+          rm -rf "$RUNNER_TEMP/signature" "$RUNNER_TEMP/telephonie-crm.apk"* "$RUNNER_TEMP/telephonie-twenty-app.tgz"
           git clean -ffdx

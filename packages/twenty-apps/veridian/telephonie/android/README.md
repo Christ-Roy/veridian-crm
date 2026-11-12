@@ -1,5 +1,8 @@
 # App Android « Téléphonie CRM » (remplace l'agent Termux)
 
+> Installable par n'importe qui depuis le 13/11/2026 : parcours utilisateur dans [`../LISEZMOI.md`](../LISEZMOI.md),
+> détails techniques dans « Installable par un tiers » plus bas.
+
 Le Pixel envoie lui-même au CRM (workspace `veridian-4`) chaque appel, SMS, MMS et message vocal, dans les secondes
 qui suivent l'événement : le record d'abord, l'audio ensuite, la transcription en dernier. Une vraie app Android
 (paquet `site.veridian.telephonie`) au lieu de `ingestion/telephone.py` sous Termux, qu'Android 17 tuait (processus
@@ -138,3 +141,34 @@ En `miroir`, l'app lit et planifie contre le vrai CRM sans rien écrire (`miroir
 une date doit être connu de l'app, chaque création qu'elle aurait faite doit exister avec les mêmes champs.
 Bascule : `mode ecriture`, puis côté Termux `SVDIR=$PREFIX/var/service sv down crm-telephone` (ses fichiers restent
 pour revenir en arrière : `sv up crm-telephone` et `mode miroir`).
+
+## Installable par un tiers (13/11/2026)
+
+| Pièce | Rôle |
+|---|---|
+| `AccueilActivity` | l'écran : connexion, test, autorisations, envoi, options, état |
+| `Acces` / `OAuth` | accès au CRM : clé API, ou OAuth natif de Twenty (enregistrement dynamique RFC 7591, PKCE S256, retour sur `127.0.0.1`), jetons chiffrés au Keystore, renouvelés seuls |
+| `Modele` | Parakeet q8_0 téléchargé par le DownloadManager (Wi-Fi, reprise), SHA-256 vérifié |
+| `Reglages.migrer` | schéma 2 : un téléphone déjà configuré reçoit en valeurs explicites ses anciens défauts |
+
+Twenty sans patch : `/.well-known/oauth-authorization-server`, `/oauth/register` (client public, PKCE obligatoire),
+`/authorize` (écran de consentement natif), `/oauth/token`. Le client enregistré dynamiquement agit avec le rôle
+du membre connecté (`resolve-application-role-id.util.ts`), donc avec ses droits ; la clé API au rôle
+Téléphone reste le parcours à accès limité. Une app Twenty ne peut pas créer de clé API (`createApiKey` exige une
+session d'utilisateur : `api-key-role-write-access-policy.constant.ts`). Jeton d'accès 30 min, refresh 60 jours
+renouvelé à chaque usage ; une révocation n'invalide pas le jeton d'accès en cours, elle prend effet à son
+renouvellement (30 min au plus).
+
+Test de connexion sans rien écrire : `PATCH /rest/<objet>/00000000-0000-4000-8000-000000000000` rend 404 si
+l'écriture est permise, 403 sinon (mesuré le 13/11/2026 sur le staging, clé Téléphone contre clé Admin).
+
+Refus du CRM (401 après un renouvellement, `invalid_grant`) : `reconnexion` posée dans les réglages, l'envoi
+s'arrête sans rien perdre, notification persistante « Reconnecter à Twenty » ; la reconnexion relance tout, le
+plan rapproche par `idSource` (aucun doublon).
+
+`appareil` est un SELECT aux options fixes (`PIXEL_8_PRO`, `GALAXY_S10E`, `AUTRE`) : un tiers est enregistré
+`AUTRE`, sans nouveau champ, pour ne pas réécrire les fiches existantes.
+
+Distribution : `.github/workflows/telephonie-android.yaml` (runners Veridian) construit, signe (secrets
+`TELEPHONIE_SIGNATURE_JKS_B64`, `TELEPHONIE_SIGNATURE_MDP`) et publie la release `telephonie-android` (lien
+stable) et `telephonie-v<version>`, avec l'archive de l'app Twenty.

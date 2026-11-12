@@ -4,7 +4,7 @@
   - `telephonie-android` : le lien stable, dont les fichiers sont remplacés à chaque construction.
 Le lien stable ne dépend pas de « latest » du dépôt (le CRM peut publier ses propres releases).
 
-    publier_release.py <owner/dépôt> <version> <commit> <apk> <sha256>
+    publier_release.py <owner/dépôt> <version> <commit> <fichier>...   (l'APK, sa somme .sha256, l'archive de l'app Twenty)
 Codes : 0 publié, 1 refusé par GitHub, 2 non abouti (réseau)."""
 import json
 import os
@@ -13,7 +13,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-DEPOT, VERSION, COMMIT, APK, SOMME = sys.argv[1:6]
+DEPOT, VERSION, COMMIT = sys.argv[1:4]
+FICHIERS = sys.argv[4:]
+SOMME = next(f for f in FICHIERS if f.endswith(".apk.sha256"))
 JETON = os.environ["GH_TOKEN"]
 API = f"https://api.github.com/repos/{DEPOT}"
 STABLE = "telephonie-android"
@@ -61,17 +63,19 @@ def televerser(r, chemin):
     base = r["upload_url"].split("{")[0]
     with open(chemin, "rb") as f:
         contenu = f.read()
-    type_contenu = "application/vnd.android.package-archive" if nom.endswith(".apk") else "text/plain"
+    type_contenu = ("application/vnd.android.package-archive" if nom.endswith(".apk") else
+                    "application/gzip" if nom.endswith(".tgz") else "text/plain")
     appel("POST", f"{base}?name={urllib.parse.quote(nom)}", contenu, type_contenu)
 
 
 somme = open(SOMME).read().split()[0]
 notes = (f"Téléphonie CRM {VERSION} (commit {COMMIT[:10]}).\n\nSHA-256 de l'APK : `{somme}`\n\n"
-         "Installation et réglages : packages/twenty-apps/veridian/telephonie/android/LISEZMOI.md")
+         f"Installation : https://github.com/{DEPOT}/blob/staging/packages/twenty-apps/veridian/telephonie/LISEZMOI.md\n"
+         "telephonie-twenty-app.tgz : l'app Twenty (objets Appels et SMS, rôle Téléphone), à installer dans votre Twenty.")
 for tag, nom, pre in ((f"telephonie-v{VERSION}", f"Téléphonie CRM {VERSION}", True),
                       (STABLE, "Téléphonie CRM (dernière version)", False)):
     r = release(tag, nom, notes, pre)
-    televerser(r, APK)
-    televerser(r, SOMME)
+    for f in FICHIERS:
+        televerser(r, f)
     print(f"publié : {r['html_url']}")
 print(f"lien stable : https://github.com/{DEPOT}/releases/download/{STABLE}/telephonie-crm.apk")
