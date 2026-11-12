@@ -16,7 +16,10 @@ set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 # Tensor G3 (Cortex-X3, A715, A510 : Armv9-A) : SVE2, i8mm, produit scalaire, fp16, et OpenMP lié en statique,
 # comme le build natif de Termux (system_info : SVE = 1, MATMUL_INT8 = 1, OPENMP = 1). Sans SVE ni OpenMP, mesuré le
 # 12/11 : 25 s par minute d'appel, contre 11 s sous Termux.
-set(GGML_CPU_ARM_ARCH "armv9-a+i8mm+dotprod+fp16" CACHE STRING "" FORCE)
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    set(GGML_CPU_ARM_ARCH "armv9-a+i8mm+dotprod+fp16" CACHE STRING "" FORCE)
+endif()
+# x86_64 (émulateur de recette seulement) : ggml générique, sans optimisation propre à un processeur.
 set(GGML_OPENMP ON CACHE BOOL "" FORCE)
 set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
 

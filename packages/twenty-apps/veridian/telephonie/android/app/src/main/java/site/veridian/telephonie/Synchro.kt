@@ -30,15 +30,26 @@ class Synchro private constructor(val ctx: Context) {
     val adb = Adb(ctx)
     val transcriptions = Transcriptions(ctx)
     val sources = Sources(ctx, reglages, adb)
+    val acces = Acces(ctx, reglages)
 
     enum class Flux(val nom: String, val pluriel: String) {
         APPELS("appels", "appels"), SMS("sms", "textMessages"), MMS("mms", "textMessages"), MESSAGERIE("messagerie", "appels")
     }
 
+    /** Null tant que l'accès manque ou attend une reconnexion : la file garde tout. */
     private fun twenty(): Twenty? {
-        val url = reglages.url ?: return null
-        val cle = reglages.cle ?: return null
-        return Twenty(url, cle, essais = 2)
+        if (!reglages.configure || reglages.reconnexion != null) return null
+        return Twenty(reglages.url!!, acces, essais = 2)
+    }
+
+    /** Après une connexion ou une reconnexion : tout ce qui attendait repart (le plan évite tout doublon). */
+    fun reconnecte() {
+        reglages.reconnexion = null
+        Acces.effacerNotification(ctx)
+        index = emptyMap(); indexLe = 0
+        signalerTout()
+        demanderVidange()
+        televersements.forEach { it.reveiller() }
     }
 
     // ------------------------------------------------------------ lecture, un fil par type
@@ -85,11 +96,13 @@ class Synchro private constructor(val ctx: Context) {
         }
         var enfiles = 0
         var max = curseur
+        val seuil = reglages.historiqueDepuisMs
         for (v in voulus) {
-            val empreinte = Contrat.sha1(VERSION_PLAN + Json.canonique(v))
-            if (base.enfiler(flux.pluriel, v["idSource"] as String, flux.nom, Json.texte(v), empreinte, Contrat.dateEvenement(v), d.signale)) enfiles++
             val ms = Instant.parse((v["debutLe"] ?: v["envoyeLe"]) as String).toEpochMilli()
             if (flux != Flux.MESSAGERIE && ms > max) max = ms
+            if (seuil > 0 && ms < seuil) continue
+            val empreinte = Contrat.sha1(VERSION_PLAN + Json.canonique(v))
+            if (base.enfiler(flux.pluriel, v["idSource"] as String, flux.nom, Json.texte(v), empreinte, Contrat.dateEvenement(v), d.signale)) enfiles++
         }
         if (max > curseur) base.ecrire("curseur.${flux.nom}", max.toString())
         if (enfiles > 0) {
@@ -138,7 +151,11 @@ class Synchro private constructor(val ctx: Context) {
 
     /** Vide la file ; rend vrai si elle est vide ou n'attend qu'un délai, faux si le CRM est injoignable. */
     fun vider(depuisTravail: Boolean = false): Boolean = synchronized(verrouVidange) {
-        val tw = twenty() ?: run { Journal.log("envoi : accès au CRM absent (commande configurer)"); return true }
+        val tw = twenty() ?: run {
+            Journal.log(if (reglages.reconnexion != null) "envoi : reconnexion à Twenty requise, ${base.taille()} en file"
+                else "envoi : accès au CRM absent (écran de l'app)")
+            return true
+        }
         var tours = 0
         while (tours++ < 50) {
             val prets = base.prets(System.currentTimeMillis())
@@ -146,6 +163,10 @@ class Synchro private constructor(val ctx: Context) {
             for ((pluriel, elements) in prets.groupBy { it.pluriel }) {
                 try {
                     traiter(tw, pluriel, elements)
+                } catch (e: ReconnexionRequise) {
+                    // Rien n'est perdu ni compté comme échec : tout attend la reconnexion (notification affichée).
+                    elements.forEach { base.reporter(it, 30_000, false) }
+                    return true
                 } catch (e: NonAbouti) {
                     elements.forEach { base.reporter(it, 30_000, false) }
                     Journal.log("envoi : CRM injoignable, ${base.taille()} en file, reprise au retour du réseau (${e.message})")
@@ -291,7 +312,7 @@ class Synchro private constructor(val ctx: Context) {
             val texteCrm = existant?.get("transcription") as String?
             if (transcriptions.texte(audio).isEmpty() && !texteCrm.isNullOrBlank()) {
                 transcriptions.reprendre(audio, texteCrm, existant?.get("sourceTranscription") as String?, existant?.get("moteurTranscription") as String?)
-            } else if (!reglages.miroir && transcriptions.aTranscrire(audio)) {
+            } else if (!reglages.miroir && reglages.transcriptionActive && transcriptions.aTranscrire(audio)) {
                 transcriptions.demander(audio, "neuf", if ((v["idSource"] as String).startsWith("messagerie:")) "messagerie" else "appels")
                 demandees++
             }
@@ -314,7 +335,7 @@ class Synchro private constructor(val ctx: Context) {
 
     /** En charge : refaire celles d'un autre modèle (ancien Parakeet, whisper), comme `ameliorer_anciennes`. */
     fun demanderAmeliorations() {
-        if (reglages.miroir || !reglages.ameliorerAnciennes) return
+        if (reglages.miroir || !reglages.ameliorerAnciennes || !reglages.transcriptionActive) return
         val id = site.veridian.telephonie.contrat.Decoupe.idModele("parakeet", reglages.modele.name)
         val audios = sources.enregistrements(transcriptions).map { File(it.chemin) } +
             (File(ctx.filesDir, "messagerie").listFiles()?.toList() ?: emptyList())
@@ -377,6 +398,8 @@ class Synchro private constructor(val ctx: Context) {
                     Journal.log("${t.pluriel} : ${portes.size} fichier(s) porté(s) en ${System.currentTimeMillis() - debut} ms")
                     base.reveiller(t.pluriel, t.idSource)
                     demanderVidange()
+                } catch (e: ReconnexionRequise) {
+                    continue  // twenty() rend null au tour suivant : le fil attend la reconnexion
                 } catch (e: NonAbouti) {
                     // Sans limite tant que le record existe : 30 s, 1, 2, 4… jusqu'à 30 min entre deux essais.
                     val delai = minOf(1_800_000L, 30_000L shl minOf(t.essais, 6))

@@ -21,7 +21,7 @@ const lectureEcriture = {
 export default defineRole({
   universalIdentifier: TELEPHONE_ROLE_UNIVERSAL_IDENTIFIER,
   label: 'Téléphone',
-  description: 'Clé API du téléphone de Robert : lit les personnes, écrit appels et SMS, téléverse leurs fichiers',
+  description: "Clé API ou connexion d'un téléphone : lit les personnes, écrit appels et SMS, téléverse leurs fichiers",
   icon: 'IconDeviceMobile',
   canReadAllObjectRecords: false,
   canUpdateAllObjectRecords: false,

@@ -66,7 +66,7 @@ class ServiceSynchro : Service() {
         // Un MMS envoyé par Google Messages ne notifie que content://mms-sms (mesuré le 12/11 : _id 31 à 17h03:20,
         // aucun réveil sur content://mms) : ce point de convergence relit SMS et MMS.
         observer(Uri.parse("content://mms-sms/")) { synchro.signaler(Synchro.Flux.SMS); synchro.signaler(Synchro.Flux.MMS) }
-        try { observer(Uri.parse(Sources.MESSAGERIE)) { rafale() } } catch (_: SecurityException) {}
+        observer(Uri.parse(Sources.MESSAGERIE)) { rafale() }
         surveillerJemrec()
         surveillerReseau()
         surveillerAppels()
@@ -98,7 +98,7 @@ class ServiceSynchro : Service() {
     private fun premierPlan() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CANAL, "Synchronisation CRM", NotificationManager.IMPORTANCE_MIN))
-        val ouvrir = PendingIntent.getActivity(this, 0, Intent(this, EtatActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val ouvrir = PendingIntent.getActivity(this, 0, Intent(this, AccueilActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         startForeground(1, notification(ouvrir), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
     }
 
@@ -110,7 +110,10 @@ class ServiceSynchro : Service() {
         val texte = "mode $mode · file ${s.base.taille()} · fichiers ${s.base.taille("televersements")} · adb ${s.adb.etat}\n" +
             synchronized(Journal) { Journal.dernieres.joinToString("\n") }
         return Notification.Builder(this, CANAL).setSmallIcon(android.R.drawable.sym_action_call)
-            .setContentTitle(if (mode == "miroir") "CRM : mode miroir (rien n'est écrit)" else "CRM : appels et SMS synchronisés")
+            .setContentTitle(when {
+                Reglages(this).reconnexion != null -> "CRM : reconnexion à Twenty requise (rien n'est perdu)"
+                mode == "miroir" -> "CRM : mode essai (rien n'est écrit)"
+                else -> "CRM : appels et SMS synchronisés" })
             .setContentText(texte.lineSequence().first()).setStyle(Notification.BigTextStyle().bigText(texte))
             .setContentIntent(ouvrir).setOngoing(true).setOnlyAlertOnce(true).build()
     }
@@ -121,7 +124,7 @@ class ServiceSynchro : Service() {
             if (Journal.change != notifiee) {
                 notifiee = Journal.change
                 try {
-                    val ouvrir = PendingIntent.getActivity(this@ServiceSynchro, 0, Intent(this@ServiceSynchro, EtatActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+                    val ouvrir = PendingIntent.getActivity(this@ServiceSynchro, 0, Intent(this@ServiceSynchro, AccueilActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
                     getSystemService(NotificationManager::class.java).notify(1, notification(ouvrir))
                 } catch (e: Exception) { Journal.erreur("notification", e) }
             }
@@ -139,8 +142,13 @@ class ServiceSynchro : Service() {
                 handler.postDelayed({ prevu = false; action() }, 300)
             }
         }
-        contentResolver.registerContentObserver(uri, true, o)
-        observateurs += o
+        try {
+            contentResolver.registerContentObserver(uri, true, o)
+            observateurs += o
+        } catch (e: SecurityException) {
+            // Autorisation pas encore accordée (premier lancement) : l'écran relance le service une fois accordée.
+            Journal.log("observateur $uri : autorisation manquante")
+        }
     }
 
     private fun surveillerJemrec() {

@@ -136,6 +136,7 @@ class Sources(private val ctx: Context, private val reglages: Reglages, private 
     }
 
     private fun adbPermis(): Boolean {
+        if (!reglages.messagerieActive) return false  // fonction avancée, choisie dans l'app
         val attente = when {
             adb.etat.startsWith("clé") -> 600_000
             adb.etat.contains("pas de Wi-Fi") -> 300_000  // le retour du Wi-Fi relance tout de suite (reessayerAdb)

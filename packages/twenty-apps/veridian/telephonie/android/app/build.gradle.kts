@@ -20,7 +20,8 @@ android {
         targetSdk = 36
         versionCode = (System.getenv("TELEPHONIE_VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("TELEPHONIE_VERSION") ?: "dev"
-        ndk { abiFilters += "arm64-v8a" }
+        // arm64 : les téléphones ; x86_64 : l'émulateur de recette (KVM). Parakeet compilé pour les deux.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         externalNativeBuild {
             cmake {
                 arguments += listOf("-DWHISPER_DIR=${rootDir}/build-deps/whisper.cpp", "-DANDROID_STL=c++_static",
@@ -54,4 +55,6 @@ android {
 dependencies {
     implementation("site.veridian.telephonie:contrat:1")
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+    // Lecture du QR de connexion (Apache 2.0, sans Google Play Services) ; caméra demandée seulement au scan.
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }

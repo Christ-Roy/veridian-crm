@@ -1,6 +1,8 @@
 # App Android « Téléphonie CRM » : le contrat Kotlin rend exactement ce que rend le Python de référence
-# (ingestion/), sans SDK Android (JDK seul). L'APK se construit sur le bastion (outils/construire.sh), pas ici.
-# Push seulement (dépôt public : aucun code tiers sur un runner auto-hébergé), runners Veridian (loi 7).
+# (ingestion/), puis l'APK signé est construit et publié en release GitHub, lien stable :
+#   https://github.com/Christ-Roy/veridian-crm/releases/download/telephonie-android/telephonie-crm.apk
+# Runners Veridian seulement (loi 7), jamais un runner GitHub hébergé. Push seulement : dépôt public, aucun code
+# de pull request ne tourne ici, et le secret de signature ne sert qu'à un push sur staging ou main.
 name: telephonie-android
 
 on:
@@ -10,10 +12,15 @@ on:
       - packages/twenty-apps/veridian/telephonie/android/**
       - packages/twenty-apps/veridian/telephonie/ingestion/crm_telephonie.py
       - packages/twenty-apps/veridian/telephonie/ingestion/telephone.py
+      - .github/workflows/telephonie-android.yaml
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: telephonie-android-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   contrat:
@@ -34,3 +41,68 @@ jobs:
         run: ./gradlew -p contrat test --console=plain
       - if: always()
         run: git clean -ffdx
+
+  apk:
+    needs: contrat
+    runs-on: [self-hosted, veridian-jit]
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      ANDROID_HOME: ${{ runner.temp }}/android-sdk
+      CMDLINE_TOOLS_ZIP: commandlinetools-linux-11076708_latest.zip
+      CMDLINE_TOOLS_SHA256: 2d2d50857e4eb553af5a6dc3ad507a17adf43d115264b1afc116f95c92e5e258
+    defaults:
+      run:
+        working-directory: packages/twenty-apps/veridian/telephonie/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 20
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: SDK Android (cmdline-tools vérifiés par SHA-256, le reste par sdkmanager)
+        run: |
+          set -euo pipefail
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          curl -fsSL -o /tmp/cmdtools.zip "https://dl.google.com/android/repository/$CMDLINE_TOOLS_ZIP"
+          echo "$CMDLINE_TOOLS_SHA256  /tmp/cmdtools.zip" | sha256sum -c -
+          unzip -q /tmp/cmdtools.zip -d "$ANDROID_HOME/cmdline-tools" && mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;35.0.0" \
+            "ndk;28.2.13676358" "cmake;3.22.1" >/dev/null
+      - name: Signature (secret du dépôt, jamais écrite dans l'arbre)
+        env:
+          SIGNATURE_JKS_B64: ${{ secrets.TELEPHONIE_SIGNATURE_JKS_B64 }}
+          SIGNATURE_MDP: ${{ secrets.TELEPHONIE_SIGNATURE_MDP }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SIGNATURE_JKS_B64" ]; then echo "::error::secret TELEPHONIE_SIGNATURE_JKS_B64 absent"; exit 1; fi
+          D="$RUNNER_TEMP/signature"; mkdir -m 700 -p "$D"
+          echo "$SIGNATURE_JKS_B64" | base64 -d > "$D/telephonie-crm.jks"
+          umask 077
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=telephonie-crm\nkeyPassword=%s\n' "$D/telephonie-crm.jks" "$SIGNATURE_MDP" "$SIGNATURE_MDP" > "$D/telephonie-crm.properties"
+      - name: Construire (whisper.cpp épinglé, contrat, APK signé)
+        run: |
+          set -euo pipefail
+          export SIGNATURE_DIR="$RUNNER_TEMP/signature"
+          export TELEPHONIE_VERSION_CODE="$(TZ=Europe/Paris date +%y%m%d%H)"
+          export TELEPHONIE_VERSION="$(TZ=Europe/Paris date +%Y%m%d.%H%M)-${GITHUB_SHA::10}"
+          outils/construire.sh
+          echo "VERSION=$TELEPHONIE_VERSION" >> "$GITHUB_ENV"
+      - name: Publier la release (lien stable et version datée)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/release/app-release.apk
+          cp "$APK" "$RUNNER_TEMP/telephonie-crm.apk"
+          (cd "$RUNNER_TEMP" && sha256sum telephonie-crm.apk > telephonie-crm.apk.sha256)
+          python3 outils/publier_release.py "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA" \
+            "$RUNNER_TEMP/telephonie-crm.apk" "$RUNNER_TEMP/telephonie-crm.apk.sha256"
+      - if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/signature" "$RUNNER_TEMP/telephonie-crm.apk"*
+          git clean -ffdx

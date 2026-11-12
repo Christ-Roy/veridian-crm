@@ -37,7 +37,7 @@ class Commandes : BroadcastReceiver() {
     }
 
     private fun executer(ctx: Context, s: Synchro, i: Intent): String = when (i.getStringExtra("c")) {
-        "configurer" -> s.reglages.importer().also { s.adb.fermer(); ServiceSynchro.demarrer(ctx, origine = "configurer"); s.signalerTout() }
+        "configurer" -> s.reglages.importer().also { s.adb.fermer(); ServiceSynchro.demarrer(ctx, origine = "configurer"); s.reconnecte() }
         "mode" -> {
             val v = i.getStringExtra("valeur") ?: error("valeur attendue : miroir ou ecriture")
             require(v == "miroir" || v == "ecriture") { "miroir ou ecriture" }

@@ -21,10 +21,16 @@ class Refus(message: String) : Exception(message)
  * échoue vite au lieu de bloquer). Fichiers : envoi direct `createFileUpload` → PUT en flux → `completeFileUpload`,
  * jamais le multipart GraphQL, plafonné à 5 Mo (mesuré le 11/11/2026).
  */
-class Twenty(val url: String, private val cle: String, private val essais: Int = 2) {
+class Twenty(val url: String, private val acces: Acces?, private val essais: Int = 2, private val cleFixe: String? = null) {
+    /** Clé fixe (outils, tests de connexion avant enregistrement), sinon l'accès du téléphone (clé ou OAuth). */
+    constructor(url: String, cle: String, essais: Int = 2) : this(url, null, essais, cle)
+
+    private fun jeton(): String = cleFixe ?: acces!!.jeton()
 
     fun requete(methode: String, chemin: String, corps: Any? = null): JSONObject {
         var derniere: Exception? = null
+        var jeton = jeton()
+        var renouvele = false
         for (essai in 0 until essais) {
             val cnx = (URL(url + chemin).openConnection() as HttpURLConnection)
             try {
@@ -33,7 +39,7 @@ class Twenty(val url: String, private val cle: String, private val essais: Int =
                 // le 12/11 en 4G : 121 s pour un appel). Deux essais de 10 + 30 s au plus, puis la file attend.
                 cnx.connectTimeout = 10_000
                 cnx.readTimeout = 30_000
-                cnx.setRequestProperty("Authorization", "Bearer $cle")
+                cnx.setRequestProperty("Authorization", "Bearer $jeton")
                 cnx.setRequestProperty("Content-Type", "application/json")
                 if (corps != null) {
                     cnx.doOutput = true
@@ -45,6 +51,11 @@ class Twenty(val url: String, private val cle: String, private val essais: Int =
                     return if (texte.isBlank()) JSONObject() else JSONObject(texte)
                 }
                 val texte = (cnx.errorStream?.use { it.readBytes() } ?: ByteArray(0)).toString(Charsets.UTF_8).take(400)
+                if (code == 401 && acces != null && cleFixe == null) {
+                    // Jeton expiré ou révoqué : un renouvellement, une seule fois ; sinon reconnexion requise (lève).
+                    if (renouvele) throw acces.signaler("accès refusé par le CRM (HTTP 401)")
+                    renouvele = true; jeton = acces.refuse(); continue
+                }
                 if (code in setOf(429, 502, 503, 504) && essai + 1 < essais) {
                     Thread.sleep(minOf(60_000L, (1L shl essai) * 3000)); continue
                 }

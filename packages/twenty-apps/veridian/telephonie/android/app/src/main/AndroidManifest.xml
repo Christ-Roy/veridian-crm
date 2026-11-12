@@ -38,15 +38,39 @@
         android:supportsRtl="true"
         tools:targetApi="36">
 
+        <!-- L'écran de l'app : connexion (navigateur ou clé, QR), autorisations, envoi, options, état. -->
         <activity
-            android:name=".EtatActivity"
+            android:name=".AccueilActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Retour du navigateur après la connexion, et QR de configuration lu par l'appareil photo :
+                 telephonie-crm://connecter?url=…&cle=… (pré-remplit seulement, rien n'est enregistré sans le test). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="telephonie-crm" />
+            </intent-filter>
         </activity>
+
+        <activity
+            android:name=".EtatActivity"
+            android:exported="false"
+            android:label="@string/app_name" />
+
+        <!-- Fin du téléchargement du modèle de transcription : somme vérifiée, puis mise en place. -->
+        <receiver
+            android:name=".FinTelechargement"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
 
         <!-- Le cœur : sondes, observateurs, file et envoi. specialUse : sans plafond de durée (dataSync est
              limité à 6 h par jour depuis Android 15) et permis au démarrage. -->

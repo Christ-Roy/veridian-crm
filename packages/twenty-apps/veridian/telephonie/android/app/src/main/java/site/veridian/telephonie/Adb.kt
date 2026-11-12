@@ -61,6 +61,7 @@ class Adb(private val ctx: Context) {
             val c = try { connexion ?: connecter() } catch (e: NonAbouti) { throw e } catch (e: Exception) {
                 fermer(); etat = "échec de connexion (${e.javaClass.simpleName})"; throw NonAbouti("adb : ${e.message}", e)
             }
+            autoriserReouverture(c)
             try {
                 return c.exec(commande, delaiMs)
             } catch (e: Exception) {
@@ -69,6 +70,20 @@ class Adb(private val ctx: Context) {
             }
         }
         throw NonAbouti("adb")
+    }
+
+    private var reouvertureDemandee = false
+
+    /** Une fois connecté, le shell s'accorde à l'app WRITE_SECURE_SETTINGS (protection « development ») : elle rallume
+     *  seule le débogage sans fil après un redémarrage. Un tiers n'a ainsi aucune commande pm grant à taper. */
+    private fun autoriserReouverture(c: Connexion) {
+        if (reouvertureDemandee) return
+        reouvertureDemandee = true
+        if (ctx.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        try {
+            c.exec("pm grant ${ctx.packageName} android.permission.WRITE_SECURE_SETTINGS", 15_000)
+            Journal.log("adb : WRITE_SECURE_SETTINGS accordée par le shell")
+        } catch (e: Exception) { Journal.erreur("adb : pm grant", e) }
     }
 
     fun texte(commande: String, delaiMs: Long = 60_000) = executer(commande, delaiMs).toString(Charsets.UTF_8)

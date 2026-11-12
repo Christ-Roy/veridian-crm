@@ -71,7 +71,7 @@ class ServiceTranscription : Service() {
         essai?.let { f -> essai = null; return essayer(f) }
         val demandes = transcriptions.lireDemandes()
         if (demandes.isEmpty()) return false
-        if (reglages.miroir) return false
+        if (reglages.miroir || !reglages.transcriptionActive) return false
         val (niveau, charge) = batterie()
         val permise = charge || (niveau != null && niveau >= reglages.batterieMinPct)
         val neuves = demandes.filter { it.mode == "neuf" || it.mode == "maintenant" }

@@ -1,5 +1,6 @@
 package site.veridian.telephonie
 
+import android.app.Application
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
@@ -10,9 +11,37 @@ import java.io.File
  * (REGLAGES_DEFAUT), mesurées le 12/11/2026 ; `reglages.json` déposé par la commande `configurer` les remplace
  * clé par clé. L'accès au CRM (url, clé du rôle Téléphone) arrive de la même façon et n'est jamais journalisé.
  */
-class Reglages(ctx: Context) {
-    private val prefs = ctx.getSharedPreferences("reglages", Context.MODE_PRIVATE)
+class Reglages(private val ctx: Context) {
+    // Le processus de transcription relit le fichier s'il a changé (mode, transcription choisis dans l'app) :
+    // sans MODE_MULTI_PROCESS, il garderait la copie lue à son démarrage.
+    @Suppress("DEPRECATION")
+    private val prefs get() = ctx.getSharedPreferences("reglages",
+        if (Application.getProcessName().endsWith(":transcription")) Context.MODE_MULTI_PROCESS else Context.MODE_PRIVATE)
     val dossierExterne: File = ctx.getExternalFilesDir(null) ?: File(ctx.filesDir, "externe")
+
+    init { migrer() }
+
+    /**
+     * Schéma 2 (13/11/2026, app installable par un tiers) : les défauts propres à Robert (appareil PIXEL_8_PRO,
+     * dossier JemRec, transcription et messagerie actives) disparaissent des défauts. Un téléphone déjà configuré
+     * (accès CRM présent) les reçoit ici en valeurs explicites, une fois : sa configuration ne change pas d'un octet,
+     * la clé chiffrée n'est pas touchée, le mode reste celui qu'il était (miroir écrit explicitement s'il était au
+     * défaut), et `appareil` garde la valeur qui sert au rapprochement avec ce qui est déjà au CRM (aucun doublon).
+     */
+    private fun migrer() {
+        val schema = prefs.getInt("schema", 1)
+        if (schema >= SCHEMA) return
+        val e = prefs.edit()
+        if (prefs.contains("url")) {
+            if (!prefs.contains("mode")) e.putString("mode", "miroir")
+            if (!prefs.contains("r.appareil")) e.putString("r.appareil", "PIXEL_8_PRO")
+            if (!prefs.contains("r.jemrec")) e.putString("r.jemrec", "/sdcard/Recordings/JemRec")
+            if (!prefs.contains("r.transcription")) e.putString("r.transcription", "1")
+            if (!prefs.contains("r.messagerie")) e.putString("r.messagerie", "1")
+            if (!prefs.contains("acces")) e.putString("acces", ACCES_CLE)
+        }
+        e.putInt("schema", SCHEMA).commit()
+    }
 
     /** « miroir » : tout est lu et planifié, rien n'est écrit au CRM (plan journalisé dans miroir.jsonl). */
     var mode: String
@@ -21,8 +50,51 @@ class Reglages(ctx: Context) {
     val miroir get() = mode != "ecriture"
 
     val url: String? get() = prefs.getString("url", null)
+    /** « cle » : clé API (rôle Téléphone) ; « oauth » : connexion par le navigateur (jetons renouvelés). */
+    val acces: String get() = prefs.getString("acces", ACCES_CLE)!!
     /** Clé du rôle « Téléphone », chiffrée par une clé AES du Keystore Android (non exportable) ; jamais journalisée. */
-    val cle: String? get() = prefs.getString("cle_chiffree", null)?.let { Coffre.dechiffrer(it) }
+    val cle: String? get() = if (acces == ACCES_CLE) prefs.getString("cle_chiffree", null)?.let { Coffre.dechiffrer(it) } else null
+    val configure: Boolean get() = url != null && (if (acces == ACCES_OAUTH) prefs.contains("oauth_refresh") else prefs.contains("cle_chiffree"))
+
+    /** Enregistre un accès par clé API ; efface un éventuel accès OAuth. */
+    fun enregistrerCle(url: String, cle: String) {
+        prefs.edit().putString("url", url.trimEnd('/')).putString("acces", ACCES_CLE).putString("cle_chiffree", Coffre.chiffrer(cle))
+            .remove("oauth_client").remove("oauth_refresh").remove("oauth_jeton").remove("oauth_expire").remove("reconnexion").commit()
+    }
+
+    /** Enregistre un accès OAuth (client public enregistré dynamiquement, jetons chiffrés). */
+    fun enregistrerOAuth(url: String, client: String, jeton: String, expireMs: Long, refresh: String) {
+        prefs.edit().putString("url", url.trimEnd('/')).putString("acces", ACCES_OAUTH).putString("oauth_client", client)
+            .putString("oauth_jeton", Coffre.chiffrer(jeton)).putLong("oauth_expire", expireMs)
+            .putString("oauth_refresh", Coffre.chiffrer(refresh)).remove("cle_chiffree").remove("reconnexion").commit()
+    }
+
+    fun jetonsRenouveles(jeton: String, expireMs: Long, refresh: String) {
+        prefs.edit().putString("oauth_jeton", Coffre.chiffrer(jeton)).putLong("oauth_expire", expireMs)
+            .putString("oauth_refresh", Coffre.chiffrer(refresh)).commit()
+    }
+
+    val oauthClient: String? get() = prefs.getString("oauth_client", null)
+    val oauthJeton: String? get() = prefs.getString("oauth_jeton", null)?.let { Coffre.dechiffrer(it) }
+    val oauthExpire: Long get() = prefs.getLong("oauth_expire", 0)
+    val oauthRefresh: String? get() = prefs.getString("oauth_refresh", null)?.let { Coffre.dechiffrer(it) }
+
+    /** Accès refusé par le CRM (jeton révoqué, refresh expiré, clé révoquée) : tout attend en file une reconnexion. */
+    var reconnexion: String?
+        get() = prefs.getString("reconnexion", null)
+        set(v) { prefs.edit().apply { if (v == null) remove("reconnexion") else putString("reconnexion", v) }.commit() }
+
+    fun drapeau(cle: String) = prefs.getString("r.$cle", null) == "1"
+    fun poserDrapeau(cle: String, actif: Boolean) { prefs.edit().putString("r.$cle", if (actif) "1" else "0").commit() }
+    fun poserTexte(cle: String, valeur: String) { prefs.edit().putString("r.$cle", valeur).commit() }
+
+    /** Transcription Parakeet sur le téléphone : choisie par l'utilisateur et modèle présent. */
+    val transcriptionVoulue get() = drapeau("transcription")
+    val transcriptionActive get() = transcriptionVoulue && modele.exists()
+    /** Messagerie vocale par le shell du téléphone (adb vers lui-même) : fonction avancée, choisie. */
+    val messagerieActive get() = drapeau("messagerie")
+    /** Événements plus anciens que cette date (ms) ignorés ; 0 = tout l'historique. */
+    val historiqueDepuisMs get() = nombre("historique_depuis_ms").toLong()
 
     fun nombre(cle: String): Double = prefs.getString("r.$cle", null)?.toDoubleOrNull() ?: DEFAUT.getValue(cle)
     fun texte(cle: String): String = prefs.getString("r.$cle", null) ?: DEFAUT_TEXTE.getValue(cle)
@@ -36,8 +108,11 @@ class Reglages(ctx: Context) {
     /** Après ce nombre d'échecs de suite sur réseau facturé, un fichier attend le Wi-Fi ; 0 = n'importe quel réseau
      *  (Robert, 12/11/2026 : « j'ai illimité »). Le backoff de 30 s à 30 min, sans limite, s'applique toujours. */
     val echecsAvantWifi get() = nombre("audio_wifi_apres_echecs").toInt()
-    val appareil get() = texte("appareil")
+    /** Valeur du champ SELECT `appareil` du CRM (options fixes de l'app Twenty) : déduite du modèle réel. */
+    val appareil get() = texte("appareil").ifEmpty { appareilDe(android.os.Build.MANUFACTURER, android.os.Build.MODEL) }
     val jemrec get() = File(texte("jemrec"))
+    /** JemRec (F-Droid) installé et son dossier lisible : l'enregistrement des appels est proposé, sinon masqué. */
+    val jemrecPresent get() = jemrec.isDirectory
 
     /** Modèle Parakeet : chemin des réglages, sinon le dossier de l'app (poussé par adb, il n'entre pas dans l'APK). */
     val modele: File get() = File(texte("modele").ifEmpty { File(dossierExterne, "modeles/ggml-parakeet-tdt-0.6b-v3-q8_0.bin").path })
@@ -48,8 +123,7 @@ class Reglages(ctx: Context) {
         val acces = File(dossierExterne, "acces.json")
         if (acces.exists()) {
             val j = JSONObject(acces.readText())
-            prefs.edit().putString("url", j.getString("url").trimEnd('/')).putString("cle_chiffree", Coffre.chiffrer(j.getString("cle")))
-                .remove("cle").commit()
+            enregistrerCle(j.getString("url"), j.getString("cle"))
             acces.delete()
             faits += "accès"
         }
@@ -67,17 +141,33 @@ class Reglages(ctx: Context) {
         return faits.joinToString(", ").ifEmpty { "rien à importer" }
     }
 
-    fun resume(): JSONObject = JSONObject().put("mode", mode).put("crm", url != null && cle != null)
+    fun resume(): JSONObject = JSONObject().put("mode", mode).put("crm", configure).put("acces", acces)
+        .put("reconnexion", reconnexion).put("appareil", appareil).put("schema", prefs.getInt("schema", 1))
+        .put("transcription", transcriptionVoulue).put("messagerie", messagerieActive).put("jemrec", jemrecPresent)
+        .put("historique_depuis_ms", historiqueDepuisMs)
         .put("cle_sha256_12", cle?.let { site.veridian.telephonie.contrat.Contrat.sha256(it).take(12) })
         .put("modele", modele.path).put("modele_present", modele.exists()).put("troncon_s", tronconS)
         .put("chevauchement_s", chevauchementS).put("batterie_min_pct", batterieMinPct).put("fils", fils)
         .put("audio_wifi_apres_echecs", echecsAvantWifi)
 
     companion object {
+        const val SCHEMA = 2
+        const val ACCES_CLE = "cle"
+        const val ACCES_OAUTH = "oauth"
         val DEFAUT = mapOf("troncon_s" to 30.0, "chevauchement_s" to 0.0, "batterie_min_pct" to 30.0,
             "memoire_min_ko" to 1_500_000.0, "fils" to 4.0, "ameliorer_anciennes" to 1.0,
-            "audio_wifi_apres_echecs" to 0.0)
-        val DEFAUT_TEXTE = mapOf("appareil" to "PIXEL_8_PRO", "jemrec" to "/sdcard/Recordings/JemRec", "modele" to "")
+            "audio_wifi_apres_echecs" to 0.0, "historique_depuis_ms" to 0.0)
+        val DEFAUT_TEXTE = mapOf("appareil" to "", "jemrec" to "/sdcard/Recordings/JemRec", "modele" to "")
+
+        /** Options du SELECT `appareil` (appel.object.ts, text-message.object.ts) : PIXEL_8_PRO, GALAXY_S10E, sinon AUTRE. */
+        fun appareilDe(fabricant: String?, modele: String?): String {
+            val m = (modele ?: "").lowercase().trim()
+            return when {
+                m == "pixel 8 pro" -> "PIXEL_8_PRO"
+                m.startsWith("sm-g970") -> "GALAXY_S10E"
+                else -> "AUTRE"
+            }
+        }
     }
 }
 
