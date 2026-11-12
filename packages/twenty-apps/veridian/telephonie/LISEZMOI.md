@@ -32,10 +32,13 @@ Elle crée dans Twenty les objets **Appels** et **SMS**, leurs onglets sur les f
 
 ## 2. Installer l'application sur le téléphone
 
-1. Sur le téléphone, ouvrez ce lien :
-   <https://github.com/Christ-Roy/veridian-crm/releases/download/telephonie-android/telephonie-crm.apk>
-2. Ouvrez le fichier téléchargé. Android demande d'autoriser votre navigateur à installer des applications :
-   acceptez, puis touchez **Installer**.
+1. Sur le téléphone, ouvrez <https://veridian.site/telephonie> et touchez **Télécharger l'APK** (lien direct :
+   <https://github.com/Christ-Roy/veridian-crm/releases/download/telephonie-android/telephonie-crm.apk>).
+2. Ouvrez le fichier (bandeau **Ouvrir** en bas de Chrome, ou menu ⋮, **Téléchargements**). Android refuse
+   d'abord : touchez **Paramètres**, activez **Autoriser depuis cette source**, revenez en arrière, rouvrez le
+   fichier si besoin et touchez **Installer**.
+3. Si Google Play Protect propose une analyse : **Plus de détails**, puis **Installer sans analyser** (ou
+   **Analyser l'appli**, qui envoie l'application, pas vos données, à Google).
 
 ## 3. Connecter le téléphone à votre Twenty
 
@@ -43,7 +46,11 @@ Elle crée dans Twenty les objets **Appels** et **SMS**, leurs onglets sur les f
 2. Tapez l'adresse de votre Twenty (par exemple `monentreprise.twenty.com`).
 3. Touchez **Se connecter avec Twenty**. Le navigateur s'ouvre : connectez-vous comme d'habitude, puis touchez
    **Authorize**.
-4. Touchez **Revenir à Téléphonie CRM**. L'écran affiche « Connexion prête » et la liste des vérifications.
+4. Touchez **Revenir à Téléphonie CRM** si le navigateur le propose. L'écran affiche « Connexion prête » et la
+   liste des vérifications.
+
+CRM Veridian, première connexion : si Twenty répond « redirectUrl mismatch » après votre connexion, revenez dans
+l'application et touchez de nouveau **Se connecter avec Twenty** (défaut connu, `todo/2026-11-12-oauth-telephonie-redirect-localhost.md`).
 
 Vous préférez donner au téléphone un accès limité aux seuls appels et SMS ? Créez dans Twenty une clé API
 (Paramètres, API et webhooks, Créer une clé) avec le rôle **Téléphone**, puis collez-la dans le champ
