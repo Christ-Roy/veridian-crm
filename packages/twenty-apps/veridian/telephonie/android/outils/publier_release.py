@@ -2,7 +2,10 @@
 """Publie l'APK en release GitHub, sans dépendance (API REST, jeton GH_TOKEN) :
   - `telephonie-v<version>` : la version datée, gardée ;
   - `telephonie-android` : le lien stable, dont les fichiers sont remplacés à chaque construction.
-Créées en BROUILLON : le dépôt est public, une release publiée l'est pour le monde ; Robert la publie.
+Une release neuve naît en BROUILLON (dépôt public : la publier est une décision de Robert). `telephonie-android`
+est PUBLIÉE depuis le 12/11/2026 (accord de Robert, lien de https://veridian.site/telephonie) : elle le reste, ses
+fichiers sont remplacés sans trou (nouveaux fichiers téléversés sous un nom provisoire, puis échange de noms), pour
+que le lien public ne rende jamais 404 ni une somme qui ne correspond pas à l'APK pendant un téléversement.
 Le lien stable ne dépend pas de « latest » du dépôt (le CRM peut publier ses propres releases).
 
     publier_release.py <owner/dépôt> <version> <commit> <fichier>...   (l'APK, sa somme .sha256, l'archive de l'app Twenty)
@@ -63,17 +66,32 @@ def release(tag, nom, notes, prerelease):
     return r
 
 
-def televerser(r, chemin):
-    nom = os.path.basename(chemin)
-    for a in r.get("assets", []):
-        if a["name"] == nom:
-            appel("DELETE", f"{API}/releases/assets/{a['id']}")
+PROVISOIRE = "nouveau-"
+
+
+def remplacer(r, chemins):
+    """Téléverse tous les fichiers sous un nom provisoire, puis seulement ensuite supprime chaque ancien et renomme le
+    nouveau : le lien public ne manque l'APK que le temps d'un DELETE suivi d'un PATCH, et l'APK et sa somme changent
+    ensemble au lieu d'être décalés de la durée d'un téléversement de 13 Mo (vu le 12/11 : ancien code DELETE puis POST)."""
+    noms = {os.path.basename(c) for c in chemins}
+    anciens = {a["name"]: a["id"] for a in r.get("assets", [])}
+    for nom, ident in anciens.items():  # restes d'une construction interrompue
+        if nom.startswith(PROVISOIRE) and nom[len(PROVISOIRE):] in noms:
+            appel("DELETE", f"{API}/releases/assets/{ident}")
     base = r["upload_url"].split("{")[0]
-    with open(chemin, "rb") as f:
-        contenu = f.read()
-    type_contenu = ("application/vnd.android.package-archive" if nom.endswith(".apk") else
-                    "application/gzip" if nom.endswith(".tgz") else "text/plain")
-    appel("POST", f"{base}?name={urllib.parse.quote(nom)}", contenu, type_contenu)
+    nouveaux = {}
+    for chemin in chemins:
+        nom = os.path.basename(chemin)
+        with open(chemin, "rb") as f:
+            contenu = f.read()
+        type_contenu = ("application/vnd.android.package-archive" if nom.endswith(".apk") else
+                        "application/gzip" if nom.endswith(".tgz") else "text/plain")
+        _, a = appel("POST", f"{base}?name={urllib.parse.quote(PROVISOIRE + nom)}", contenu, type_contenu)
+        nouveaux[nom] = a["id"]
+    for nom, ident in nouveaux.items():
+        if nom in anciens:
+            appel("DELETE", f"{API}/releases/assets/{anciens[nom]}")
+        appel("PATCH", f"{API}/releases/assets/{ident}", {"name": nom})
 
 
 somme = open(SOMME).read().split()[0]
@@ -83,7 +101,6 @@ notes = (f"Téléphonie CRM {VERSION} (commit {COMMIT[:10]}).\n\nSHA-256 de l'AP
 for tag, nom, pre in ((f"telephonie-v{VERSION}", f"Téléphonie CRM {VERSION}", True),
                       (STABLE, "Téléphonie CRM (dernière version)", False)):
     r = release(tag, nom, notes, pre)
-    for f in FICHIERS:
-        televerser(r, f)
+    remplacer(r, FICHIERS)
     print(f"{'brouillon' if r.get('draft') else 'publié'} : {r['html_url']}")
 print(f"lien stable : https://github.com/{DEPOT}/releases/download/{STABLE}/telephonie-crm.apk")

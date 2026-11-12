@@ -1,7 +1,8 @@
 # App Android « Téléphonie CRM » : le contrat Kotlin rend exactement ce que rend le Python de référence
-# (ingestion/), puis l'APK signé est construit et déposé en release GitHub BROUILLON (dépôt public : Robert la
-# publie). Une fois publiée, lien stable :
+# (ingestion/), puis l'APK signé est construit et remplace les fichiers de la release « telephonie-android », PUBLIÉE
+# depuis le 12/11/2026 (accord de Robert) et liée depuis https://veridian.site/telephonie. Lien stable public :
 #   https://github.com/Christ-Roy/veridian-crm/releases/download/telephonie-android/telephonie-crm.apk
+# Les versions datées (telephonie-v…) restent en brouillon. Remplacement sans trou : android/outils/publier_release.py.
 # Runners Veridian seulement (loi 7), jamais un runner GitHub hébergé. JAMAIS pull_request ni pull_request_target :
 # dépôt public, un fork exécuterait son code sur notre runner. Push sur staging/main et workflow_dispatch seulement ;
 # le secret de signature ne sert qu'au job apk.
