@@ -1,8 +1,10 @@
 # App Android « Téléphonie CRM » : le contrat Kotlin rend exactement ce que rend le Python de référence
-# (ingestion/), puis l'APK signé est construit et publié en release GitHub, lien stable :
+# (ingestion/), puis l'APK signé est construit et déposé en release GitHub BROUILLON (dépôt public : Robert la
+# publie). Une fois publiée, lien stable :
 #   https://github.com/Christ-Roy/veridian-crm/releases/download/telephonie-android/telephonie-crm.apk
-# Runners Veridian seulement (loi 7), jamais un runner GitHub hébergé. Push seulement : dépôt public, aucun code
-# de pull request ne tourne ici, et le secret de signature ne sert qu'à un push sur staging ou main.
+# Runners Veridian seulement (loi 7), jamais un runner GitHub hébergé. JAMAIS pull_request ni pull_request_target :
+# dépôt public, un fork exécuterait son code sur notre runner. Push sur staging/main et workflow_dispatch seulement ;
+# le secret de signature ne sert qu'au job apk.
 name: telephonie-android
 
 on:
@@ -51,7 +53,6 @@ jobs:
     permissions:
       contents: write
     env:
-      ANDROID_HOME: ${{ runner.temp }}/android-sdk
       CMDLINE_TOOLS_ZIP: commandlinetools-linux-11076708_latest.zip
       CMDLINE_TOOLS_SHA256: 2d2d50857e4eb553af5a6dc3ad507a17adf43d115264b1afc116f95c92e5e258
     defaults:
@@ -68,6 +69,7 @@ jobs:
       - name: SDK Android (cmdline-tools vérifiés par SHA-256, le reste par sdkmanager)
         run: |
           set -euo pipefail
+          ANDROID_HOME="$RUNNER_TEMP/android-sdk"; echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           mkdir -p "$ANDROID_HOME/cmdline-tools"
           curl -fsSL -o /tmp/cmdtools.zip "https://dl.google.com/android/repository/$CMDLINE_TOOLS_ZIP"
           echo "$CMDLINE_TOOLS_SHA256  /tmp/cmdtools.zip" | sha256sum -c -

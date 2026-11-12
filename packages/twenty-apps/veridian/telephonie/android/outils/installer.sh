@@ -4,7 +4,7 @@
 #     --acces  : l'accès au CRM (url et clé du rôle Téléphone), lu sur le bastion par `outils/acces_crm.py`, sans
 #                être affiché ; l'app a sa propre clé adb (acceptée une fois à l'écran, voir README).
 #     --modele : copie le modèle Parakeet de Termux dans le dossier de l'app (668 Mo, sur le téléphone même).
-# Accès : skill android, section Pixel (adb 5038 vers 100.98.226.42:5555 ; `ssh pixel` pour Termux).
+# Accès : skill android, section Pixel (serveur adb et adresse du téléphone en variables, hors dépôt).
 set -euo pipefail
 APK="${1:?APK attendu}"; shift
 MODE=""; MODELE=0; ACCES=0
@@ -17,7 +17,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 export ANDROID_ADB_SERVER_PORT="${ANDROID_ADB_SERVER_PORT:-5038}"
-CIBLE="${PIXEL_ADB:-100.98.226.42:5555}"
+CIBLE="${PIXEL_ADB:?PIXEL_ADB=<adresse:port adb du téléphone> manquant}"
 PAQUET=site.veridian.telephonie
 EXT="/sdcard/Android/data/$PAQUET/files"
 adb connect "$CIBLE" >/dev/null 2>&1 || true
