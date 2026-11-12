@@ -61,6 +61,10 @@ propre clé RSA** (fichiers privés de l'app ; rien de Termux) :
 - après un redémarrage, 5555 est fermé : l'app rallume le débogage sans fil (`WRITE_SECURE_SETTINGS`, accordée par
   `pm grant`), trouve son port (mDNS `_adb-tls-connect._tcp`, sinon balayage local), s'y connecte en TLS avec la même
   clé, puis rouvre 5555 (`tcpip:5555`). Ce que faisait le câble USB sur `rbt`.
+- mesuré le 12/11 : port fermé par `adb usb` à 16h58:37, rouvert par l'app à 16h59:17 ; après un redémarrage en
+  Wi-Fi (noyau à 16h59:48), service prêt et 5555 rouvert par l'app à 17h00:29, joignable depuis `mail` à 17h00:39 ;
+- un échec de connexion adb n'est jamais une exception qui remonte : le 12/11, un refus TLS non attrapé faisait planter
+  l'app en boucle après le redémarrage, et Android repoussait sa relance de 3 h (corrigé, vu échouer puis réussir) ;
 - **limite** : le débogage sans fil exige le Wi-Fi. Redémarré hors Wi-Fi (4G seule), le téléphone n'a pas de shell
   pour l'app : appels, SMS et MMS passent (ContentResolver), les messages vocaux attendent le Wi-Fi.
 
@@ -110,7 +114,8 @@ pixel shell "$C relire --ez complet true"
 pixel shell "$C retranscrire --es depuis 2026-11-10 [--ez maintenant true]"
 ```
 
-Journal sans donnée personnelle : `logcat -s TelephonieCRM`, et `etat` copie `journal.log`, `delais.tsv`
+Sans adb (4G après un redémarrage), l'état et les dernières lignes du journal sont dans la notification du service :
+`ssh pixel termux-notification-list`. Journal sans donnée personnelle : `logcat -s TelephonieCRM`, et `etat` copie `journal.log`, `delais.tsv`
 (délai entre l'événement et sa création au CRM) et le plan miroir dans `/sdcard/Android/data/site.veridian.telephonie/files/`.
 
 ## Mode miroir, puis bascule

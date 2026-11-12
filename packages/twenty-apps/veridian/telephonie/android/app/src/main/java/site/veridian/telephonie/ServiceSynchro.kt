@@ -70,12 +70,14 @@ class ServiceSynchro : Service() {
         registerReceiver(transcriptionPrete, IntentFilter(TRANSCRIPTION_PRETE), RECEIVER_NOT_EXPORTED)
         bindService(Intent(this, ServiceTranscription::class.java), liaison, BIND_AUTO_CREATE)
         Journal.log("service prêt (${synchro.reglages.mode}) : ${synchro.base.taille()} en file, ${synchro.base.taille("televersements")} fichiers")
+        synchro.prechauffer()
         synchro.signalerTout(complet = synchro.base.lire("premiere-lecture") == null)
         synchro.base.ecrire("premiere-lecture", "faite")
         synchro.demanderVidange()
         if (enCharge()) synchro.demanderAmeliorations()
         handler.post(boucleSonde)
         handler.postDelayed(filet, FILET_MS)
+        handler.postDelayed(etatNotification, 5_000)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -93,11 +95,34 @@ class ServiceSynchro : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CANAL, "Synchronisation CRM", NotificationManager.IMPORTANCE_MIN))
         val ouvrir = PendingIntent.getActivity(this, 0, Intent(this, EtatActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        startForeground(1, notification(ouvrir), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+    }
+
+    /** État dans la notification : mode, file, adb, dernières lignes du journal. Lisible en 4G sans adb
+     *  (`termux-notification-list` par ssh pixel), pour diagnostiquer quand le port 5555 est fermé. */
+    private fun notification(ouvrir: PendingIntent): Notification {
         val mode = Reglages(this).mode
-        val n = Notification.Builder(this, CANAL).setSmallIcon(android.R.drawable.sym_action_call)
+        val s = Synchro.de(this)
+        val texte = "mode $mode · file ${s.base.taille()} · fichiers ${s.base.taille("televersements")} · adb ${s.adb.etat}\n" +
+            synchronized(Journal) { Journal.dernieres.joinToString("\n") }
+        return Notification.Builder(this, CANAL).setSmallIcon(android.R.drawable.sym_action_call)
             .setContentTitle(if (mode == "miroir") "CRM : mode miroir (rien n'est écrit)" else "CRM : appels et SMS synchronisés")
-            .setContentIntent(ouvrir).setOngoing(true).build()
-        startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            .setContentText(texte.lineSequence().first()).setStyle(Notification.BigTextStyle().bigText(texte))
+            .setContentIntent(ouvrir).setOngoing(true).setOnlyAlertOnce(true).build()
+    }
+
+    private var notifiee = 0L
+    private val etatNotification = object : Runnable {
+        override fun run() {
+            if (Journal.change != notifiee) {
+                notifiee = Journal.change
+                try {
+                    val ouvrir = PendingIntent.getActivity(this@ServiceSynchro, 0, Intent(this@ServiceSynchro, EtatActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+                    getSystemService(NotificationManager::class.java).notify(1, notification(ouvrir))
+                } catch (e: Exception) { Journal.erreur("notification", e) }
+            }
+            handler.postDelayed(this, 15_000)
+        }
     }
 
     private fun observer(uri: Uri, action: () -> Unit) {
@@ -180,7 +205,7 @@ class ServiceSynchro : Service() {
     }
 
     private fun sonder() = sonde.execute {
-        val e = synchro.sources.sondeMessagerie() ?: return@execute
+        val e = try { synchro.sources.sondeMessagerie() } catch (t: Throwable) { Journal.erreur("sonde", t); null } ?: return@execute
         if (e != derniereSonde) {
             if (derniereSonde != null) Journal.log("messagerie : changement vu par la sonde")
             derniereSonde = e

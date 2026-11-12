@@ -132,7 +132,7 @@ class Sources(private val ctx: Context, private val reglages: Reglages, private 
         if (!adbPermis()) return null
         return try {
             adb.texte("content query --uri $MESSAGERIE --projection _id:has_content --sort '_id DESC LIMIT 1'", 30_000).trim()
-        } catch (e: NonAbouti) { adbEchec(e); null }
+        } catch (e: Exception) { adbEchec(e); null }
     }
 
     private fun adbPermis(): Boolean {
@@ -157,7 +157,7 @@ class Sources(private val ctx: Context, private val reglages: Reglages, private 
         val cles = listOf("_id", "number", "date", "duration", "has_content", "mime_type", "transcription")
         val liste = try {
             Contrat.parserContentQuery(adb.texte("content query --uri $MESSAGERIE --projection ${cles.joinToString(":")}", 60_000), cles)
-        } catch (e: NonAbouti) { adbEchec(e); return null }
+        } catch (e: Exception) { adbEchec(e); return null }
         return liste.map { v ->
             val extension = (v["mime_type"] ?: "audio/amr").substringAfterLast('/').replace("x-", "").ifEmpty { "amr" }
             val audio = File(etat, "messagerie/${Contrat.nomVocal(v["date"]!!.toLong())}.$extension")

@@ -231,23 +231,51 @@ class Synchro private constructor(val ctx: Context) {
 
     @Volatile private var index: Map<String, String> = emptyMap()
     @Volatile private var indexLe = 0L
+    private val rafraichissement = Executors.newSingleThreadExecutor()
+    @Volatile private var rafraichissementEnCours = false
 
+    /** Index des numéros du CRM. Jamais sur le chemin critique : gardé sur disque (un redémarrage repart avec), rendu
+     *  tout de suite, rafraîchi à côté toutes les 30 min. Seul le tout premier chargement, sans copie, attend. */
     private fun personnes(tw: Twenty): Map<String, String> {
-        synchronized(this) {
-            if (System.currentTimeMillis() - indexLe > 1_800_000) {
-                val nouveau = Contrat.indexTelephones(tw.toutLister("people")).first
-                val apparus = nouveau.keys - index.keys
-                val premier = indexLe == 0L
-                index = nouveau; indexLe = System.currentTimeMillis()
-                if (!premier && apparus.isNotEmpty()) {
-                    // Une personne ou un numéro ajouté au CRM : ses appels et messages déjà portés sont rattachés.
-                    val n = base.oublierNumeros(apparus)
-                    Journal.log("personnes : ${apparus.size} numéros nouveaux, $n événements à rattacher")
-                    if (n > 0) signalerTout(complet = true)
-                }
-            }
-            return index
+        if (index.isEmpty()) chargerIndexDisque()
+        if (index.isEmpty()) { rafraichirIndex(tw); return index }
+        if (System.currentTimeMillis() - indexLe > 1_800_000 && !rafraichissementEnCours) {
+            rafraichissementEnCours = true
+            rafraichissement.execute { try { rafraichirIndex(tw) } catch (e: Exception) { Journal.erreur("personnes", e) } finally { rafraichissementEnCours = false } }
         }
+        return index
+    }
+
+    private fun chargerIndexDisque() {
+        val texte = base.lire("personnes.index") ?: return
+        try {
+            val j = org.json.JSONObject(texte)
+            index = j.getJSONObject("index").let { o -> o.keys().asSequence().associateWith { o.getString(it) } }
+            indexLe = j.getLong("le")
+        } catch (_: Exception) {}
+    }
+
+    @Synchronized
+    private fun rafraichirIndex(tw: Twenty) {
+        val debut = System.currentTimeMillis()
+        val nouveau = Contrat.indexTelephones(tw.toutLister("people")).first
+        val apparus = nouveau.keys - index.keys
+        val premier = index.isEmpty()
+        index = nouveau; indexLe = System.currentTimeMillis()
+        base.ecrire("personnes.index", org.json.JSONObject().put("le", indexLe).put("index", org.json.JSONObject(nouveau)).toString())
+        Journal.log("personnes : ${nouveau.size} numéros en ${System.currentTimeMillis() - debut} ms")
+        if (!premier && apparus.isNotEmpty()) {
+            // Une personne ou un numéro ajouté au CRM : ses appels et messages déjà portés sont rattachés.
+            val n = base.oublierNumeros(apparus)
+            Journal.log("personnes : ${apparus.size} numéros nouveaux, $n événements à rattacher")
+            if (n > 0) signalerTout(complet = true)
+        }
+    }
+
+    /** Au démarrage du service : l'index part en avance, le premier événement ne l'attend pas. */
+    fun prechauffer() = rafraichissement.execute {
+        try { chargerIndexDisque(); twenty()?.let { if (System.currentTimeMillis() - indexLe > 1_800_000) rafraichirIndex(it) } }
+        catch (e: Exception) { Journal.erreur("personnes (préchauffage)", e) }
     }
 
     /** Transcription déjà au CRM : reprise ; sinon, en écriture, demande au processus de transcription. */

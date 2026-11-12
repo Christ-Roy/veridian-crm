@@ -22,8 +22,15 @@ object Journal {
         delais = File(ctx.filesDir, "delais.tsv")
     }
 
+    /** Les dernières lignes, pour la notification du service : lisibles sans adb (Termux:API, écran), sans donnée personnelle. */
+    val dernieres = java.util.ArrayDeque<String>()
+    @Volatile var change = 0L
+
     @Synchronized
     fun log(message: String) {
+        dernieres.addLast("${LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))} ${message.take(160)}")
+        while (dernieres.size > 4) dernieres.removeFirst()
+        change = System.currentTimeMillis()
         val processus = android.app.Application.getProcessName().substringAfter(':', "principal")
         Log.i(ETIQUETTE, "[$processus] $message")
         val f = fichier ?: return

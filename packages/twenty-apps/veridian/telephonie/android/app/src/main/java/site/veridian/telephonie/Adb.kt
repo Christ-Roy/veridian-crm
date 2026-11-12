@@ -55,7 +55,12 @@ class Adb(private val ctx: Context) {
     @Synchronized
     fun executer(commande: String, delaiMs: Long = 60_000): ByteArray {
         for (essai in 0..1) {
-            val c = connexion ?: connecter()
+            // Toute erreur de connexion (TLS refusé, port fermé) est un « non abouti », jamais une exception qui
+            // remonte : le 12/11 après un redémarrage, un SSLProtocolException non attrapé faisait planter l'app en
+            // boucle, et Android repoussait sa relance de 3 heures.
+            val c = try { connexion ?: connecter() } catch (e: NonAbouti) { throw e } catch (e: Exception) {
+                fermer(); etat = "échec de connexion (${e.javaClass.simpleName})"; throw NonAbouti("adb : ${e.message}", e)
+            }
             try {
                 return c.exec(commande, delaiMs)
             } catch (e: Exception) {
@@ -92,10 +97,12 @@ class Adb(private val ctx: Context) {
         etat = "connecté (sans fil $port)"
         try {
             tls.service("tcpip:5555", 10_000)
-            Journal.log("adb : port 5555 rouvert par le débogage sans fil ($port)")
+        } catch (e: java.io.EOFException) {
+            // adbd redémarre en mode TCP et coupe la connexion : c'est la réussite attendue
         } catch (e: Exception) {
             Journal.erreur("adb : tcpip:5555", e)
         }
+        Journal.log("adb : port 5555 rouvert par le débogage sans fil ($port)")
         try { tls.socket.close() } catch (_: Exception) {}
         Thread.sleep(2500)
         return Connexion.ouvrir(InetSocketAddress("127.0.0.1", 5555), cles, tls = false).also {
@@ -334,12 +341,24 @@ class Adb(private val ctx: Context) {
             val mdp = CharArray(0)
             ks.setKeyEntry("adb", paire.private, mdp, arrayOf(certificat))
             val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply { init(ks, mdp) }
+            // adbd demande un certificat client en nommant des autorités : le gestionnaire par défaut n'offre alors pas
+            // notre certificat auto-signé (TLSV1_ALERT_CERTIFICATE_REQUIRED, mesuré le 12/11). On l'offre toujours.
+            val defaut = kmf.keyManagers.filterIsInstance<javax.net.ssl.X509KeyManager>().first()
+            val toujours = object : javax.net.ssl.X509ExtendedKeyManager() {
+                override fun chooseClientAlias(t: Array<out String>?, i: Array<out java.security.Principal>?, s: java.net.Socket?) = "adb"
+                override fun chooseEngineClientAlias(t: Array<out String>?, i: Array<out java.security.Principal>?, e: javax.net.ssl.SSLEngine?) = "adb"
+                override fun getClientAliases(t: String?, i: Array<out java.security.Principal>?) = arrayOf("adb")
+                override fun getServerAliases(t: String?, i: Array<out java.security.Principal>?) = null
+                override fun chooseServerAlias(t: String?, i: Array<out java.security.Principal>?, s: java.net.Socket?) = null
+                override fun getCertificateChain(a: String?) = defaut.getCertificateChain("adb")
+                override fun getPrivateKey(a: String?) = defaut.getPrivateKey("adb")
+            }
             val confiance = object : X509TrustManager {
                 override fun checkClientTrusted(c: Array<out X509Certificate>?, a: String?) {}
                 override fun checkServerTrusted(c: Array<out X509Certificate>?, a: String?) {}
                 override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
             }
-            return SSLContext.getInstance("TLSv1.3").apply { init(kmf.keyManagers, arrayOf<TrustManager>(confiance), null) }
+            return SSLContext.getInstance("TLSv1.3").apply { init(arrayOf(toujours), arrayOf<TrustManager>(confiance), null) }
         }
 
         /** Certificat X.509 v3 auto-signé minimal (adbd ne vérifie que la clé publique, contre adb_keys). */

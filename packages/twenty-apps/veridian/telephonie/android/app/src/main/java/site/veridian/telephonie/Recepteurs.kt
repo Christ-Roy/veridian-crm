@@ -19,8 +19,15 @@ class App : Application(), Configuration.Provider {
         super.onCreate()
         Journal.init(this)
         if (getProcessName() == packageName) {
+            // Filet : une exception d'un fil de travail est journalisée et ne tue pas le processus (un plantage en
+            // boucle fait repousser la relance du service par Android jusqu'à 3 heures, mesuré le 12/11). Le fil
+            // principal, lui, plante normalement.
             Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler().let { avant ->
-                Thread.UncaughtExceptionHandler { t, e -> Journal.erreur("plantage (${t.name})", e); avant?.uncaughtException(t, e) }
+                Thread.UncaughtExceptionHandler { t, e ->
+                    Journal.erreur("exception non attrapée (${t.name})", e)
+                    if (t === android.os.Looper.getMainLooper().thread) avant?.uncaughtException(t, e)
+                    else ServiceSynchro.demarrer(this, origine = "après exception")
+                }
             })
             ServiceSynchro.demarrer(this, origine = "processus")
         }
