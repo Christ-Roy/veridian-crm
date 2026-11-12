@@ -84,7 +84,9 @@ class Adb(private val ctx: Context) {
         } catch (e: Exception) {
             etat = "5555 fermé (${e.message})"
         }
-        // 5555 fermé (redémarrage) : débogage sans fil, TLS, puis réouverture de 5555.
+        // 5555 fermé (redémarrage) : débogage sans fil, TLS, puis réouverture de 5555. Il exige le Wi-Fi : sans lui,
+        // ni balayage ni mDNS (batterie), on attend son retour.
+        if (!wifi()) { etat = "5555 fermé, pas de Wi-Fi"; throw NonAbouti("adb : 5555 fermé et pas de Wi-Fi") }
         val port = portSansFil() ?: throw NonAbouti("adb : 5555 fermé et débogage sans fil introuvable")
         val tls = Connexion.ouvrir(InetSocketAddress("127.0.0.1", port), cles, tls = true)
         etat = "connecté (sans fil $port)"
@@ -98,6 +100,11 @@ class Adb(private val ctx: Context) {
         Thread.sleep(2500)
         return Connexion.ouvrir(InetSocketAddress("127.0.0.1", 5555), cles, tls = false).also {
             connexion = it; etat = "connecté (tcp 5555, rouvert)" }
+    }
+
+    private fun wifi(): Boolean {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        return cm.allNetworks.any { cm.getNetworkCapabilities(it)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true }
     }
 
     /** Port TLS du débogage sans fil, rallumé au besoin (il faut le Wi-Fi). */

@@ -43,6 +43,7 @@ class ServiceSynchro : Service() {
     private val observateurs = mutableListOf<ContentObserver>()
     private var jemrec: FileObserver? = null
     private var reseau: ConnectivityManager.NetworkCallback? = null
+    private var wifi: ConnectivityManager.NetworkCallback? = null
     private var etatAppel: TelephonyCallback? = null
     private val sonde = Executors.newSingleThreadExecutor()
     @Volatile private var derniereSonde: String? = null
@@ -133,9 +134,20 @@ class ServiceSynchro : Service() {
             override fun onCapabilitiesChanged(network: Network, caps: android.net.NetworkCapabilities) {
                 val libre = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
                 if (libre && !nonFacture) synchro.reveillerFichiers()
+
                 nonFacture = libre
             }
         }.also { cm.registerDefaultNetworkCallback(it) }
+        // Le réseau par défaut est souvent le VPN (Tailscale) : le Wi-Fi a son propre rappel. À son retour, le shell
+        // (messagerie, réouverture de 5555 par le débogage sans fil) est retenté tout de suite.
+        wifi = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                Journal.log("réseau : Wi-Fi disponible")
+                synchro.sources.reessayerAdb(); synchro.reveillerFichiers()
+                handler.postDelayed({ sonder() }, 3000)
+            }
+        }.also { cm.registerNetworkCallback(android.net.NetworkRequest.Builder()
+            .addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI).build(), it) }
     }
 
     private fun surveillerAppels() {
@@ -206,6 +218,7 @@ class ServiceSynchro : Service() {
         observateurs.forEach { contentResolver.unregisterContentObserver(it) }
         jemrec?.stopWatching()
         reseau?.let { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it) }
+        wifi?.let { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it) }
         etatAppel?.let { getSystemService(TelephonyManager::class.java).unregisterTelephonyCallback(it) }
         try { unregisterReceiver(transcriptionPrete) } catch (_: Exception) {}
         try { unbindService(liaison) } catch (_: Exception) {}

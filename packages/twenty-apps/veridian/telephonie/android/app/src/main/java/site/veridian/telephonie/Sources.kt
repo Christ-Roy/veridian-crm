@@ -136,9 +136,15 @@ class Sources(private val ctx: Context, private val reglages: Reglages, private 
     }
 
     private fun adbPermis(): Boolean {
-        val attente = if (adb.etat.startsWith("clé")) 600_000 else 60_000
+        val attente = when {
+            adb.etat.startsWith("clé") -> 600_000
+            adb.etat.contains("pas de Wi-Fi") -> 300_000  // le retour du Wi-Fi relance tout de suite (reessayerAdb)
+            else -> 60_000
+        }
         return adb.etat.startsWith("connecté") || System.currentTimeMillis() - adbEssaiLe > attente
     }
+
+    fun reessayerAdb() { adbEssaiLe = 0 }
 
     private fun adbEchec(e: Exception) {
         adbEssaiLe = System.currentTimeMillis()
