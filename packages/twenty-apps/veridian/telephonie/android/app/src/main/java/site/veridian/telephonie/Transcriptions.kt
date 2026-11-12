@@ -20,7 +20,18 @@ class Transcriptions(ctx: Context) {
 
     fun texte(audio: File): String = fichier(audio).let { if (it.exists()) site.veridian.telephonie.contrat.Contrat.pyStrip(it.readText()) else "" }
 
-    fun aTranscrire(audio: File) = !fichier(audio).exists()
+    /** Version de l'app : un échec du moteur est retenté une fois, et une seule, après une nouvelle version. */
+    private val version: String = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toString() } catch (_: Exception) { "?" }
+
+    /** Échec noté par une AUTRE version de l'app (ou avant que la version soit notée) : une nouvelle chance. */
+    private fun echecAncien(audio: File): Boolean {
+        val f = fichier(audio, ".moteur")
+        if (!f.exists()) return false
+        val champs = f.readText().trim().split("\t")
+        return champs[0].startsWith("echec") && champs.getOrNull(1) != "v$version"
+    }
+
+    fun aTranscrire(audio: File) = !fichier(audio).exists() || (texte(audio).isEmpty() && echecAncien(audio))
 
     /** « parakeet:parakeet-tdt-0.6b-v3-q8_0 » ; vide si inconnu. */
     fun moteurDe(audio: File): String {
@@ -54,7 +65,8 @@ class Transcriptions(ctx: Context) {
     fun remplacements(audio: File): Map<String, Any?>? = anciennes(audio).takeIf { it.isNotEmpty() }?.let { mapOf("transcription" to it) }
 
     /** Transcription d'un autre modèle que celui voulu (ancien Parakeet, whisper), pas encore refaite. */
-    fun aAmeliorer(audio: File, idVoulu: String) = fichier(audio).exists() && moteurDe(audio) !in setOf("parakeet:$idVoulu", "echec-parakeet:$idVoulu")
+    fun aAmeliorer(audio: File, idVoulu: String) = fichier(audio).exists() && moteurDe(audio) != "parakeet:$idVoulu" &&
+        (moteurDe(audio) != "echec-parakeet:$idVoulu" || echecAncien(audio))
 
     /** Reprise du CRM : un appel déjà transcrit (pixel-appels, Termux) ne repasse pas par un moteur. */
     fun reprendre(audio: File, texteCrm: String, sourceCrm: String?, moteurCrm: String?) {
@@ -78,8 +90,8 @@ class Transcriptions(ctx: Context) {
     }
 
     fun echec(audio: File, neuf: Boolean, idModele: String) {
-        if (neuf) { fichier(audio).writeText(""); fichier(audio, ".moteur").writeText("echec:\n") }
-        else fichier(audio, ".moteur").writeText("echec-parakeet:$idModele\n")
+        if (neuf) { fichier(audio).writeText(""); fichier(audio, ".moteur").writeText("echec:\tv$version\n") }
+        else fichier(audio, ".moteur").writeText("echec-parakeet:$idModele\tv$version\n")
     }
 
     // ------------------------------------------------------------ demandes

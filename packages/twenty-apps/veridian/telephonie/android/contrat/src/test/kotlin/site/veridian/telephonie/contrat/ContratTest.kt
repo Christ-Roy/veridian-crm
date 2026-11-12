@@ -139,4 +139,19 @@ class ContratTest {
         ByteBuffer.wrap(octets).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(pcm)
         assertEquals(n(k(s.getJSONArray("silences"))), n(Decoupe.silences(pcm)))
     }
+
+    /** Le détecteur en flux, nourri par blocs de tailles quelconques (1 à 7919 échantillons), rend exactement les
+     *  mêmes bornes que ffmpeg : la coupure entre deux blocs ne déplace ni ne perd aucun silence. */
+    @Test fun silencesEnFluxCommeFfmpeg() {
+        val s = f.getJSONObject("silences")
+        val octets = Base64.getDecoder().decode(s.getString("pcm_s16le_base64"))
+        val pcm = ShortArray(octets.size / 2)
+        ByteBuffer.wrap(octets).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(pcm)
+        for (taille in listOf(1, 160, 4096, 7919, pcm.size)) {
+            val d = Decoupe.DetecteurSilences()
+            var i = 0
+            while (i < pcm.size) { val n = minOf(taille, pcm.size - i); d.pousser(pcm.copyOfRange(i, i + n), n); i += n }
+            assertEquals("blocs de $taille", n(k(s.getJSONArray("silences"))), n(d.finir()))
+        }
+    }
 }

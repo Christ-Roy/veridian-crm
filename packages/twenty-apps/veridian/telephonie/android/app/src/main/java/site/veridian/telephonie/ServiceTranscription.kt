@@ -121,9 +121,11 @@ class ServiceTranscription : Service() {
         // Chargeur qui décroche (vu le 12/11 : sept reprises en 10 min) : céder avant de décoder ou de charger le modèle.
         if (cede()) return null
         val avantDecodage = System.currentTimeMillis()
+        // En flux, mémoire bornée quelle que soit la durée : le PCM 16 kHz va sur disque, chaque tronçon en est relu.
         val pcm = pcm16k(audio)
-        Journal.log("audio : ${"%.1f".format(java.util.Locale.ROOT, pcm.size / 16_000.0 / 60)} min décodées en ${System.currentTimeMillis() - avantDecodage} ms")
-        val duree = pcm.size / 16_000.0
+        val total = pcm.length() / 2
+        Journal.log("audio : ${"%.1f".format(java.util.Locale.ROOT, total / 16_000.0 / 60)} min décodées en ${System.currentTimeMillis() - avantDecodage} ms")
+        val duree = total / 16_000.0
         val cible = reglages.tronconS
         val chevauchement = reglages.chevauchementS
         val travail = File(transcriptions.dossier, "${audio.nameWithoutExtension}.${reglages.modele.nameWithoutExtension}" +
@@ -131,7 +133,8 @@ class ServiceTranscription : Service() {
         val plan = File(travail, "plan.json")
         val morceaux: List<Pair<Double, Double>> = if (plan.exists()) JSONArray(plan.readText()).let { a ->
             (0 until a.length()).map { a.getJSONArray(it).let { p -> p.getDouble(0) to p.getDouble(1) } } }
-        else Decoupe.troncons(duree, Decoupe.silences(pcm), cible, cible / 4).also { m ->
+        else Decoupe.troncons(duree, Decoupe.DetecteurSilences().also { d -> Audio.parcourirPcm(pcm) { x, n -> d.pousser(x, n) } }.finir(),
+            cible, cible / 4).also { m ->
             plan.writeText(JSONArray(m.map { JSONArray().put(it.first).put(it.second) }).toString()) }
         val restants = morceaux.indices.filter { !File(travail, "%04d.json".format(it)).exists() }
         if (restants.isNotEmpty()) { if (cede()) return null; charger() }
@@ -140,9 +143,10 @@ class ServiceTranscription : Service() {
             if (cede()) return null
             val (a, b) = morceaux[i]
             val depart = if (i > 0) maxOf(0.0, a - chevauchement) else a
-            val de = (depart * 16_000).toInt().coerceIn(0, pcm.size)
-            val jusqua = (b * 16_000).toInt().coerceIn(de, pcm.size)
-            val flottants = FloatArray(jusqua - de) { pcm[de + it] / 32768f }
+            val de = (depart * 16_000).toLong().coerceIn(0, total)
+            val jusqua = (b * 16_000).toLong().coerceIn(de, total)
+            val morceau = Audio.lirePcm(pcm, de, (jusqua - de).toInt())
+            val flottants = FloatArray(morceau.size) { morceau[it] / 32768f }
             val sortie = Parakeet.transcrire(contexte, flottants, reglages.fils) ?: throw EchecMoteur("parakeet a échoué sur le tronçon $i")
             val jetons = sortie.lineSequence().filter { it.isNotEmpty() }.map { l ->
                 val (t0, t1, mot, texte) = l.split("\t", limit = 4)
@@ -159,26 +163,19 @@ class ServiceTranscription : Service() {
         }
         val lignes = morceaux.indices.flatMap { i -> JSONArray(File(travail, "%04d.json".format(i)).readText()).let { a -> (0 until a.length()).map { a.getString(it) } } }
         travail.deleteRecursively()
-        File(transcriptions.dossier, "${audio.nameWithoutExtension}.pcm").delete()
+        pcm.delete()
         return lignes
     }
 
-    /** PCM 16 kHz mono, gardé sur disque le temps de la transcription (un arrêt ne refait pas le décodage). */
-    private fun pcm16k(audio: File): ShortArray {
-        val f = File(transcriptions.dossier, "${audio.nameWithoutExtension}.pcm")
-        if (f.exists()) {
-            val octets = f.readBytes()
-            return ShortArray(octets.size / 2).also { ByteBuffer.wrap(octets).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(it) }
-        }
+    /** PCM 16 kHz mono de l'audio, sur disque (gardé jusqu'à la fin de la transcription, reprise au tronçon). */
+    private fun pcm16k(audio: File): File {
+        val f = File(transcriptions.dossier, "${audio.nameWithoutExtension}.pcm16")
+        if (f.exists()) return f
+        File(transcriptions.dossier, "${audio.nameWithoutExtension}.pcm").delete()  // ancien format, tout en mémoire
         val t0 = System.currentTimeMillis()
-        val brut = Audio.decoder(audio)
-        val t1 = System.currentTimeMillis()
-        val pcm = Audio.reechantillonner(brut, 16_000)
-        Journal.log("audio : décodage ${t1 - t0} ms (${brut.taux} Hz), rééchantillonnage ${System.currentTimeMillis() - t1} ms")
-        val b = ByteBuffer.allocate(pcm.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-        b.asShortBuffer().put(pcm)
-        File(f.path + ".part").apply { writeBytes(b.array()); renameTo(f) }
-        return pcm
+        val (n, _) = Audio.versPcm(audio, f) { 16_000 }
+        Journal.log("audio : décodage et rééchantillonnage en flux, ${n / 16_000} s en ${System.currentTimeMillis() - t0} ms")
+        return f
     }
 
     private fun charger() {

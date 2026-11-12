@@ -58,34 +58,48 @@ object Decoupe {
     }
 
     /** Valeur imprimée par ffmpeg (`%.6g` de ts × base de temps, multiplication comme `av_q2d(tb) * ts`), relue par le Python. */
-    private fun g6(x: Double): Double = if (x == 0.0) 0.0 else BigDecimal(x).round(MathContext(6, RoundingMode.HALF_EVEN)).toDouble()
+    internal fun g6(x: Double): Double = if (x == 0.0) 0.0 else BigDecimal(x).round(MathContext(6, RoundingMode.HALF_EVEN)).toDouble()
 
     /**
      * `silencedetect=noise=-35dB:d=0.3` sur du PCM 16 bits mono : un échantillon est muet si |x| < 582
      * (0,01778 × 32767 tronqué, comme ffmpeg) ; le silence est noté dès 0,3 s de muets, de son premier
      * échantillon au premier échantillon parlé (ou à la fin du flux).
      */
-    fun silences(pcm: ShortArray, taux: Int = 16_000, bruitDb: Double = -35.0, dureeS: Double = 0.3): List<Pair<Double, Double>> {
-        val bruit = (Math.pow(10.0, bruitDb / 20) * Short.MAX_VALUE).toInt().toShort()
-        val notifier = Math.round(dureeS * taux)
-        val bornes = mutableListOf<Pair<Double, Double>>()
-        var muets = 0L
-        var debut: Long = Long.MIN_VALUE
-        for (i in pcm.indices) {
-            val x = pcm[i]
-            if (x < bruit && x > -bruit) {
-                if (debut == Long.MIN_VALUE) {
-                    muets++
-                    if (muets >= notifier) debut = i + 1 - notifier
+    fun silences(pcm: ShortArray, taux: Int = 16_000, bruitDb: Double = -35.0, dureeS: Double = 0.3): List<Pair<Double, Double>> =
+        DetecteurSilences(taux, bruitDb, dureeS).apply { pousser(pcm, pcm.size) }.finir()
+
+    /** `silences` en flux, bloc par bloc : la mémoire ne dépend pas de la durée de l'appel (1 h 42 faisait
+     *  OutOfMemoryError le 12/11 quand tout l'audio était chargé). Mêmes bornes, échantillon pour échantillon. */
+    class DetecteurSilences(private val taux: Int = 16_000, bruitDb: Double = -35.0, dureeS: Double = 0.3) {
+        private val bruit = (Math.pow(10.0, bruitDb / 20) * Short.MAX_VALUE).toInt().toShort()
+        private val notifier = Math.round(dureeS * taux)
+        private val bornes = mutableListOf<Pair<Double, Double>>()
+        private var muets = 0L
+        private var debut: Long = Long.MIN_VALUE
+        private var i = 0L
+
+        fun pousser(bloc: ShortArray, n: Int) {
+            for (j in 0 until n) {
+                val x = bloc[j]
+                if (x < bruit && x > -bruit) {
+                    if (debut == Long.MIN_VALUE) {
+                        muets++
+                        if (muets >= notifier) debut = i + 1 - notifier
+                    }
+                } else {
+                    if (debut != Long.MIN_VALUE) bornes += maxOf(0.0, g6(debut * (1.0 / taux))) to g6(i * (1.0 / taux))
+                    muets = 0
+                    debut = Long.MIN_VALUE
                 }
-            } else {
-                if (debut != Long.MIN_VALUE) bornes += maxOf(0.0, g6(debut * (1.0 / taux))) to g6(i * (1.0 / taux))
-                muets = 0
-                debut = Long.MIN_VALUE
+                i++
             }
         }
-        if (debut != Long.MIN_VALUE) bornes += maxOf(0.0, g6(debut * (1.0 / taux))) to g6(pcm.size * (1.0 / taux))
-        return bornes
+
+        fun finir(): List<Pair<Double, Double>> {
+            if (debut != Long.MIN_VALUE) bornes += maxOf(0.0, g6(debut * (1.0 / taux))) to g6(i * (1.0 / taux))
+            debut = Long.MIN_VALUE
+            return bornes
+        }
     }
 
     /** `{x:g}` de Python pour une durée de réglage (30 → « 30 », 7.5 → « 7.5 »). */

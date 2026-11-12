@@ -13,10 +13,12 @@ import java.nio.ByteOrder
  * l'AMR, et JemRec écrit en stéréo vers 140 kbit/s deux voies identiques).
  */
 object Audio {
-    class Pcm(val echantillons: ShortArray, val taux: Int)
-
-    /** Tout le fichier en PCM 16 bits mono (moyenne des voies), au taux d'origine. */
-    fun decoder(fichier: File): Pcm {
+    /**
+     * Décodage en flux : chaque bloc PCM 16 bits mono (moyenne des voies) est rendu à `bloc(échantillons, n, taux)`
+     * dès sa sortie du codec. Rien n'est gardé : la mémoire ne dépend pas de la durée (le 12/11, un appel de 1 h 42
+     * chargé d'un seul tenant faisait OutOfMemoryError et la transcription bouclait).
+     */
+    fun decoderEnFlux(fichier: File, bloc: (ShortArray, Int, Int) -> Unit) {
         val extracteur = MediaExtractor()
         extracteur.setDataSource(fichier.path)
         val piste = (0 until extracteur.trackCount).first { extracteur.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("audio/") }
@@ -28,13 +30,13 @@ object Audio {
         var taux = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         var voies = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
         var flottant = false
-        val sortie = ShortTampon(maxOf(1024, (format.getLongOrZero(MediaFormat.KEY_DURATION) / 1_000_000 * taux).toInt()))
         val info = MediaCodec.BufferInfo()
         var finEntree = false
         // Toutes les entrées libres d'abord, puis toutes les sorties prêtes : un aller-retour par trame de 20 ms (attente
         // de 10 ms à chaque tour) prenait 95 s pour 10 min d'appel, mesuré le 12/11.
-        var bloc = ShortArray(0)
+        var brut = ShortArray(0)
         var flotBloc = FloatArray(0)
+        var mono = ShortArray(0)
         try {
             var fini = false
             while (!fini) {
@@ -55,30 +57,34 @@ object Audio {
                     } else if (o >= 0) {
                         val tampon = codec.getOutputBuffer(o)!!.order(ByteOrder.LITTLE_ENDIAN)
                         tampon.position(info.offset); tampon.limit(info.offset + info.size)
+                        var m = 0
                         if (flottant) {
                             val f = tampon.asFloatBuffer()
                             val n = f.remaining()
                             if (flotBloc.size < n) flotBloc = FloatArray(n)
+                            if (mono.size < n) mono = ShortArray(n)
                             f.get(flotBloc, 0, n)
                             var t = 0
                             while (t + voies <= n) {
                                 var somme = 0f
                                 for (v in 0 until voies) somme += flotBloc[t + v]
-                                sortie.ajouter((somme / voies * 32767f).coerceIn(-32768f, 32767f).toInt().toShort()); t += voies
+                                mono[m++] = (somme / voies * 32767f).coerceIn(-32768f, 32767f).toInt().toShort(); t += voies
                             }
                         } else {
                             val sb = tampon.asShortBuffer()
                             val n = sb.remaining()
-                            if (bloc.size < n) bloc = ShortArray(n)
-                            sb.get(bloc, 0, n)
+                            if (brut.size < n) brut = ShortArray(n)
+                            if (mono.size < n) mono = ShortArray(n)
+                            sb.get(brut, 0, n)
                             var t = 0
                             while (t + voies <= n) {
                                 var somme = 0
-                                for (v in 0 until voies) somme += bloc[t + v]
-                                sortie.ajouter((somme / voies).toShort()); t += voies
+                                for (v in 0 until voies) somme += brut[t + v]
+                                mono[m++] = (somme / voies).toShort(); t += voies
                             }
                         }
                         codec.releaseOutputBuffer(o, false)
+                        if (m > 0) bloc(mono, m, taux)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) { fini = true; break }
                     }
                     o = codec.dequeueOutputBuffer(info, 0)
@@ -87,61 +93,84 @@ object Audio {
         } finally {
             codec.stop(); codec.release(); extracteur.release()
         }
-        return Pcm(sortie.tableau(), taux)
+    }
+
+    /**
+     * Décode `fichier` vers `sortie` en PCM 16 bits mono petit-boutiste, au taux `cible(taux d'origine)`, en flux
+     * (mémoire bornée). Rend (nombre d'échantillons, taux). Fichier écrit en `.part` puis renommé.
+     */
+    fun versPcm(fichier: File, sortie: File, cible: (Int) -> Int): Pair<Long, Int> {
+        val partiel = File(sortie.path + ".part")
+        var r: site.veridian.telephonie.contrat.Reechantillonneur? = null
+        var ecrits = 0L
+        val octets = java.nio.ByteBuffer.allocate(1 shl 16).order(ByteOrder.LITTLE_ENDIAN)
+        java.io.BufferedOutputStream(java.io.FileOutputStream(partiel), 1 shl 16).use { flux ->
+            val ecrire: (ShortArray, Int) -> Unit = { x, n ->
+                var i = 0
+                while (i < n) {
+                    octets.clear()
+                    val k = minOf(n - i, octets.capacity() / 2)
+                    octets.asShortBuffer().put(x, i, k)
+                    flux.write(octets.array(), 0, k * 2)
+                    i += k; ecrits += k
+                }
+            }
+            decoderEnFlux(fichier) { x, n, taux ->
+                val re = r ?: site.veridian.telephonie.contrat.Reechantillonneur(taux, cible(taux)).also { r = it }
+                re.pousser(x, n, ecrire)
+            }
+            r?.finir(ecrire)
+        }
+        if (!partiel.renameTo(sortie)) throw java.io.IOException("renommage de ${partiel.name}")
+        return ecrits to (r?.cible ?: 16_000)
+    }
+
+    /** Lit `n` échantillons à partir de l'échantillon `de` d'un fichier PCM 16 bits (tronçon de transcription). */
+    fun lirePcm(fichier: File, de: Long, n: Int): ShortArray {
+        val octets = ByteArray(n * 2)
+        java.io.RandomAccessFile(fichier, "r").use { f -> f.seek(de * 2); f.readFully(octets) }
+        return ShortArray(n).also { java.nio.ByteBuffer.wrap(octets).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(it) }
+    }
+
+    /** Parcourt un fichier PCM 16 bits par blocs de 64 Ki échantillons. */
+    fun parcourirPcm(fichier: File, bloc: (ShortArray, Int) -> Unit) {
+        val octets = ByteArray(1 shl 17)
+        val x = ShortArray(1 shl 16)
+        java.io.BufferedInputStream(java.io.FileInputStream(fichier), 1 shl 17).use { e ->
+            while (true) {
+                var lus = 0
+                while (lus < octets.size) { val r = e.read(octets, lus, octets.size - lus); if (r < 0) break; lus += r }
+                val n = lus / 2
+                if (n == 0) break
+                java.nio.ByteBuffer.wrap(octets, 0, n * 2).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(x, 0, n)
+                bloc(x, n)
+                if (lus < octets.size) break
+            }
+        }
     }
 
     private fun MediaFormat.getLongOrZero(cle: String) = if (containsKey(cle)) getLong(cle) else 0L
 
-    /** Rééchantillonnage par sinc fenêtré (Hann, 8 zéros de chaque côté, table de 256 phases, entrée bordée de
-     *  zéros : pas de test de bornes dans la boucle). */
-    fun reechantillonner(pcm: Pcm, taux: Int): ShortArray {
-        if (pcm.taux == taux) return pcm.echantillons
-        val rapport = pcm.taux.toDouble() / taux
-        val coupure = minOf(1.0, 1.0 / rapport) * 0.95
-        val demi = Math.ceil(8 / coupure).toInt()
-        val largeur = 2 * demi
-        val phases = 256
-        val noyau = FloatArray(phases * largeur)
-        for (p in 0 until phases) {
-            val fraction = p.toDouble() / phases
-            for (k in 0 until largeur) {
-                val x = (k - demi + 1) - fraction
-                val fenetre = if (Math.abs(x) >= demi) 0.0 else 0.5 * (1 + Math.cos(Math.PI * x / demi))
-                val s = if (x == 0.0) 1.0 else Math.sin(Math.PI * x * coupure) / (Math.PI * x * coupure)
-                noyau[p * largeur + k] = (coupure * s * fenetre).toFloat()
-            }
-        }
-        val entree = FloatArray(pcm.echantillons.size + 2 * largeur)
-        for (i in pcm.echantillons.indices) entree[i + largeur] = pcm.echantillons[i].toFloat()
-        val n = ((pcm.echantillons.size.toLong() * taux) / pcm.taux).toInt()
-        val sortie = ShortArray(n)
-        for (i in 0 until n) {
-            val t = i * rapport
-            val base = t.toInt()
-            val h = ((t - base) * phases).toInt().coerceIn(0, phases - 1) * largeur
-            val j0 = base - demi + 1 + largeur
-            var somme = 0f
-            for (k in 0 until largeur) somme += entree[j0 + k] * noyau[h + k]
-            sortie[i] = somme.coerceIn(-32768f, 32767f).toInt().toShort()
-        }
-        return sortie
-    }
-
     private val TAUX_OPUS = intArrayOf(8000, 12000, 16000, 24000, 48000)
 
     /** Opus mono 32 kbit/s en Ogg ; null si l'encodeur échoue (l'original part alors tel quel). */
-    fun versOpus(source: File, sortie: File): File? = try {
-        val pcm = decoder(source)
-        val taux = if (pcm.taux in TAUX_OPUS) pcm.taux else 48000
-        val echantillons = reechantillonner(pcm, taux)
-        encoderOpus(echantillons, taux, sortie)
-        sortie.takeIf { it.length() > 0 }
-    } catch (e: Exception) {
-        Journal.erreur("Opus de ${source.name}", e)
-        sortie.delete(); null
+    fun versOpus(source: File, sortie: File): File? {
+        val pcm = File(sortie.path + ".pcm")
+        return try {
+            val (_, taux) = versPcm(source, pcm) { t -> if (t in TAUX_OPUS) t else 48000 }
+            encoderOpus(pcm, taux, sortie)
+            sortie.takeIf { it.length() > 0 }
+        } catch (e: Throwable) {
+            // OutOfMemoryError compris : l'original part tel quel, le fil des fichiers ne meurt pas.
+            Journal.log("Opus de ${source.name} impossible (${e.javaClass.simpleName} ${e.message}) : original envoyé")
+            sortie.delete(); null
+        } finally { pcm.delete(); File(pcm.path + ".part").delete() }
     }
 
-    private fun encoderOpus(pcm: ShortArray, taux: Int, fichier: File) {
+    private fun encoderOpus(pcmFichier: File, taux: Int, fichier: File) {
+        val total = pcmFichier.length() / 2
+        val lecture = java.io.BufferedInputStream(java.io.FileInputStream(pcmFichier), 1 shl 16)
+        val octets = ByteArray(64 * 1024)
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, taux, 1).apply {
             setInteger(MediaFormat.KEY_BIT_RATE, 32_000)
             setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 64 * 1024)
@@ -152,7 +181,7 @@ object Audio {
         val muxer = MediaMuxer(fichier.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG)
         var piste = -1
         val info = MediaCodec.BufferInfo()
-        var position = 0
+        var position = 0L
         var finEntree = false
         try {
             while (true) {
@@ -160,14 +189,16 @@ object Audio {
                     val i = codec.dequeueInputBuffer(0)
                     if (i >= 0) {
                         val tampon = codec.getInputBuffer(i)!!.order(ByteOrder.LITTLE_ENDIAN)
-                        val n = minOf(tampon.capacity() / 2, pcm.size - position, taux / 50 * 10)
+                        val n = minOf((tampon.capacity() / 2).toLong(), total - position, (taux / 50 * 10).toLong(), (octets.size / 2).toLong()).toInt()
                         val temps = position * 1_000_000L / taux
                         if (n <= 0) {
                             codec.queueInputBuffer(i, 0, 0, temps, MediaCodec.BUFFER_FLAG_END_OF_STREAM); finEntree = true
                         } else {
-                            tampon.asShortBuffer().put(pcm, position, n)
-                            codec.queueInputBuffer(i, 0, n * 2, temps, 0)
-                            position += n
+                            var lus = 0
+                            while (lus < n * 2) { val r = lecture.read(octets, lus, n * 2 - lus); if (r < 0) break; lus += r }
+                            tampon.clear(); tampon.put(octets, 0, lus)
+                            codec.queueInputBuffer(i, 0, lus, temps, 0)
+                            position += lus / 2
                         }
                     }
                 }
@@ -182,16 +213,9 @@ object Audio {
                 }
             }
         } finally {
+            lecture.close()
             codec.stop(); codec.release()
             try { if (piste >= 0) muxer.stop() } finally { muxer.release() }
         }
-    }
-
-    /** Tableau extensible de Short, sans boîtes. */
-    class ShortTampon(initial: Int) {
-        private var t = ShortArray(initial)
-        private var n = 0
-        fun ajouter(x: Short) { if (n == t.size) t = t.copyOf(t.size * 2); t[n++] = x }
-        fun tableau(): ShortArray = t.copyOf(n)
     }
 }
