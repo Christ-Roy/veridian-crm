@@ -1,6 +1,6 @@
 # Connexion OAuth native : « redirectUrl mismatch » à la première connexion par le Hub
 
-> **Sévérité** : 🟡 P1
+> **Sévérité** : 🔵 P3 (symptôme corrigé côté app)
 > **Owner** : agent veridian-crm (SSO Hub) ; contournement possible côté app Téléphonie CRM
 > **Créé** : 2026-11-12
 
@@ -18,8 +18,19 @@ l'onglet Chrome, dans l'ordre :
 avec `http://127.0.0.1:44297/retour` seulement. Le second essai, session ouverte, garde `127.0.0.1` et passe
 (« Connexion prête »). Tout client du CRM Veridian qui connecte son téléphone pour la première fois tombe dessus.
 
-Non trouvé dans `core-modules/veridian-hub-sso` ni dans `twenty-front/src/modules/auth` : la réécriture se fait
-entre l'aller vers le Hub et `/verify` (paramètre `next` / `returnToPath`). À chercher côté Hub (`bounce`).
+Cause racine NON trouvée (recherche du 12/11, 23:40) : rien dans notre fork ne réécrit l'URL. Écartés : front
+`veridian-hub-login/useRedirectToHubLogin.ts` (`next` = origine + `returnToPath` brut), `auth/hooks/useReturnToPath.ts`,
+`pages/auth/Authorize.tsx` (lit `redirect_uri` tel quel), serveur `veridian-hub-sso` (`parseOwnUrl` rend
+`pathname + search` d'un `new URL`, `buildMagicLink` et `resolveRedirectUrl` posent `next`/`returnToPath` tels
+quels), aucune occurrence de `127.0.0.1` ni de `127\.0` hors tests dans front, shared et server. Le Hub stocke `next`
+tel quel (`veridian-hub/lib/auth/bounce-next.ts`, lu par la coordination). Reste à observer le trafic réel du
+rebond (journal des redirections Hub → `/auth/hub` → `/verify`) pour trouver le maillon.
+
+## Corrigé côté app (12/11/2026)
+
+`contrat/RetourOAuth.kt` + `Acces.kt` : le client est enregistré avec `127.0.0.1` ET `localhost` sur le même
+port, l'échange du code reprend l'adresse appelée (en-tête `Host`). Le symptôme disparaît avec n'importe quel
+Twenty ; ce ticket ne garde que la recherche de la cause.
 
 ## Correctifs possibles
 

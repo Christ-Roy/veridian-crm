@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import org.json.JSONObject
+import site.veridian.telephonie.contrat.RetourOAuth
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.InetAddress
@@ -147,10 +148,12 @@ object OAuth {
     fun preparer(url: String): Pair<Session, String> {
         val decouverte = json("$url/.well-known/oauth-authorization-server")
         val serveur = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).apply { soTimeout = 15 * 60_000 }
-        val retour = "http://127.0.0.1:${serveur.localPort}/retour"
+        // Deux adresses de retour sur le même port : voir contrat/RetourOAuth.kt (127.0.0.1 réécrit en localhost
+        // par un intermédiaire, « redirectUrl mismatch » à la première connexion au CRM Veridian, 12/11/2026).
+        val retour = RetourOAuth.adresse("127.0.0.1", serveur.localPort)
         val client = json(decouverte.getString("registration_endpoint"), JSONObject()
             .put("client_name", "Téléphonie CRM (${android.os.Build.MODEL})")
-            .put("redirect_uris", org.json.JSONArray().put(retour))
+            .put("redirect_uris", org.json.JSONArray(RetourOAuth.adresses(serveur.localPort)))
             .put("grant_types", org.json.JSONArray().put("authorization_code").put("refresh_token"))
             .put("response_types", org.json.JSONArray().put("code"))
             .put("token_endpoint_auth_method", "none")).getString("client_id")
@@ -171,8 +174,12 @@ object OAuth {
             while (true) {
                 val sock = serveur.accept()
                 sock.use { c ->
-                    val ligne = c.getInputStream().bufferedReader().readLine() ?: return@use
+                    val lecteur = c.getInputStream().bufferedReader()
+                    val ligne = lecteur.readLine() ?: return@use
                     val chemin = ligne.split(" ").getOrNull(1) ?: ""
+                    val entetes = generateSequence { lecteur.readLine()?.takeIf { it.isNotEmpty() } }.take(100).toList()
+                    // L'échange reprend l'adresse que le navigateur a réellement appelée (127.0.0.1 ou localhost).
+                    val retourAppele = RetourOAuth.appelee(RetourOAuth.host(entetes), s.serveur.localPort)
                     if (!chemin.startsWith("/retour")) { repondre(c, 404, "Introuvable"); return@use }
                     val params = chemin.substringAfter('?', "").split("&").filter { it.contains('=') }
                         .associate { URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('='), "UTF-8") }
@@ -181,7 +188,7 @@ object OAuth {
                     if (params["state"] != s.etat) { repondre(c, 400, "Réponse inattendue"); throw IOException("état OAuth différent") }
                     val code = params["code"] ?: run { repondre(c, 400, "Code absent"); throw IOException("code absent") }
                     val (http, corps) = formulaire("${s.url}/oauth/token", mapOf("grant_type" to "authorization_code", "code" to code,
-                        "client_id" to s.client, "code_verifier" to s.verificateur, "redirect_uri" to s.retour))
+                        "client_id" to s.client, "code_verifier" to s.verificateur, "redirect_uri" to retourAppele))
                     if (http !in 200..299) { repondre(c, 400, "Échange refusé"); throw IOException("échange refusé : HTTP $http ${corps.take(200)}") }
                     val j = JSONObject(corps)
                     reglages.enregistrerOAuth(s.url, s.client, j.getString("access_token"),
