@@ -147,10 +147,6 @@ class Plan(unittest.TestCase):
         self.assertEqual(bilan["sans_personne"], 1)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class Inconnus(unittest.TestCase):
     def test_classement_par_frequence_sans_les_rattaches(self):
         appels = [{"numero": "+33600000001", "personId": None, "debutLe": "2026-01-02", "nomSurTelephone": "Plombier"},
@@ -206,7 +202,7 @@ class EcritureIsolee(unittest.TestCase):
         def __init__(self):
             self.crees, self.modifies = [], []
 
-        def televerser(self, chemin, champ_uid):
+        def televerser(self, chemin, champ_uid, nom=None):
             if "gros" in chemin.name:
                 raise c.NonAbouti("PUT gros.ogg : Connection reset by peer")
             return "fichier-" + chemin.stem
@@ -231,3 +227,95 @@ class EcritureIsolee(unittest.TestCase):
         self.assertEqual([r for r in twenty.crees if r["idSource"] == "a"][0].get("piecesJointes"), None)
         self.assertEqual([r for r in twenty.crees if r["idSource"] == "b"][0]["piecesJointes"][0]["fileId"], "fichier-petit")
         self.assertEqual(twenty.modifies, [("id-d", {"titre": "T"})])
+
+
+class MessagerieVocale(unittest.TestCase):
+    """12/11 : les messages vocaux arrivent au CRM en appels de direction MESSAGERIE, avec audio et transcription."""
+
+    def test_transcription_sur_plusieurs_lignes_lue_en_entier(self):
+        sortie = ("Row: 0 _id=2, number=+33600000001, transcription=bonjour Robert\n ligne deux, avec virgule\n fin\n"
+                  "Row: 1 _id=3, number=+33600000002, transcription=NULL\n")
+        lignes = c.parser_content_query(sortie, ["_id", "number", "transcription"])
+        self.assertEqual(lignes[0]["transcription"], "bonjour Robert\n ligne deux, avec virgule\n fin")
+        self.assertIsNone(lignes[1]["transcription"])
+
+    def test_message_vocal_est_un_appel_messagerie(self):
+        vocal = c.message_vocal(1793607462000, "06 12 34 56 78", "85", "PIXEL_8_PRO", "allô", "GOOGLE")
+        self.assertEqual(vocal["direction"], "MESSAGERIE")
+        self.assertEqual(vocal["titre"], "Messagerie · 1 min 25 s")
+        self.assertEqual(vocal["idSource"], "messagerie:1793607462000:+33612345678")
+        self.assertEqual((vocal["transcription"], vocal["sourceTranscription"]), ("allô", "GOOGLE"))
+        self.assertNotIn("transcription", c.message_vocal(1, "+33612345678", 3, "PIXEL_8_PRO", "", None))
+
+    def test_rejeu_ne_cree_rien_et_ne_double_pas_l_appel_manque(self):
+        vocal = c.message_vocal(1793607462000, "+33612345678", 85, "PIXEL_8_PRO", "allô", "GOOGLE")
+        manque = c.appel(1793607440000, "+33612345678", 0, "3", "", "PIXEL_8_PRO")
+        creations, _, _ = c.planifier("appels", [vocal, manque], [], {})
+        self.assertEqual(len(creations), 2)
+        existants = [dict(corps, id=f"r{i}") for i, (corps, _) in enumerate(creations)]
+        self.assertEqual(c.planifier("appels", [vocal, manque], existants, {})[:2], ([], []))
+
+
+class Transcriptions(unittest.TestCase):
+    def setUp(self):
+        self.voulu = c.appel(1794322382233, "+33612345678", 10, "1", "Alice", "PIXEL_8_PRO")
+        self.existant = {k: self.voulu[k] for k in c.CHAMPS["appels"] if k in self.voulu}
+        self.existant.update(id="r1", personId="alice")
+
+    def test_source_ecrite_avec_la_transcription_jamais_seule(self):
+        self.voulu.update(transcription="[  0.0-  1.0] Allô", sourceTranscription="PARAKEET")
+        creations, _, _ = c.planifier("appels", [self.voulu], [], {})
+        self.assertEqual(creations[0][0]["sourceTranscription"], "PARAKEET")
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="")], {})
+        self.assertEqual(complements[0][1], {"transcription": "[  0.0-  1.0] Allô", "sourceTranscription": "PARAKEET"})
+        # Le CRM a déjà une transcription venue d'ailleurs : la source ne la décrit pas, rien n'est écrit.
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="autre")], {})
+        self.assertEqual(complements, [])
+
+    def test_meilleure_transcription_remplace_seulement_celle_de_l_outil(self):
+        self.voulu.update(transcription="Parakeet", sourceTranscription="PARAKEET", _remplace={"transcription": "whisper\n"})
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="whisper")], {})
+        self.assertEqual(complements[0][1], {"transcription": "Parakeet", "sourceTranscription": "PARAKEET"})
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="retouchée")], {})
+        self.assertEqual(complements, [])
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="Parakeet",
+                                                                      sourceTranscription="PARAKEET")], {})
+        self.assertEqual(complements, [])
+
+
+class AudioTeleverse(unittest.TestCase):
+    def ffmpeg(self, taille):
+        def faux(commande, **_):
+            Path(commande[-1]).write_bytes(b"o" * taille)
+        return faux
+
+    def test_fichier_de_travail_dans_le_dossier_temporaire_jamais_tmp(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as dossier, tempfile.TemporaryDirectory() as travail:
+            source = Path(dossier) / "20261111_150805_in.ogg"
+            source.write_bytes(b"x" * 100)
+            ancien, tempfile.tempdir = tempfile.tempdir, travail
+            try:
+                with mock.patch.dict("os.environ", {}, clear=True), \
+                        mock.patch.object(c.subprocess, "run", side_effect=self.ffmpeg(10)):
+                    sortie = c.compresser_audio(source)
+            finally:
+                tempfile.tempdir = ancien
+            self.assertEqual(sortie.parent, Path(travail))
+
+    def test_amr_toujours_converti_lisible_par_le_navigateur(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as dossier:
+            source = Path(dossier) / "20261112_093015_messagerie.amr"
+            source.write_bytes(b"x" * 10)
+            ancien, tempfile.tempdir = tempfile.tempdir, dossier
+            try:
+                with mock.patch.object(c.subprocess, "run", side_effect=self.ffmpeg(50)):
+                    sortie = c.compresser_audio(source)
+            finally:
+                tempfile.tempdir = ancien
+            self.assertEqual(sortie.suffix, ".ogg")
+
+
+if __name__ == "__main__":
+    unittest.main()

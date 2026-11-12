@@ -13,7 +13,7 @@ export default defineObject({
   namePlural: 'appels',
   labelSingular: 'Appel',
   labelPlural: 'Appels',
-  description: 'Appel téléphonique, avec son enregistrement et sa transcription',
+  description: 'Appel téléphonique ou message vocal (direction Messagerie), avec son audio et sa transcription',
   icon: 'IconPhone',
   labelIdentifierFieldMetadataUniversalIdentifier: APPEL_FIELDS.titre,
   fields: [
@@ -106,6 +106,23 @@ export default defineObject({
       label: 'Transcription',
       description: 'Transcription automatique de l’enregistrement, horodatée',
       icon: 'IconFileText',
+    },
+    {
+      // Qui a écrit la transcription : Google (messagerie vocale), Parakeet ou whisper sur le téléphone. Sert aussi
+      // à l'agent : il ne remplace une transcription que par celle d'un meilleur moteur, jamais une retouche.
+      universalIdentifier: APPEL_FIELDS.sourceTranscription,
+      type: FieldType.SELECT,
+      name: 'sourceTranscription',
+      label: 'Transcrit par',
+      icon: 'IconRobot',
+      isNullable: true,
+      defaultValue: null,
+      options: [
+        { id: '59d69ff0-a508-4361-bb7c-55585540df53', value: 'GOOGLE', label: 'Google (messagerie)', position: 0, color: 'yellow' },
+        { id: '38b5dad3-ed03-48fa-ae8b-4a415e9aa0b8', value: 'PARAKEET', label: 'Parakeet', position: 1, color: 'green' },
+        { id: '5394521c-223a-481b-965e-3be6744af93f', value: 'WHISPER', label: 'Whisper', position: 2, color: 'gray' },
+        { id: '9aec5b87-fe5d-45c4-aaee-b9b0a3610929', value: 'AUTRE', label: 'Autre', position: 3, color: 'gray' },
+      ],
     },
     {
       universalIdentifier: APPEL_FIELDS.appareil,

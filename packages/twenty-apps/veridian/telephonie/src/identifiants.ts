@@ -18,6 +18,7 @@ export const APPEL_FIELDS = {
   transcription: '8ca9cedb-05a0-4669-8a60-7464c055f8b1',
   appareil: '039033a6-6934-488c-b742-b6a8af1c9b5a',
   idSource: '323e6bd9-4944-4346-96fc-aad87f082c0b',
+  sourceTranscription: 'ebec1532-4335-4ba9-86f2-ecd9f7153dda',
 } as const;
 
 export const PERSON_ON_APPEL_UNIVERSAL_IDENTIFIER =

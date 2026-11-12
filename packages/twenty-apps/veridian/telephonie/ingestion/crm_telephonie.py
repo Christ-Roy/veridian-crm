@@ -33,6 +33,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -201,6 +202,18 @@ def appel(millisecondes, numero, duree, type_android, nom, appareil):
     }
 
 
+def message_vocal(millisecondes, numero, duree, appareil, transcription="", source_transcription=None):
+    """Un message de la messagerie vocale : un appel de direction MESSAGERIE, avec son audio et sa transcription
+    (celle de Google quand le téléphone l'a, sinon celle faite sur place)."""
+    vocal = appel(millisecondes, numero, duree, "4", "", appareil)
+    vocal["idSource"] = f"messagerie:{int(millisecondes)}:{cle_numero(numero)}"
+    if transcription:
+        vocal["transcription"] = transcription
+        if source_transcription:
+            vocal["sourceTranscription"] = source_transcription
+    return vocal
+
+
 def message(millisecondes, numero, type_android, texte, nom, appareil, canal="SMS", sens=None):
     sens = sens or TYPES_SMS.get(str(type_android), "RECU")
     texte = texte or ""
@@ -223,11 +236,14 @@ def message(millisecondes, numero, type_android, texte, nom, appareil, canal="SM
 
 
 def parser_content_query(sortie, cles):
-    """Lignes « Row: N k=v, k=v » de `content query`, la dernière clé absorbant les virgules du texte."""
+    """Lignes « Row: N k=v, k=v » de `content query`, la dernière clé absorbant les virgules du texte et les
+    retours à la ligne (transcription d'un message vocal, sur plusieurs lignes)."""
     lignes = []
     for ligne in sortie.splitlines():
         m = re.match(r"Row: \d+ (.*)$", ligne)
         if not m:
+            if lignes and lignes[-1].get(cles[-1]) is not None and not ligne.startswith("Row: "):
+                lignes[-1][cles[-1]] += "\n" + ligne
             continue
         reste, valeurs = m.group(1), {}
         for i, cle in enumerate(cles):
@@ -378,10 +394,13 @@ def charger_acces(env, workspace, suffixe=""):
 
 
 class Twenty:
-    def __init__(self, url, cle):
-        self.url, self.cle = url, cle
+    def __init__(self, url, cle, essais=6):
+        # L'agent du téléphone passe essais=2 : hors réseau, il échoue vite et reprend au retour du réseau,
+        # au lieu de bloquer une minute et demie par requête.
+        self.url, self.cle, self.essais = url, cle, essais
 
-    def requete(self, methode, chemin, corps=None, donnees=None, entetes=None, essais=6):
+    def requete(self, methode, chemin, corps=None, donnees=None, entetes=None, essais=None):
+        essais = essais or self.essais
         for essai in range(essais):
             requete = urllib.request.Request(
                 self.url + chemin, method=methode,
@@ -430,7 +449,7 @@ class Twenty:
             raise RuntimeError(reponse["errors"][0].get("message"))
         return reponse["data"]
 
-    def televerser(self, chemin, champ_uid):
+    def televerser(self, chemin, champ_uid, nom=None):
         """Envoi direct vers un champ FILES : le serveur écrit le flux dans le stockage sans le garder en mémoire.
 
         L'upload GraphQL multipart passe par streamToBuffer, plafonné à 5 Mo : au-delà, refus puis connexion
@@ -439,7 +458,7 @@ class Twenty:
         cible = self.graphql(
             "mutation($nom: String!, $taille: Float!, $uid: String!) { createFileUpload(filename: $nom, size: $taille,"
             " fileFolder: FilesField, fieldMetadataUniversalIdentifier: $uid) { fileId uploadUrl contentType } }",
-            {"nom": chemin.name, "taille": taille, "uid": champ_uid})["createFileUpload"]
+            {"nom": nom or chemin.name, "taille": taille, "uid": champ_uid})["createFileUpload"]
         url = cible["uploadUrl"] if "://" in cible["uploadUrl"] else self.url + cible["uploadUrl"]
         with chemin.open("rb") as flux:
             envoi = urllib.request.Request(url, data=flux, method="PUT",
@@ -458,7 +477,7 @@ class Twenty:
 
 CHAMPS = {
     "appels": ("titre", "direction", "canal", "debutLe", "dureeSecondes", "numero", "nomSurTelephone",
-               "transcription", "appareil", "idSource"),
+               "transcription", "sourceTranscription", "appareil", "idSource"),
     "textMessages": ("apercu", "texte", "sens", "canal", "envoyeLe", "numero", "nomSurTelephone", "appareil",
                      "idSource"),
 }
@@ -494,6 +513,15 @@ def planifier(pluriel, voulus, existants, index):
             creations.append((corps, voulu.get("_fichiers")))
             continue
         champs = {k: voulu[k] for k in CHAMPS[pluriel] if k in voulu and not vide(voulu[k]) and vide(existant.get(k))}
+        # Remplacer n'est permis que sur ce que l'outil avait posé lui-même (une transcription refaite par un
+        # meilleur moteur) : la valeur du CRM doit être exactement l'ancienne, sinon quelqu'un l'a retouchée.
+        for k, ancienne in (voulu.get("_remplace") or {}).items():
+            if k in voulu and not vide(voulu[k]) and (existant.get(k) or "").strip() == (ancienne or "").strip() \
+                    and (existant.get(k) or "").strip() != voulu[k].strip():
+                champs[k] = voulu[k]
+        # La source décrit la transcription du CRM : elle ne s'écrit qu'avec elle.
+        if pluriel == "appels" and "transcription" not in champs:
+            champs.pop("sourceTranscription", None)
         # Un titre reste celui de l'outil tant que personne ne l'a retouché : on le met à la règle du jour, sinon
         # on n'y touche pas (compléter sans écraser vaut aussi pour une saisie à la main).
         if (pluriel == "appels" and existant.get("titre") != voulu["titre"]
@@ -507,17 +535,30 @@ def planifier(pluriel, voulus, existants, index):
     return creations, complements, bilan
 
 
+# Formats qu'un navigateur ne lit pas (AMR de la messagerie vocale) : toujours convertis, même si l'Opus pèse plus.
+ILLISIBLES_NAVIGATEUR = {".amr", ".awb", ".3gp"}
+
+
 def compresser_audio(chemin):
     """Opus mono 32 kbit/s : JemRec écrit en stéréo vers 140 kbit/s, deux voies identiques sur un appel opérateur.
-    Environ 4 fois plus léger sans perte utile pour la voix. L'original reste intact sur le téléphone."""
-    sortie = Path(os.environ.get("TMPDIR", "/tmp")) / f"{chemin.stem}.mono32.ogg"
+    Environ 4 fois plus léger sans perte utile pour la voix. L'original reste intact sur le téléphone.
+
+    Le fichier de travail va dans tempfile.gettempdir() : sous Termux, /tmp est interdit et TMPDIR n'est pas
+    toujours posé (service runit) ; l'agent y range son propre dossier."""
+    illisible = chemin.suffix.lower() in ILLISIBLES_NAVIGATEUR
+    descripteur, nom = tempfile.mkstemp(prefix=f"{chemin.stem}.", suffix=".ogg")
+    os.close(descripteur)
+    sortie = Path(nom)
     try:
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(chemin), "-ac", "1", "-c:a", "libopus", "-b:a", "32k",
                         "-application", "voip", str(sortie)], check=True, capture_output=True, timeout=1800)
     except (subprocess.SubprocessError, OSError):
         sortie.unlink(missing_ok=True)
         return chemin
-    return sortie if 0 < sortie.stat().st_size < chemin.stat().st_size else chemin
+    if sortie.stat().st_size > 0 and (illisible or sortie.stat().st_size < chemin.stat().st_size):
+        return sortie
+    sortie.unlink(missing_ok=True)
+    return chemin
 
 
 def avec_fichiers(twenty, corps, fichiers):
@@ -527,7 +568,8 @@ def avec_fichiers(twenty, corps, fichiers):
         for chemin in chemins:
             envoye = compresser_audio(chemin) if champ == "enregistrement" else chemin
             try:
-                portes.append({"fileId": twenty.televerser(envoye, CHAMPS_FICHIERS[champ]), "label": chemin.name})
+                nom = chemin.stem + envoye.suffix
+                portes.append({"fileId": twenty.televerser(envoye, CHAMPS_FICHIERS[champ], nom), "label": nom})
             finally:
                 if envoye != chemin:
                     envoye.unlink(missing_ok=True)
