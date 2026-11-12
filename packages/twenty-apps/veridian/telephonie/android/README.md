@@ -118,6 +118,19 @@ Sans adb (4G après un redémarrage), l'état et les dernières lignes du journa
 `ssh pixel termux-notification-list`. Journal sans donnée personnelle : `logcat -s TelephonieCRM`, et `etat` copie `journal.log`, `delais.tsv`
 (délai entre l'événement et sa création au CRM) et le plan miroir dans `/sdcard/Android/data/site.veridian.telephonie/files/`.
 
+## Mesuré en production (12/11/2026, après la bascule de 17h01)
+
+| Événement réel | Délai fin de l'événement → record au CRM |
+|---|---|
+| appel sortant (17h01:20) | 6,6 s ; audio porté 6 s après le record ; transcription Parakeet sur le téléphone 41 s après |
+| SMS reçus (17h04:28, 17h29:55) | 1,3 à 2,0 s |
+| MMS reçu (17h27:58) | 2,9 s (3,5 s selon `createdAt`) |
+| messagerie vocale | pas encore de message neuf ; les 8 existants planifiés à l'identique de Termux |
+
+Rejeu : deux replanifications complètes (passage en écriture), 0 création, 0 doublon à la seconde au CRM.
+Arrêt forcé : `am force-stop` → service au premier plan en moins d'1 s ; `am stop-app` → 10 s. Redémarrage en Wi-Fi :
+service prêt et port 5555 rouvert par l'app 41 s après le démarrage du noyau.
+
 ## Mode miroir, puis bascule
 
 En `miroir`, l'app lit et planifie contre le vrai CRM sans rien écrire (`miroir.jsonl`).
