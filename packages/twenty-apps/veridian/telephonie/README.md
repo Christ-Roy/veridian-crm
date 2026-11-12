@@ -51,7 +51,15 @@ natif des apps de Twenty v2.56 (`twenty-sdk`). Le rôle par défaut n'accorde ri
 Les pièces jointes des MMS (images, vidéos) vont dans `piecesJointes` (colonne de l'onglet SMS, aperçu natif
 au clic). L'audio se lit dans l'aperçu grâce au patch `veridian-audio` du front (sans lui, un clic télécharge).
 
-## L'agent du téléphone (sans serveur ni tâche planifiée)
+## L'app Android du téléphone (depuis le 12/11/2026)
+
+Le Pixel envoie lui-même au CRM par une vraie app Android,  : service de premier plan,
+observateurs du journal d'appels, des SMS, des MMS et de JemRec, file SQLite vidée par WorkManager, messagerie
+vocale par adb vers le téléphone même, transcription Parakeet en JNI. Même contrat que ci-dessous (porté en Kotlin,
+vérifié contre ce code Python). Tout est dans [](android/README.md). L'agent Termux décrit
+ci-dessous est arrêté ( et fichier ), ses fichiers sont gardés pour revenir en arrière.
+
+## L'ancien agent Termux (arrêté le 12/11/2026, gardé pour revenir en arrière)
 
 Robert (10/11/2026) : le téléphone parle directement au CRM. `ingestion/telephone.py` tourne sous Termux sur
 le Pixel, démarré par Termux:Boot et relancé par termux-services. Sa clé porte le rôle « Téléphone » de l'app
