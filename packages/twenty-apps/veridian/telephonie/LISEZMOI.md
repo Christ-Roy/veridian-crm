@@ -81,6 +81,12 @@ Si l'accès est retiré (connexion révoquée, clé supprimée, ou téléphone r
 une notification **Reconnecter à Twenty** reste affichée. Rien n'est perdu : les appels et SMS attendent sur
 le téléphone. Touchez la notification, reconnectez-vous : tout part, sans doublon.
 
+## Retirer l'accès d'un téléphone (perdu, remplacé)
+
+- Connexion par le navigateur : dans Twenty, Paramètres, Applications, « Téléphonie CRM (modèle du
+  téléphone) », Désinstaller. L'accès s'arrête au plus tard 30 minutes après.
+- Clé API : Paramètres, API et webhooks, supprimez la clé du téléphone. L'accès s'arrête aussitôt.
+
 ## Ce qui sort du téléphone
 
 Les appels, SMS, MMS et enregistrements vont **uniquement** vers votre Twenty. Le seul autre accès réseau est
