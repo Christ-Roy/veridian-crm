@@ -678,6 +678,23 @@ def en_charge():
     return batterie()[1]
 
 
+MOTEURS_BINAIRES = ("parakeet-cli", "whisper-cli")
+
+
+def moteur_etranger():
+    """Un parakeet-cli ou whisper-cli qui n'est pas à l'agent tourne (banc d'essai, essai à la main) : un seul moteur
+    à la fois sur le téléphone de Robert (charge 13 sur 8 cœurs mesurée le 12/11 avec deux)."""
+    nos = {e.pid for e in ENFANTS}
+    for dossier in Path("/proc").iterdir():
+        if dossier.name.isdigit() and int(dossier.name) not in nos:
+            try:
+                if (dossier / "comm").read_text().strip() in MOTEURS_BINAIRES:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
 def transcription_permise(regl):
     """En charge, ou batterie au-dessus du seuil. Batterie illisible : pas de transcription (prudence)."""
     niveau, charge = batterie()
@@ -916,7 +933,7 @@ class Agent:
     def transcrire_en_fond(self, regl):
         if self.transcripteur and self.transcripteur.is_alive():
             return
-        if not transcription_permise(regl):
+        if not transcription_permise(regl) or moteur_etranger():
             return
         nouveaux, refaire = self.a_faire(regl)
         if not (nouveaux or refaire):

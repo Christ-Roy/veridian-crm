@@ -314,6 +314,16 @@ class GardeBatterie(EtatIsole):
             with mock.patch.object(t, "batterie", return_value=etat):
                 self.assertEqual(t.transcription_permise(regl), permise, etat)
 
+    def test_un_seul_moteur_a_la_fois(self):
+        enregistrement = t.JEMREC / "20261112_093015_in.ogg"
+        enregistrement.write_bytes(b"x")
+        agent = t.Agent(FauxCRM(), t.reglages())
+        with mock.patch.object(t, "batterie", return_value=(80, True)), \
+                mock.patch.object(t, "moteur_etranger", return_value=True):
+            agent.transcrire_en_fond(agent.regl)
+        self.assertIsNone(agent.transcripteur)
+        self.assertIsInstance(t.moteur_etranger(), bool)
+
     def test_transcription_en_cours_mise_en_pause_puis_reprise(self):
         enregistrement = t.JEMREC / "20261112_093015_in.ogg"
         enregistrement.write_bytes(b"x")
