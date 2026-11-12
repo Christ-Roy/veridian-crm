@@ -39,7 +39,7 @@ Ils sont dans l'image du CRM, inscrits dans `VERIDIAN-PATCHES.md` et gardés par
 
 | Entité | Rôle |
 |---|---|
-| objet `appel` (Appels) | direction, canal (téléphone, WhatsApp, Telegram), début, durée, numéro, nom sur le téléphone, **enregistrement** (champ FILES, stockage de Twenty), **transcription**, appareil, `idSource` unique |
+| objet `appel` (Appels) | direction (dont **Messagerie** : un message vocal), canal (téléphone, WhatsApp, Telegram), début, durée, numéro, nom sur le téléphone, **enregistrement** (champ FILES, stockage de Twenty), **transcription**, **transcrit par** (`sourceTranscription` : Google, Parakeet, Whisper), appareil, `idSource` unique |
 | objet `textMessage` (SMS et messages) | sens, canal (SMS, MMS, WhatsApp, Telegram), date, texte, aperçu, numéro, pièces jointes (FILES), appareil, `idSource` unique |
 | relations `person` ↔ `appels` / `textMessages` | rattachement à une personne, `SET_NULL` si la personne est supprimée |
 | types d'activité `appelLinked`, `textMessageLinked` | Twenty écrit seul la ligne sur la timeline de la personne au rattachement, **ancrée à la date de l'appel ou du message** (`happensAtFieldUniversalIdentifier`), pas au moment de l'import |
@@ -54,10 +54,47 @@ au clic). L'audio se lit dans l'aperçu grâce au patch `veridian-audio` du fron
 ## L'agent du téléphone (sans serveur ni tâche planifiée)
 
 Robert (10/11/2026) : le téléphone parle directement au CRM. `ingestion/telephone.py` tourne sous Termux sur
-le Pixel, démarré par Termux:Boot et relancé par termux-services. Il se réveille à chaque enregistrement JemRec
-fini (inotify) et au plus tard toutes les 2 minutes ; il ne contacte le CRM que si le journal d'appels, les SMS
-ou les enregistrements ont changé. Il transcrit lui-même avec whisper.cpp (modèle `small`, priorité basse). Sa
-clé porte le rôle « Téléphone » de l'app (personnes en lecture, appels et SMS en écriture, upload), pas Admin.
+le Pixel, démarré par Termux:Boot et relancé par termux-services. Sa clé porte le rôle « Téléphone » de l'app
+(personnes en lecture, appels et SMS en écriture, upload), pas Admin.
+
+**Déclenché par l'événement (12/11/2026).** Aucun passage complet sans changement sur le téléphone :
+
+| Événement | Vu par | Délai |
+|---|---|---|
+| enregistrement JemRec fini | inotify | immédiat |
+| appel qui commence ou finit, SMS reçu, avis de messagerie visuelle | sonde rapide : `dumpsys telephony.registry` (`mCallState`) et `dumpsys isms` (journal de l'InboundSmsHandler), natifs, toutes les 10 s | ≤ 10 s |
+| SMS envoyé, MMS, message vocal et son audio | sonde des fournisseurs : dernier `_id` de `content://sms`, `content://mms`, `content://com.android.voicemail/voicemail`, toutes les 60 s, toutes les 15 s pendant 3 min après un événement | ≤ 60 s |
+| filet | passage complet | 30 min (2 min si adb est fermé et les sondes muettes) |
+
+Coût mesuré le 12/11 : sonde rapide 0,03 s de CPU, sonde des fournisseurs 1,1 s (trois `content`, une machine
+Java chacun) ; soit environ 2 % d'un cœur en moyenne, au lieu d'une relecture complète toutes les 2 minutes
+(dont 98 s d'adb pour relire les 24 MMS un par un : ils sont maintenant en cache, `~/.local/state/crm-telephone/mms/lus.json`).
+
+**Messagerie vocale.** Chaque message du fournisseur Voicemail (lu en uid 2000 par l'adb local) devient un Appel de
+direction `MESSAGERIE` (`idSource` `messagerie:<ms>:<numéro>`), rattaché par numéro comme un appel. L'audio AMR
+est copié une fois (`~/.local/state/crm-telephone/messagerie/`) et téléversé en Opus, car un navigateur ne lit pas
+l'AMR. La transcription de Google fait foi quand le téléphone l'a ; sinon Parakeet la fait. Un message sans parole
+(raccroché, -47 dB) porte « (aucune parole détectée) ».
+
+**Transcription sur le téléphone.** Parakeet TDT 0.6B v3 q8_0 (`~/whisper.cpp/build/bin/parakeet-cli`, sortie
+`-ps` : jetons horodatés au centième, remis au format `[  0.0-  2.0] texte`), par tronçons d'environ 90 s coupés
+au milieu d'un silence (`silencedetect`) : mémoire bornée, reprise au tronçon après un arrêt brutal. Whisper small
+reste en secours si Parakeet échoue. Le plus récent passe d'abord. Les anciennes transcriptions whisper sont
+refaites en Parakeet seulement quand le téléphone charge (`dumpsys battery`), et ne remplacent celle du CRM que si
+le CRM porte encore exactement l'ancienne (`_remplace`) : une retouche à la main reste. Réglages sans toucher au
+code, `~/.config/crm-telephone/reglages.json` (clé par clé, voir `REGLAGES_DEFAUT`) :
+
+```json
+{"moteurs": ["parakeet", "whisper"], "troncon_s": 90,
+ "parakeet": {"modele": "~/whisper.cpp/models/ggml-parakeet-tdt-0.6b-v3-q8_0.bin", "fils": 4}}
+```
+
+**Hors ligne.** Lecture et transcription ne demandent pas le réseau. Le CRM injoignable, l'envoi attend : une
+connexion TCP au CRM toutes les 10 s (au plus tôt 30 s après l'échec) dit quand il revient, et la lecture déjà
+faite part aussitôt. Un refus du CRM (HTTP) est retenté à 30 s, 1, 2, puis 5 min. Le client du téléphone
+n'essaie que deux fois par requête, au lieu de bloquer une minute et demie. Éprouvé le 12/11 par une copie
+d'essai (`--etat`, `--acces`, `--jemrec`) dont le CRM passait par un proxy local absent, puis présent : lecture,
+transcription Parakeet et refus propre hors ligne, puis les 7 messages vocaux créés 23 s après le retour du réseau.
 Termux lit le journal à la seconde : le plan rapproche donc aussi par numéro, seconde et sens (`cle_seconde`),
 sans doublon avec l'historique importé par `mail`. Installation : `crm-telephonie telephone cle` (une fois), puis
 `crm-telephonie telephone installer` (rejouable : code d'origin/staging, accès, services runit `crm-telephone` et
@@ -74,6 +111,11 @@ Pièges mesurés le 10/11/2026 :
   `TermuxFileReceiverActivity`, qui s'offrait pour ouvrir images et PDF à la place des apps de Robert.
 - Termux tué : `crm-telephonie telephone relancer` relance services, agent et sshd sans écran (`run-as` +
   `RUN_COMMAND`, qui exige `allow-external-apps = true` dans `~/.termux/termux.properties`).
+- **Android 17 tue les processus enfants de Termux au-delà de 32** (« Trimming phantom processes », journal
+  `am_kill`) : le 12/11 il a tué l'agent, puis runsvdir et sshd (mesuré). `telephone installer` lève la limite
+  (`device_config put activity_manager max_phantom_processes 2147483647`, `settings_enable_monitor_phantom_procs
+  false`, synchro de device_config gelée en `persistent`). Termux tué malgré tout : `telephone relancer`.
+- `/sys/class/power_supply` est fermé à Termux : l'état de charge se lit par `dumpsys battery` (adb local).
 - MMS : le fournisseur n'est ouvert qu'au shell ; l'agent passe par adb vers lui-même (127.0.0.1:5555). Port
   fermé après un redémarrage : MMS non lus jusqu'à sa réouverture, appels et SMS continuent.
 
@@ -129,8 +171,13 @@ chose. Un dossier Twenty s'ouvre et se ferme sans naviguer ; « People » en est
 ## Preuves
 
 `python3 -m unittest discover -s ingestion/tests` (CI, job `app-telephonie`) : normalisation, parsing de
-`content query`, association des enregistrements, plan idempotent. Vu échouer : rattachement manuel écrasé,
-sens d'appel ignoré dans l'association.
+`content query`, association des enregistrements, plan idempotent ; et pour l'agent (`test_telephone.py`) :
+déclenchement par les sondes, filet sans adb, hors ligne puis retour du réseau, transcription sans réseau,
+jetons Parakeet en lignes horodatées, tronçons sur les silences, whisper en secours, remplacement seulement de
+ce que l'outil avait posé, messagerie vocale (audio, transcription Google sur plusieurs lignes ou locale), MMS en
+cache, fichier de travail hors de `/tmp`. Vu échouer : rattachement manuel écrasé, sens d'appel ignoré dans
+l'association ; le 12/11, les 20 nouveaux tests sur le code d'avant (transcription multiligne tronquée, `/tmp`
+codé en dur, AMR non converti, MMS relus à chaque passage, fonctions absentes).
 
 ## WhatsApp et Telegram
 

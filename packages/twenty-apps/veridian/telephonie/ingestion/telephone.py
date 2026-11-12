@@ -65,8 +65,10 @@ REGLAGES_DEFAUT = {
     # whisper small occupe ~1 Go : sous ce seuil, Android tuerait Termux (et l'agent) pour reprendre la mémoire.
     "whisper": {"binaire": "~/whisper.cpp/build/bin/whisper-cli", "modele": "~/whisper.cpp/models/ggml-small.bin",
                 "fils": 4, "memoire_min_ko": 2_000_000, "langue": "fr"},
-    # Tronçons d'environ 90 s coupés sur un silence : mémoire bornée, reprise au tronçon après un arrêt brutal.
-    "troncon_s": 90,
+    # Tronçons d'environ 60 s coupés sur un silence, passés par lots de 8 au même parakeet-cli (modèle chargé une
+    # fois) : l'encodeur coûte plus que proportionnellement à la durée d'un bloc ; reprise au tronçon après un arrêt.
+    "troncon_s": 60,
+    "lot_troncons": 8,
     "sonde_rapide_s": 10,
     "sonde_fournisseurs_s": 60,
     "rafale_s": 180,
@@ -441,11 +443,30 @@ def troncons(duree, silences_, cible=90.0, marge=30.0):
     return [(round(a, 2), round(b, 2)) for a, b in zip(coupes, coupes[1:]) if b - a > 0.05]
 
 
+AUCUNE_PAROLE = "(aucune parole détectée)"
+
+
 class Preempte(Exception):
     """Un enregistrement neuf attend : l'amélioration d'une ancienne transcription cède la place."""
 
 
+def sorties_par_fichier(sortie):
+    """`parakeet-cli` sur plusieurs fichiers : la sortie de chacun commence par « reading audio data from 'x' »."""
+    parts, courant = {}, None
+    for ligne in sortie.splitlines():
+        m = re.search(r"reading audio data from '(.*)'", ligne)
+        if m:
+            courant = Path(m.group(1)).name
+            parts[courant] = []
+        elif courant:
+            parts[courant].append(ligne)
+    return {nom: "\n".join(lignes) for nom, lignes in parts.items()}
+
+
 def transcrire_parakeet(wav, regl, cede=lambda: False):
+    """Tronçons coupés sur les silences, passés par lots à un seul parakeet-cli : le modèle n'est chargé qu'une
+    fois par lot, et l'encodeur ne voit jamais un bloc long (son coût croît plus vite que la durée : 16 s pour
+    60 s d'audio, 271 s pour 5 min, mesuré le 12/11). Chaque tronçon fait est gardé : reprise après un arrêt."""
     moteur = regl["parakeet"]
     duree = max(0.0, (wav.stat().st_size - 44) / 32_000)
     travail = wav.with_name(f"{wav.stem}.{moteur['modele'].stem}.troncons")
@@ -456,23 +477,37 @@ def transcrire_parakeet(wav, regl, cede=lambda: False):
     else:
         morceaux = troncons(duree, silences(wav), float(regl["troncon_s"]))
         plan.write_text(json.dumps(morceaux))
-    lignes = []
-    for i, (debut, fin) in enumerate(morceaux):
-        fait = travail / f"{i:04d}.json"
-        if not fait.exists():
-            if cede():
-                raise Preempte(wav.stem)
-            morceau = travail / f"{i:04d}.wav"
-            executer_suivi(["ffmpeg", "-v", "error", "-y", "-ss", str(debut), "-t", f"{fin - debut:.2f}", "-i", str(wav),
-                            "-c", "copy", str(morceau)], 600)
-            try:
-                sortie = executer_suivi(["nice", "-n", "15", str(moteur["binaire"]), "-m", str(moteur["modele"]),
-                                         "-t", str(moteur["fils"]), "-np", "-ps", "-f", str(morceau)],
-                                        max(600, int((fin - debut) * 10)), flux="stderr")
-            finally:
+    restants = [i for i in range(len(morceaux)) if not (travail / f"{i:04d}.json").exists()]
+    lot = max(1, int(regl.get("lot_troncons", 8)))
+    for depart in range(0, len(restants), lot):
+        if cede():
+            raise Preempte(wav.stem)
+        indices = restants[depart:depart + lot]
+        fichiers = []
+        try:
+            for i in indices:
+                debut, fin = morceaux[i]
+                morceau = travail / f"{i:04d}.wav"
+                executer_suivi(["ffmpeg", "-v", "error", "-y", "-ss", str(debut), "-t", f"{fin - debut:.2f}", "-i",
+                                str(wav), "-c", "copy", str(morceau)], 600)
+                fichiers.append(morceau)
+            audio = sum(morceaux[i][1] - morceaux[i][0] for i in indices)
+            sortie = executer_suivi(["nice", "-n", "15", str(moteur["binaire"]), "-m", str(moteur["modele"]),
+                                     "-t", str(moteur["fils"]), "-np", "-ps", *map(str, fichiers)],
+                                    max(600, int(audio * 10)), flux="stderr")
+        finally:
+            for morceau in fichiers:
                 morceau.unlink(missing_ok=True)
-            fait.write_text(json.dumps(lignes_depuis_jetons(jetons_parakeet(sortie), debut)))
-        lignes += json.loads(fait.read_text())
+        par_fichier = sorties_par_fichier(sortie)
+        for i in indices:
+            texte = par_fichier.get(f"{i:04d}.wav")
+            if texte is None:
+                raise ValueError(f"parakeet-cli n'a rien rendu pour le tronçon {i} de {wav.name}")
+            (travail / f"{i:04d}.json").write_text(json.dumps(lignes_depuis_jetons(jetons_parakeet(texte),
+                                                                                  morceaux[i][0])))
+    lignes = []
+    for i in range(len(morceaux)):
+        lignes += json.loads((travail / f"{i:04d}.json").read_text())
     for reste in travail.iterdir():
         reste.unlink()
     travail.rmdir()
@@ -523,6 +558,8 @@ def transcrire_un(chemin, regl, moteurs, cede=lambda: False):
                 derniere = erreur
                 log(f"{moteur} a échoué sur {chemin.name} (code {erreur.returncode}), moteur suivant")
                 continue
+            # Un message vide (raccroché sans parler, -47 dB mesuré le 12/11) : on le dit, ce n'est pas un échec.
+            lignes = lignes or [AUCUNE_PAROLE]
             if sortie.exists() and sortie.read_text(encoding="utf-8").strip():
                 ancienne = fichier_transcription(chemin, ".ancienne.txt")
                 if not ancienne.exists():

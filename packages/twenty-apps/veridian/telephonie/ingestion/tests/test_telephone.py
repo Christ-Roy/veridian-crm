@@ -53,6 +53,33 @@ class Parakeet(unittest.TestCase):
         self.assertEqual(t.troncons(200.0, [], cible=90, marge=30)[0], (0.0, 90.0))
 
 
+class ParakeetParLots(EtatIsole):
+    def test_un_seul_chargement_par_lot_et_reprise_au_troncon(self):
+        wav = t.ETAT / "appel.wav"
+        wav.write_bytes(b"\0" * (44 + 32_000 * 200))
+        regl = dict(t.reglages(), troncon_s=60, lot_troncons=2)
+        appels_moteur = []
+
+        def executer(commande, _delai, flux="stdout"):
+            if commande[0] == "ffmpeg":
+                Path(commande[-1]).write_bytes(b"w")
+                return ""
+            fichiers = [a for a in commande if a.endswith(".wav")]
+            appels_moteur.append([Path(f).name for f in fichiers])
+            return "".join(f"read_audio_data: reading audio data from '{f}' ...\n" + SORTIE_PARAKEET for f in fichiers)
+
+        with mock.patch.object(t, "silences", return_value=[]), mock.patch.object(t, "executer_suivi", side_effect=executer):
+            (wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.troncons")).mkdir()
+            (wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.troncons") / "0000.json").write_text('["[  0.0-  1.0] déjà"]')
+            lignes = t.transcrire_parakeet(wav, regl)
+        # 200 s en tronçons de 60 s : 4 tronçons, le premier déjà fait, les 3 autres en deux lots.
+        self.assertEqual(appels_moteur, [["0001.wav", "0002.wav"], ["0003.wav"]])
+        self.assertEqual(lignes[0], "[  0.0-  1.0] déjà")
+        self.assertTrue(lignes[1].startswith("[ 60.1-"))
+        self.assertEqual(len(lignes), 7)
+        self.assertFalse(wav.with_name("appel.ggml-parakeet-tdt-0.6b-v3-q8_0.troncons").exists())
+
+
 class Sondes(unittest.TestCase):
     def test_sonde_muette_est_non_aboutie_pas_rien_de_neuf(self):
         self.assertIsNone(t.empreinte_sonde(""))
@@ -153,6 +180,21 @@ class Transcription(EtatIsole):
         self.assertFalse(t.a_ameliorer(enregistrement))
         # L'ancienne est gardée : le CRM ne la remplace que s'il la porte encore telle quelle.
         self.assertEqual(t.remplacements(enregistrement), {"transcription": "[  0.0-  1.0] secours\n"})
+
+    def test_message_sans_parole_dit_aucune_parole_pas_un_echec(self):
+        vocal = t.ETAT / "messagerie" / "20261021_184408_messagerie.amr"
+        vocal.parent.mkdir()
+        vocal.write_bytes(b"#!AMR")
+
+        def ffmpeg(commande, _delai, flux="stdout"):
+            Path(commande[-1]).write_bytes(b"\0" * (44 + 32_000 * 19))
+            return ""
+
+        with mock.patch.object(t, "executer_suivi", side_effect=ffmpeg), \
+                mock.patch.object(t, "transcrire_parakeet", return_value=[]):
+            t.transcrire_un(vocal, t.reglages(), ["parakeet"])
+        self.assertEqual(t.transcription(vocal), t.AUCUNE_PAROLE)
+        self.assertEqual(t.source_transcription(vocal), "PARAKEET")
 
     def test_recent_avant_ancien_amelioration_seulement_en_charge(self):
         for nom in ("20261110_190443_in", "20261112_093015_in", "20261111_142116_in"):

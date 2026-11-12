@@ -87,6 +87,11 @@ def installer(env, workspace):
     _ecrire(f"{service}/run", SERVICE_RUN, "700")
     _pixel(f"mkdir -p {service}/log && ln -sf $PREFIX/share/termux-services/svlogger {service}/log/run")
     _ecrire("~/.termux/boot/demarrer", DEMARRAGE, "700")
+    # Android 12+ tue les processus enfants d'une app au-delà de 32 (« Trimming phantom processes ») : le 12/11 il a
+    # tué l'agent, puis runsvdir et sshd. Limite levée, et la synchro serveur de device_config gelée pour qu'elle tienne.
+    subprocess.run(["pixel", "shell", "device_config set_sync_disabled_for_tests persistent; device_config put "
+                    "activity_manager max_phantom_processes 2147483647; settings put global "
+                    "settings_enable_monitor_phantom_procs false"], capture_output=True, text=True, timeout=60)
     # sshd en service runit : il repart seul quand Android tue Termux, plus besoin de le retaper à l'écran.
     _pixel("command -v sv-enable >/dev/null && . $PREFIX/etc/profile.d/start-services.sh && sv-enable sshd")
     # Le service se lance dans la session Termux en cours ; Termux:Boot le relancera après un redémarrage.
