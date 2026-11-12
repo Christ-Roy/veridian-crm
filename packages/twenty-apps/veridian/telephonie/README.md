@@ -39,7 +39,7 @@ Ils sont dans l'image du CRM, inscrits dans `VERIDIAN-PATCHES.md` et gardés par
 
 | Entité | Rôle |
 |---|---|
-| objet `appel` (Appels) | direction (dont **Messagerie** : un message vocal), canal (téléphone, WhatsApp, Telegram), début, durée, numéro, nom sur le téléphone, **enregistrement** (champ FILES, stockage de Twenty), **transcription**, **transcrit par** (`sourceTranscription` : Google, Parakeet, Whisper), appareil, `idSource` unique |
+| objet `appel` (Appels) | direction (dont **Messagerie** : un message vocal), canal (téléphone, WhatsApp, Telegram), début, durée, numéro, nom sur le téléphone, **enregistrement** (champ FILES, stockage de Twenty), **transcription**, **transcrit par** (`sourceTranscription` : Google, Parakeet, Whisper) et **modèle de transcription** (`moteurTranscription`, par exemple `parakeet-tdt-0.6b-v3-q8_0`), appareil, `idSource` unique |
 | objet `textMessage` (SMS et messages) | sens, canal (SMS, MMS, WhatsApp, Telegram), date, texte, aperçu, numéro, pièces jointes (FILES), appareil, `idSource` unique |
 | relations `person` ↔ `appels` / `textMessages` | rattachement à une personne, `SET_NULL` si la personne est supprimée |
 | types d'activité `appelLinked`, `textMessageLinked` | Twenty écrit seul la ligne sur la timeline de la personne au rattachement, **ancrée à la date de l'appel ou du message** (`happensAtFieldUniversalIdentifier`), pas au moment de l'import |
@@ -57,17 +57,27 @@ Robert (10/11/2026) : le téléphone parle directement au CRM. `ingestion/teleph
 le Pixel, démarré par Termux:Boot et relancé par termux-services. Sa clé porte le rôle « Téléphone » de l'app
 (personnes en lecture, appels et SMS en écriture, upload), pas Admin.
 
-**Déclenché par l'événement (12/11/2026).** Aucun passage complet sans changement sur le téléphone :
+**Le brut d'abord, en parallèle (Robert, 12/11/2026 : « envoi brut sur le CRM puis transcript », « faut
+paralléliser »).** Quatre fils, un par type (appels, SMS, MMS, messagerie vocale), chacun avec son réveil et son
+empreinte : un SMS ne patiente jamais derrière un audio ni une transcription. Un cycle crée d'abord le record et ses
+métadonnées en un lot ; les fichiers partent ensuite par deux files de téléversement (audio, pièces jointes), et la
+transcription vient en dernier, dans son propre fil. Chaque création note son délai depuis l'événement (fin de
+l'appel, envoi du SMS) dans le journal et dans `~/.local/state/crm-telephone/delais.tsv`. Mesuré le 12/11 sur une
+copie vers le staging : 4 SMS et 26 appels créés 3 s après le départ, leurs audios portés dans les 5 s suivantes,
+les 7 messages vocaux (audio AMR copié) en 11,6 s, pendant que les 24 MMS se relisaient à côté.
+
+**Déclenché par l'événement.** Aucun cycle sans changement sur le téléphone, et seul le fil concerné part :
 
 | Événement | Vu par | Délai |
 |---|---|---|
 | enregistrement JemRec fini | inotify | immédiat |
 | appel qui commence ou finit, SMS reçu, avis de messagerie visuelle | sonde rapide : `dumpsys telephony.registry` (`mCallState`) et `dumpsys isms` (journal de l'InboundSmsHandler), natifs, toutes les 10 s | ≤ 10 s |
-| SMS envoyé, MMS, message vocal et son audio | sonde des fournisseurs : dernier `_id` de `content://sms`, `content://mms`, `content://com.android.voicemail/voicemail`, toutes les 60 s, toutes les 15 s pendant 3 min après un événement | ≤ 60 s |
+| SMS envoyé | dernier `_id` de `content://sms`, toutes les 15 s | ≤ 15 s |
+| MMS, message vocal et son audio | dernier `_id` de `content://mms` et de `content://com.android.voicemail/voicemail`, toutes les 60 s, toutes les 15 s pendant 3 min après un appel ou un SMS reçu | ≤ 60 s |
 | filet | passage complet | 30 min (2 min si adb est fermé et les sondes muettes) |
 
-Coût mesuré le 12/11 : sonde rapide 0,03 s de CPU, sonde des fournisseurs 1,1 s (trois `content`, une machine
-Java chacun) ; soit environ 2 % d'un cœur en moyenne, au lieu d'une relecture complète toutes les 2 minutes
+Coût mesuré le 12/11 : sonde rapide 0,03 s de CPU, une sonde de fournisseur 0,35 s (une machine Java par
+`content`) ; soit environ 3 % d'un cœur en moyenne, au lieu d'une relecture complète toutes les 2 minutes
 (dont 98 s d'adb pour relire les 24 MMS un par un : ils sont maintenant en cache, `~/.local/state/crm-telephone/mms/lus.json`).
 
 **Messagerie vocale.** Chaque message du fournisseur Voicemail (lu en uid 2000 par l'adb local) devient un Appel de
@@ -77,15 +87,21 @@ l'AMR. La transcription de Google fait foi quand le téléphone l'a ; sinon Para
 (raccroché, -47 dB) porte « (aucune parole détectée) ».
 
 **Transcription sur le téléphone.** Parakeet TDT 0.6B v3 q8_0 (`~/whisper.cpp/build/bin/parakeet-cli`, sortie
-`-ps` : jetons horodatés au centième, remis au format `[  0.0-  2.0] texte`), par tronçons d'environ 90 s coupés
-au milieu d'un silence (`silencedetect`) : mémoire bornée, reprise au tronçon après un arrêt brutal. Whisper small
-reste en secours si Parakeet échoue. Le plus récent passe d'abord. Les anciennes transcriptions whisper sont
-refaites en Parakeet seulement quand le téléphone charge (`dumpsys battery`), et ne remplacent celle du CRM que si
-le CRM porte encore exactement l'ancienne (`_remplace`) : une retouche à la main reste. Réglages sans toucher au
+`-ps` : jetons horodatés au centième, remis au format `[  0.0-  2.0] texte`), par tronçons d'environ 60 s coupés
+au milieu d'un silence (`silencedetect`), passés par lots de 8 au même `parakeet-cli` (modèle chargé une fois) :
+l'encodeur coûte plus que proportionnellement à la durée d'un bloc (16 s pour 60 s, 271 s pour 5 min), la mémoire
+reste bornée (720 Mo mesurés) et la reprise se fait au tronçon après un arrêt brutal. Appel de Hugo (32 min), le
+12/11 : 13 min, en concurrence avec un banc d'essai. Whisper small
+reste en secours si Parakeet échoue. Le plus récent passe d'abord. Garde batterie : toute transcription se met en
+pause sous 30 % hors charge (`dumpsys battery`, reprise au tronçon), en priorité basse (`nice 15`). L'audio est
+gardé et le CRM dit quel modèle a écrit chaque transcription : changer `parakeet.modele` dans les réglages fait
+refaire tout ce qu'un autre modèle a transcrit, seulement en charge, et le CRM n'est remplacé que s'il porte encore
+une des transcriptions que l'outil avait écrites (`_remplace`, historique `*.anciennes.json`) : une retouche à la
+main reste. Réglages sans toucher au
 code, `~/.config/crm-telephone/reglages.json` (clé par clé, voir `REGLAGES_DEFAUT`) :
 
 ```json
-{"moteurs": ["parakeet", "whisper"], "troncon_s": 90,
+{"moteurs": ["parakeet", "whisper"], "troncon_s": 60, "lot_troncons": 8, "batterie_min_pct": 30,
  "parakeet": {"modele": "~/whisper.cpp/models/ggml-parakeet-tdt-0.6b-v3-q8_0.bin", "fils": 4}}
 ```
 

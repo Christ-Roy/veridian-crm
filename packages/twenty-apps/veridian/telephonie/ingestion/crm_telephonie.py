@@ -202,7 +202,7 @@ def appel(millisecondes, numero, duree, type_android, nom, appareil):
     }
 
 
-def message_vocal(millisecondes, numero, duree, appareil, transcription="", source_transcription=None):
+def message_vocal(millisecondes, numero, duree, appareil, transcription="", source_transcription=None, moteur=None):
     """Un message de la messagerie vocale : un appel de direction MESSAGERIE, avec son audio et sa transcription
     (celle de Google quand le téléphone l'a, sinon celle faite sur place)."""
     vocal = appel(millisecondes, numero, duree, "4", "", appareil)
@@ -211,6 +211,8 @@ def message_vocal(millisecondes, numero, duree, appareil, transcription="", sour
         vocal["transcription"] = transcription
         if source_transcription:
             vocal["sourceTranscription"] = source_transcription
+        if moteur:
+            vocal["moteurTranscription"] = moteur
     return vocal
 
 
@@ -477,10 +479,13 @@ class Twenty:
 
 CHAMPS = {
     "appels": ("titre", "direction", "canal", "debutLe", "dureeSecondes", "numero", "nomSurTelephone",
-               "transcription", "sourceTranscription", "appareil", "idSource"),
+               "transcription", "sourceTranscription", "moteurTranscription", "appareil", "idSource"),
     "textMessages": ("apercu", "texte", "sens", "canal", "envoyeLe", "numero", "nomSurTelephone", "appareil",
                      "idSource"),
 }
+
+
+CHAMPS_TRANSCRIPTION = ("sourceTranscription", "moteurTranscription")
 
 
 def vide(valeur):
@@ -515,13 +520,22 @@ def planifier(pluriel, voulus, existants, index):
         champs = {k: voulu[k] for k in CHAMPS[pluriel] if k in voulu and not vide(voulu[k]) and vide(existant.get(k))}
         # Remplacer n'est permis que sur ce que l'outil avait posé lui-même (une transcription refaite par un
         # meilleur moteur) : la valeur du CRM doit être exactement l'ancienne, sinon quelqu'un l'a retouchée.
-        for k, ancienne in (voulu.get("_remplace") or {}).items():
-            if k in voulu and not vide(voulu[k]) and (existant.get(k) or "").strip() == (ancienne or "").strip() \
-                    and (existant.get(k) or "").strip() != voulu[k].strip():
+        for k, anciennes in (voulu.get("_remplace") or {}).items():
+            anciennes = {(a or "").strip() for a in ([anciennes] if isinstance(anciennes, str) else anciennes)}
+            actuelle = (existant.get(k) or "").strip()
+            if k in voulu and not vide(voulu[k]) and actuelle in anciennes and actuelle != voulu[k].strip():
                 champs[k] = voulu[k]
-        # La source décrit la transcription du CRM : elle ne s'écrit qu'avec elle.
-        if pluriel == "appels" and "transcription" not in champs:
-            champs.pop("sourceTranscription", None)
+                if k == "transcription":
+                    # Le moteur décrit la nouvelle : il la suit, même si l'ancien avait déjà posé le sien.
+                    champs.update({m: voulu[m] for m in CHAMPS_TRANSCRIPTION if voulu.get(m)})
+        # Source et moteur décrivent la transcription du CRM : ils ne s'écrivent qu'avec elle, ou si le CRM porte
+        # déjà exactement la nôtre (posée avant que le champ existe).
+        if pluriel == "appels" and "transcription" not in champs and voulu.get("transcription") and \
+                (existant.get("transcription") or "").strip() == voulu["transcription"].strip():
+            pass
+        elif pluriel == "appels" and "transcription" not in champs:
+            for m in CHAMPS_TRANSCRIPTION:
+                champs.pop(m, None)
         # Un titre reste celui de l'outil tant que personne ne l'a retouché : on le met à la règle du jour, sinon
         # on n'y touche pas (compléter sans écraser vaut aussi pour une saisie à la main).
         if (pluriel == "appels" and existant.get("titre") != voulu["titre"]

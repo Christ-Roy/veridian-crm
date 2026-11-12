@@ -70,12 +70,15 @@ REGLAGES_DEFAUT = {
     "troncon_s": 60,
     "lot_troncons": 8,
     "sonde_rapide_s": 10,
+    "sonde_sms_s": 15,
     "sonde_fournisseurs_s": 60,
     "rafale_s": 180,
     "rafale_pas_s": 15,
     "passage_filet_s": 1800,
-    # Refaire en Parakeet les anciennes transcriptions whisper : seulement en charge, la batterie de Robert d'abord.
+    # Refaire les transcriptions d'un autre modèle que celui des réglages (whisper, ancien Parakeet) : seulement en
+    # charge. Toute transcription se met en pause sous batterie_min_pct hors charge : la batterie de Robert d'abord.
     "ameliorer_anciennes": True,
+    "batterie_min_pct": 30,
 }
 
 TYPES_TERMUX_APPEL = {"INCOMING": "1", "OUTGOING": "2", "MISSED": "3", "VOICEMAIL": "4", "REJECTED": "5",
@@ -189,12 +192,15 @@ def connecter_adb():
 # isms`) prend une ligne à chaque SMS reçu, avis de messagerie visuelle compris.
 SONDE_RAPIDE = ("dumpsys telephony.registry 2>/dev/null | grep mCallState; "
                 "dumpsys isms 2>/dev/null | grep -E 'rec\\[|^ +20[0-9][0-9]-[0-9][0-9]-|total records'")
-# Sonde des fournisseurs : le dernier identifiant de chaque fournisseur (SMS envoyés, MMS, messages vocaux et
-# l'arrivée de leur audio). Trois machines Java, d'où une cadence plus lente.
-SONDE_FOURNISSEURS = "; ".join(
-    f"content query --uri {uri} --projection {projection} --sort '_id DESC LIMIT 1'"
-    for uri, projection in (("content://sms", "_id:date"), ("content://mms", "_id:date"),
-                            (MESSAGERIE, "_id:has_content")))
+# Sondes des fournisseurs : le dernier identifiant (SMS envoyés, MMS, messages vocaux et l'arrivée de leur audio).
+# Une machine Java chacune (0,35 s de CPU) : SMS toutes les 15 s, MMS et messagerie toutes les 60 s (15 s en rafale).
+def _dernier(uri, projection):
+    return f"content query --uri {uri} --projection {projection} --sort '_id DESC LIMIT 1'"
+
+
+SONDE_SMS = _dernier("content://sms", "_id:date")
+SONDE_MMS = _dernier("content://mms", "_id:date")
+SONDE_MESSAGERIE = _dernier(MESSAGERIE, "_id:has_content")
 
 
 def empreinte_sonde(sortie):
@@ -323,13 +329,13 @@ def messages_vocaux_locaux():
                 log(f"audio du message vocal {vocal['_id']} non lu : {erreur}")
         google = (vocal.get("transcription") or "").strip()
         if google:
-            texte, source = google, "GOOGLE"
+            texte, infos = google, {"sourceTranscription": "GOOGLE", "moteurTranscription": "google-messagerie"}
         else:
-            texte, source = transcription(audio), source_transcription(audio)
+            texte, infos = transcription(audio), infos_transcription(audio)
             if audio.exists() and a_transcrire_fichier(audio):
                 a_transcrire.append(audio)
         appel = c.message_vocal(int(vocal["date"]), vocal.get("number"), vocal.get("duration"), APPAREIL, texte,
-                                source)
+                                infos.get("sourceTranscription"), infos.get("moteurTranscription"))
         if audio.exists():
             appel["_fichiers"] = {"enregistrement": [audio]}
         appel["_remplace"] = remplacements(audio)
@@ -349,22 +355,54 @@ def transcription(chemin):
     return fichier.read_text(encoding="utf-8").strip() if fichier.exists() else ""
 
 
+def id_modele(moteur, regl_ou_chemin):
+    """« parakeet-tdt-0.6b-v3-q8_0 », « whisper-small » : le nom du modèle, tel que le CRM l'affiche."""
+    chemin = regl_ou_chemin[moteur]["modele"] if isinstance(regl_ou_chemin, dict) else Path(regl_ou_chemin)
+    nom = chemin.name.removeprefix("ggml-").removesuffix(".bin")
+    return nom if nom.startswith(moteur) else f"{moteur}-{nom}"
+
+
 def moteur_de(chemin):
-    """« parakeet:<modèle> » ou « whisper:<modèle> » ; vide pour une transcription d'avant le 12/11 (whisper
-    small sur ce téléphone, ou reprise du CRM)."""
+    """« parakeet:parakeet-tdt-0.6b-v3-q8_0 », « whisper:whisper-small » ; vide pour une transcription d'avant le
+    12/11 (whisper small sur ce téléphone, ou reprise du CRM)."""
     fichier = fichier_transcription(chemin, ".moteur")
-    return fichier.read_text().strip() if fichier.exists() else ""
+    if not fichier.exists():
+        return ""
+    famille, _, modele = fichier.read_text().strip().partition(":")
+    if famille in SOURCES_MOTEUR and modele.endswith(".bin"):  # marqueur du 12/11 au matin : nom de fichier
+        modele = id_modele(famille, modele)
+    return f"{famille}:{modele}"
+
+
+def infos_transcription(chemin):
+    """Champs du CRM qui disent qui a écrit la transcription, pour la refaire plus tard avec un meilleur modèle."""
+    if not transcription(chemin):
+        return {}
+    famille, _, modele = moteur_de(chemin).partition(":")
+    infos = {"sourceTranscription": SOURCES_MOTEUR.get(famille)} if famille in SOURCES_MOTEUR else {}
+    if famille in SOURCES_MOTEUR and modele:
+        infos["moteurTranscription"] = modele
+    return infos
 
 
 def source_transcription(chemin):
-    return SOURCES_MOTEUR.get(moteur_de(chemin).split(":")[0]) if transcription(chemin) else None
+    return infos_transcription(chemin).get("sourceTranscription")
+
+
+def anciennes(chemin):
+    fichier = fichier_transcription(chemin, ".anciennes.json")
+    liste = json.loads(fichier.read_text(encoding="utf-8")) if fichier.exists() else []
+    vieille = fichier_transcription(chemin, ".ancienne.txt")  # forme du 12/11 au matin
+    if vieille.exists():
+        liste.append(vieille.read_text(encoding="utf-8"))
+    return liste
 
 
 def remplacements(chemin):
-    """Une transcription refaite par un meilleur moteur ne remplace celle du CRM que si le CRM porte encore
-    exactement l'ancienne, écrite par l'outil (planifier, `_remplace`)."""
-    ancienne = fichier_transcription(chemin, ".ancienne.txt")
-    return {"transcription": ancienne.read_text(encoding="utf-8")} if ancienne.exists() else {}
+    """Une transcription refaite par un autre modèle ne remplace celle du CRM que si le CRM porte encore une de
+    celles que l'outil avait écrites (planifier, `_remplace`) : une retouche à la main reste."""
+    liste = anciennes(chemin)
+    return {"transcription": liste} if liste else {}
 
 
 def a_transcrire_fichier(chemin):
@@ -372,9 +410,11 @@ def a_transcrire_fichier(chemin):
     return not fichier_transcription(chemin).exists()
 
 
-def a_ameliorer(chemin):
-    """Transcription d'un ancien moteur (ou échec de whisper) que Parakeet n'a pas encore refaite."""
-    return fichier_transcription(chemin).exists() and not moteur_de(chemin).startswith("parakeet")
+def a_ameliorer(chemin, regl):
+    """Transcription d'un autre modèle que celui des réglages (whisper, ancien Parakeet), pas encore refaite."""
+    voulu = id_modele("parakeet", regl)
+    return fichier_transcription(chemin).exists() and moteur_de(chemin) not in (f"parakeet:{voulu}",
+                                                                                 f"echec-parakeet:{voulu}")
 
 
 JETON = re.compile(r't0=\s*(\d+) t1=\s*(\d+) word_start=(true|false) "(.*)"\s*$')
@@ -478,6 +518,7 @@ def transcrire_parakeet(wav, regl, cede=lambda: False):
         morceaux = troncons(duree, silences(wav), float(regl["troncon_s"]))
         plan.write_text(json.dumps(morceaux))
     restants = [i for i in range(len(morceaux)) if not (travail / f"{i:04d}.json").exists()]
+    debut_run, audio_run = time.time(), sum(morceaux[i][1] - morceaux[i][0] for i in restants)
     lot = max(1, int(regl.get("lot_troncons", 8)))
     for depart in range(0, len(restants), lot):
         if cede():
@@ -505,6 +546,9 @@ def transcrire_parakeet(wav, regl, cede=lambda: False):
                 raise ValueError(f"parakeet-cli n'a rien rendu pour le tronçon {i} de {wav.name}")
             (travail / f"{i:04d}.json").write_text(json.dumps(lignes_depuis_jetons(jetons_parakeet(texte),
                                                                                   morceaux[i][0])))
+    if restants:
+        log(f"parakeet : {len(restants)} tronçons, {audio_run / 60:.1f} min d'audio en {time.time() - debut_run:.0f} s "
+            f"({(time.time() - debut_run) / max(audio_run, 1) * 60:.0f} s par minute)")
     lignes = []
     for i in range(len(morceaux)):
         lignes += json.loads((travail / f"{i:04d}.json").read_text())
@@ -561,14 +605,12 @@ def transcrire_un(chemin, regl, moteurs, cede=lambda: False):
             # Un message vide (raccroché sans parler, -47 dB mesuré le 12/11) : on le dit, ce n'est pas un échec.
             lignes = lignes or [AUCUNE_PAROLE]
             if sortie.exists() and sortie.read_text(encoding="utf-8").strip():
-                ancienne = fichier_transcription(chemin, ".ancienne.txt")
-                if not ancienne.exists():
-                    ancienne.write_text(sortie.read_text(encoding="utf-8"), encoding="utf-8")
+                liste = anciennes(chemin) + [sortie.read_text(encoding="utf-8")]
+                fichier_transcription(chemin, ".anciennes.json").write_text(json.dumps(liste), encoding="utf-8")
+                fichier_transcription(chemin, ".ancienne.txt").unlink(missing_ok=True)
             sortie.write_text("\n".join(lignes) + "\n", encoding="utf-8")
-            fichier_transcription(chemin, ".moteur").write_text(f"{moteur}:{regl[moteur]['modele'].name}\n")
-            duree_audio = max(1.0, (wav.stat().st_size - 44) / 32_000)
-            log(f"transcription {moteur} de {chemin.name} : {time.time() - debut:.0f} s pour "
-                f"{duree_audio / 60:.1f} min d'audio ({(time.time() - debut) / duree_audio * 60:.0f} s par minute)")
+            fichier_transcription(chemin, ".moteur").write_text(f"{moteur}:{id_modele(moteur, regl)}\n")
+            log(f"transcription {moteur} de {chemin.name} prête ({time.time() - debut:.0f} s)")
             wav.unlink(missing_ok=True)
             return True
     except Preempte:
@@ -596,8 +638,9 @@ def reprendre_transcriptions(appels, existants):
         if existant and existant.get("transcription") and not (cache.exists() and cache.read_text(encoding="utf-8").strip()):
             cache.parent.mkdir(parents=True, exist_ok=True)
             cache.write_text(existant["transcription"], encoding="utf-8")
-            if existant.get("sourceTranscription") == "PARAKEET":
-                fichier_transcription(fichiers[0], ".moteur").write_text("parakeet:crm\n")
+            famille = (existant.get("sourceTranscription") or "").lower()
+            if famille in SOURCES_MOTEUR and existant.get("moteurTranscription"):
+                fichier_transcription(fichiers[0], ".moteur").write_text(f"{famille}:{existant['moteurTranscription']}\n")
 
 
 def memoire_libre_ko():
@@ -607,20 +650,36 @@ def memoire_libre_ko():
     return 0
 
 
-_BATTERIE = {"le": 0.0, "en_charge": False}
+_BATTERIE = {"le": 0.0, "niveau": None, "en_charge": False}
+
+
+def batterie():
+    """(niveau en %, en charge), lu par `dumpsys battery` (le sysfs est fermé à Termux), sinon par Termux:API ;
+    une fois par minute au plus. Illisible : (None, False)."""
+    if time.time() - _BATTERIE["le"] > 60:
+        niveau, charge = None, False
+        try:
+            sortie = adb_local("dumpsys battery", delai=20)
+            etat, valeur = re.search(r"^\s*status: (\d+)", sortie, re.M), re.search(r"^\s*level: (\d+)", sortie, re.M)
+            niveau, charge = (int(valeur.group(1)) if valeur else None), bool(etat) and etat.group(1) in ("2", "5")
+        except c.NonAbouti:
+            try:
+                etat = json.loads(c.executer(["termux-battery-status"], delai=30))
+                niveau, charge = etat.get("percentage"), etat.get("status") in ("CHARGING", "FULL")
+            except (c.NonAbouti, ValueError):
+                pass
+        _BATTERIE.update(le=time.time(), niveau=niveau, en_charge=charge)
+    return _BATTERIE["niveau"], _BATTERIE["en_charge"]
 
 
 def en_charge():
-    """Batterie en charge (status 2) ou pleine (5), lu par `dumpsys battery` (le sysfs est fermé à Termux), une
-    fois par minute au plus. Illisible = non : on n'améliore pas sur batterie à l'aveugle."""
-    if time.time() - _BATTERIE["le"] > 60:
-        try:
-            etat = re.search(r"^\s*status: (\d+)", adb_local("dumpsys battery", delai=20), re.M)
-            _BATTERIE["en_charge"] = bool(etat) and etat.group(1) in ("2", "5")
-        except c.NonAbouti:
-            _BATTERIE["en_charge"] = False
-        _BATTERIE["le"] = time.time()
-    return _BATTERIE["en_charge"]
+    return batterie()[1]
+
+
+def transcription_permise(regl):
+    """En charge, ou batterie au-dessus du seuil. Batterie illisible : pas de transcription (prudence)."""
+    niveau, charge = batterie()
+    return charge or (niveau is not None and niveau >= regl["batterie_min_pct"])
 
 
 def enregistrements_locaux():
@@ -630,157 +689,200 @@ def enregistrements_locaux():
     return enregistrements
 
 
-# ---------------------------------------------------------------- l'agent
+# ---------------------------------------------------------------- l'agent : un fil par type, le brut d'abord
+
+
+ECHECS = (c.NonAbouti, RuntimeError, OSError, ValueError)
+
+
+def date_evenement(enregistrement):
+    """Moment où l'événement a eu lieu sur le téléphone : fin de l'appel (début + durée), envoi du message."""
+    texte = enregistrement.get("debutLe") or enregistrement.get("envoyeLe")
+    if not texte:
+        return None
+    moment = dt.datetime.fromisoformat(texte.replace("Z", "+00:00")).timestamp()
+    return moment + float(enregistrement.get("dureeSecondes") or 0)
+
+
+def noter_delai(nom, secondes):
+    """Délai mesuré entre l'événement et son arrivée au CRM, par type, sans donnée personnelle."""
+    with (ETAT / "delais.tsv").open("a") as fichier:
+        fichier.write(f"{dt.datetime.now():%F %T}\t{nom}\t{secondes:.1f}\n")
+
+
+class Flux:
+    """Un type (appels, sms, mms, messagerie) : son fil, son réveil, son empreinte. Les types ne s'attendent pas :
+    un SMS ne patiente jamais derrière un audio à téléverser ni derrière une transcription. Un cycle écrit d'abord
+    le brut (le record et ses métadonnées, en un lot) ; les fichiers partent ensuite par la file de téléversement,
+    puis le cycle suivant constate qu'ils sont portés."""
+
+    def __init__(self, agent, nom, pluriel, lire):
+        self.agent, self.nom, self.pluriel, self.lire = agent, nom, pluriel, lire
+        self.reveil = threading.Event()
+        self.fichier_empreinte = ETAT / f"empreinte-{nom}"
+        self.empreinte_envoyee = self.fichier_empreinte.read_text() if self.fichier_empreinte.exists() else ""
+        self.en_attente, self.echecs, self.reessai_le, self.dernier = False, 0, 0.0, 0.0
+        self.signale_le = None
+
+    def signaler(self):
+        self.signale_le = self.signale_le or time.time()
+        self.reveil.set()
+
+    def attendre(self, reseau):
+        """Réseau absent : on retente dès que le CRM répond (30 s au plus tôt). Refus du CRM : 30 s, 1, 2… 5 min."""
+        self.en_attente, self.echecs = True, self.echecs + 1
+        self.reessai_le = time.time() + (30 if reseau else min(300, 30 * 2 ** (self.echecs - 1)))
+
+    def boucle(self, regl):
+        while True:
+            filet = regl["passage_filet_s"] if self.agent.sondes_ok else 120
+            self.reveil.wait(10 if self.en_attente else max(1.0, filet - (time.time() - self.dernier)))
+            maintenant = time.time()
+            if not self.reveil.is_set():
+                if self.en_attente and not (maintenant >= self.reessai_le and self.agent.crm_joignable()):
+                    continue
+                if not self.en_attente and maintenant - self.dernier < filet:
+                    continue
+            self.reveil.clear()
+            signale, self.signale_le = self.signale_le, None
+            try:
+                self.cycle(signale)
+            except ECHECS as erreur:
+                log(f"{self.nom} : cycle non abouti : {erreur}")
+                self.attendre(reseau=True)
+            self.dernier = time.time()
+
+    def cycle(self, signale=None):
+        """0 rien à faire ou fait, 1 une écriture refusée, 2 CRM injoignable (on retentera)."""
+        debut = time.time()
+        voulus = self.lire()
+        empreinte = hashlib.sha1(json.dumps(sorted(
+            v["idSource"] + hashlib.sha1((v.get("transcription") or "").encode()).hexdigest()[:8]
+            + str(sorted((k, len(f)) for k, f in (v.get("_fichiers") or {}).items())) for v in voulus)).encode()).hexdigest()
+        if empreinte == self.empreinte_envoyee:
+            self.en_attente, self.echecs = False, 0
+            return 0
+        try:
+            index = self.agent.personnes()
+            existants = self.agent.twenty.tout_lister(self.pluriel, f"appareil[eq]:{APPAREIL}")
+            if self.pluriel == "appels":
+                reprendre_transcriptions(voulus, existants)
+            creations, complements, _ = c.planifier(self.pluriel, voulus, existants, index)
+            brut = [(corps, None) for corps, _ in creations]
+            champs = [(ident, ch, None) for ident, ch, _ in complements if ch]
+            erreurs = c.ecrire(self.agent.twenty, self.pluriel, brut, champs) if (brut or champs) else 0
+        except (c.NonAbouti, OSError) as erreur:
+            self.attendre(reseau=True)
+            log(f"{self.nom} : CRM injoignable, envoi au retour du réseau : {erreur}")
+            return 2
+        except RuntimeError as erreur:
+            self.attendre(reseau=False)
+            log(f"{self.nom} : refusé par le CRM : {erreur}")
+            return 1
+        fin = time.time()
+        for corps, _ in creations:
+            moment = date_evenement(corps)
+            if moment and fin - moment < 3600:
+                noter_delai(self.nom, fin - moment)
+                log(f"{self.nom} : créé {fin - moment:.0f} s après l'événement (détecté il y a "
+                    f"{fin - (signale or debut):.0f} s, cycle {fin - debut:.1f} s)")
+        if brut or champs:
+            log(f"{self.nom} : {len(brut)} créés, {len(champs)} complétés en {fin - debut:.1f} s")
+        fichiers = [(ident, f) for ident, _, f in complements if f]
+        for ident, f in fichiers:
+            self.agent.televerser(self, ident, f)
+        if erreurs:
+            self.attendre(reseau=False)
+            return 1
+        self.en_attente, self.echecs = False, 0
+        if any(f for _, f in creations):
+            # Records neufs avec fichiers : le cycle suivant les trouve au CRM et met leurs fichiers en file.
+            self.signaler()
+        elif not (creations or champs or fichiers):
+            self.empreinte_envoyee = empreinte
+            self.fichier_empreinte.write_text(empreinte)
+            (ETAT / "dernier-succes").write_text(dt.datetime.now().isoformat())
+        return 0
+
+
+class FileDeTeleversement:
+    """Une file et un fil : compression et envoi des fichiers après la création du record, sans jamais retarder
+    un autre type. L'audio et les pièces jointes ont chacun la leur (un audio de 72 Mo, 128 s de compression,
+    ne retient pas la photo d'un MMS)."""
+
+    def __init__(self, agent, nom):
+        self.agent, self.nom = agent, nom
+        self.file, self.en_cours, self.verrou = [], set(), threading.Condition()
+        threading.Thread(target=self.boucle, daemon=True).start()
+
+    def ajouter(self, flux, ident, fichiers):
+        cle = (flux.pluriel, ident)
+        with self.verrou:
+            if cle in self.en_cours:
+                return
+            self.en_cours.add(cle)
+            self.file.append((flux, ident, fichiers))
+            self.verrou.notify()
+
+    def boucle(self):
+        while True:
+            with self.verrou:
+                while not self.file:
+                    self.verrou.wait()
+                flux, ident, fichiers = self.file.pop(0)
+            debut = time.time()
+            try:
+                self.agent.twenty.modifier(flux.pluriel, ident, c.avec_fichiers(self.agent.twenty, {}, fichiers))
+                log(f"{flux.nom} : {sum(len(v) for v in fichiers.values())} fichier(s) porté(s) en "
+                    f"{time.time() - debut:.1f} s")
+            except c.ECHECS as erreur:
+                log(f"{flux.nom} : fichier remis à plus tard : {erreur}")
+                time.sleep(30)
+            finally:
+                with self.verrou:
+                    self.en_cours.discard((flux.pluriel, ident))
+                flux.signaler()
 
 
 class Agent:
-    def __init__(self, twenty):
-        self.twenty = twenty
-        self.index, self.index_le = {}, 0.0
-        self.empreinte_envoyee = (ETAT / "derniere-empreinte").read_text() if (ETAT / "derniere-empreinte").exists() else ""
+    def __init__(self, twenty, regl=None):
+        self.twenty, self.regl = twenty, regl or reglages()
+        self.index, self.index_le, self.verrou_index = {}, 0.0, threading.Lock()
         self.transcripteur = None
-        self.reveil = threading.Event()
         self.vocaux_a_transcrire = []
-        self.en_attente = False
-        self.echecs, self.reessai_le = 0, 0.0
+        self.sondes_ok = True
+        self.flux = {nom: Flux(self, nom, pluriel, lire) for nom, pluriel, lire in (
+            ("appels", "appels", self.lire_appels), ("sms", "textMessages", sms_locaux),
+            ("mms", "textMessages", mms_locaux), ("messagerie", "appels", self.lire_messagerie))}
+        self.files = {}
+
+    def televerser(self, flux, ident, fichiers):
+        nom = "audio" if "enregistrement" in fichiers else "pieces"
+        if nom not in self.files:
+            self.files[nom] = FileDeTeleversement(self, nom)
+        self.files[nom].ajouter(flux, ident, fichiers)
 
     def personnes(self):
-        if time.time() - self.index_le > PERSONNES_VALIDES_S:
-            self.index, _ = c.index_telephones(self.twenty.tout_lister("people"))
-            self.index_le = time.time()
-        return self.index
+        with self.verrou_index:
+            if time.time() - self.index_le > PERSONNES_VALIDES_S:
+                self.index, _ = c.index_telephones(self.twenty.tout_lister("people"))
+                self.index_le = time.time()
+            return self.index
 
-    def lire(self):
-        """Tout ce que le téléphone sait, sans réseau. Rend (appels, messages, empreinte)."""
-        appels, messages = appels_locaux(), sms_locaux() + mms_locaux()
-        enregistrements = enregistrements_locaux()
-        c.associer_enregistrements(appels, enregistrements)
+    def lire_appels(self):
+        appels = appels_locaux()
+        c.associer_enregistrements(appels, enregistrements_locaux())
         for appel in appels:
             fichiers = (appel.get("_fichiers") or {}).get("enregistrement")
             if fichiers:
                 appel["_remplace"] = remplacements(fichiers[0])
-                source = source_transcription(fichiers[0])
-                if source and appel.get("transcription"):
-                    appel["sourceTranscription"] = source
+                if appel.get("transcription"):
+                    appel.update(infos_transcription(fichiers[0]))
+        return appels
+
+    def lire_messagerie(self):
         vocaux, self.vocaux_a_transcrire = messages_vocaux_locaux()
-        appels += vocaux
-        empreinte = hashlib.sha1(json.dumps(
-            [sorted(a["idSource"] + hashlib.sha1(a.get("transcription", "").encode()).hexdigest()[:8]
-                    + str(bool(a.get("_fichiers"))) for a in appels),
-             sorted(m["idSource"] + str(len((m.get("_fichiers") or {}).get("piecesJointes", []))) for m in messages)]
-        ).encode()).hexdigest()
-        return appels, messages, empreinte
-
-    def passage(self, lecture=None):
-        """Lit le téléphone (ou reprend la lecture donnée) et n'écrit au CRM que ce qui a changé.
-        0 fait ou rien à faire, 1 une écriture a échoué, 2 le CRM n'a pas répondu (on retentera)."""
-        appels, messages, empreinte = lecture or self.lire()
-        if empreinte == self.empreinte_envoyee:
-            self.en_attente = False
-            return 0
-        debut = time.time()
-        try:
-            index = self.personnes()
-            erreurs = 0
-            for pluriel, voulus in (("appels", appels), ("textMessages", messages)):
-                existants = self.twenty.tout_lister(pluriel, f'appareil[eq]:{APPAREIL}')
-                if pluriel == "appels":
-                    reprendre_transcriptions(appels, existants)
-                creations, complements, _ = c.planifier(pluriel, voulus, existants, index)
-                if creations or complements:
-                    erreurs += c.ecrire(self.twenty, pluriel, creations, complements)
-                    log(f"{pluriel} : {len(creations)} créés, {len(complements)} complétés en "
-                        f"{time.time() - debut:.1f} s")
-        except (c.NonAbouti, RuntimeError, OSError) as erreur:
-            self.attendre(reseau=isinstance(erreur, (c.NonAbouti, OSError)))
-            log(f"CRM injoignable, envoi au retour du réseau : {erreur}")
-            return 2
-        if erreurs:
-            # Une écriture refusée par le CRM : on retentera, de plus en plus espacé (5 min au plus).
-            self.attendre(reseau=False)
-            return 1
-        self.en_attente, self.echecs = False, 0
-        self.empreinte_envoyee = empreinte
-        (ETAT / "derniere-empreinte").write_text(empreinte)
-        (ETAT / "dernier-succes").write_text(dt.datetime.now().isoformat())
-        return 0
-
-    def attendre(self, reseau):
-        """Réseau absent : on retente dès que le CRM répond (30 s au plus tôt). Refus du CRM : 30 s, 1 min, 2 min…"""
-        self.en_attente, self.echecs = True, self.echecs + 1
-        self.reessai_le = time.time() + (30 if reseau else min(300, 30 * 2 ** (self.echecs - 1)))
-
-    # -- transcription, à côté de la boucle
-
-    def a_faire(self, regl):
-        """(nouveaux, à améliorer), du plus récent au plus ancien : un appel qui vient de finir passe d'abord."""
-        fichiers = [chemin for _, _, chemin, _ in enregistrements_locaux()] + list(self.vocaux_a_transcrire)
-        fichiers.sort(key=lambda p: p.stem, reverse=True)
-        nouveaux = [f for f in fichiers if a_transcrire_fichier(f)]
-        ameliorer = []
-        if regl.get("ameliorer_anciennes") and "parakeet" in regl["moteurs"] and en_charge():
-            ameliorer = [f for f in fichiers if a_ameliorer(f)]
-        return nouveaux, ameliorer
-
-    def transcrire_en_fond(self, regl):
-        """Un fil à côté de la boucle : un appel d'une heure ne retient pas les envois au CRM."""
-        if self.transcripteur and self.transcripteur.is_alive():
-            return
-        nouveaux, ameliorer = self.a_faire(regl)
-        if not (nouveaux or ameliorer):
-            return
-
-        def tache():
-            try:
-                if self.transcrire_en_attente(regl, nouveaux, ameliorer):
-                    self.reveil.set()
-            except (c.NonAbouti, RuntimeError, OSError, ValueError) as erreur:
-                log(f"transcription remise à plus tard : {erreur}")
-        self.transcripteur = threading.Thread(target=tache, daemon=True)
-        self.transcripteur.start()
-
-    def transcrire_en_attente(self, regl, nouveaux, ameliorer):
-        """Un fichier à la fois ; rend True si une transcription est prête (le passage suivant la porte)."""
-        if nouveaux:
-            # Avant le moteur, le CRM : l'appel a peut-être déjà sa transcription (pixel-appels, état perdu).
-            # Hors réseau, on transcrit quand même.
-            try:
-                appels = appels_locaux()
-                c.associer_enregistrements(appels, enregistrements_locaux())
-                reprendre_transcriptions(appels, self.twenty.tout_lister("appels", f'appareil[eq]:{APPAREIL}'))
-            except (c.NonAbouti, RuntimeError, OSError):
-                pass
-            nouveaux = [f for f in nouveaux if a_transcrire_fichier(f)]
-        cible, moteurs = None, moteurs_prets(regl)
-        if nouveaux:
-            cible = nouveaux[0]
-        elif ameliorer:
-            cible, moteurs = ameliorer[0], [m for m in moteurs if m == "parakeet"]
-        if cible is None or not moteurs:
-            return False
-        neuf = cible in nouveaux
-        log(f"transcription de {cible.name}" + ("" if neuf else " (amélioration Parakeet)"))
-        cede = (lambda: False) if neuf else (lambda: bool(self.a_faire(regl)[0]) or not en_charge())
-        try:
-            return transcrire_un(cible, regl, moteurs, cede)
-        except Preempte:
-            log(f"amélioration de {cible.name} suspendue : un enregistrement neuf passe d'abord")
-            return False
-        except (subprocess.SubprocessError, OSError, ValueError) as erreur:
-            log(f"transcription de {cible.name} impossible : {erreur}")
-            # Tué par un signal (mémoire reprise par Android) ou délai dépassé : on retentera.
-            # Sinon, échec réel de tous les moteurs : noté vide, pour ne pas relancer en boucle.
-            reessayable = isinstance(erreur, subprocess.TimeoutExpired) or (
-                isinstance(erreur, subprocess.CalledProcessError) and erreur.returncode < 0)
-            if not reessayable and neuf:
-                fichier_transcription(cible).write_text("", encoding="utf-8")
-                fichier_transcription(cible, ".moteur").write_text("echec\n")
-            elif not reessayable:
-                # Amélioration ratée : l'ancienne transcription reste, on ne la retente plus.
-                fichier_transcription(cible, ".moteur").write_text("parakeet-echec\n")
-            return False
-
-    # -- la boucle
+        return vocaux
 
     def crm_joignable(self):
         """Une connexion TCP au CRM, 3 s au plus : savoir que le réseau est revenu sans relire le téléphone."""
@@ -792,57 +894,126 @@ class Agent:
         except OSError:
             return False
 
-    def boucle(self, regl, une_fois=False):
+    # -- transcription, en dernier, à côté de tout le reste
+
+    def a_faire(self, regl):
+        """(nouveaux, à refaire), du plus récent au plus ancien : un appel qui vient de finir passe d'abord."""
+        fichiers = [chemin for _, _, chemin, _ in enregistrements_locaux()] + list(self.vocaux_a_transcrire)
+        fichiers.sort(key=lambda p: p.stem, reverse=True)
+        nouveaux = [f for f in fichiers if a_transcrire_fichier(f)]
+        refaire = []
+        if regl.get("ameliorer_anciennes") and "parakeet" in regl["moteurs"] and en_charge():
+            refaire = [f for f in fichiers if a_ameliorer(f, regl)]
+        return nouveaux, refaire
+
+    def transcrire_en_fond(self, regl):
+        if self.transcripteur and self.transcripteur.is_alive():
+            return
+        if not transcription_permise(regl):
+            return
+        nouveaux, refaire = self.a_faire(regl)
+        if not (nouveaux or refaire):
+            return
+
+        def tache():
+            try:
+                if self.transcrire_en_attente(regl, nouveaux, refaire):
+                    self.flux["appels"].signaler()
+                    self.flux["messagerie"].signaler()
+            except ECHECS as erreur:
+                log(f"transcription remise à plus tard : {erreur}")
+        self.transcripteur = threading.Thread(target=tache, daemon=True)
+        self.transcripteur.start()
+
+    def transcrire_en_attente(self, regl, nouveaux, refaire):
+        """Un fichier à la fois ; rend True si une transcription est prête (les fils la portent au CRM)."""
+        if nouveaux:
+            # Avant le moteur, le CRM : l'appel a peut-être déjà sa transcription. Hors réseau, on transcrit quand même.
+            try:
+                appels = appels_locaux()
+                c.associer_enregistrements(appels, enregistrements_locaux())
+                reprendre_transcriptions(appels, self.twenty.tout_lister("appels", f'appareil[eq]:{APPAREIL}'))
+            except ECHECS:
+                pass
+            nouveaux = [f for f in nouveaux if a_transcrire_fichier(f)]
+        cible, moteurs = None, moteurs_prets(regl)
+        if nouveaux:
+            cible = nouveaux[0]
+        elif refaire:
+            cible, moteurs = refaire[0], [m for m in moteurs if m == "parakeet"]
+        if cible is None or not moteurs:
+            return False
+        neuf = cible in nouveaux
+        log(f"transcription de {cible.name}" + ("" if neuf else f" (refaite en {id_modele('parakeet', regl)})"))
+        if neuf:
+            cede = lambda: not transcription_permise(regl)  # noqa: E731
+        else:
+            cede = lambda: bool(self.a_faire(regl)[0]) or not en_charge()  # noqa: E731
+        try:
+            return transcrire_un(cible, regl, moteurs, cede)
+        except Preempte:
+            log(f"transcription de {cible.name} en pause (batterie, ou un enregistrement neuf passe d'abord)")
+            return False
+        except (subprocess.SubprocessError, OSError, ValueError) as erreur:
+            log(f"transcription de {cible.name} impossible : {erreur}")
+            # Tué par un signal (mémoire reprise par Android) ou délai dépassé : on retentera.
+            reessayable = isinstance(erreur, subprocess.TimeoutExpired) or (
+                isinstance(erreur, subprocess.CalledProcessError) and erreur.returncode < 0)
+            if not reessayable and neuf:
+                fichier_transcription(cible).write_text("", encoding="utf-8")
+                fichier_transcription(cible, ".moteur").write_text("echec:\n")
+            elif not reessayable:
+                # Refaite sans succès : l'ancienne reste, on ne retente plus avec ce modèle.
+                fichier_transcription(cible, ".moteur").write_text(f"echec-parakeet:{id_modele('parakeet', regl)}\n")
+            return False
+
+    # -- les sondes : elles réveillent les fils concernés, rien d'autre
+
+    def boucle(self, regl):
         connecter_adb()
-        derniere_rapide = derniere_fournisseurs = None
-        prochaine_fournisseurs = rafale_jusqua = 0.0
-        dernier_passage = 0.0
-        lecture = None
+        for flux in self.flux.values():
+            threading.Thread(target=flux.boucle, args=(regl,), daemon=True).start()
+            flux.signaler()
+        sondes = {"rapide": (SONDE_RAPIDE, ("appels", "sms", "messagerie"), regl["sonde_rapide_s"]),
+                  "sms": (SONDE_SMS, ("sms",), regl["sonde_sms_s"]),
+                  "mms": (SONDE_MMS, ("mms",), regl["sonde_fournisseurs_s"]),
+                  "messagerie": (SONDE_MESSAGERIE, ("messagerie",), regl["sonde_fournisseurs_s"])}
+        dernieres, prochaines, rafale_jusqua, reconnexion = {}, {nom: 0.0 for nom in sondes}, 0.0, 0.0
         while True:
             maintenant = time.time()
-            raison = "réveil" if self.reveil.is_set() else ""
-            self.reveil.clear()
-            rapide = sonder(SONDE_RAPIDE)
-            if rapide is None:
-                connecter_adb()
-            elif rapide != derniere_rapide:
-                if derniere_rapide is not None:
-                    raison = raison or "téléphonie"
-                    rafale_jusqua = maintenant + regl["rafale_s"]
-                derniere_rapide = rapide
-            if maintenant >= prochaine_fournisseurs:
-                fournisseurs = sonder(SONDE_FOURNISSEURS)
-                if fournisseurs is not None and fournisseurs != derniere_fournisseurs:
-                    if derniere_fournisseurs is not None:
-                        raison = raison or "fournisseurs"
-                    derniere_fournisseurs = fournisseurs
-                pas = regl["rafale_pas_s"] if maintenant < rafale_jusqua else regl["sonde_fournisseurs_s"]
-                prochaine_fournisseurs = maintenant + pas
-            # Sans sonde (adb fermé après un redémarrage), on revient au passage toutes les 2 minutes.
-            filet = regl["passage_filet_s"] if rapide is not None else 120
-            if not raison and maintenant - dernier_passage >= filet:
-                raison = "filet"
-            if not raison and self.en_attente and maintenant >= self.reessai_le and self.crm_joignable():
-                raison = "réseau revenu"
-            if raison:
-                try:
-                    if raison != "réseau revenu" or lecture is None:
-                        lecture = self.lire()
-                    code = self.passage(lecture)
-                    dernier_passage = time.time()
-                    if code == 0 and raison not in ("filet",):
-                        log(f"passage ({raison}) en {dernier_passage - maintenant:.1f} s")
-                except (c.NonAbouti, RuntimeError, OSError, ValueError) as erreur:
-                    log(f"passage non abouti : {erreur}")
-                    code = 2
-                if une_fois:
-                    return code
+            for nom, (script, cibles, pas) in sondes.items():
+                if maintenant < prochaines[nom]:
+                    continue
+                empreinte = sonder(script)
+                prochaines[nom] = maintenant + (regl["rafale_pas_s"] if nom != "rapide" and maintenant < rafale_jusqua
+                                                else pas)
+                if empreinte is None:
+                    if nom == "rapide":
+                        # Sonde muette (adb fermé après un redémarrage) : les fils reviennent au filet de 2 min.
+                        self.sondes_ok = False
+                        if maintenant - reconnexion > 60:
+                            connecter_adb()
+                            reconnexion = maintenant
+                    continue
+                if nom == "rapide":
+                    self.sondes_ok = True
+                if nom in dernieres and empreinte != dernieres[nom]:
+                    if nom == "rapide":
+                        # Un appel ou un SMS reçu : les fournisseurs sont sondés toutes les 15 s pendant 3 min.
+                        rafale_jusqua = maintenant + regl["rafale_s"]
+                        prochaines.update({n: maintenant for n in sondes if n != "rapide"})
+                    for cible in cibles:
+                        self.flux[cible].signaler()
+                dernieres[nom] = empreinte
             self.transcrire_en_fond(regl)
-            self.reveil.wait(regl["sonde_rapide_s"])
+            self.attendre_tour(regl["sonde_rapide_s"])
+
+    def attendre_tour(self, secondes):
+        time.sleep(secondes)
 
 
-def surveiller_enregistrements(reveil):
-    """inotify sur JemRec : la fin d'un enregistrement réveille la boucle tout de suite."""
+def surveiller_enregistrements(flux):
+    """inotify sur JemRec : la fin d'un enregistrement réveille le fil des appels tout de suite."""
     while True:
         try:
             enfant = subprocess.Popen(["inotifywait", "-m", "-q", "-e", "close_write", "-e", "moved_to", str(JEMREC)],
@@ -853,7 +1024,7 @@ def surveiller_enregistrements(reveil):
         ENFANTS.add(enfant)
         for ligne in enfant.stdout:
             if ".ogg" in ligne:
-                reveil.set()
+                flux.signaler()
         ENFANTS.discard(enfant)
         time.sleep(30)
 
@@ -861,7 +1032,7 @@ def surveiller_enregistrements(reveil):
 def main(argv=None):
     global ETAT, JEMREC, CONFIG
     parseur = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parseur.add_argument("--une-fois", action="store_true")
+    parseur.add_argument("--une-fois", action="store_true", help="un cycle de chaque type, sans fichiers ni transcription")
     parseur.add_argument("--etat", type=Path, help="dossier d'état (copie d'essai)")
     parseur.add_argument("--acces", type=Path, help="fichier d'accès au CRM (copie d'essai)")
     parseur.add_argument("--jemrec", type=Path, help="dossier des enregistrements (copie d'essai)")
@@ -875,14 +1046,14 @@ def main(argv=None):
     for reste in list((ETAT / "tmp").iterdir()) + list((ETAT / "transcriptions").glob("*.wav")):
         reste.unlink()  # laissé par un arrêt brutal
     acces = json.loads(CONFIG.read_text())
-    agent = Agent(c.Twenty(acces["url"].rstrip("/"), acces["cle"], essais=2))
     regl = reglages()
-    log(f"agent prêt : moteurs {', '.join(regl['moteurs'])}, modèle Parakeet {regl['parakeet']['modele'].name}")
+    agent = Agent(c.Twenty(acces["url"].rstrip("/"), acces["cle"], essais=2), regl)
+    log(f"agent prêt : moteurs {', '.join(regl['moteurs'])}, modèle {id_modele('parakeet', regl)}, "
+        f"transcription en pause sous {regl['batterie_min_pct']} % hors charge")
     if arguments.une_fois:
-        agent.reveil.set()
-        return agent.boucle(regl, une_fois=True)
-    threading.Thread(target=surveiller_enregistrements, args=(agent.reveil,), daemon=True).start()
-    agent.reveil.set()
+        connecter_adb()
+        return max(flux.cycle() for flux in agent.flux.values())
+    threading.Thread(target=surveiller_enregistrements, args=(agent.flux["appels"],), daemon=True).start()
     agent.boucle(regl)
 
 

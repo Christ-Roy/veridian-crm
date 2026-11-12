@@ -89,65 +89,157 @@ class Sondes(unittest.TestCase):
         self.assertEqual(avant, t.empreinte_sonde("    mCallState=0\nFailed to write ...: Broken pipe\n"))
 
 
+class FauxCRM:
+    """CRM en mémoire : garde les records créés, rend des identifiants, compte l'ordre des écritures."""
+
+    def __init__(self):
+        self.url, self.records, self.journal = "http://crm.exemple", {"appels": [], "textMessages": []}, []
+
+    def tout_lister(self, pluriel, filtre=None):
+        return [dict(r) for r in self.records.get(pluriel, [])]
+
+    def creer_lot(self, pluriel, lot):
+        for corps in lot:
+            self.journal.append(("créé", corps["idSource"]))
+            self.records[pluriel].append(dict(corps, id=f"id-{len(self.records[pluriel])}"))
+
+    def modifier(self, pluriel, ident, champs):
+        self.journal.append(("modifié", ident, sorted(champs)))
+        next(r for r in self.records[pluriel] if r["id"] == ident).update(champs)
+
+    def televerser(self, chemin, champ, nom=None):
+        self.journal.append(("téléversé", chemin.name))
+        return "fichier-" + chemin.stem
+
+
 class Boucle(EtatIsole):
-    """Le passage part sur l'événement (sonde qui change, réveil), pas sur chaque tour de sonde."""
+    """Les sondes réveillent seulement les fils concernés ; une sonde muette ramène les fils au filet de 2 min."""
 
     def tourner(self, sondes, tours):
-        agent = t.Agent(mock.Mock(url="https://crm.exemple"))
-        agent.lire = mock.Mock(return_value=([], [], "e"))
-        agent.passage = mock.Mock(return_value=0)
+        agent = t.Agent(FauxCRM(), t.reglages())
+        for flux in agent.flux.values():
+            flux.signaler = mock.Mock()
         agent.transcrire_en_fond = mock.Mock()
         reponses = iter(sondes)
-        horloge = iter(range(0, 100000, 10))
         compteur = {"tours": 0}
 
-        def attendre(_delai):
+        def attendre(_secondes):
             compteur["tours"] += 1
             if compteur["tours"] >= tours:
                 raise StopIteration
 
-        agent.reveil.wait = attendre
-        agent.reveil.set()  # main() réveille l'agent au démarrage
-        regl = dict(t.REGLAGES_DEFAUT)
+        agent.attendre_tour = attendre
+        horloge = iter(range(0, 100000, 10))
         with mock.patch.object(t, "sonder", side_effect=lambda script: next(reponses)), \
-                mock.patch.object(t, "connecter_adb"), mock.patch.object(t.time, "time", side_effect=lambda: next(horloge)):
+                mock.patch.object(t, "connecter_adb"), mock.patch.object(t.Flux, "boucle"), \
+                mock.patch.object(t.time, "time", side_effect=lambda: next(horloge)):
             with self.assertRaises(StopIteration):
-                agent.boucle(regl)
-        return agent.passage.call_count
+                agent.boucle(agent.regl)
+        return agent, {nom: f.signaler.call_count for nom, f in agent.flux.items()}
 
-    def test_passage_seulement_quand_une_sonde_change(self):
-        # Tour 1 : premier passage (démarrage). Tours 2-3 : rien ne bouge. Tour 4 : fin d'appel.
-        sondes = ["r0", "f0", "r0", "r0", "r1", "f0"]
-        self.assertEqual(self.tourner(sondes, tours=4), 2)
+    def test_fin_d_appel_reveille_appels_sms_messagerie_pas_les_mms(self):
+        # Tour 1 : rapide, sms, mms, messagerie (référence). Tour 2 : seule la sonde rapide change.
+        # Au démarrage chaque fil est réveillé une fois.
+        agent, reveils = self.tourner(["r0", "s0", "m0", "v0", "r1", "s0", "m0", "v0"], tours=2)
+        self.assertEqual(reveils, {"appels": 2, "sms": 2, "mms": 1, "messagerie": 2})
+        self.assertTrue(agent.sondes_ok)
 
-    def test_sans_adb_retour_au_passage_toutes_les_deux_minutes(self):
-        # Sondes muettes (adb fermé) : le filet passe à 120 s, soit un passage au démarrage et un 120 s plus tard.
-        self.assertEqual(self.tourner([None] * 40, tours=14), 2)
+    def test_sms_envoye_vu_par_sa_sonde_seule(self):
+        _, reveils = self.tourner(["r0", "s0", "m0", "v0", "r0", "r0", "s1"], tours=3)
+        self.assertEqual(reveils, {"appels": 1, "sms": 2, "mms": 1, "messagerie": 1})
+
+    def test_sans_adb_les_fils_reviennent_au_filet(self):
+        agent, _ = self.tourner([None] * 10, tours=2)
+        self.assertFalse(agent.sondes_ok)
+
+
+class Parallele(EtatIsole):
+    """Robert, 12/11 : « envoi brut sur le CRM puis transcript », « faut paralléliser ». Un record est créé avant
+    que son audio soit compressé ; un SMS ne patiente jamais derrière un audio ni une transcription."""
+
+    def test_record_cree_avant_la_compression_de_son_audio(self):
+        audio = t.JEMREC / "20261112_093015_in.ogg"
+        audio.write_bytes(b"x")
+        crm = FauxCRM()
+        agent = t.Agent(crm, t.reglages())
+        appel = c.appel(1794474615000, "+33612345678", 60, "1", "", "PIXEL_8_PRO")
+        appel["_fichiers"] = {"enregistrement": [audio]}
+        flux = agent.flux["appels"]
+        flux.lire = lambda: [dict(appel)]
+        agent.televerser = mock.Mock()
+        with mock.patch.object(c, "compresser_audio", side_effect=AssertionError("compression avant le record")):
+            self.assertEqual(flux.cycle(), 0)
+        self.assertEqual(crm.journal, [("créé", appel["idSource"])])
+        self.assertNotIn("enregistrement", crm.records["appels"][0])
+        self.assertTrue(flux.reveil.is_set())  # le cycle suivant met l'audio en file
+        flux.reveil.clear()
+        flux.cycle()
+        self.assertEqual(agent.televerser.call_args[0][1:], ("id-0", {"enregistrement": [audio]}))
+
+    def test_sms_cree_pendant_qu_un_audio_se_televerse(self):
+        audio = t.JEMREC / "20261112_093015_in.ogg"
+        audio.write_bytes(b"x")
+        crm = FauxCRM()
+        crm.records["appels"].append({"id": "a1", "idSource": "appel:1:+33612345678", "enregistrement": []})
+        agent = t.Agent(crm, t.reglages())
+        libere, commence = t.threading.Event(), t.threading.Event()
+
+        def compression_lente(chemin):
+            commence.set()
+            libere.wait(10)
+            return chemin
+
+        with mock.patch.object(c, "compresser_audio", side_effect=compression_lente):
+            agent.televerser(agent.flux["appels"], "a1", {"enregistrement": [audio]})
+            self.assertTrue(commence.wait(5))
+            sms = c.message(1794474615000, "+33612345678", "1", "Rappelle-moi", "", "PIXEL_8_PRO")
+            agent.flux["sms"].lire = lambda: [sms]
+            self.assertEqual(agent.flux["sms"].cycle(), 0)
+            self.assertEqual(crm.records["textMessages"][0]["idSource"], sms["idSource"])
+            self.assertNotIn(("téléversé", audio.name), crm.journal)  # l'audio est toujours en cours
+            libere.set()
+            for _ in range(50):
+                if any(e[0] == "modifié" for e in crm.journal):
+                    break
+                t.time.sleep(0.1)
+        self.assertIn(("modifié", "a1", ["enregistrement"]), crm.journal)
+
+    def test_delai_mesure_depuis_la_fin_de_l_appel(self):
+        crm = FauxCRM()
+        agent = t.Agent(crm, t.reglages())
+        fin_appel = t.time.time() - 12
+        appel = c.appel(int((fin_appel - 60) * 1000), "+33612345678", 60, "1", "", "PIXEL_8_PRO")
+        agent.flux["appels"].lire = lambda: [appel]
+        agent.flux["appels"].cycle()
+        _, nom, delai = (t.ETAT / "delais.tsv").read_text().strip().split("\t")
+        self.assertEqual(nom, "appels")
+        self.assertAlmostEqual(float(delai), 12, delta=2)
 
 
 class HorsLigne(EtatIsole):
     """Sans réseau : lecture et transcription continuent, l'envoi attend le retour du CRM."""
 
     def test_crm_injoignable_puis_envoi_au_retour(self):
-        agent = t.Agent(c.Twenty("http://127.0.0.1:9", "cle", essais=1))
+        agent = t.Agent(c.Twenty("http://127.0.0.1:9", "cle", essais=1), t.reglages())
         appel = c.appel(1794322382233, "+33612345678", 10, "1", "", "PIXEL_8_PRO")
-        lecture = ([appel], [], "empreinte-1")
-        self.assertEqual(agent.passage(lecture), 2)
-        self.assertTrue(agent.en_attente)
-        self.assertFalse((t.ETAT / "derniere-empreinte").exists())
-        crm = mock.Mock(url="http://127.0.0.1:9")
-        crm.tout_lister.return_value = []
+        flux = agent.flux["appels"]
+        flux.lire = lambda: [appel]
+        self.assertEqual(flux.cycle(), 2)
+        self.assertTrue(flux.en_attente)
+        self.assertFalse((t.ETAT / "empreinte-appels").exists())
+        crm = FauxCRM()
         agent.twenty = crm
-        self.assertEqual(agent.passage(lecture), 0)
-        self.assertFalse(agent.en_attente)
-        self.assertEqual((t.ETAT / "derniere-empreinte").read_text(), "empreinte-1")
-        self.assertEqual(crm.creer_lot.call_args[0][1][0]["idSource"], appel["idSource"])
+        self.assertEqual(flux.cycle(), 0)
+        self.assertEqual(flux.cycle(), 0)
+        self.assertFalse(flux.en_attente)
+        self.assertTrue((t.ETAT / "empreinte-appels").exists())
+        self.assertEqual([r["idSource"] for r in crm.records["appels"]], [appel["idSource"]])
 
     def test_transcription_locale_sans_reseau(self):
         enregistrement = t.JEMREC / "20261112_093015_in.ogg"
         enregistrement.write_bytes(b"x")
-        agent = t.Agent(c.Twenty("http://127.0.0.1:9", "cle", essais=1))
         regl = t.reglages()
+        agent = t.Agent(c.Twenty("http://127.0.0.1:9", "cle", essais=1), regl)
         with mock.patch.object(t, "appels_locaux", return_value=[]), \
                 mock.patch.object(t, "moteurs_prets", return_value=["parakeet"]), \
                 mock.patch.object(t, "transcrire_un", return_value=True) as transcrire:
@@ -170,16 +262,20 @@ class Transcription(EtatIsole):
                 mock.patch.object(t, "transcrire_whisper", return_value=["[  0.0-  1.0] secours"]):
             self.assertTrue(t.transcrire_un(enregistrement, regl, ["parakeet", "whisper"]))
         self.assertEqual(t.transcription(enregistrement), "[  0.0-  1.0] secours")
-        self.assertEqual(t.source_transcription(enregistrement), "WHISPER")
+        self.assertEqual(t.infos_transcription(enregistrement),
+                         {"sourceTranscription": "WHISPER", "moteurTranscription": "whisper-small"})
         self.assertFalse(t.fichier_transcription(enregistrement, ".wav").exists())
-        self.assertTrue(t.a_ameliorer(enregistrement))
+        self.assertTrue(t.a_ameliorer(enregistrement, regl))
         with mock.patch.object(t, "executer_suivi", side_effect=ffmpeg), \
                 mock.patch.object(t, "transcrire_parakeet", return_value=["[  0.0-  1.0] mieux"]):
             t.transcrire_un(enregistrement, regl, ["parakeet"])
-        self.assertEqual(t.source_transcription(enregistrement), "PARAKEET")
-        self.assertFalse(t.a_ameliorer(enregistrement))
-        # L'ancienne est gardée : le CRM ne la remplace que s'il la porte encore telle quelle.
-        self.assertEqual(t.remplacements(enregistrement), {"transcription": "[  0.0-  1.0] secours\n"})
+        self.assertEqual(t.infos_transcription(enregistrement)["moteurTranscription"], "parakeet-tdt-0.6b-v3-q8_0")
+        self.assertFalse(t.a_ameliorer(enregistrement, regl))
+        # Changer de modèle dans les réglages rend tout refaisable.
+        autre = dict(regl, parakeet=dict(regl["parakeet"], modele=Path("ggml-parakeet-tdt-0.6b-v3-f16.bin")))
+        self.assertTrue(t.a_ameliorer(enregistrement, autre))
+        # Les anciennes sont gardées : le CRM n'est remplacé que s'il porte encore l'une d'elles.
+        self.assertEqual(t.remplacements(enregistrement), {"transcription": ["[  0.0-  1.0] secours\n"]})
 
     def test_message_sans_parole_dit_aucune_parole_pas_un_echec(self):
         vocal = t.ETAT / "messagerie" / "20261021_184408_messagerie.amr"
@@ -201,14 +297,38 @@ class Transcription(EtatIsole):
             (t.JEMREC / f"{nom}.ogg").write_bytes(b"x")
         (t.ETAT / "transcriptions").mkdir()
         (t.ETAT / "transcriptions" / "20261111_142116_in.txt").write_text("whisper")
-        agent = t.Agent(mock.Mock())
         regl = t.reglages()
+        agent = t.Agent(mock.Mock(), regl)
         with mock.patch.object(t, "en_charge", return_value=False):
             nouveaux, ameliorer = agent.a_faire(regl)
         self.assertEqual([p.stem for p in nouveaux], ["20261112_093015_in", "20261110_190443_in"])
         self.assertEqual(ameliorer, [])
         with mock.patch.object(t, "en_charge", return_value=True):
             self.assertEqual([p.stem for p in agent.a_faire(regl)[1]], ["20261111_142116_in"])
+
+
+class GardeBatterie(EtatIsole):
+    def test_pause_sous_30_pourcent_hors_charge(self):
+        regl = t.reglages()
+        for etat, permise in (((25, False), False), ((25, True), True), ((31, False), True), ((None, False), False)):
+            with mock.patch.object(t, "batterie", return_value=etat):
+                self.assertEqual(t.transcription_permise(regl), permise, etat)
+
+    def test_transcription_en_cours_mise_en_pause_puis_reprise(self):
+        enregistrement = t.JEMREC / "20261112_093015_in.ogg"
+        enregistrement.write_bytes(b"x")
+        regl = t.reglages()
+        agent = t.Agent(FauxCRM(), regl)
+        with mock.patch.object(t, "appels_locaux", return_value=[]), \
+                mock.patch.object(t, "moteurs_prets", return_value=["parakeet"]), \
+                mock.patch.object(t, "batterie", return_value=(20, False)), \
+                mock.patch.object(t, "transcrire_un", side_effect=lambda chemin, r, m, cede: (_ for _ in ()).throw(
+                    t.Preempte(chemin.stem)) if cede() else True):
+            self.assertFalse(agent.transcrire_en_attente(regl, [enregistrement], []))
+        self.assertTrue(t.a_transcrire_fichier(enregistrement))  # rien de noté : elle reprendra
+        with mock.patch.object(t, "batterie", return_value=(20, False)):
+            agent.transcrire_en_fond(regl)
+        self.assertIsNone(agent.transcripteur)
 
 
 class FournisseursAdb(EtatIsole):

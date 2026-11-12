@@ -19,6 +19,7 @@ export const APPEL_FIELDS = {
   appareil: '039033a6-6934-488c-b742-b6a8af1c9b5a',
   idSource: '323e6bd9-4944-4346-96fc-aad87f082c0b',
   sourceTranscription: 'ebec1532-4335-4ba9-86f2-ecd9f7153dda',
+  moteurTranscription: 'a9ba1ff7-b672-43ff-9300-010c0575a102',
 } as const;
 
 export const PERSON_ON_APPEL_UNIVERSAL_IDENTIFIER =

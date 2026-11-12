@@ -125,6 +125,15 @@ export default defineObject({
       ],
     },
     {
+      // Le modèle exact (« parakeet-tdt-0.6b-v3-q8_0 », « whisper-small », « google-messagerie ») : l'audio est
+      // gardé, tout peut être retranscrit plus tard avec un modèle plus fiable, sans écraser une retouche.
+      universalIdentifier: APPEL_FIELDS.moteurTranscription,
+      type: FieldType.TEXT,
+      name: 'moteurTranscription',
+      label: 'Modèle de transcription',
+      icon: 'IconCpu',
+    },
+    {
       universalIdentifier: APPEL_FIELDS.appareil,
       type: FieldType.SELECT,
       name: 'appareil',

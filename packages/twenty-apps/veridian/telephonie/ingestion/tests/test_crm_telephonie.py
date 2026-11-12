@@ -268,6 +268,11 @@ class Transcriptions(unittest.TestCase):
         self.assertEqual(creations[0][0]["sourceTranscription"], "PARAKEET")
         _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="")], {})
         self.assertEqual(complements[0][1], {"transcription": "[  0.0-  1.0] Allô", "sourceTranscription": "PARAKEET"})
+        # Le CRM porte déjà la nôtre, posée avant que les champs existent : source et moteur s'ajoutent.
+        self.voulu["moteurTranscription"] = "parakeet-tdt-0.6b-v3-q8_0"
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="[  0.0-  1.0] Allô\n",
+                                                                      sourceTranscription="PARAKEET")], {})
+        self.assertEqual(complements[0][1], {"moteurTranscription": "parakeet-tdt-0.6b-v3-q8_0"})
         # Le CRM a déjà une transcription venue d'ailleurs : la source ne la décrit pas, rien n'est écrit.
         _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="autre")], {})
         self.assertEqual(complements, [])
@@ -278,8 +283,17 @@ class Transcriptions(unittest.TestCase):
         self.assertEqual(complements[0][1], {"transcription": "Parakeet", "sourceTranscription": "PARAKEET"})
         _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="retouchée")], {})
         self.assertEqual(complements, [])
+        # Plusieurs générations : le CRM porte la première (whisper), l'outil en a écrit deux depuis.
+        self.voulu.update(moteurTranscription="parakeet-tdt-0.6b-v3-f16", _remplace={"transcription": ["whisper", "v3-q8"]})
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="v3-q8",
+                                        sourceTranscription="PARAKEET", moteurTranscription="parakeet-tdt-0.6b-v3-q8_0")], {})
+        self.assertEqual(complements[0][1], {"transcription": "Parakeet", "sourceTranscription": "PARAKEET",
+                                             "moteurTranscription": "parakeet-tdt-0.6b-v3-f16"})
         _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="Parakeet",
                                                                       sourceTranscription="PARAKEET")], {})
+        self.assertEqual(complements[0][1], {"moteurTranscription": "parakeet-tdt-0.6b-v3-f16"})
+        _, complements, _ = c.planifier("appels", [self.voulu], [dict(self.existant, transcription="Parakeet",
+                                        sourceTranscription="PARAKEET", moteurTranscription="parakeet-tdt-0.6b-v3-f16")], {})
         self.assertEqual(complements, [])
 
 
