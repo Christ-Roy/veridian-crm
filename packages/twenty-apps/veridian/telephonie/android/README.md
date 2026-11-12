@@ -172,3 +172,24 @@ plan rapproche par `idSource` (aucun doublon).
 Distribution : `.github/workflows/telephonie-android.yaml` (runners Veridian) construit, signe (secrets
 `TELEPHONIE_SIGNATURE_JKS_B64`, `TELEPHONIE_SIGNATURE_MDP`) et publie la release `telephonie-android` (lien
 stable) et `telephonie-v<version>`, avec l'archive de l'app Twenty.
+
+### Mesuré le 12/11/2026 (heure de Paris)
+
+Émulateur Android 16 (API 36, x86_64, KVM sur `dev`), workspace neuf du staging `magical-mint-octopus`, app Twenty
+installée depuis le registre du serveur (`twenty app publish --private` puis `app install`), APK de la CI :
+
+| Étape | Résultat |
+|---|---|
+| installation, autorisations | par les dialogues de l'app, aucune configuration par adb |
+| « Se connecter avec Twenty » | écran de consentement natif de Twenty, retour sur `127.0.0.1`, « Connexion prête » (lecture, objets, droit d'écrire) |
+| envoi activé, tout l'historique | 1 appel et 2 SMS importés |
+| SMS reçu (19h22:30) | au CRM 2,5 s après |
+| appel entrant raccroché (19h22:45) | au CRM 1,3 s après |
+| connexion révoquée (19h23:44) | le jeton d'accès en cours reste valide jusqu'à son expiration (30 min) |
+| refresh refusé (19h51:06, `invalid_grant`) | notification persistante « Reconnecter à Twenty », 3 événements gardés en file |
+| reconnexion par le navigateur (19h54:35) | file vidée, notification effacée, 0 doublon d'`idSource` |
+| mise à jour depuis l'APK du Pixel configurée à l'ancienne | mode écriture, clé (même empreinte), appareil `PIXEL_8_PRO` conservés |
+
+Pixel de Robert, mis à jour à 19h56:28 avec l'APK de la CI : réglages, clé (empreinte identique à celle du
+bastion), mode écriture et appareil conservés, service prêt en 4 s. Avant (12/11) : SMS 1,3 à 1,4 s, appel 6,1 à
+6,6 s, MMS 1,8 à 2,9 s ; CRM 2047 appels et 8947 SMS, 0 doublon.
