@@ -103,6 +103,13 @@ class ServiceTranscription : Service() {
             Journal.log("transcription de ${cible.audio.name} impossible : ${e.message}")
             transcriptions.echec(cible.audio, neuf, Decoupe.idModele("parakeet", reglages.modele.name))
             transcriptions.retirer(cible.stem)
+        } catch (e: OutOfMemoryError) {
+            // Appel trop long pour la mémoire du processus (vu le 12/11 : 1 h 42, 394 Mo d'un seul bloc). Sans ceci,
+            // la demande était reprise chaque minute en charge : 5 min de décodage puis le même échec, sans fin.
+            Journal.log("transcription de ${cible.audio.name} impossible : mémoire insuffisante pour cet audio")
+            liberer()
+            transcriptions.echec(cible.audio, neuf, Decoupe.idModele("parakeet", reglages.modele.name))
+            transcriptions.retirer(cible.stem)
         }
         return true
     }
