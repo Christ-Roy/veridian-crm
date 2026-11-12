@@ -49,9 +49,6 @@ Elle crée dans Twenty les objets **Appels** et **SMS**, leurs onglets sur les f
 4. Touchez **Revenir à Téléphonie CRM** si le navigateur le propose. L'écran affiche « Connexion prête » et la
    liste des vérifications.
 
-CRM Veridian, première connexion : si Twenty répond « redirectUrl mismatch » après votre connexion, revenez dans
-l'application et touchez de nouveau **Se connecter avec Twenty** (défaut connu, `todo/2026-11-12-oauth-telephonie-redirect-localhost.md`).
-
 Vous préférez donner au téléphone un accès limité aux seuls appels et SMS ? Créez dans Twenty une clé API
 (Paramètres, API et webhooks, Créer une clé) avec le rôle **Téléphone**, puis collez-la dans le champ
 « Clé API » de l'application, ou scannez-la en QR, et touchez **Tester la connexion**.

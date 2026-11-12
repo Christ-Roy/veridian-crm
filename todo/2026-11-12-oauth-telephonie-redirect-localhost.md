@@ -38,8 +38,10 @@ Twenty ; ce ticket ne garde que la recherche de la cause.
 - **Côté app, en plus** : enregistrer les deux URI de retour (`127.0.0.1` et `localhost`, même port) et échanger le
   code avec celle que le navigateur a réellement appelée (en-tête `Host` de la requête reçue sur le port local).
 
-En attendant, la page https://veridian.site/telephonie (étape 4) dit de toucher une seconde fois « Se connecter avec
-Twenty ». À retirer une fois corrigé.
+Prouvé le 13/11/2026 vers 00:05 (heure de Paris) : vrai premier passage (émulateur neuf, aucun cookie, aucune session
+Hub ni workspace), APK de la CI 77fab14 : redirect_uri toujours réécrit en localhost par le rebond, « Authorize »
+accepté du premier coup, « Connexion prête », SMS au CRM 2,1 s après l'envoi, appel 2,4 s après le raccrochage. La
+consigne « touchez une seconde fois » est retirée de la page et du guide.
 
 ## Autres frottements du même parcours (pour mémoire)
 
