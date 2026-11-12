@@ -32,7 +32,7 @@ par Termux (`appel:1794485255000:…`) et celui de l'app (`appel:1794485255200:�
 
 | Pièce | Rôle |
 |---|---|
-| `ServiceSynchro` (premier plan, `specialUse`) | déclencheurs : `ContentObserver` sur le journal d'appels, `content://sms`, `content://mms` ; `FileObserver` sur `/sdcard/Recordings/JemRec` ; `TelephonyCallback` (fin d'appel) ; réseau revenu |
+| `ServiceSynchro` (premier plan, `specialUse`) | déclencheurs : `ContentObserver` sur le journal d'appels, `content://sms`, `content://mms` et `content://mms-sms` (un MMS envoyé par Google Messages ne notifie que lui, mesuré le 12/11), dernier `_id` des SMS et MMS relu toutes les 60 s dans le fournisseur local ; `FileObserver` sur `/sdcard/Recordings/JemRec` ; `TelephonyCallback` (fin d'appel) ; réseau revenu |
 | `Recepteur` | `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`, `SMS_RECEIVED`, MMS (`WAP_PUSH`), `PHONE_STATE`, chargeur branché |
 | `EcouteNotifications` | une notification du téléphone (nouveau message vocal) : la messagerie est sondée tout de suite |
 | `Sources` | lecture **directe et incrémentale** par le ContentResolver (lignes plus récentes que le curseur, 15 min de recouvrement), jamais tout l'historique à chaque événement |

@@ -63,6 +63,9 @@ class ServiceSynchro : Service() {
         observer(CallLog.Calls.CONTENT_URI) { synchro.signaler(Synchro.Flux.APPELS) }
         observer(Uri.parse("content://sms")) { synchro.signaler(Synchro.Flux.SMS) }
         observer(Uri.parse("content://mms")) { synchro.signaler(Synchro.Flux.MMS) }
+        // Un MMS envoyé par Google Messages ne notifie que content://mms-sms (mesuré le 12/11 : _id 31 à 17h03:20,
+        // aucun réveil sur content://mms) : ce point de convergence relit SMS et MMS.
+        observer(Uri.parse("content://mms-sms/")) { synchro.signaler(Synchro.Flux.SMS); synchro.signaler(Synchro.Flux.MMS) }
         try { observer(Uri.parse(Sources.MESSAGERIE)) { rafale() } } catch (_: SecurityException) {}
         surveillerJemrec()
         surveillerReseau()
@@ -78,6 +81,7 @@ class ServiceSynchro : Service() {
         handler.post(boucleSonde)
         handler.postDelayed(filet, FILET_MS)
         handler.postDelayed(etatNotification, 5_000)
+        handler.post(sondeLocale)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -210,6 +214,26 @@ class ServiceSynchro : Service() {
             if (derniereSonde != null) Journal.log("messagerie : changement vu par la sonde")
             derniereSonde = e
             synchro.signaler(Synchro.Flux.MESSAGERIE)
+        }
+    }
+
+    /** Dernier _id des SMS et des MMS, lu toutes les 60 s dans le fournisseur local (une requête, pas de shell) :
+     *  le filet de l'observateur, comme la sonde de 60 s de l'agent Termux. */
+    private val derniersId = HashMap<String, Long>()
+    private val sondeLocale = object : Runnable {
+        override fun run() {
+            for ((uri, flux) in listOf("content://sms" to Synchro.Flux.SMS, "content://mms" to Synchro.Flux.MMS)) {
+                try {
+                    contentResolver.query(Uri.parse(uri), arrayOf("_id"), null, null, "_id DESC LIMIT 1")?.use { c ->
+                        if (c.moveToFirst()) {
+                            val id = c.getLong(0)
+                            val avant = derniersId.put(uri, id)
+                            if (avant != null && avant != id) { Journal.log("${flux.nom} : nouveau message vu par la sonde locale"); synchro.signaler(flux) }
+                        }
+                    }
+                } catch (e: Exception) { Journal.erreur("sonde locale $uri", e) }
+            }
+            handler.postDelayed(this, 60_000)
         }
     }
 
