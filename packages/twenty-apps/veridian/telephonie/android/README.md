@@ -79,8 +79,14 @@ converti en Opus. La transcription de Google fait foi quand le téléphone l'a.
 Parakeet TDT 0.6B v3 q8_0, whisper.cpp `d2c6f05a` (1.9.5, cible `parakeet`) compilé par le NDK r28c pour
 arm64 (`armv8.2-a+dotprod+i8mm+fp16`, sans OpenMP). Tronçons de 30 s coupés au milieu d'un silence, sans
 chevauchement (`bench-transcription.md` sur `mail`), un fichier et un moteur à la fois, le plus récent d'abord,
-reprise au tronçon. Pause sous 30 % de batterie hors charge, mémoire disponible vérifiée (1,5 Go) avant de
-charger le modèle, attente si un `parakeet-cli` ou `whisper-cli` tourne (banc d'essai). Une transcription déjà
+reprise au tronçon. Un appel neuf est transcrit dès qu'il arrive, sauf sous 10 % débranché (il part alors au
+branchement) ; les reprises en masse (« en charge ») attendent le chargeur et 30 % (`contrat/Politique.kt`, testé).
+Aucune minuterie : le processus dort jusqu'à une demande, un branchement ou un changement de batterie qui franchit
+un seuil ; seule une attente de mémoire (1,5 Go vérifiés avant de charger le modèle) ou d'un autre `parakeet-cli`/
+`whisper-cli` est retentée à 60 s. Les appels enregistrés restés sans transcription (option coupée, panne) depuis
+72 h sont remis en file au démarrage du service, au branchement et à l'activation de l'option (`rattraper`).
+Le 13/11/2026, l'option coupée sans trace avait laissé dix appels sans texte : toute bascule d'option est
+journalisée avec sa source, la coupure se confirme, et l'écran ne recrée plus ses vues toutes les 3 s. Une transcription déjà
 au CRM est reprise, pas refaite. `moteurTranscription` porte la recette, outil compris
 (`libparakeet (whisper.cpp d2c6f05, jni)`). Whisper small, secours de l'agent Termux, n'est pas embarqué.
 
@@ -117,9 +123,23 @@ pixel shell "$C relire --ez complet true"
 pixel shell "$C retranscrire --es depuis 2026-11-10 [--ez maintenant true]"
 ```
 
-Sans adb (4G après un redémarrage), l'état et les dernières lignes du journal sont dans la notification du service :
-`ssh pixel termux-notification-list`. Journal sans donnée personnelle : `logcat -s TelephonieCRM`, et `etat` copie `journal.log`, `delais.tsv`
-(délai entre l'événement et sa création au CRM) et le plan miroir dans `/sdcard/Android/data/site.veridian.telephonie/files/`.
+Lisible sans commande : `journal.log` est écrit en direct dans `/sdcard/Android/data/site.veridian.telephonie/files/`
+(`adb pull`), avec `etat.json` réécrit par le service à chaque nouvelle ligne (file, enregistreur, transcription :
+en cours, en attente et pourquoi, dernière faite). `etat` y ajoute `delais.tsv` (délai entre l'événement et sa
+création au CRM) et le plan miroir. Sans adb, l'écran de l'app et la notification du service montrent l'état de
+l'enregistreur et de la file de transcription. Journal sans donnée personnelle, aussi dans `logcat -s TelephonieCRM`.
+
+### Enregistrement des appels (JemRec) surveillé
+
+JemRec enregistre par un processus du shell (`com.jemcik.jemrec.shell.Main`), lancé par adb ; après un
+redémarrage, adb n'existe qu'en Wi-Fi (débogage sans fil). Sans Wi-Fi, rien ne peut le relancer sans root :
+`setprop persist.adb.tcp.port` est refusé au shell (`default_prop`, mesuré le 14/11/2026). L'app ne le masque pas :
+`Enregistreur` vérifie le processus (shell de l'app, sinon connexion à sa boucle locale) au démarrage du service, au
+retour du Wi-Fi, au début de chaque appel ; une notification persistante « Enregistrement des appels inactif »
+reste tant qu'il ne tourne pas (pas pendant les 2 premières minutes après le démarrage, sauf appel), effacée dès
+qu'il revient ; 150 s après chaque appel décroché, son fichier doit exister, sinon « Appel non enregistré ». En
+Wi-Fi, l'app rallume le débogage sans fil pour JemRec. Elle ne rouvre plus 5555 si l'enregistreur tourne :
+`tcpip:5555` redémarre adbd, et init tue avec lui l'enregistreur de JemRec.
 
 ## Mesuré en production (12/11/2026, après la bascule de 17h01)
 

@@ -218,15 +218,19 @@ def main():
                     "20261112_1116_in.ogg"):
             (Path(dossier) / nom).write_text("x")
         resultat["jemrec"] = [[Path(ch).stem, debut, sens] for debut, sens, ch, _ in c.lire_enregistrements(Path(dossier))]
-    appels = [c.appel(ms, "+33612345678", 10, ty, "", "PIXEL_8_PRO") for ms, ty in (
-        (1794485255200, "1"), (1794485300000, "1"), (1794485260000, "2"), (1794485500000, "1"))]
+    # Les deux derniers : un fichier au sens faux près d'un appel décroché (rattaché par l'heure, cas du 13/11), et un
+    # près d'un appel manqué de 0 s (resté orphelin : durée incompatible).
+    liste_appels = ((1794485255200, "1", 10), (1794485300000, "1", 10), (1794485260000, "2", 10), (1794485500000, "1", 10),
+                    (1794486100000, "1", 6), (1794486400000, "3", 0))
+    appels = [c.appel(ms, "+33612345678", d, ty, "", "PIXEL_8_PRO") for ms, ty, d in liste_appels]
     enregistrements = [(1794485250000, "ENTRANT", Path("/j/a_in.ogg"), "texte a"),
                        (1794485290000, "ENTRANT", Path("/j/b_in.ogg"), ""),
                        (1794485262000, "SORTANT", Path("/j/c_out.ogg"), ""),
-                       (1794485900000, "ENTRANT", Path("/j/d_in.ogg"), "orphelin")]
+                       (1794485900000, "ENTRANT", Path("/j/d_in.ogg"), "orphelin"),
+                       (1794486108500, "SORTANT", Path("/j/e_out.ogg"), "sens faux"),
+                       (1794486404000, "ENTRANT", Path("/j/f_in.ogg"), "")]
     orphelins = c.associer_enregistrements(appels, enregistrements)
-    resultat["associer"] = {"appels_avant": [c.appel(ms, "+33612345678", 10, ty, "", "PIXEL_8_PRO") for ms, ty in (
-        (1794485255200, "1"), (1794485300000, "1"), (1794485260000, "2"), (1794485500000, "1"))],
+    resultat["associer"] = {"appels_avant": [c.appel(ms, "+33612345678", d, ty, "", "PIXEL_8_PRO") for ms, ty, d in liste_appels],
         "enregistrements": chemin_str([list(e) for e in enregistrements]), "appels": chemin_str(appels),
         "orphelins": orphelins}
     for troncon, chev in ((30, 0.0), (30.0, 1.5), (15, 0), (7.5, 0.25)):

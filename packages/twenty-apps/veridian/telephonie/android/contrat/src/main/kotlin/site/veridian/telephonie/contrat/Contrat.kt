@@ -330,15 +330,26 @@ object Contrat {
     }
 
     /** Pose `_fichiers` (enregistrement) et `transcription` sur l'appel du même sens le plus proche. */
+    /** Comme `associer_enregistrements` : l'appel du même sens le plus proche, puis, pour un fichier resté seul,
+     *  l'appel décroché (durée > 0) le plus proche quel que soit son sens (le sens du nom n'est qu'un indice). */
     fun associerEnregistrements(appels: List<Enregistrement>, enregistrements: List<EnregistrementAudio>): List<String> {
-        val orphelins = mutableListOf<String>()
-        for (e in enregistrements) {
-            val candidats = appels.filter { it["direction"] == e.direction &&
-                Math.abs((it["_ms"] as Long) - e.debutMs) <= TOLERANCE_ENREGISTREMENT_S * 1000L && "_fichiers" !in it }
-            if (candidats.isEmpty()) { orphelins += e.chemin.substringAfterLast('/'); continue }
-            val choisi = candidats.minBy { Math.abs((it["_ms"] as Long) - e.debutMs) }
+        fun proches(e: EnregistrementAudio, filtre: (Enregistrement) -> Boolean) = appels.filter { filtre(it) &&
+            Math.abs((it["_ms"] as Long) - e.debutMs) <= TOLERANCE_ENREGISTREMENT_S * 1000L && "_fichiers" !in it }
+        fun poser(choisi: Enregistrement, e: EnregistrementAudio) {
             choisi["_fichiers"] = mapOf("enregistrement" to listOf(e.chemin))
             if (e.transcription.isNotEmpty()) choisi["transcription"] = e.transcription
+        }
+        val restants = mutableListOf<EnregistrementAudio>()
+        for (e in enregistrements) {
+            val candidats = proches(e) { it["direction"] == e.direction }
+            if (candidats.isEmpty()) { restants += e; continue }
+            poser(candidats.minBy { Math.abs((it["_ms"] as Long) - e.debutMs) }, e)
+        }
+        val orphelins = mutableListOf<String>()
+        for (e in restants) {
+            val candidats = proches(e) { ((it["dureeSecondes"] as Number?)?.toLong() ?: 0L) > 0L }
+            if (candidats.isEmpty()) { orphelins += e.chemin.substringAfterLast('/'); continue }
+            poser(candidats.minBy { Math.abs((it["_ms"] as Long) - e.debutMs) }, e)
         }
         return orphelins
     }

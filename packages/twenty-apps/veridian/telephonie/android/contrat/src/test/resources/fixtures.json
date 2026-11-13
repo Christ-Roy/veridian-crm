@@ -492,6 +492,38 @@
     "nomSurTelephone": "",
     "numero": "+33612345678",
     "titre": "Entrant · 10 s"
+   },
+   {
+    "_e164": "+33612345678",
+    "_fichiers": {
+     "enregistrement": [
+      "/j/e_out.ogg"
+     ]
+    },
+    "_ms": 1794486100000,
+    "appareil": "PIXEL_8_PRO",
+    "canal": "TELEPHONE",
+    "debutLe": "2026-11-12T12:21:40Z",
+    "direction": "ENTRANT",
+    "dureeSecondes": 6,
+    "idSource": "appel:1794486100000:+33612345678",
+    "nomSurTelephone": "",
+    "numero": "+33612345678",
+    "titre": "Entrant · 6 s",
+    "transcription": "sens faux"
+   },
+   {
+    "_e164": "+33612345678",
+    "_ms": 1794486400000,
+    "appareil": "PIXEL_8_PRO",
+    "canal": "TELEPHONE",
+    "debutLe": "2026-11-12T12:26:40Z",
+    "direction": "MANQUE",
+    "dureeSecondes": 0,
+    "idSource": "appel:1794486400000:+33612345678",
+    "nomSurTelephone": "",
+    "numero": "+33612345678",
+    "titre": "Manqué"
    }
   ],
   "appels_avant": [
@@ -546,6 +578,32 @@
     "nomSurTelephone": "",
     "numero": "+33612345678",
     "titre": "Entrant · 10 s"
+   },
+   {
+    "_e164": "+33612345678",
+    "_ms": 1794486100000,
+    "appareil": "PIXEL_8_PRO",
+    "canal": "TELEPHONE",
+    "debutLe": "2026-11-12T12:21:40Z",
+    "direction": "ENTRANT",
+    "dureeSecondes": 6,
+    "idSource": "appel:1794486100000:+33612345678",
+    "nomSurTelephone": "",
+    "numero": "+33612345678",
+    "titre": "Entrant · 6 s"
+   },
+   {
+    "_e164": "+33612345678",
+    "_ms": 1794486400000,
+    "appareil": "PIXEL_8_PRO",
+    "canal": "TELEPHONE",
+    "debutLe": "2026-11-12T12:26:40Z",
+    "direction": "MANQUE",
+    "dureeSecondes": 0,
+    "idSource": "appel:1794486400000:+33612345678",
+    "nomSurTelephone": "",
+    "numero": "+33612345678",
+    "titre": "Manqué"
    }
   ],
   "enregistrements": [
@@ -572,10 +630,23 @@
     "ENTRANT",
     "/j/d_in.ogg",
     "orphelin"
+   ],
+   [
+    1794486108500,
+    "SORTANT",
+    "/j/e_out.ogg",
+    "sens faux"
+   ],
+   [
+    1794486404000,
+    "ENTRANT",
+    "/j/f_in.ogg",
+    ""
    ]
   ],
   "orphelins": [
-   "d_in.ogg"
+   "d_in.ogg",
+   "f_in.ogg"
   ]
  },
  "cle_numero": [

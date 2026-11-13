@@ -353,18 +353,35 @@ def lire_enregistrements(dossier=ENREGISTREMENTS):
 
 
 def associer_enregistrements(appels, enregistrements):
-    """Pose `_fichiers` (enregistrement) et `transcription` sur l'appel du même sens le plus proche dans le temps."""
-    orphelins = []
-    for debut, direction, chemin, transcription in enregistrements:
-        candidats = [a for a in appels if a["direction"] == direction
-                     and abs(a["_ms"] - debut) <= TOLERANCE_ENREGISTREMENT_S * 1000 and "_fichiers" not in a]
-        if not candidats:
-            orphelins.append(chemin.name)
-            continue
-        choisi = min(candidats, key=lambda a: abs(a["_ms"] - debut))
+    """Pose `_fichiers` (enregistrement) et `transcription` sur l'appel le plus proche dans le temps.
+
+    Le sens lu dans le nom du fichier n'est qu'un indice : d'abord l'appel du même sens le plus proche (inchangé), puis,
+    pour un fichier resté seul, l'appel décroché (durée > 0) le plus proche, quel que soit son sens. Le 13/11/2026,
+    JemRec a nommé « _out » l'enregistrement d'un appel entrant de 6 s (18:26) : il n'était rattaché à rien.
+    """
+    def proches(debut, filtre):
+        return [a for a in appels if filtre(a) and abs(a["_ms"] - debut) <= TOLERANCE_ENREGISTREMENT_S * 1000
+                and "_fichiers" not in a]
+
+    def poser(choisi, chemin, transcription):
         choisi["_fichiers"] = {"enregistrement": [chemin]}
         if transcription:
             choisi["transcription"] = transcription
+
+    restants = []
+    for debut, direction, chemin, transcription in enregistrements:
+        candidats = proches(debut, lambda a: a["direction"] == direction)
+        if not candidats:
+            restants.append((debut, direction, chemin, transcription))
+            continue
+        poser(min(candidats, key=lambda a: abs(a["_ms"] - debut)), chemin, transcription)
+    orphelins = []
+    for debut, _direction, chemin, transcription in restants:
+        candidats = proches(debut, lambda a: (a.get("dureeSecondes") or 0) > 0)
+        if not candidats:
+            orphelins.append(chemin.name)
+            continue
+        poser(min(candidats, key=lambda a: abs(a["_ms"] - debut)), chemin, transcription)
     return orphelins
 
 
