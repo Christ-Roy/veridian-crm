@@ -29,6 +29,11 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- JemRec, l'enregistreur d'appels : sa notification « Enregistrement des appels inactif » l'ouvre d'un toucher. -->
+    <queries>
+        <package android:name="com.jemcik.jemrec" />
+    </queries>
+
     <application
         android:name=".App"
         android:allowBackup="false"

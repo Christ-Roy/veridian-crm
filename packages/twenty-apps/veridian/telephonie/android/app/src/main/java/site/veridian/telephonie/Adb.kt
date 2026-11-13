@@ -110,6 +110,14 @@ class Adb(private val ctx: Context) {
         val port = portSansFil() ?: throw NonAbouti("adb : 5555 fermé et débogage sans fil introuvable")
         val tls = Connexion.ouvrir(InetSocketAddress("127.0.0.1", port), cles, tls = true)
         etat = "connecté (sans fil $port)"
+        // `tcpip:5555` redémarre adbd, et init tue avec lui tout ce qu'il a lancé : l'enregistreur de JemRec
+        // (documenté par JemRec, « Staying alive without Wi-Fi »). S'il tourne déjà, on garde la connexion sans fil.
+        val jemrec = try { String(tls.exec("ps -A -o ARGS | grep -c '[c]om.jemcik.jemrec.shell.Main' || true", 10_000)).trim().toIntOrNull() ?: 0 } catch (_: Exception) { 0 }
+        if (jemrec > 0) {
+            Journal.log("adb : connecté par le débogage sans fil ($port), 5555 laissé fermé (rouvrir redémarrerait adbd et tuerait l'enregistreur de JemRec)")
+            connexion = tls; etat = "connecté (sans fil $port, 5555 laissé fermé pour JemRec)"
+            return tls
+        }
         try {
             tls.service("tcpip:5555", 10_000)
         } catch (e: java.io.EOFException) {

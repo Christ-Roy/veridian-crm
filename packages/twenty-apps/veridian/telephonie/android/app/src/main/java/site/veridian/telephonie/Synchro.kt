@@ -320,6 +320,26 @@ class Synchro private constructor(val ctx: Context) {
         if (demandees > 0) reveillerTranscription()
     }
 
+    /**
+     * Appels enregistrés restés sans transcription (option coupée, modèle absent, panne) depuis `depuisMs` : demandés
+     * comme des appels neufs. Le 13/11/2026, l'option coupée sans trace avait laissé dix appels sans transcription,
+     * et rien ne les reprenait. Appelé au démarrage du service, au branchement, à l'activation de l'option.
+     */
+    fun rattraper(depuisMs: Long = System.currentTimeMillis() - RATTRAPAGE_MS, origine: String): Int {
+        if (reglages.miroir || !reglages.transcriptionActive) return 0
+        var n = 0
+        try {
+            for (e in sources.enregistrements(transcriptions)) {
+                if (e.debutMs < depuisMs) continue
+                val audio = File(e.chemin)
+                if (!transcriptions.aTranscrire(audio) || File(transcriptions.demandes, audio.nameWithoutExtension + ".json").exists()) continue
+                transcriptions.demander(audio, "neuf", "appels"); n++
+            }
+        } catch (ex: Exception) { Journal.erreur("transcription : rattrapage", ex) }
+        if (n > 0) { Journal.log("transcription : $n appel(s) enregistré(s) sans transcription remis en file ($origine)"); reveillerTranscription() }
+        return n
+    }
+
     fun reveillerTranscription() {
         try {
             ctx.startService(Intent(ctx, ServiceTranscription::class.java).setAction(ServiceTranscription.TRAVAIL))
@@ -451,6 +471,8 @@ class Synchro private constructor(val ctx: Context) {
     companion object {
         /** Changer les règles du plan change toutes les empreintes : tout est replanifié une fois. */
         const val VERSION_PLAN = "2026-11-12-apk"
+        /** Fenêtre du rattrapage des transcriptions manquantes : au-delà, `retranscrire`/`rattraper` à la main. */
+        const val RATTRAPAGE_MS = 72 * 3_600_000L
 
         @Volatile private var instance: Synchro? = null
         fun de(ctx: Context): Synchro = instance ?: synchronized(this) { instance ?: Synchro(ctx.applicationContext).also { instance = it } }

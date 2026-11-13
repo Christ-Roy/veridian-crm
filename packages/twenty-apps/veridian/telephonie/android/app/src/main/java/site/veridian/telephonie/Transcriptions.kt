@@ -115,6 +115,34 @@ class Transcriptions(ctx: Context) {
 
     fun retirer(stem: String) { File(demandes, "$stem.json").delete() }
 
+    // ------------------------------------------------------------ état, lisible par l'écran et par `etat`
+
+    /** État du processus de transcription (fichier partagé entre les deux processus, sans donnée personnelle : le
+     *  nom d'un enregistrement n'est qu'une date et un sens). `etat` : en cours, en attente (pourquoi), au repos. */
+    fun poserEtat(etat: String, enCours: String? = null, derniere: JSONObject? = null) {
+        val avant = lireEtat()
+        val j = JSONObject().put("etat", etat).put("depuis", if (avant?.optString("etat") == etat) avant.optLong("depuis") else System.currentTimeMillis())
+            .put("en_cours", enCours ?: JSONObject.NULL)
+            .put("derniere", derniere ?: avant?.optJSONObject("derniere") ?: JSONObject.NULL)
+            .put("ecrit", System.currentTimeMillis())
+        val f = File(dossier, "etat.json"); val p = File(dossier, ".etat.json.part")
+        try { p.writeText(j.toString()); p.renameTo(f) } catch (_: Exception) {}
+    }
+
+    fun lireEtat(): JSONObject? = try { File(dossier, "etat.json").takeIf { it.exists() }?.let { JSONObject(it.readText()) } } catch (_: Exception) { null }
+
+    /** Une ligne pour l'écran et la notification : état, file (neuves / reprises), dernière faite. */
+    fun resume(): String {
+        val d = lireDemandes()
+        val neuves = d.count { it.mode != "en_charge" }; val reprises = d.size - neuves
+        val e = lireEtat()
+        val heure = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm")
+        fun quand(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).format(heure)
+        val etat = e?.optString("etat")?.ifEmpty { null } ?: "au repos"
+        val derniere = e?.optJSONObject("derniere")?.let { "dernière : ${quand(it.optLong("le"))} (${it.optLong("secondes")} s de calcul)" } ?: "aucune encore"
+        return "$etat · file : $neuves appel(s) neuf(s), $reprises reprise(s) · $derniere"
+    }
+
     companion object {
         val SOURCES = mapOf("parakeet" to "PARAKEET", "whisper" to "WHISPER")
         const val OUTIL = "libparakeet (whisper.cpp d2c6f05, jni)"

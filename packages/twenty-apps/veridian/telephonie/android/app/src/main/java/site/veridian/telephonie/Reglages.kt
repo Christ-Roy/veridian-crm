@@ -85,7 +85,13 @@ class Reglages(private val ctx: Context) {
         set(v) { prefs.edit().apply { if (v == null) remove("reconnexion") else putString("reconnexion", v) }.commit() }
 
     fun drapeau(cle: String) = prefs.getString("r.$cle", null) == "1"
-    fun poserDrapeau(cle: String, actif: Boolean) { prefs.edit().putString("r.$cle", if (actif) "1" else "0").commit() }
+    /** Toute bascule d'option est journalisée avec sa source : le 13/11/2026, la transcription s'est retrouvée coupée
+     *  sans aucune trace (dix appels non transcrits), impossible de dire quand ni par quoi. */
+    fun poserDrapeau(cle: String, actif: Boolean, source: String = "?") {
+        val avant = prefs.getString("r.$cle", null)
+        prefs.edit().putString("r.$cle", if (actif) "1" else "0").commit()
+        if (avant != (if (actif) "1" else "0")) Journal.log("option $cle : ${if (actif) "activée" else "désactivée"} ($source)")
+    }
     fun poserTexte(cle: String, valeur: String) { prefs.edit().putString("r.$cle", valeur).commit() }
 
     /** Transcription Parakeet sur le téléphone : choisie par l'utilisateur et modèle présent. */
@@ -101,7 +107,10 @@ class Reglages(private val ctx: Context) {
 
     val tronconS get() = nombre("troncon_s")
     val chevauchementS get() = nombre("chevauchement_s")
+    /** Reprises « en charge » (anciennes transcriptions) : sur secteur et au-dessus de ce niveau. */
     val batterieMinPct get() = nombre("batterie_min_pct").toInt()
+    /** Appel neuf : transcrit dès qu'il arrive, sauf sous ce niveau débranché (il part alors au branchement). */
+    val batterieMinNeufPct get() = nombre("batterie_min_neuf_pct").toInt()
     val memoireMinKo get() = nombre("memoire_min_ko").toLong()
     val fils get() = nombre("fils").toInt()
     val ameliorerAnciennes get() = nombre("ameliorer_anciennes") != 0.0
@@ -133,6 +142,7 @@ class Reglages(private val ctx: Context) {
             val edit = prefs.edit()
             for (k in j.keys()) {
                 if (k == "mode") edit.putString("mode", j.getString(k)) else edit.putString("r.$k", j.get(k).toString())
+                Journal.log("réglage $k importé (commande configurer)")
             }
             edit.commit()
             regl.delete()
@@ -147,14 +157,14 @@ class Reglages(private val ctx: Context) {
         .put("historique_depuis_ms", historiqueDepuisMs)
         .put("cle_sha256_12", cle?.let { site.veridian.telephonie.contrat.Contrat.sha256(it).take(12) })
         .put("modele", modele.path).put("modele_present", modele.exists()).put("troncon_s", tronconS)
-        .put("chevauchement_s", chevauchementS).put("batterie_min_pct", batterieMinPct).put("fils", fils)
+        .put("chevauchement_s", chevauchementS).put("batterie_min_pct", batterieMinPct).put("batterie_min_neuf_pct", batterieMinNeufPct).put("fils", fils)
         .put("audio_wifi_apres_echecs", echecsAvantWifi)
 
     companion object {
         const val SCHEMA = 2
         const val ACCES_CLE = "cle"
         const val ACCES_OAUTH = "oauth"
-        val DEFAUT = mapOf("troncon_s" to 30.0, "chevauchement_s" to 0.0, "batterie_min_pct" to 30.0,
+        val DEFAUT = mapOf("troncon_s" to 30.0, "chevauchement_s" to 0.0, "batterie_min_pct" to 30.0, "batterie_min_neuf_pct" to 10.0,
             "memoire_min_ko" to 1_500_000.0, "fils" to 4.0, "ameliorer_anciennes" to 1.0,
             "audio_wifi_apres_echecs" to 0.0, "historique_depuis_ms" to 0.0)
         val DEFAUT_TEXTE = mapOf("appareil" to "", "jemrec" to "/sdcard/Recordings/JemRec", "modele" to "")

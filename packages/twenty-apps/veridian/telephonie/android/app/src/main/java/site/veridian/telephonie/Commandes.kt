@@ -14,10 +14,12 @@ import java.io.File
  *  - `demarrer` : démarre le service (il n'est pas exporté) ;
  *  - `configurer` : importe acces.json et reglages.json déposés dans /sdcard/Android/data/<paquet>/files/ (puis effacés) ;
  *  - `mode` --es valeur miroir|ecriture : passer en écriture oublie les empreintes (tout est replanifié une fois) ;
- *  - `etat` : écrit etat.json, et copie journal, délais et plan miroir dans le dossier externe (pour adb pull) ;
+ *  - `etat` : écrit etat.json (aussi écrit seul par le service à chaque nouvelle ligne de journal), et copie délais et
+ *    plan miroir dans le dossier externe (pour adb pull) ; le journal y est déjà, écrit en direct ;
  *  - `relire` [--ez complet true] : relit le téléphone ;
  *  - `retranscrire` --es fichier <stem,…> | --es depuis AAAA-MM-JJ [--es jusqua …] | --es moteur <texte> | --ez tout true
  *    [--ez maintenant true] : comme `telephone.py retranscrire` ;
+ *  - `rattraper` [--es depuis AAAA-MM-JJ] : appels enregistrés sans transcription remis en file (72 h par défaut) ;
  *  - `essai-transcription` --es fichier <chemin audio> : transcrit sans toucher au CRM, résultat dans essai-transcription.txt.
  */
 class Commandes : BroadcastReceiver() {
@@ -53,26 +55,46 @@ class Commandes : BroadcastReceiver() {
         "effacer-exports" -> { listOf("synchro.tsv", "miroir.jsonl", "journal.log", "delais.tsv", "etat.json", "essai-transcription.txt")
             .forEach { File(s.reglages.dossierExterne, it).delete() }; "exports effacés" }
         "retranscrire" -> retranscrire(s, i)
+        "rattraper" -> {
+            val depuis = i.getStringExtra("depuis")?.let { java.time.LocalDate.parse(it).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
+            val n = if (depuis != null) s.rattraper(depuis, "commande") else s.rattraper(origine = "commande")
+            "$n transcription(s) remise(s) en file"
+        }
         "essai-transcription" -> {
             val f = File(i.getStringExtra("fichier") ?: error("--es fichier"))
             ctx.startService(Intent(ctx, ServiceTranscription::class.java).setAction(ServiceTranscription.ESSAI).putExtra("fichier", f.path))
             "essai lancé sur ${f.name}"
         }
-        else -> "commandes : configurer, mode, relire, etat, retranscrire, essai-transcription"
+        else -> "commandes : configurer, mode, relire, etat, retranscrire, rattraper, essai-transcription"
     }
 
     private fun etat(ctx: Context, s: Synchro): String {
         val externe = s.reglages.dossierExterne.apply { mkdirs() }
-        for (nom in listOf("journal.log", "delais.tsv", "miroir.jsonl")) {
+        for (nom in listOf("delais.tsv", "miroir.jsonl")) {
             val f = File(ctx.filesDir, nom)
             if (f.exists()) f.copyTo(File(externe, nom), overwrite = true) else File(externe, nom).delete()
         }
-        val j = JSONObject().put("reglages", s.reglages.resume()).put("file", s.base.taille()).put("televersements", s.base.taille("televersements"))
-            .put("synchro", s.base.taille("synchro")).put("adb", s.adb.etat).put("demandes_transcription", org.json.JSONArray(s.transcriptions.lireDemandes().map { "${it.stem}:${it.mode}:${it.audio.exists()}:${s.transcriptions.fichier(it.audio).exists()}" }))
-            .put("curseurs", JSONObject().also { o -> Synchro.Flux.entries.forEach { f -> o.put(f.nom, s.base.lire("curseur.${f.nom}")) } })
-            .put("version", ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName)
-        File(externe, "etat.json").writeText(j.toString(1))
-        return j.toString()
+        return exporterEtat(ctx, s).toString()
+    }
+
+    companion object {
+        /** etat.json dans le dossier externe : réglages, file, adb, enregistrement, transcription. Sans donnée
+         *  personnelle (un nom d'enregistrement n'est qu'une date et un sens). */
+        fun exporterEtat(ctx: Context, s: Synchro): JSONObject {
+            val j = JSONObject().put("le", java.time.LocalDateTime.now().toString()).put("reglages", s.reglages.resume())
+                .put("file", s.base.taille()).put("televersements", s.base.taille("televersements"))
+                .put("synchro", s.base.taille("synchro")).put("adb", s.adb.etat)
+                .put("enregistrement", Enregistreur.instance?.resume() ?: "non vérifié")
+                .put("transcription", s.transcriptions.resume()).put("transcription_etat", s.transcriptions.lireEtat() ?: JSONObject.NULL)
+                .put("demandes_transcription", org.json.JSONArray(s.transcriptions.lireDemandes().map { "${it.stem}:${it.mode}:${it.audio.exists()}:${s.transcriptions.fichier(it.audio).exists()}" }))
+                .put("curseurs", JSONObject().also { o -> Synchro.Flux.entries.forEach { f -> o.put(f.nom, s.base.lire("curseur.${f.nom}")) } })
+                .put("version", ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName)
+            try {
+                val externe = s.reglages.dossierExterne.apply { mkdirs() }
+                File(externe, ".etat.json.part").apply { writeText(j.toString(1)); renameTo(File(externe, "etat.json")) }
+            } catch (e: Exception) { Journal.erreur("état exporté", e) }
+            return j
+        }
     }
 
     private fun retranscrire(s: Synchro, i: Intent): String {

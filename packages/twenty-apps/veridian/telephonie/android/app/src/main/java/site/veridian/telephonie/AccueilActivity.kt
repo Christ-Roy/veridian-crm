@@ -54,8 +54,48 @@ class AccueilActivity : Activity() {
     override fun onResume() { super.onResume(); afficher(); ui.postDelayed(rafraichir, 3000) }
     override fun onPause() { super.onPause(); ui.removeCallbacks(rafraichir) }
 
+    /**
+     * Toutes les 3 s, seules les VALEURS changent (état, journal) : les vues ne sont recréées que si la forme de l'écran
+     * change (connexion, autorisations, options basculées ailleurs). Le 13/11/2026, l'écran entier recréé toutes les
+     * 3 s déplaçait les interrupteurs sous le doigt, et la transcription a été coupée sans que personne ne le veuille.
+     */
     private val rafraichir = object : Runnable {
-        override fun run() { if (occupe == null && !saisieEnCours()) afficher(); ui.postDelayed(this, 3000) }
+        override fun run() {
+            if (occupe == null && !saisieEnCours() && forme() != formeAffichee) afficher() else mettreAJour()
+            ui.postDelayed(this, 3000)
+        }
+    }
+
+    private var formeAffichee: String? = null
+    private var vueModele: TextView? = null
+    private var vueMessagerie: TextView? = null
+    private var vueEtat: TextView? = null
+    private var vueJournal: TextView? = null
+
+    /** Ce qui change la forme de l'écran ; tout le reste est mis à jour en place. */
+    private fun forme(): String = listOf(reglages.configure, reglages.reconnexion, reglages.acces, reglages.url, permissionsManquantes(),
+        getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName), reglages.miroir,
+        reglages.transcriptionVoulue, reglages.jemrecPresent, Environment.isExternalStorageManager(), reglages.messagerieActive,
+        occupe, resultatTest).joinToString("|")
+
+    private fun texteEtat(): String {
+        val s = Synchro.de(this)
+        return "Enregistrement des appels : ${Enregistreur.instance?.resume() ?: "non vérifié"}\n" +
+            "Transcription : ${s.transcriptions.resume()}\n" +
+            "Appareil : ${Build.MODEL} (enregistré comme ${reglages.appareil})\nEn file : ${s.base.taille()} · fichiers : ${s.base.taille("televersements")}"
+    }
+
+    private fun texteJournal(): String {
+        val delais = File(filesDir, "delais.tsv").takeIf { it.exists() }?.readLines()?.takeLast(5)?.joinToString("\n") ?: "aucun"
+        val journal = File(filesDir, "journal.log").takeIf { it.exists() }?.readLines()?.takeLast(15)?.joinToString("\n") ?: ""
+        return "Derniers délais (s) :\n$delais\n\nJournal :\n$journal"
+    }
+
+    private fun mettreAJour() {
+        vueModele?.text = "Modèle Parakeet (640 Mo, téléchargé en Wi-Fi) : ${Modele.etat(this)}"
+        vueMessagerie?.text = "Messagerie : ${Synchro.de(this).adb.etat}"
+        vueEtat?.text = texteEtat()
+        vueJournal?.text = texteJournal()
     }
 
     private fun saisieEnCours() = champUrl?.hasFocus() == true || champCle?.hasFocus() == true
@@ -72,6 +112,8 @@ class AccueilActivity : Activity() {
 
     private fun afficher() {
         val urlSaisie = champUrl?.text?.toString(); val cleSaisie = champCle?.text?.toString()
+        formeAffichee = forme()
+        vueModele = null; vueMessagerie = null; vueEtat = null; vueJournal = null
         racine.removeAllViews()
         titre("Téléphonie CRM", 24f)
         texte("Vos appels et SMS dans votre Twenty, envoyés par le téléphone lui-même. Version ${version()}.", petit = true)
@@ -117,7 +159,7 @@ class AccueilActivity : Activity() {
         // 4. options
         section("4. Options (facultatives)")
         interrupteur("Transcrire les appels enregistrés, sur le téléphone", reglages.transcriptionVoulue) { v -> basculerTranscription(v) }
-        texte("Modèle Parakeet (640 Mo, téléchargé en Wi-Fi) : ${Modele.etat(this)}", petit = true)
+        vueModele = texte("Modèle Parakeet (640 Mo, téléchargé en Wi-Fi) : ${Modele.etat(this)}", petit = true)
         if (reglages.jemrecPresent) texte("Enregistrements d'appels : JemRec détecté (${reglages.jemrec.path}) ✓", petit = true)
         else {
             texte("Enregistrements d'appels : JemRec non détecté. Facultatif : installez JemRec (F-Droid), puis autorisez " +
@@ -127,21 +169,18 @@ class AccueilActivity : Activity() {
             startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
         }
         interrupteur("Messagerie vocale (avancé)", reglages.messagerieActive) { v ->
-            reglages.poserDrapeau("messagerie", v); if (v) aideMessagerie(); Synchro.de(this).signaler(Synchro.Flux.MESSAGERIE); afficher()
+            reglages.poserDrapeau("messagerie", v, "écran"); if (v) aideMessagerie(); Synchro.de(this).signaler(Synchro.Flux.MESSAGERIE); afficher()
         }
         if (reglages.messagerieActive) {
             val s = Synchro.de(this)
-            texte("Messagerie : ${s.adb.etat}", petit = true)
+            vueMessagerie = texte("Messagerie : ${s.adb.etat}", petit = true)
             bouton("Comment activer la messagerie vocale") { aideMessagerie() }
         }
 
         // 5. état
         section("État")
-        val s = Synchro.de(this)
-        texte("Appareil : ${Build.MODEL} (enregistré comme ${reglages.appareil})\nEn file : ${s.base.taille()} · fichiers : ${s.base.taille("televersements")}", petit = true)
-        val delais = File(filesDir, "delais.tsv").takeIf { it.exists() }?.readLines()?.takeLast(5)?.joinToString("\n") ?: "aucun"
-        val journal = File(filesDir, "journal.log").takeIf { it.exists() }?.readLines()?.takeLast(15)?.joinToString("\n") ?: ""
-        texte("Derniers délais (s) :\n$delais\n\nJournal :\n$journal", petit = true, mono = true)
+        vueEtat = texte(texteEtat(), petit = true)
+        vueJournal = texte(texteJournal(), petit = true, mono = true)
     }
 
     // ------------------------------------------------------------------ connexion
@@ -276,7 +315,7 @@ class AccueilActivity : Activity() {
     private fun basculerEnvoi(actif: Boolean) {
         if (!actif) {
             AlertDialog.Builder(this).setTitle("Repasser en mode essai ?").setMessage("Plus rien ne sera écrit dans le CRM.")
-                .setPositiveButton("Mode essai") { _, _ -> reglages.mode = "miroir"; ServiceSynchro.demarrer(this, origine = "écran"); afficher() }
+                .setPositiveButton("Mode essai") { _, _ -> reglages.mode = "miroir"; Journal.log("envoi coupé depuis l'écran (mode essai, confirmé)"); ServiceSynchro.demarrer(this, origine = "écran"); afficher() }
                 .setNegativeButton("Annuler") { _, _ -> afficher() }.setOnCancelListener { afficher() }.show()
             return
         }
@@ -294,8 +333,17 @@ class AccueilActivity : Activity() {
     }
 
     private fun basculerTranscription(actif: Boolean) {
-        reglages.poserDrapeau("transcription", actif)
-        if (actif && !reglages.modele.exists()) {
+        if (!actif) {
+            // Option lourde : sa coupure se confirme (le 13/11/2026, une coupure involontaire a privé dix appels de texte).
+            AlertDialog.Builder(this).setTitle("Arrêter la transcription ?")
+                .setMessage("Les appels enregistrés n'auront plus de texte dans le CRM tant que l'option reste coupée.")
+                .setPositiveButton("Arrêter") { _, _ -> reglages.poserDrapeau("transcription", false, "écran, confirmé"); afficher() }
+                .setNegativeButton("Annuler") { _, _ -> afficher() }.setOnCancelListener { afficher() }.show()
+            return
+        }
+        reglages.poserDrapeau("transcription", true, "écran")
+        Thread { Synchro.de(this).let { it.rattraper(origine = "option activée"); it.reveillerTranscription() } }.start()
+        if (!reglages.modele.exists()) {
             AlertDialog.Builder(this).setTitle("Télécharger le modèle ?")
                 .setMessage("La transcription se fait sur le téléphone, sans rien envoyer à un service extérieur. " +
                     "Elle demande un modèle de 640 Mo, téléchargé une fois, en Wi-Fi seulement (Hugging Face, somme vérifiée).")
@@ -329,9 +377,9 @@ class AccueilActivity : Activity() {
     private fun titre(t: String, taille: Float) = racine.addView(TextView(this).apply { text = t; textSize = taille; setTypeface(typeface, Typeface.BOLD) })
     private fun section(t: String) = racine.addView(TextView(this).apply {
         text = t; textSize = 18f; setTypeface(typeface, Typeface.BOLD); setPadding(0, dp(22), 0, dp(6)) })
-    private fun texte(t: String, petit: Boolean = false, gras: Boolean = false, mono: Boolean = false) = racine.addView(TextView(this).apply {
+    private fun texte(t: String, petit: Boolean = false, gras: Boolean = false, mono: Boolean = false): TextView = TextView(this).apply {
         text = t; textSize = if (petit) 13f else 15f; setPadding(0, dp(4), 0, dp(4)); setTextIsSelectable(true)
-        if (gras) setTypeface(typeface, Typeface.BOLD); if (mono) typeface = Typeface.MONOSPACE })
+        if (gras) setTypeface(typeface, Typeface.BOLD); if (mono) typeface = Typeface.MONOSPACE }.also { racine.addView(it) }
     private fun bandeau(t: String) = racine.addView(TextView(this).apply {
         text = t; textSize = 15f; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(0xFFFFE0B2.toInt()); setTextColor(0xFF5D2E00.toInt()) })
     private fun bouton(t: String, action: () -> Unit) = racine.addView(Button(this).apply { text = t; isAllCaps = false; setOnClickListener { action() } })

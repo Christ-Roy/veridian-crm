@@ -38,6 +38,7 @@ import java.util.concurrent.Executors
  */
 class ServiceSynchro : Service() {
     private lateinit var synchro: Synchro
+    private lateinit var enregistreur: Enregistreur
     private lateinit var fil: HandlerThread
     private lateinit var handler: Handler
     private val observateurs = mutableListOf<ContentObserver>()
@@ -60,6 +61,7 @@ class ServiceSynchro : Service() {
         synchro = Synchro.de(this)
         fil = HandlerThread("declencheurs").apply { start() }
         handler = Handler(fil.looper)
+        enregistreur = Enregistreur(this, synchro, handler).also { Enregistreur.instance = it }
         observer(CallLog.Calls.CONTENT_URI) { synchro.signaler(Synchro.Flux.APPELS) }
         observer(Uri.parse("content://sms")) { synchro.signaler(Synchro.Flux.SMS) }
         observer(Uri.parse("content://mms")) { synchro.signaler(Synchro.Flux.MMS) }
@@ -71,6 +73,9 @@ class ServiceSynchro : Service() {
         surveillerReseau()
         surveillerAppels()
         registerReceiver(transcriptionPrete, IntentFilter(TRANSCRIPTION_PRETE), RECEIVER_NOT_EXPORTED)
+        // Chargeur branché : déclaré dans le manifeste, ACTION_POWER_CONNECTED n'arrive plus aux apps depuis Android 8
+        // (jamais vu au journal du 12 au 14/11). Inscrit ici, il arrive tant que le service vit.
+        registerReceiver(branchement, IntentFilter(Intent.ACTION_POWER_CONNECTED))
         bindService(Intent(this, ServiceTranscription::class.java), liaison, BIND_AUTO_CREATE)
         Journal.log("service prêt (${synchro.reglages.mode}) : ${synchro.base.taille()} en file, ${synchro.base.taille("televersements")} fichiers")
         synchro.prechauffer()
@@ -78,6 +83,10 @@ class ServiceSynchro : Service() {
         synchro.base.ecrire("premiere-lecture", "faite")
         synchro.demanderVidange()
         if (enCharge()) synchro.demanderAmeliorations()
+        handler.post { synchro.rattraper(origine = "démarrage du service"); synchro.reveillerTranscription() }
+        // Démarrage (souvent celui du téléphone) : JemRec revient en ~45 s en Wi-Fi ; vérifié tout de suite puis
+        // trois fois, une seule fois chacune (pas de minuterie qui tourne).
+        enregistreur.verifier("démarrage du service", 60_000, 150_000, 300_000)
         handler.post(boucleSonde)
         handler.postDelayed(filet, FILET_MS)
         handler.postDelayed(etatNotification, 5_000)
@@ -88,7 +97,7 @@ class ServiceSynchro : Service() {
         premierPlan()
         when (intent?.action) {
             RAFALE -> rafale()
-            CHARGE -> synchro.demanderAmeliorations()
+            CHARGE -> { synchro.rattraper(origine = "chargeur branché"); synchro.demanderAmeliorations(); synchro.reveillerTranscription() }
             SMS -> { synchro.signaler(Synchro.Flux.SMS); rafale() }
             MMS -> synchro.signaler(Synchro.Flux.MMS)
         }
@@ -108,6 +117,7 @@ class ServiceSynchro : Service() {
         val mode = Reglages(this).mode
         val s = Synchro.de(this)
         val texte = "mode $mode · file ${s.base.taille()} · fichiers ${s.base.taille("televersements")} · adb ${s.adb.etat}\n" +
+            "enregistrement : ${Enregistreur.instance?.resume() ?: "non vérifié"}\ntranscription : ${s.transcriptions.resume()}\n" +
             synchronized(Journal) { Journal.dernieres.joinToString("\n") }
         return Notification.Builder(this, CANAL).setSmallIcon(android.R.drawable.sym_action_call)
             .setContentTitle(when {
@@ -123,6 +133,7 @@ class ServiceSynchro : Service() {
         override fun run() {
             if (Journal.change != notifiee) {
                 notifiee = Journal.change
+                Commandes.exporterEtat(this@ServiceSynchro, synchro)
                 try {
                     val ouvrir = PendingIntent.getActivity(this@ServiceSynchro, 0, Intent(this@ServiceSynchro, AccueilActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
                     getSystemService(NotificationManager::class.java).notify(1, notification(ouvrir))
@@ -158,6 +169,7 @@ class ServiceSynchro : Service() {
                 if (nom == null || !nom.endsWith(".ogg")) return
                 val (debut, _) = Contrat.lireNomJemrec(nom.removeSuffix(".ogg")) ?: return
                 Journal.log("JemRec : enregistrement fini")
+                enregistreur.fichierEcrit()
                 synchro.signaler(Synchro.Flux.APPELS, fenetre = (debut - 180_000)..(debut + 180_000))
             }
         }.also { it.startWatching() }
@@ -180,6 +192,7 @@ class ServiceSynchro : Service() {
         wifi = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 Journal.log("réseau : Wi-Fi disponible")
+                enregistreur.verifier("Wi-Fi revenu", 20_000, 60_000, 180_000)
                 synchro.sources.reessayerAdb(); synchro.reveillerFichiers()
                 handler.postDelayed({ sonder() }, 3000)
             }
@@ -192,7 +205,9 @@ class ServiceSynchro : Service() {
         try {
             etatAppel = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
                 override fun onCallStateChanged(etat: Int) {
+                    if (etat == TelephonyManager.CALL_STATE_OFFHOOK && dernierEtatAppel != TelephonyManager.CALL_STATE_OFFHOOK) enregistreur.appelCommence()
                     if (etat == TelephonyManager.CALL_STATE_IDLE && dernierEtatAppel != TelephonyManager.CALL_STATE_IDLE) {
+                        enregistreur.appelFini()
                         // fin d'appel : le journal est écrit dans la seconde (observateur), la messagerie peut suivre
                         synchro.signaler(Synchro.Flux.APPELS); rafale()
                     }
@@ -259,6 +274,13 @@ class ServiceSynchro : Service() {
         }
     }
 
+    private val branchement = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            Journal.log("chargeur branché")
+            handler.post { synchro.rattraper(origine = "chargeur branché"); synchro.demanderAmeliorations(); synchro.reveillerTranscription() }
+        }
+    }
+
     private val liaison = object : ServiceConnection {
         override fun onServiceConnected(n: ComponentName?, b: IBinder?) {}
         override fun onServiceDisconnected(n: ComponentName?) { Journal.log("transcription : processus arrêté, Android le relance") }
@@ -278,6 +300,7 @@ class ServiceSynchro : Service() {
         wifi?.let { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it) }
         etatAppel?.let { getSystemService(TelephonyManager::class.java).unregisterTelephonyCallback(it) }
         try { unregisterReceiver(transcriptionPrete) } catch (_: Exception) {}
+        try { unregisterReceiver(branchement) } catch (_: Exception) {}
         try { unbindService(liaison) } catch (_: Exception) {}
         handler.removeCallbacksAndMessages(null)
         fil.quitSafely()

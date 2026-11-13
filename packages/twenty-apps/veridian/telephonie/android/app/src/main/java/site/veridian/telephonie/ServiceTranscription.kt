@@ -9,6 +9,7 @@ import android.os.IBinder
 import android.os.Process
 import org.json.JSONArray
 import site.veridian.telephonie.contrat.Decoupe
+import site.veridian.telephonie.contrat.Politique
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -17,9 +18,13 @@ import java.nio.ByteOrder
  * Transcription sur le téléphone, hors ligne, dans le processus `:transcription` : Parakeet TDT 0.6B v3 q8_0 par
  * whisper.cpp (JNI), en tronçons de 30 s coupés au milieu d'un silence, sans chevauchement, un fichier et un moteur
  * à la fois, le plus récent d'abord. Chaque tronçon fait est gardé : un arrêt (mémoire, batterie) reprend au
- * tronçon. Pause sous 30 % de batterie hors charge ; mémoire disponible vérifiée avant de charger le modèle ;
- * aucun autre parakeet-cli ou whisper-cli ne doit tourner (vu par le shell). Une retranscription en masse attend la
- * charge et cède la place à un appel neuf.
+ * tronçon. Un appel neuf part dès qu'il arrive, sauf sous 10 % débranché (`Politique`) ; une retranscription en masse
+ * attend le chargeur et 30 %, et cède la place à un appel neuf. Mémoire disponible vérifiée avant de charger le
+ * modèle ; aucun autre parakeet-cli ou whisper-cli ne doit tourner (vu par le shell).
+ *
+ * Aucune minuterie : le fil dort jusqu'à un événement (demande déposée, branchement, changement de batterie qui
+ * franchit un seuil). Seule une attente de mémoire ou d'un autre moteur, qui n'a pas d'événement, est retentée
+ * (60 s, tant qu'elle dure).
  */
 class ServiceTranscription : Service() {
     private lateinit var reglages: Reglages
@@ -37,7 +42,20 @@ class ServiceTranscription : Service() {
         reglages = Reglages(this)
         transcriptions = Transcriptions(this)
         adb = Adb(this)
+        // Événements de batterie : un réveil seulement quand une décision change (seuils de 10 et 30 %, branché ou non).
+        registerReceiver(object : android.content.BroadcastReceiver() {
+            private var cle: String? = null
+            override fun onReceive(c: android.content.Context, i: Intent) {
+                val (n, ch) = batterieDe(i)
+                val k = Politique.cleBatterie(n, ch, reglages.batterieMinNeufPct, reglages.batterieMinPct)
+                if (k != cle) { val avant = cle; cle = k; if (avant != null) { Journal.log("transcription : batterie ${n ?: "?"} %, ${if (ch) "en charge" else "débranché"}"); reveiller() } }
+            }
+        }, IntentFilter().apply { addAction(Intent.ACTION_BATTERY_CHANGED); addAction(Intent.ACTION_POWER_CONNECTED); addAction(Intent.ACTION_POWER_DISCONNECTED) })
     }
+
+    /** Un événement arrivé pendant un tour n'est jamais perdu : le fil ne s'endort pas s'il a été réveillé entre-temps. */
+    @Volatile private var reveille = false
+    private fun reveiller() = synchronized(signal) { reveille = true; signal.notifyAll() }
 
     override fun onBind(intent: Intent?): IBinder = Binder()
 
@@ -48,7 +66,7 @@ class ServiceTranscription : Service() {
     }
 
     private fun demarrer() {
-        synchronized(signal) { signal.notifyAll() }
+        reveiller()
         if (fil?.isAlive == true) return
         fil = Thread({ boucle() }, "transcription").apply { start() }
     }
@@ -59,36 +77,51 @@ class ServiceTranscription : Service() {
         Process.setThreadPriority(9)
         var inactifDepuis = System.currentTimeMillis()
         while (true) {
+            reessayer = false
+            reveille = false
             val travail = try { unTour() } catch (e: Throwable) { Journal.erreur("transcription", e); false }
             if (travail) { inactifDepuis = System.currentTimeMillis(); continue }
             if (contexte != 0L && System.currentTimeMillis() - inactifDepuis > 120_000) liberer()
-            synchronized(signal) { signal.wait(60_000) }
+            // Rien à faire, ou une attente qu'un événement lèvera (batterie, nouvelle demande) : on dort sans limite.
+            // Modèle chargé : réveil à 2 min pour le libérer. Mémoire ou autre moteur : nouvel essai à 60 s.
+            val delai = when { reessayer -> 60_000L; contexte != 0L -> 120_000L; else -> 0L }
+            synchronized(signal) { if (!reveille) signal.wait(delai) }
         }
+    }
+
+    @Volatile private var reessayer = false
+    private var derniereAttente: String? = null
+
+    /** État lisible (écran, `etat`) ; une attente n'est journalisée qu'à son changement, pas à chaque réveil. */
+    private fun attendre(pourquoi: String) {
+        if (pourquoi != derniereAttente) { derniereAttente = pourquoi; Journal.log("transcription : en attente, $pourquoi") }
+        transcriptions.poserEtat("en attente : $pourquoi")
     }
 
     /** Un fichier ; vrai s'il a été traité (fait ou en échec), faux s'il n'y a rien à faire maintenant. */
     private fun unTour(): Boolean {
         essai?.let { f -> essai = null; return essayer(f) }
         val demandes = transcriptions.lireDemandes()
-        if (demandes.isEmpty()) return false
-        if (reglages.miroir || !reglages.transcriptionActive) return false
+        if (demandes.isEmpty()) { derniereAttente = null; transcriptions.poserEtat("au repos"); return false }
+        if (reglages.miroir) { attendre("mode essai, rien n'est transcrit"); return false }
+        if (!reglages.transcriptionVoulue) { attendre("option « Transcrire » désactivée dans l'app"); return false }
+        if (!reglages.modele.exists()) { attendre("modèle absent (à télécharger dans l'app)"); return false }
         val (niveau, charge) = batterie()
-        val permise = charge || (niveau != null && niveau >= reglages.batterieMinPct)
         val neuves = demandes.filter { it.mode == "neuf" || it.mode == "maintenant" }
-        // Les reprises « en charge » (améliorations) exigent aussi le seuil de batterie : le 12/11, téléphone à 14 % sur
-        // un chargeur lent, une reprise de 1 h 42 empêchait la batterie de remonter.
-        val enChargePermise = charge && niveau != null && niveau >= reglages.batterieMinPct
-        val cible = (if (permise) neuves.firstOrNull() else null) ?: (if (enChargePermise) demandes.firstOrNull { it.mode == "en_charge" } else null)
-            ?: return false
+        val reprises = demandes.filter { it.mode == "en_charge" }
+        val cible = neuves.firstOrNull { permise(it.mode, niveau, charge) } ?: reprises.firstOrNull { permise(it.mode, niveau, charge) }
+            ?: run { attendre(politique((neuves.firstOrNull() ?: reprises.first()).mode, niveau, charge) ?: "?"); return false }
         if (!cible.audio.exists()) { transcriptions.retirer(cible.stem); return true }
-        if (moteurEtranger()) { Journal.log("transcription : un autre moteur tourne, attente"); return false }
-        if (!memoireSuffisante()) { Journal.log("transcription : mémoire insuffisante, attente"); return false }
+        if (moteurEtranger()) { reessayer = true; attendre("un autre moteur de transcription tourne"); return false }
+        if (!memoireSuffisante()) { reessayer = true; attendre("mémoire disponible insuffisante pour charger le modèle"); return false }
+        derniereAttente = null
         val neuf = cible.mode == "neuf"
         val cede: () -> Boolean = when (cible.mode) {
-            "neuf" -> { { !batteriePermise() } }
-            "maintenant" -> { { transcriptions.lireDemandes().any { it.mode == "neuf" } || !batteriePermise() } }
-            else -> { { transcriptions.lireDemandes().any { it.mode == "neuf" } || !batterie().let { (n, c) -> c && n != null && n >= reglages.batterieMinPct } } }
+            "neuf" -> { { batterie().let { (n, c) -> !permise("neuf", n, c) } } }
+            "maintenant" -> { { transcriptions.lireDemandes().any { it.mode == "neuf" } || batterie().let { (n, c) -> !permise("neuf", n, c) } } }
+            else -> { { transcriptions.lireDemandes().any { it.mode == "neuf" } || batterie().let { (n, c) -> !permise("en_charge", n, c) } } }
         }
+        transcriptions.poserEtat("en cours" + if (neuf) "" else " (reprise)", cible.stem)
         Journal.log("transcription de ${cible.audio.name}" + if (neuf) "" else " (refaite)")
         try {
             val debut = System.currentTimeMillis()
@@ -99,7 +132,9 @@ class ServiceTranscription : Service() {
                 " · ${java.time.LocalDate.now()}"
             transcriptions.ecrire(cible.audio, lignes.ifEmpty { listOf(Decoupe.AUCUNE_PAROLE) }, id, recette)
             transcriptions.retirer(cible.stem)
-            Journal.log("transcription de ${cible.audio.name} prête (${(System.currentTimeMillis() - debut) / 1000} s)")
+            val secondes = (System.currentTimeMillis() - debut) / 1000
+            Journal.log("transcription de ${cible.audio.name} prête ($secondes s)")
+            transcriptions.poserEtat("au repos", derniere = org.json.JSONObject().put("stem", cible.stem).put("le", System.currentTimeMillis()).put("secondes", secondes))
             sendBroadcast(Intent(ServiceSynchro.TRANSCRIPTION_PRETE).setPackage(packageName)
                 .putExtra("stem", cible.stem).putExtra("flux", cible.flux))
         } catch (e: EchecMoteur) {
@@ -209,14 +244,21 @@ class ServiceTranscription : Service() {
         return true
     }
 
-    private fun batterie(): Pair<Int?, Boolean> {
-        val i = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null to false
+    private fun permise(mode: String, niveau: Int?, charge: Boolean) =
+        Politique.permise(mode, niveau, charge, reglages.batterieMinNeufPct, reglages.batterieMinPct)
+
+    private fun politique(mode: String, niveau: Int?, charge: Boolean) =
+        Politique.attente(mode, niveau, charge, reglages.batterieMinNeufPct, reglages.batterieMinPct)
+
+    private fun batterie(): Pair<Int?, Boolean> =
+        registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))?.let { batterieDe(it) } ?: (null to false)
+
+    private fun batterieDe(i: Intent): Pair<Int?, Boolean> {
         val niveau = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1).takeIf { it >= 0 }?.let { it * 100 / i.getIntExtra(BatteryManager.EXTRA_SCALE, 100) }
         val s = i.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
         return niveau to (s == BatteryManager.BATTERY_STATUS_CHARGING || s == BatteryManager.BATTERY_STATUS_FULL)
     }
 
-    private fun batteriePermise() = batterie().let { (n, c) -> c || (n != null && n >= reglages.batterieMinPct) }
 
     private fun memoireSuffisante(): Boolean {
         if (contexte != 0L) return true
