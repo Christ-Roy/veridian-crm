@@ -111,13 +111,17 @@ class Adb(private val ctx: Context) {
         val tls = Connexion.ouvrir(InetSocketAddress("127.0.0.1", port), cles, tls = true)
         etat = "connecté (sans fil $port)"
         // `tcpip:5555` redémarre adbd, et init tue avec lui tout ce qu'il a lancé : l'enregistreur de JemRec
-        // (documenté par JemRec, « Staying alive without Wi-Fi »). S'il tourne déjà, on garde la connexion sans fil.
+        // (documenté par JemRec, « Staying alive without Wi-Fi »). Jamais pendant un appel : on garde alors la
+        // connexion sans fil. Hors appel, on rouvre (5555 sert au shell hors Wi-Fi jusqu'au prochain redémarrage) et
+        // JemRec, en Wi-Fi, relance son enregistreur en quelques secondes ; l'app le vérifie (Enregistreur).
         val jemrec = try { String(tls.exec("ps -A -o ARGS | grep -c '[c]om.jemcik.jemrec.shell.Main' || true", 10_000)).trim().toIntOrNull() ?: 0 } catch (_: Exception) { 0 }
-        if (jemrec > 0) {
-            Journal.log("adb : connecté par le débogage sans fil ($port), 5555 laissé fermé (rouvrir redémarrerait adbd et tuerait l'enregistreur de JemRec)")
-            connexion = tls; etat = "connecté (sans fil $port, 5555 laissé fermé pour JemRec)"
+        val enAppel = try { ctx.getSystemService(android.telephony.TelephonyManager::class.java).callStateForSubscription != android.telephony.TelephonyManager.CALL_STATE_IDLE } catch (_: Exception) { true }
+        if (jemrec > 0 && enAppel) {
+            Journal.log("adb : appel en cours, 5555 laissé fermé (rouvrir tuerait l'enregistreur de JemRec), connexion sans fil ($port)")
+            connexion = tls; etat = "connecté (sans fil $port, 5555 fermé pendant l'appel)"
             return tls
         }
+        if (jemrec > 0) Journal.log("adb : réouverture de 5555 hors appel, l'enregistreur de JemRec redémarre avec adbd (JemRec le relance)")
         try {
             tls.service("tcpip:5555", 10_000)
         } catch (e: java.io.EOFException) {
@@ -126,6 +130,7 @@ class Adb(private val ctx: Context) {
             Journal.erreur("adb : tcpip:5555", e)
         }
         Journal.log("adb : port 5555 rouvert par le débogage sans fil ($port)")
+        if (jemrec > 0) Enregistreur.instance?.verifier("5555 rouvert", 20_000, 60_000)
         try { tls.socket.close() } catch (_: Exception) {}
         Thread.sleep(2500)
         return Connexion.ouvrir(InetSocketAddress("127.0.0.1", 5555), cles, tls = false).also {
