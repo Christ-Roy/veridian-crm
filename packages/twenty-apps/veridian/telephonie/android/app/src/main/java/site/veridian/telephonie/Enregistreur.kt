@@ -190,7 +190,8 @@ class Enregistreur(private val ctx: Context, private val synchro: Synchro, priva
     }
 
     private fun effacer(id: Int) {
-        if (id == NOTIF_INACTIF) { if (notifie == null) return; notifie = null }
+        // Toujours annulée : une alerte posée par un processus précédent (mise à jour, plantage) n'est pas dans `notifie`.
+        if (id == NOTIF_INACTIF) notifie = null
         ctx.getSystemService(NotificationManager::class.java).cancel(id)
     }
 
