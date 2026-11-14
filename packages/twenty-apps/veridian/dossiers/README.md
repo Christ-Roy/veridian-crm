@@ -7,21 +7,26 @@ l'entrée native « Tasks » de la barre latérale (Robert, 14-15/11/2026 : une 
 
 | Entité | Rôle |
 |---|---|
-| front component `arborescence-taches` | la page : dossiers repliables, compteurs ouvertes / total, recherche, faites masquées par défaut, statut changé d'un clic (À faire, En cours, Fait), « + Tâche » qui crée la tâche dans le sous-dossier et l'ouvre, clic sur une tâche = panneau latéral natif |
+| objet `dossier` (Dossiers) | `nom`, **`importance` obligatoire** (Critique, Haute, Normale, Basse ; Normale par défaut), `parent` (vide = dossier racine), `sousDossiers`, `taches` |
+| champs sur `task` | `rangement` (« Rangée dans », relation vers Dossier) et **`importance` obligatoire** (mêmes niveaux, Normale par défaut) |
+| front component `arborescence-taches` | la page : dossiers repliables à profondeur libre, triés par importance puis nom ; tâches triées ouvertes, importance, échéance ; **avancement** par tâche (champ existant `suiviAvancement`, +25 % par clic) et **par dossier** (moyenne de toutes ses tâches, sous-dossiers compris, une tâche faite compte 100 %, « — » sans tâche) ; importance et statut changés d'un clic ; « + Dossier », « + Sous-dossier », « + Tâche », « Modifier » ; recherche ; faites masquées par défaut ; clic sur une tâche = panneau latéral natif |
 | page layout `STANDALONE_PAGE` « Tâches » | héberge le composant en pleine page (`TAB_VIEWPORT`) |
-| entrée de barre latérale « Tâches » | `PAGE_LAYOUT`, position 3 |
-| rôle d'app | lecture et modification des tâches, jamais de suppression (le jeton du composant est l'intersection de ce rôle et de celui du membre) |
+| entrée de barre latérale « Tâches » | `PAGE_LAYOUT`, position 3 (l'entrée native « Tasks » a été retirée) |
+| rôle d'app | lecture et modification, jamais de suppression (le jeton du composant est l'intersection de ce rôle et de celui du membre) |
 
 Aucun patch du fork, aucune fonction serveur : uniquement le mécanisme natif des apps Twenty v2.56 (`twenty-sdk`).
 
 ## Le modèle de données
 
-L'arbre vient du champ SELECT **`dossier`** des tâches (créé hors de l'app, par l'API de métadonnées). Une option
-« ASD / Jalons » donne le sujet « ASD » et le sous-sujet « Jalons » ; une option sans « / » donne un sous-dossier
-« Général ». L'ordre suit la position des options. Une tâche sans dossier apparaît dans « Sans dossier / À ranger » :
-rien ne disparaît de la vue. La logique est dans `src/utils/construire-arbre.util.ts` (fonction pure).
+Depuis le 15/11/2026, un dossier est un **enregistrement** de l'objet Dossier : en créer un n'est jamais une migration
+de schéma (cause du piège ci-dessous). Une tâche dont le dossier manque apparaît dans « Sans dossier » : rien ne
+disparaît de la vue. Logique pure dans `src/utils/construire-arbre.util.ts`, éprouvée par `node essai-arbre.mjs`
+(12 cas, code 0 ; vue échouer sur une attente faussée).
 
-**Nouveau dossier** : ajouter une option au champ Dossier (Réglages, Modèle de données, Tasks, Dossier).
+Migration du 15/11 : les 10 options de l'ancien champ SELECT `dossier` sont devenues 14 dossiers, les 131 tâches
+rattachées par `rangement` ; l'ancien rangement est sauvegardé dans
+`~/backups-froid/crm-veridian4-dossier-select-20261115.json` (bastion). Le champ SELECT `dossier` n'est plus lu ; il
+reste à désactiver.
 
 ## Piège mesuré le 14/11/2026
 

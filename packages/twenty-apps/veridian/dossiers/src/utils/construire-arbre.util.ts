@@ -1,71 +1,106 @@
-// Construit l'arborescence Sujet > Sous-sujet > tâches à partir du champ SELECT « dossier » des tâches.
-// Un libellé d'option « ASD / Jalons » donne le sujet « ASD » et le sous-sujet « Jalons ».
-// L'ordre suit la position des options ; une tâche sans dossier (ou avec une option inconnue) va dans
-// « Sans dossier / À ranger », pour que rien ne disparaisse de la vue.
+// Construit l'arborescence des dossiers (objet Dossier, relation parent) et y range les tâches (relation
+// `rangement`). Profondeur libre. Tri : importance, puis nom ; tâches : ouvertes d'abord, importance, échéance.
+// Une tâche sans dossier (ou dont le dossier a disparu) va dans « Sans dossier » : rien ne disparaît de la vue.
+
+import { rangImportance } from './importance.util';
 
 export type Tache = {
   id: string;
   title: string | null;
   status: string | null;
   dueAt: string | null;
-  dossier: string | null;
+  importance: string | null;
+  suiviAvancement: number | null;
+  rangementId: string | null;
 };
 
-export type OptionDossier = { value: string; label: string; position: number };
+export type DossierBrut = { id: string; nom: string | null; importance: string | null; parentId: string | null };
 
-export type SousDossier = { cle: string; libelle: string; taches: Tache[] };
-
-export type Dossier = { cle: string; libelle: string; sousDossiers: SousDossier[] };
+export type Noeud = {
+  id: string;
+  nom: string;
+  importance: string | null;
+  virtuel: boolean;
+  enfants: Noeud[];
+  taches: Tache[];
+};
 
 export const SANS_DOSSIER = '__SANS_DOSSIER__';
-const SEPARATEUR = ' / ';
 
-const decouper = (libelle: string): [string, string] => {
-  const i = libelle.indexOf(SEPARATEUR);
-  return i === -1 ? [libelle.trim(), 'Général'] : [libelle.slice(0, i).trim(), libelle.slice(i + SEPARATEUR.length).trim()];
-};
+const parImportancePuisNom = (a: Noeud, b: Noeud) =>
+  rangImportance(a.importance) - rangImportance(b.importance) || a.nom.localeCompare(b.nom, 'fr');
 
 const ordreTache = (a: Tache, b: Tache): number => {
   const fa = a.status === 'DONE' ? 1 : 0;
   const fb = b.status === 'DONE' ? 1 : 0;
   if (fa !== fb) return fa - fb;
+  const ri = rangImportance(a.importance) - rangImportance(b.importance);
+  if (ri !== 0) return ri;
   if (a.dueAt && b.dueAt) return a.dueAt.localeCompare(b.dueAt);
   if (a.dueAt) return -1;
   if (b.dueAt) return 1;
   return (a.title ?? '').localeCompare(b.title ?? '', 'fr');
 };
 
-export const construireArbre = (taches: Tache[], options: OptionDossier[]): Dossier[] => {
-  const dossiers: Dossier[] = [];
-  const parSujet = new Map<string, Dossier>();
-  const parValeur = new Map<string, SousDossier>();
-
-  for (const option of [...options].sort((a, b) => a.position - b.position)) {
-    const [sujet, sous] = decouper(option.label);
-    let dossier = parSujet.get(sujet);
-    if (!dossier) {
-      dossier = { cle: `sujet:${sujet}`, libelle: sujet, sousDossiers: [] };
-      parSujet.set(sujet, dossier);
-      dossiers.push(dossier);
+export const construireArbre = (dossiers: DossierBrut[], taches: Tache[]): Noeud[] => {
+  const noeuds = new Map<string, Noeud>();
+  for (const d of dossiers) {
+    noeuds.set(d.id, { id: d.id, nom: d.nom || 'Sans nom', importance: d.importance, virtuel: false, enfants: [], taches: [] });
+  }
+  const racines: Noeud[] = [];
+  for (const d of dossiers) {
+    const n = noeuds.get(d.id)!;
+    // Un parent introuvable (ou une boucle sur soi-même) fait du dossier une racine.
+    const parent = d.parentId && d.parentId !== d.id ? noeuds.get(d.parentId) : undefined;
+    (parent ? parent.enfants : racines).push(n);
+  }
+  const orphelines: Tache[] = [];
+  for (const t of taches) {
+    const n = t.rangementId ? noeuds.get(t.rangementId) : undefined;
+    (n ? n.taches : orphelines).push(t);
+  }
+  const trier = (liste: Noeud[]) => {
+    liste.sort(parImportancePuisNom);
+    for (const n of liste) {
+      n.taches.sort(ordreTache);
+      trier(n.enfants);
     }
-    const sousDossier: SousDossier = { cle: option.value, libelle: sous, taches: [] };
-    dossier.sousDossiers.push(sousDossier);
-    parValeur.set(option.value, sousDossier);
+  };
+  trier(racines);
+  if (orphelines.length > 0) {
+    racines.push({
+      id: SANS_DOSSIER,
+      nom: 'Sans dossier',
+      importance: null,
+      virtuel: true,
+      enfants: [],
+      taches: orphelines.sort(ordreTache),
+    });
   }
+  return racines;
+};
 
-  const aRanger: SousDossier = { cle: SANS_DOSSIER, libelle: 'À ranger', taches: [] };
-  for (const tache of taches) {
-    const cible = tache.dossier ? parValeur.get(tache.dossier) : undefined;
-    (cible ?? aRanger).taches.push(tache);
-  }
-  if (aRanger.taches.length > 0) {
-    dossiers.push({ cle: `sujet:${SANS_DOSSIER}`, libelle: 'Sans dossier', sousDossiers: [aRanger] });
-  }
-  for (const d of dossiers) for (const s of d.sousDossiers) s.taches.sort(ordreTache);
-  return dossiers;
+// Avancement d'une tâche : 100 si elle est faite, sinon son « Avancement % » borné à 0..100.
+export const avancementTache = (t: Tache): number =>
+  t.status === 'DONE' ? 100 : Math.max(0, Math.min(100, Math.round(t.suiviAvancement ?? 0)));
+
+export const toutesLesTaches = (n: Noeud): Tache[] => [...n.taches, ...n.enfants.flatMap(toutesLesTaches)];
+
+// Avancement d'un dossier : moyenne de l'avancement de toutes ses tâches (sous-dossiers compris).
+// null quand le dossier n'a aucune tâche : « pas de mesure », jamais 0 % par défaut.
+export const avancementDossier = (n: Noeud): number | null => {
+  const ts = toutesLesTaches(n);
+  if (ts.length === 0) return null;
+  return Math.round(ts.reduce((s, t) => s + avancementTache(t), 0) / ts.length);
 };
 
 export const compter = (taches: Tache[]): { ouvertes: number; total: number } => ({
   ouvertes: taches.filter((t) => t.status !== 'DONE').length,
   total: taches.length,
 });
+
+// Clic sur l'avancement d'une tâche : +25 %, et de 100 % on revient à 0 %.
+export const avancementSuivant = (valeur: number | null): number => {
+  const v = Math.max(0, Math.min(100, Math.round(valeur ?? 0)));
+  return v >= 100 ? 0 : Math.min(100, Math.floor(v / 25) * 25 + 25);
+};

@@ -1,6 +1,5 @@
-import { type CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, type ReactElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { CoreApiClient } from 'twenty-client-sdk/core';
-import { MetadataApiClient } from 'twenty-client-sdk/metadata';
 import { defineFrontComponent } from 'twenty-sdk/define';
 import { enqueueSnackbar, openSidePanelPage, SidePanelPages } from 'twenty-sdk/front-component';
 import { IconChevronDown, IconChevronRight, IconFolder, IconFolderOpen, IconPlus, IconSearch } from 'twenty-ui/icon';
@@ -8,14 +7,18 @@ import { useTheme } from 'twenty-ui/theme';
 
 import { ARBORESCENCE_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER } from '../identifiants';
 import {
+  avancementDossier,
+  avancementSuivant,
+  avancementTache,
   compter,
   construireArbre,
-  type Dossier,
-  type OptionDossier,
+  type DossierBrut,
+  type Noeud,
   SANS_DOSSIER,
-  type SousDossier,
   type Tache,
+  toutesLesTaches,
 } from '../utils/construire-arbre.util';
+import { type Importance, importanceSuivante, LIBELLES_IMPORTANCE } from '../utils/importance.util';
 
 const STATUTS: Record<string, { libelle: string; suivant: string }> = {
   TODO: { libelle: 'À faire', suivant: 'IN_PROGRESS' },
@@ -24,52 +27,35 @@ const STATUTS: Record<string, { libelle: string; suivant: string }> = {
 };
 
 const messageErreur = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const signaler = (message: string) => void enqueueSnackbar({ message, variant: 'error' } as any);
 
-const chargerTaches = async (): Promise<Tache[]> => {
+const toutLire = async <T,>(objet: string, champs: Record<string, true>): Promise<T[]> => {
   const client = new CoreApiClient();
-  const taches: Tache[] = [];
+  const lignes: T[] = [];
   let apres: string | undefined;
   for (let page = 0; page < 50; page++) {
-    const { tasks } = await client.query({
-      tasks: {
+    const reponse = await client.query({
+      [objet]: {
         __args: { first: 100, ...(apres ? { after: apres } : {}) },
-        edges: { node: { id: true, title: true, status: true, dueAt: true, dossier: true } },
+        edges: { node: champs },
         pageInfo: { hasNextPage: true, endCursor: true },
       },
-    });
-    for (const edge of tasks?.edges ?? []) taches.push(edge.node as Tache);
-    if (!tasks?.pageInfo?.hasNextPage) break;
-    apres = tasks.pageInfo.endCursor;
+    } as any);
+    const connexion = (reponse as any)[objet];
+    for (const edge of connexion?.edges ?? []) lignes.push(edge.node as T);
+    if (!connexion?.pageInfo?.hasNextPage) break;
+    apres = connexion.pageInfo.endCursor;
   }
-  return taches;
+  return lignes;
 };
 
-const chargerOptions = async (): Promise<OptionDossier[]> => {
-  const { objects } = await new MetadataApiClient().query({
-    objects: {
-      __args: { filter: {}, paging: { first: 200 } },
-      edges: {
-        node: {
-          nameSingular: true,
-          fields: { __args: { filter: {}, paging: { first: 300 } }, edges: { node: { name: true, options: true } } },
-        },
-      },
-    },
-  });
-  const task = (objects?.edges ?? []).find((e: any) => e.node.nameSingular === 'task')?.node;
-  const champ = (task?.fields?.edges ?? []).find((e: any) => e.node.name === 'dossier')?.node;
-  return ((champ?.options ?? []) as any[])
-    .filter((o) => o.isActive !== false)
-    .map((o) => ({ value: o.value, label: o.label, position: o.position ?? 0 }));
-};
-
-const ouvrirTache = (id: string) =>
-  openSidePanelPage({ page: SidePanelPages.ViewRecord, recordId: id, objectNameSingular: 'task' });
+const ouvrir = (objectNameSingular: 'task' | 'dossier', id: string) =>
+  openSidePanelPage({ page: SidePanelPages.ViewRecord, recordId: id, objectNameSingular });
 
 const Arborescence = () => {
   const t = useTheme();
   const [taches, setTaches] = useState<Tache[] | null>(null);
-  const [options, setOptions] = useState<OptionDossier[]>([]);
+  const [dossiers, setDossiers] = useState<DossierBrut[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(true);
   const [voirFaites, setVoirFaites] = useState(false);
@@ -80,9 +66,20 @@ const Arborescence = () => {
     setChargement(true);
     setErreur(null);
     try {
-      const [ts, os] = await Promise.all([chargerTaches(), chargerOptions()]);
+      const [ds, ts] = await Promise.all([
+        toutLire<DossierBrut>('dossiers', { id: true, nom: true, importance: true, parentId: true }),
+        toutLire<Tache>('tasks', {
+          id: true,
+          title: true,
+          status: true,
+          dueAt: true,
+          importance: true,
+          suiviAvancement: true,
+          rangementId: true,
+        }),
+      ]);
+      setDossiers(ds);
       setTaches(ts);
-      setOptions(os);
     } catch (e) {
       setErreur(messageErreur(e));
     } finally {
@@ -94,51 +91,73 @@ const Arborescence = () => {
     void charger();
   }, [charger]);
 
-  const arbre = useMemo(() => construireArbre(taches ?? [], options), [taches, options]);
+  const arbre = useMemo(() => construireArbre(dossiers, taches ?? []), [dossiers, taches]);
 
-  // Par défaut : sujets ouverts, sous-dossiers fermés (on voit d'abord la liste des dossiers).
-  const estOuvert = (cle: string, parDefaut: boolean) => (ouverts ? ouverts.has(cle) : parDefaut);
-  const basculer = (cle: string, parDefaut: boolean) => {
-    const base = ouverts ?? new Set(arbre.map((d) => d.cle));
-    const suivant = new Set(base);
-    if (estOuvert(cle, parDefaut)) suivant.delete(cle);
-    else suivant.add(cle);
+  // Par défaut : racines ouvertes, sous-dossiers fermés (on voit d'abord la liste des dossiers).
+  const racines = useMemo(() => new Set(arbre.map((n) => n.id)), [arbre]);
+  const estOuvert = (id: string) => (ouverts ? ouverts.has(id) : racines.has(id));
+  const basculer = (id: string) => {
+    const suivant = new Set(ouverts ?? racines);
+    if (suivant.has(id)) suivant.delete(id);
+    else suivant.add(id);
     setOuverts(suivant);
   };
-  const toutDeplier = () => setOuverts(new Set(arbre.flatMap((d) => [d.cle, ...d.sousDossiers.map((x) => x.cle)])));
-  const toutReplier = () => setOuverts(new Set());
+  const tousLesIds = (ns: Noeud[]): string[] => ns.flatMap((n) => [n.id, ...tousLesIds(n.enfants)]);
+  const ouvrirAussi = (id: string) => setOuverts(new Set([...(ouverts ?? racines), id]));
 
   const filtre = recherche.trim().toLowerCase();
-  const visibles = (sous: SousDossier) =>
-    sous.taches.filter(
-      (x) => (voirFaites || x.status !== 'DONE') && (!filtre || (x.title ?? '').toLowerCase().includes(filtre)),
-    );
+  const tacheVisible = (x: Tache) =>
+    (voirFaites || x.status !== 'DONE') && (!filtre || (x.title ?? '').toLowerCase().includes(filtre));
+  const contientVisible = (n: Noeud): boolean => n.taches.some(tacheVisible) || n.enfants.some(contientVisible);
 
-  const changerStatut = async (tache: Tache) => {
-    const suivant = STATUTS[tache.status ?? 'TODO']?.suivant ?? 'TODO';
-    setTaches((prec) => (prec ?? []).map((x) => (x.id === tache.id ? { ...x, status: suivant } : x)));
+  // Écritures : mise à jour optimiste, retour arrière et message si l'API refuse.
+  const majTache = async (tache: Tache, data: Partial<Tache>) => {
+    setTaches((prec) => (prec ?? []).map((x) => (x.id === tache.id ? { ...x, ...data } : x)));
     try {
-      await new CoreApiClient().mutation({
-        updateTask: { __args: { id: tache.id, data: { status: suivant as any } }, id: true },
-      });
+      await new CoreApiClient().mutation({ updateTask: { __args: { id: tache.id, data: data as any }, id: true } });
     } catch (e) {
       setTaches((prec) => (prec ?? []).map((x) => (x.id === tache.id ? tache : x)));
-      void enqueueSnackbar({ message: `Statut non enregistré : ${messageErreur(e)}`, variant: 'error' } as any);
+      signaler(`Tâche non enregistrée : ${messageErreur(e)}`);
+    }
+  };
+  const majDossier = async (n: Noeud, data: Partial<DossierBrut>) => {
+    const avant = dossiers.find((d) => d.id === n.id);
+    setDossiers((prec) => prec.map((d) => (d.id === n.id ? { ...d, ...data } : d)));
+    try {
+      await new CoreApiClient().mutation({ updateDossier: { __args: { id: n.id, data: data as any }, id: true } } as any);
+    } catch (e) {
+      if (avant) setDossiers((prec) => prec.map((d) => (d.id === n.id ? avant : d)));
+      signaler(`Dossier non enregistré : ${messageErreur(e)}`);
+    }
+  };
+  const creerTache = async (n: Noeud) => {
+    try {
+      const data: Record<string, unknown> = { title: 'Nouvelle tâche', status: 'TODO' };
+      if (!n.virtuel) data.rangementId = n.id;
+      const { createTask } = await new CoreApiClient().mutation({ createTask: { __args: { data: data as any }, id: true } });
+      ouvrirAussi(n.id);
+      await charger();
+      if (createTask?.id) await ouvrir('task', createTask.id);
+    } catch (e) {
+      signaler(`Tâche non créée : ${messageErreur(e)}`);
+    }
+  };
+  const creerDossier = async (parent: Noeud | null) => {
+    try {
+      const data: Record<string, unknown> = { nom: parent ? 'Nouveau sous-dossier' : 'Nouveau dossier' };
+      if (parent) data.parentId = parent.id;
+      const reponse = await new CoreApiClient().mutation({ createDossier: { __args: { data }, id: true } } as any);
+      if (parent) ouvrirAussi(parent.id);
+      await charger();
+      const id = (reponse as any)?.createDossier?.id;
+      if (id) await ouvrir('dossier', id);
+    } catch (e) {
+      signaler(`Dossier non créé : ${messageErreur(e)}`);
     }
   };
 
-  const creerDans = async (sous: SousDossier) => {
-    try {
-      const data: Record<string, unknown> = { title: 'Nouvelle tâche', status: 'TODO' };
-      if (sous.cle !== SANS_DOSSIER) data.dossier = sous.cle;
-      const { createTask } = await new CoreApiClient().mutation({ createTask: { __args: { data }, id: true } });
-      setOuverts(new Set([...(ouverts ?? arbre.map((d) => d.cle)), sous.cle]));
-      await charger();
-      if (createTask?.id) await ouvrirTache(createTask.id);
-    } catch (e) {
-      void enqueueSnackbar({ message: `Tâche non créée : ${messageErreur(e)}`, variant: 'error' } as any);
-    }
-  };
+  const couleurImportance = (v: string | null) =>
+    v === 'CRITIQUE' ? t.color.red : v === 'HAUTE' ? t.color.orange : v === 'BASSE' ? t.font.color.tertiary : t.color.blue;
 
   const s: Record<string, CSSProperties> = {
     racine: {
@@ -194,57 +213,46 @@ const Arborescence = () => {
       fontFamily: t.font.family,
     },
     corps: { overflow: 'auto', minHeight: 0, padding: `${t.spacing[2]} ${t.spacing[2]} ${t.spacing[8]}` },
-    ligneSujet: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: t.spacing[2],
-      padding: t.spacing[2],
-      cursor: 'pointer',
-      fontWeight: t.font.weight.semiBold,
-      fontSize: t.font.size.md,
-    },
-    ligneSous: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: t.spacing[2],
-      padding: `${t.spacing[1]} ${t.spacing[2]} ${t.spacing[1]} ${t.spacing[8]}`,
-      cursor: 'pointer',
-      fontWeight: t.font.weight.medium,
-      fontSize: t.font.size.md,
-    },
-    ligneTache: {
+    ligneDossier: {
       display: 'grid',
-      gridTemplateColumns: '84px minmax(0, 1fr) auto',
+      gridTemplateColumns: 'minmax(0, 1fr) 76px 150px auto',
       alignItems: 'center',
       gap: t.spacing[3],
-      padding: `${t.spacing[1]} ${t.spacing[3]} ${t.spacing[1]} ${t.spacing[12]}`,
+      padding: `${t.spacing[1]} ${t.spacing[3]} ${t.spacing[1]} 0`,
+      cursor: 'pointer',
+      borderRadius: t.border.radius.sm,
+    },
+    nomDossier: { display: 'flex', alignItems: 'center', gap: t.spacing[2], minWidth: 0 },
+    ligneTache: {
+      display: 'grid',
+      gridTemplateColumns: '80px minmax(0, 1fr) 76px 150px 96px',
+      alignItems: 'center',
+      gap: t.spacing[3],
+      padding: `${t.spacing[1]} ${t.spacing[3]} ${t.spacing[1]} 0`,
       fontSize: t.font.size.md,
       borderBottom: `1px solid ${t.border.color.light}`,
     },
-    badge: { color: t.font.color.tertiary, fontSize: t.font.size.sm, fontWeight: t.font.weight.regular },
-    aucune: {
-      color: t.font.color.tertiary,
-      fontSize: t.font.size.sm,
-      padding: `${t.spacing[1]} 0 ${t.spacing[2]} ${t.spacing[12]}`,
-    },
-    titreTache: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' },
-    plus: {
-      marginLeft: 'auto',
+    badge: { color: t.font.color.tertiary, fontSize: t.font.size.sm, fontWeight: t.font.weight.regular, whiteSpace: 'nowrap' },
+    aucune: { color: t.font.color.tertiary, fontSize: t.font.size.sm, padding: `${t.spacing[1]} 0 ${t.spacing[2]}` },
+    tronque: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+    actions: { display: 'flex', gap: t.spacing[1], justifyContent: 'flex-end' },
+    lien: {
       border: 'none',
       background: 'transparent',
       color: t.font.color.tertiary,
       cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
-      gap: t.spacing[1],
+      gap: '2px',
       fontSize: t.font.size.sm,
       fontFamily: t.font.family,
+      whiteSpace: 'nowrap',
     },
     vide: { padding: t.spacing[8], textAlign: 'center', color: t.font.color.tertiary },
     erreur: { padding: t.spacing[6], color: t.font.color.danger, display: 'grid', gap: t.spacing[3], justifyItems: 'start' },
   };
 
-  const pastille = (statut: string | null): CSSProperties => ({
+  const pastille = (couleur: string): CSSProperties => ({
     border: `1px solid ${t.border.color.medium}`,
     borderRadius: t.border.radius.pill,
     fontSize: t.font.size.xs,
@@ -253,98 +261,177 @@ const Arborescence = () => {
     textAlign: 'center',
     background: 'transparent',
     fontFamily: t.font.family,
-    color: statut === 'DONE' ? t.font.color.tertiary : statut === 'IN_PROGRESS' ? t.color.orange : t.color.blue,
+    color: couleur,
+    whiteSpace: 'nowrap',
   });
+
+  const Importance = ({ valeur, onClic }: { valeur: string | null; onClic?: () => void }) =>
+    onClic ? (
+      <button
+        style={pastille(couleurImportance(valeur))}
+        title="Importance : cliquer pour monter d'un cran"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClic();
+        }}
+      >
+        {LIBELLES_IMPORTANCE[(valeur ?? 'NORMALE') as Importance] ?? valeur}
+      </button>
+    ) : (
+      <span />
+    );
+
+  const Barre = ({ pourcent, onClic, titre }: { pourcent: number | null; onClic?: () => void; titre: string }) => (
+    <div
+      title={titre}
+      onClick={
+        onClic
+          ? (e) => {
+              e.stopPropagation();
+              onClic();
+            }
+          : undefined
+      }
+      style={{ display: 'flex', alignItems: 'center', gap: t.spacing[2], cursor: onClic ? 'pointer' : 'default' }}
+    >
+      <div
+        style={{
+          flex: 1,
+          height: '6px',
+          borderRadius: t.border.radius.pill,
+          background: t.background.tertiary,
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${pourcent ?? 0}%`,
+            height: '100%',
+            background: pourcent === 100 ? t.color.green : t.color.blue,
+          }}
+        />
+      </div>
+      <span style={{ ...s.badge, width: '34px', textAlign: 'right' }}>{pourcent === null ? '—' : `${pourcent} %`}</span>
+    </div>
+  );
 
   const echeance = (tache: Tache) => {
     if (!tache.dueAt) return <span />;
     const date = new Date(tache.dueAt);
     const enRetard = tache.status !== 'DONE' && date.getTime() < Date.now();
     return (
-      <span style={{ fontSize: t.font.size.sm, color: enRetard ? t.font.color.danger : t.font.color.tertiary }}>
+      <span style={{ fontSize: t.font.size.sm, color: enRetard ? t.font.color.danger : t.font.color.tertiary, textAlign: 'right' }}>
         {date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
       </span>
     );
   };
 
-  const total = compter(taches ?? []);
+  const retrait = (niveau: number) => `calc(${t.spacing[2]} + ${niveau * 24}px)`;
 
-  const rendreSous = (sous: SousDossier) => {
-    const liste = visibles(sous);
-    if (filtre && liste.length === 0) return null;
-    const ouvert = filtre ? true : estOuvert(sous.cle, false);
-    const c = compter(sous.taches);
+  const rendreTache = (tache: Tache, niveau: number) => (
+    <div key={tache.id} style={{ ...s.ligneTache, paddingLeft: retrait(niveau) }}>
+      <button
+        style={pastille(
+          tache.status === 'DONE' ? t.font.color.tertiary : tache.status === 'IN_PROGRESS' ? t.color.orange : t.color.blue,
+        )}
+        onClick={() => void majTache(tache, { status: STATUTS[tache.status ?? 'TODO']?.suivant ?? 'TODO' })}
+        title="Statut : cliquer pour avancer"
+      >
+        {STATUTS[tache.status ?? 'TODO']?.libelle ?? tache.status}
+      </button>
+      <span
+        style={{
+          ...s.tronque,
+          cursor: 'pointer',
+          color: tache.status === 'DONE' ? t.font.color.tertiary : t.font.color.primary,
+          textDecoration: tache.status === 'DONE' ? 'line-through' : 'none',
+        }}
+        onClick={() => void ouvrir('task', tache.id)}
+        title={tache.title ?? ''}
+      >
+        {tache.title || 'Sans titre'}
+      </span>
+      <Importance valeur={tache.importance} onClic={() => void majTache(tache, { importance: importanceSuivante(tache.importance) })} />
+      <Barre
+        pourcent={avancementTache(tache)}
+        titre={tache.status === 'DONE' ? 'Faite : 100 %' : 'Avancement : cliquer pour +25 %'}
+        onClic={tache.status === 'DONE' ? undefined : () => void majTache(tache, { suiviAvancement: avancementSuivant(tache.suiviAvancement) })}
+      />
+      {echeance(tache)}
+    </div>
+  );
+
+  const rendreDossier = (n: Noeud, niveau: number): ReactElement | null => {
+    if (filtre && !contientVisible(n)) return null;
+    const ouvert = filtre ? true : estOuvert(n.id);
+    const c = compter(toutesLesTaches(n));
+    const tachesVisibles = n.taches.filter(tacheVisible);
+    const taille = niveau === 0 ? t.font.size.md : t.font.size.md;
     return (
-      <div key={sous.cle}>
-        <div style={s.ligneSous} onClick={() => basculer(sous.cle, false)}>
-          {ouvert ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-          {ouvert ? <IconFolderOpen size={16} /> : <IconFolder size={16} />}
-          <span>{sous.libelle}</span>
-          <span style={s.badge}>
-            {c.ouvertes} / {c.total}
-          </span>
-          <button
-            style={s.plus}
-            title="Nouvelle tâche dans ce dossier"
-            aria-label={`Nouvelle tâche dans ${sous.libelle}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              void creerDans(sous);
-            }}
-          >
-            <IconPlus size={14} /> Tâche
-          </button>
-        </div>
-        {ouvert &&
-          (liste.length === 0 ? (
-            <div style={s.aucune}>{voirFaites ? 'Aucune tâche' : 'Aucune tâche ouverte'}</div>
-          ) : (
-            liste.map((tache) => (
-              <div key={tache.id} style={s.ligneTache}>
-                <button style={pastille(tache.status)} onClick={() => void changerStatut(tache)} title="Changer le statut">
-                  {STATUTS[tache.status ?? 'TODO']?.libelle ?? tache.status}
-                </button>
-                <span
-                  style={{
-                    ...s.titreTache,
-                    color: tache.status === 'DONE' ? t.font.color.tertiary : t.font.color.primary,
-                    textDecoration: tache.status === 'DONE' ? 'line-through' : 'none',
+      <div key={n.id} style={{ marginBottom: niveau === 0 ? t.spacing[1] : 0 }}>
+        <div style={{ ...s.ligneDossier, paddingLeft: retrait(niveau) }} onClick={() => basculer(n.id)}>
+          <div style={{ ...s.nomDossier, fontSize: taille, fontWeight: niveau === 0 ? t.font.weight.semiBold : t.font.weight.medium }}>
+            {ouvert ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+            {ouvert ? <IconFolderOpen size={niveau === 0 ? 18 : 16} /> : <IconFolder size={niveau === 0 ? 18 : 16} />}
+            <span style={s.tronque}>{n.nom}</span>
+            <span style={s.badge}>
+              {c.ouvertes} / {c.total}
+            </span>
+          </div>
+          {n.virtuel ? <span /> : <Importance valeur={n.importance} onClic={() => void majDossier(n, { importance: importanceSuivante(n.importance) })} />}
+          <Barre pourcent={avancementDossier(n)} titre="Avancement du dossier : moyenne de ses tâches (faite = 100 %)" />
+          <div style={s.actions}>
+            <button
+              style={s.lien}
+              aria-label={`Nouvelle tâche dans ${n.nom}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                void creerTache(n);
+              }}
+            >
+              <IconPlus size={12} /> Tâche
+            </button>
+            {!n.virtuel && (
+              <>
+                <button
+                  style={s.lien}
+                  aria-label={`Nouveau sous-dossier dans ${n.nom}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void creerDossier(n);
                   }}
-                  onClick={() => void ouvrirTache(tache.id)}
-                  title={tache.title ?? ''}
                 >
-                  {tache.title || 'Sans titre'}
-                </span>
-                {echeance(tache)}
-              </div>
-            ))
-          ))}
-      </div>
-    );
-  };
-
-  const rendreSujet = (dossier: Dossier) => {
-    const sous = dossier.sousDossiers.map(rendreSous).filter(Boolean);
-    if (filtre && sous.length === 0) return null;
-    const ouvert = filtre ? true : estOuvert(dossier.cle, true);
-    const c = compter(dossier.sousDossiers.flatMap((x) => x.taches));
-    return (
-      <div key={dossier.cle} style={{ marginBottom: t.spacing[1] }}>
-        <div style={s.ligneSujet} onClick={() => basculer(dossier.cle, true)}>
-          {ouvert ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
-          {ouvert ? <IconFolderOpen size={18} /> : <IconFolder size={18} />}
-          <span>{dossier.libelle}</span>
-          <span style={s.badge}>
-            {c.ouvertes} ouvertes / {c.total}
-          </span>
+                  <IconPlus size={12} /> Sous-dossier
+                </button>
+                <button
+                  style={s.lien}
+                  aria-label={`Modifier le dossier ${n.nom}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void ouvrir('dossier', n.id);
+                  }}
+                >
+                  Modifier
+                </button>
+              </>
+            )}
+          </div>
         </div>
-        {ouvert && sous}
+        {ouvert && (
+          <div>
+            {n.enfants.map((e) => rendreDossier(e, niveau + 1))}
+            {tachesVisibles.map((x) => rendreTache(x, niveau + 1))}
+            {n.enfants.length === 0 && tachesVisibles.length === 0 && (
+              <div style={{ ...s.aucune, paddingLeft: retrait(niveau + 1) }}>{voirFaites ? 'Aucune tâche' : 'Aucune tâche ouverte'}</div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
 
-  const aucunResultat =
-    !!taches && !!filtre && arbre.every((d) => d.sousDossiers.every((x) => visibles(x).length === 0));
+  const total = compter(taches ?? []);
+  const aucunResultat = !!taches && !!filtre && !arbre.some(contientVisible);
 
   return (
     <main style={s.racine}>
@@ -361,13 +448,16 @@ const Arborescence = () => {
             onChange={(e) => setRecherche(e.target.value)}
           />
         </label>
+        <button style={s.bouton} onClick={() => void creerDossier(null)}>
+          + Dossier
+        </button>
         <button style={s.bouton} onClick={() => setVoirFaites((v) => !v)}>
           {voirFaites ? 'Masquer les faites' : 'Voir les faites'}
         </button>
-        <button style={s.bouton} onClick={toutDeplier}>
+        <button style={s.bouton} onClick={() => setOuverts(new Set(tousLesIds(arbre)))}>
           Tout déplier
         </button>
-        <button style={s.bouton} onClick={toutReplier}>
+        <button style={s.bouton} onClick={() => setOuverts(new Set())}>
           Tout replier
         </button>
         <button style={s.bouton} onClick={() => void charger()} disabled={chargement}>
@@ -385,9 +475,9 @@ const Arborescence = () => {
         ) : !taches ? (
           <div style={s.vide}>Chargement des tâches…</div>
         ) : arbre.length === 0 ? (
-          <div style={s.vide}>Aucun dossier : ajoute des options au champ « Dossier » des tâches.</div>
+          <div style={s.vide}>Aucun dossier : crée le premier avec « + Dossier ».</div>
         ) : (
-          arbre.map(rendreSujet)
+          arbre.map((n) => rendreDossier(n, 0))
         )}
         {aucunResultat && <div style={s.vide}>Aucune tâche ne correspond à « {recherche} ».</div>}
       </div>
@@ -398,6 +488,6 @@ const Arborescence = () => {
 export default defineFrontComponent({
   universalIdentifier: ARBORESCENCE_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER,
   name: 'arborescence-taches',
-  description: 'Les tâches rangées en dossiers : sujet, sous-sujet, puis tâches',
+  description: 'Les tâches rangées en dossiers, avec importance et avancement',
   component: Arborescence,
 });
