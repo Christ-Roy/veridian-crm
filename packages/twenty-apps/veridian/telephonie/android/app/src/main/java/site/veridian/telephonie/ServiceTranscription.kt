@@ -108,7 +108,11 @@ class ServiceTranscription : Service() {
         if (!reglages.modele.exists()) { attendre("modèle absent (à télécharger dans l'app)"); return false }
         val (niveau, charge) = batterie()
         val neuves = demandes.filter { it.mode == "neuf" || it.mode == "maintenant" }
-        val reprises = demandes.filter { it.mode == "en_charge" }
+        val reprises = demandes.filter { it.mode == "en_charge" }.filter { d ->
+            // Reprises « en charge » coupées (défaut depuis le 14/11/2026, le serveur Whisper les fait) : retirées.
+            reglages.ameliorerAnciennes.also { if (!it) { transcriptions.retirer(d.stem); Journal.log("transcription : reprise ${d.stem} retirée (ameliorer_anciennes coupé)") } }
+        }
+        if (neuves.isEmpty() && reprises.isEmpty()) { derniereAttente = null; transcriptions.poserEtat("au repos"); return false }
         val cible = neuves.firstOrNull { permise(it.mode, niveau, charge) } ?: reprises.firstOrNull { permise(it.mode, niveau, charge) }
             ?: run { attendre(politique((neuves.firstOrNull() ?: reprises.first()).mode, niveau, charge) ?: "?"); return false }
         if (!cible.audio.exists()) { transcriptions.retirer(cible.stem); return true }

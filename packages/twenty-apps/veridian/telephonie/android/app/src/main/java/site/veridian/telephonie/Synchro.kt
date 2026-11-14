@@ -310,7 +310,10 @@ class Synchro private constructor(val ctx: Context) {
             if (v["sourceTranscription"] == "GOOGLE") continue
             val existant = parSource[v["idSource"]] ?: parSeconde[Contrat.cleSeconde("appels", v)]
             val texteCrm = existant?.get("transcription") as String?
-            if (transcriptions.texte(audio).isEmpty() && !texteCrm.isNullOrBlank()) {
+            if (Contrat.transcriptionServeur(existant) && !texteCrm.isNullOrBlank()) {
+                // Whisper (serveur) l'a faite : le téléphone la reprend telle quelle et ne transcrit plus ce fichier.
+                transcriptions.adopterServeur(audio, texteCrm, existant?.get("moteurTranscription") as String?)
+            } else if (transcriptions.texte(audio).isEmpty() && !texteCrm.isNullOrBlank()) {
                 transcriptions.reprendre(audio, texteCrm, existant?.get("sourceTranscription") as String?, existant?.get("moteurTranscription") as String?)
             } else if (!reglages.miroir && reglages.transcriptionActive && transcriptions.aTranscrire(audio)) {
                 transcriptions.demander(audio, "neuf", if ((v["idSource"] as String).startsWith("messagerie:")) "messagerie" else "appels")

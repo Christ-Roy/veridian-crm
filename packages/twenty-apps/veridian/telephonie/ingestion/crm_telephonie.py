@@ -518,6 +518,12 @@ def cle_seconde(pluriel, enregistrement):
             empreinte(enregistrement.get("texte") or ""))
 
 
+def transcription_serveur(existant):
+    """Vrai si le CRM porte une transcription Whisper (faite par le serveur) : le téléphone n'y touche plus."""
+    return existant.get("sourceTranscription") == "WHISPER" or \
+        str(existant.get("moteurTranscription") or "").strip().lower().startswith("whisper")
+
+
 def planifier(pluriel, voulus, existants, index):
     """Créations et compléments. Un champ déjà rempli dans le CRM n'est jamais réécrit."""
     par_source = {e.get("idSource"): e for e in existants if e.get("idSource")}
@@ -552,6 +558,11 @@ def planifier(pluriel, voulus, existants, index):
             pass
         elif pluriel == "appels" and "transcription" not in champs:
             for m in CHAMPS_TRANSCRIPTION:
+                champs.pop(m, None)
+        # Une transcription du serveur (Whisper, service transcription-appels) n'est jamais remplacée par celle
+        # du téléphone, ni sa source ni son moteur : elle est meilleure (Robert, 14/11/2026).
+        if pluriel == "appels" and transcription_serveur(existant):
+            for m in ("transcription",) + CHAMPS_TRANSCRIPTION:
                 champs.pop(m, None)
         # Un titre reste celui de l'outil tant que personne ne l'a retouché : on le met à la règle du jour, sinon
         # on n'y touche pas (compléter sans écraser vaut aussi pour une saisie à la main).

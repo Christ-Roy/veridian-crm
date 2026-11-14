@@ -66,7 +66,17 @@ def cas_planifier():
                          "google-messagerie")
     a7 = c.appel(1794485800000, None, 10, "1", None, "PIXEL_8_PRO")
     a8 = c.appel(1794485900000, "+33612345678", 0, "2", "", "PIXEL_8_PRO")
-    voulus = [a1, a2, a3, a4, a5, a6, a7, a8]
+    # a9 : le CRM porte une transcription Whisper du serveur, même listée dans les anciennes du téléphone → gardée
+    a9 = c.appel(1794486000000, "+33612345678", 30, "1", "", "PIXEL_8_PRO")
+    a9["_fichiers"] = {"enregistrement": [Path("/x/20261112_122000_in.ogg")]}
+    a9["transcription"] = "[  0.0-  2.0] parakeet"
+    a9["sourceTranscription"], a9["moteurTranscription"] = "PARAKEET", "parakeet-tdt-0.6b-v3-q8_0 · x"
+    a9["_remplace"] = {"transcription": ["[  0.5-  2.0] whisper"]}
+    # a10 : moteur Whisper sans source posée (CRM vidé à la main) → le téléphone ne la remplit pas non plus
+    a10 = c.appel(1794486100000, "+33612345678", 30, "2", "", "PIXEL_8_PRO")
+    a10["transcription"] = "[  0.0-  2.0] parakeet"
+    a10["sourceTranscription"], a10["moteurTranscription"] = "PARAKEET", "m"
+    voulus = [a1, a2, a3, a4, a5, a6, a7, a8, a9, a10]
     existants = [
         # a2 par idSource, rattaché à la main à p9 : on ne touche pas au rattachement
         {"id": "e2", "idSource": a2["idSource"], "personId": "p9", "titre": "Sortant", "debutLe": a2["debutLe"],
@@ -85,6 +95,13 @@ def cas_planifier():
         # a8 : « Sortant » posé avant le 10/11 → « Sortant · sans réponse »
         {"id": "e8", "idSource": a8["idSource"], "titre": "Sortant", "debutLe": a8["debutLe"], "numero": a8["numero"],
          "direction": "SORTANT", "personId": "p1", "nomSurTelephone": {"a": "", "b": None}},
+        {"id": "e9", "idSource": a9["idSource"], "titre": a9["titre"], "debutLe": a9["debutLe"], "numero": a9["numero"],
+         "direction": "ENTRANT", "personId": "p1", "transcription": "[  0.5-  2.0] whisper",
+         "sourceTranscription": "WHISPER", "moteurTranscription": "whisper-large-v3 · 2026-11-14",
+         "enregistrement": [{"fileId": "f9", "label": "20261112_122000_in.ogg"}]},
+        {"id": "e10", "idSource": a10["idSource"], "titre": a10["titre"], "debutLe": a10["debutLe"],
+         "numero": a10["numero"], "direction": "SORTANT", "personId": "p1", "transcription": "",
+         "sourceTranscription": None, "moteurTranscription": "Whisper-large-v3"},
     ]
     sms1 = c.message(1794485255000, "+33612345678", "1", "Bonjour", "Alice", "PIXEL_8_PRO")
     sms2 = c.message(1794485256789, "+33698765432", "2", "Réponse", "", "PIXEL_8_PRO")

@@ -32,13 +32,19 @@ class Reglages(private val ctx: Context) {
         val schema = prefs.getInt("schema", 1)
         if (schema >= SCHEMA) return
         val e = prefs.edit()
-        if (prefs.contains("url")) {
+        if (schema < 2 && prefs.contains("url")) {
             if (!prefs.contains("mode")) e.putString("mode", "miroir")
             if (!prefs.contains("r.appareil")) e.putString("r.appareil", "PIXEL_8_PRO")
             if (!prefs.contains("r.jemrec")) e.putString("r.jemrec", "/sdcard/Recordings/JemRec")
             if (!prefs.contains("r.transcription")) e.putString("r.transcription", "1")
             if (!prefs.contains("r.messagerie")) e.putString("r.messagerie", "1")
             if (!prefs.contains("acces")) e.putString("acces", ACCES_CLE)
+        }
+        if (schema < 3) {
+            // Schéma 3 (14/11/2026) : les transcriptions refaites « en charge » (ancien Parakeet) sont coupées, le
+            // serveur Whisper transcrit mieux tous les appels enregistrés. Une valeur posée avant est retirée : le
+            // téléphone suit le nouveau défaut (0). `configurer` peut la remettre à 1.
+            e.remove("r.ameliorer_anciennes")
         }
         e.putInt("schema", SCHEMA).commit()
     }
@@ -158,14 +164,14 @@ class Reglages(private val ctx: Context) {
         .put("cle_sha256_12", cle?.let { site.veridian.telephonie.contrat.Contrat.sha256(it).take(12) })
         .put("modele", modele.path).put("modele_present", modele.exists()).put("troncon_s", tronconS)
         .put("chevauchement_s", chevauchementS).put("batterie_min_pct", batterieMinPct).put("batterie_min_neuf_pct", batterieMinNeufPct).put("fils", fils)
-        .put("audio_wifi_apres_echecs", echecsAvantWifi)
+        .put("audio_wifi_apres_echecs", echecsAvantWifi).put("ameliorer_anciennes", ameliorerAnciennes)
 
     companion object {
-        const val SCHEMA = 2
+        const val SCHEMA = 3
         const val ACCES_CLE = "cle"
         const val ACCES_OAUTH = "oauth"
         val DEFAUT = mapOf("troncon_s" to 30.0, "chevauchement_s" to 0.0, "batterie_min_pct" to 30.0, "batterie_min_neuf_pct" to 10.0,
-            "memoire_min_ko" to 1_500_000.0, "fils" to 4.0, "ameliorer_anciennes" to 1.0,
+            "memoire_min_ko" to 1_500_000.0, "fils" to 4.0, "ameliorer_anciennes" to 0.0,
             "audio_wifi_apres_echecs" to 0.0, "historique_depuis_ms" to 0.0)
         val DEFAUT_TEXTE = mapOf("appareil" to "", "jemrec" to "/sdcard/Recordings/JemRec", "modele" to "")
 

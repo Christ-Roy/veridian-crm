@@ -64,8 +64,10 @@ class Transcriptions(ctx: Context) {
 
     fun remplacements(audio: File): Map<String, Any?>? = anciennes(audio).takeIf { it.isNotEmpty() }?.let { mapOf("transcription" to it) }
 
-    /** Transcription d'un autre modèle que celui voulu (ancien Parakeet, whisper), pas encore refaite. */
-    fun aAmeliorer(audio: File, idVoulu: String) = fichier(audio).exists() && moteurDe(audio) != "parakeet:$idVoulu" &&
+    /** Transcription d'un autre modèle Parakeet que celui voulu, pas encore refaite. Jamais une transcription du
+     *  serveur (Whisper) : elle est meilleure que tout ce que le téléphone ferait (Robert, 14/11/2026). */
+    fun aAmeliorer(audio: File, idVoulu: String) = fichier(audio).exists() && !moteurDe(audio).startsWith("whisper:") &&
+        moteurDe(audio) != "parakeet:$idVoulu" &&
         (moteurDe(audio) != "echec-parakeet:$idVoulu" || echecAncien(audio))
 
     /** Reprise du CRM : un appel déjà transcrit (pixel-appels, Termux) ne repasse pas par un moteur. */
@@ -75,6 +77,18 @@ class Transcriptions(ctx: Context) {
         f.writeText(texteCrm)
         val famille = (sourceCrm ?: "").lowercase()
         if (famille in SOURCES && !moteurCrm.isNullOrEmpty()) fichier(audio, ".moteur").writeText("$famille:$moteurCrm\n")
+    }
+
+    /**
+     * Le CRM porte une transcription du serveur (Whisper) : elle devient celle du téléphone, qui ne transcrit plus ce
+     * fichier (aucune batterie dépensée, aucune reprise après échec ni « en charge »). Demande en file retirée.
+     */
+    fun adopterServeur(audio: File, texteCrm: String, moteurCrm: String?) {
+        val f = fichier(audio)
+        if (moteurDe(audio).startsWith("whisper:") && texte(audio) == site.veridian.telephonie.contrat.Contrat.pyStrip(texteCrm)) return
+        f.writeText(texteCrm)
+        fichier(audio, ".moteur").writeText("whisper:${(moteurCrm ?: "").ifEmpty { "serveur" }.replace("\t", " ").replace("\n", " ")}\n")
+        retirer(audio.nameWithoutExtension)
     }
 
     /** Écrit une transcription faite ici : l'ancienne passe dans l'historique (seule remplaçable au CRM). */

@@ -376,6 +376,11 @@ object Contrat {
     data class Complement(val id: String, val champs: Map<String, Any?>, val fichiers: Map<String, List<String>>?, val idSource: String = "")
     data class Plan(val creations: List<Creation>, val complements: List<Complement>, val sansPersonne: Int)
 
+    /** Vrai si le CRM porte une transcription Whisper (faite par le serveur) : le téléphone n'y touche plus. */
+    fun transcriptionServeur(existant: Map<String, Any?>?): Boolean = existant != null &&
+        (existant["sourceTranscription"] == "WHISPER" ||
+            texte(existant["moteurTranscription"]).trim().lowercase().startsWith("whisper"))
+
     /** Créations et compléments. Un champ déjà rempli dans le CRM n'est jamais réécrit. */
     @Suppress("UNCHECKED_CAST")
     fun planifier(pluriel: String, voulus: List<Map<String, Any?>>, existants: List<Map<String, Any?>>,
@@ -419,6 +424,11 @@ object Contrat {
                 // le CRM porte déjà exactement la nôtre : source et moteur peuvent la rejoindre
             } else if (pluriel == "appels" && "transcription" !in champs) {
                 CHAMPS_TRANSCRIPTION.forEach { champs.remove(it) }
+            }
+            // Une transcription du serveur (Whisper, service transcription-appels) n'est jamais remplacée par celle
+            // du téléphone, ni sa source ni son moteur : elle est meilleure (Robert, 14/11/2026).
+            if (pluriel == "appels" && transcriptionServeur(existant)) {
+                champs.remove("transcription"); CHAMPS_TRANSCRIPTION.forEach { champs.remove(it) }
             }
             if (pluriel == "appels" && existant["titre"] != voulu["titre"] &&
                 existant["titre"] == titreAncien(voulu["direction"] as String?, (voulu["dureeSecondes"] as Number).toInt())) {

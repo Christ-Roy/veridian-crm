@@ -2287,6 +2287,24 @@
       "titre": "Sortant · sans réponse"
      },
      null
+    ],
+    [
+     "e9",
+     {
+      "appareil": "PIXEL_8_PRO",
+      "canal": "TELEPHONE",
+      "dureeSecondes": 30
+     },
+     null
+    ],
+    [
+     "e10",
+     {
+      "appareil": "PIXEL_8_PRO",
+      "canal": "TELEPHONE",
+      "dureeSecondes": 30
+     },
+     null
     ]
    ],
    "creations": [
@@ -2399,6 +2417,36 @@
      "numero": "+33612345678",
      "personId": "p1",
      "titre": "Sortant"
+    },
+    {
+     "debutLe": "2026-11-12T12:20:00Z",
+     "direction": "ENTRANT",
+     "enregistrement": [
+      {
+       "fileId": "f9",
+       "label": "20261112_122000_in.ogg"
+      }
+     ],
+     "id": "e9",
+     "idSource": "appel:1794486000000:+33612345678",
+     "moteurTranscription": "whisper-large-v3 · 2026-11-14",
+     "numero": "+33612345678",
+     "personId": "p1",
+     "sourceTranscription": "WHISPER",
+     "titre": "Entrant · 30 s",
+     "transcription": "[  0.5-  2.0] whisper"
+    },
+    {
+     "debutLe": "2026-11-12T12:21:40Z",
+     "direction": "SORTANT",
+     "id": "e10",
+     "idSource": "appel:1794486100000:+33612345678",
+     "moteurTranscription": "Whisper-large-v3",
+     "numero": "+33612345678",
+     "personId": "p1",
+     "sourceTranscription": null,
+     "titre": "Sortant · 30 s",
+     "transcription": ""
     }
    ],
    "index": {
@@ -2535,6 +2583,48 @@
      "nomSurTelephone": "",
      "numero": "+33612345678",
      "titre": "Sortant · sans réponse"
+    },
+    {
+     "_e164": "+33612345678",
+     "_fichiers": {
+      "enregistrement": [
+       "/x/20261112_122000_in.ogg"
+      ]
+     },
+     "_ms": 1794486000000,
+     "_remplace": {
+      "transcription": [
+       "[  0.5-  2.0] whisper"
+      ]
+     },
+     "appareil": "PIXEL_8_PRO",
+     "canal": "TELEPHONE",
+     "debutLe": "2026-11-12T12:20:00Z",
+     "direction": "ENTRANT",
+     "dureeSecondes": 30,
+     "idSource": "appel:1794486000000:+33612345678",
+     "moteurTranscription": "parakeet-tdt-0.6b-v3-q8_0 · x",
+     "nomSurTelephone": "",
+     "numero": "+33612345678",
+     "sourceTranscription": "PARAKEET",
+     "titre": "Entrant · 30 s",
+     "transcription": "[  0.0-  2.0] parakeet"
+    },
+    {
+     "_e164": "+33612345678",
+     "_ms": 1794486100000,
+     "appareil": "PIXEL_8_PRO",
+     "canal": "TELEPHONE",
+     "debutLe": "2026-11-12T12:21:40Z",
+     "direction": "SORTANT",
+     "dureeSecondes": 30,
+     "idSource": "appel:1794486100000:+33612345678",
+     "moteurTranscription": "m",
+     "nomSurTelephone": "",
+     "numero": "+33612345678",
+     "sourceTranscription": "PARAKEET",
+     "titre": "Sortant · 30 s",
+     "transcription": "[  0.0-  2.0] parakeet"
     }
    ]
   },
@@ -2790,6 +2880,46 @@
       "titre": "Sortant · sans réponse"
      },
      null
+    ],
+    [
+     {
+      "appareil": "PIXEL_8_PRO",
+      "canal": "TELEPHONE",
+      "debutLe": "2026-11-12T12:20:00Z",
+      "direction": "ENTRANT",
+      "dureeSecondes": 30,
+      "idSource": "appel:1794486000000:+33612345678",
+      "moteurTranscription": "parakeet-tdt-0.6b-v3-q8_0 · x",
+      "nomSurTelephone": "",
+      "numero": "+33612345678",
+      "personId": "p1",
+      "sourceTranscription": "PARAKEET",
+      "titre": "Entrant · 30 s",
+      "transcription": "[  0.0-  2.0] parakeet"
+     },
+     {
+      "enregistrement": [
+       "/x/20261112_122000_in.ogg"
+      ]
+     }
+    ],
+    [
+     {
+      "appareil": "PIXEL_8_PRO",
+      "canal": "TELEPHONE",
+      "debutLe": "2026-11-12T12:21:40Z",
+      "direction": "SORTANT",
+      "dureeSecondes": 30,
+      "idSource": "appel:1794486100000:+33612345678",
+      "moteurTranscription": "m",
+      "nomSurTelephone": "",
+      "numero": "+33612345678",
+      "personId": "p1",
+      "sourceTranscription": "PARAKEET",
+      "titre": "Sortant · 30 s",
+      "transcription": "[  0.0-  2.0] parakeet"
+     },
+     null
     ]
    ],
    "existants": [],
@@ -2927,6 +3057,48 @@
      "nomSurTelephone": "",
      "numero": "+33612345678",
      "titre": "Sortant · sans réponse"
+    },
+    {
+     "_e164": "+33612345678",
+     "_fichiers": {
+      "enregistrement": [
+       "/x/20261112_122000_in.ogg"
+      ]
+     },
+     "_ms": 1794486000000,
+     "_remplace": {
+      "transcription": [
+       "[  0.5-  2.0] whisper"
+      ]
+     },
+     "appareil": "PIXEL_8_PRO",
+     "canal": "TELEPHONE",
+     "debutLe": "2026-11-12T12:20:00Z",
+     "direction": "ENTRANT",
+     "dureeSecondes": 30,
+     "idSource": "appel:1794486000000:+33612345678",
+     "moteurTranscription": "parakeet-tdt-0.6b-v3-q8_0 · x",
+     "nomSurTelephone": "",
+     "numero": "+33612345678",
+     "sourceTranscription": "PARAKEET",
+     "titre": "Entrant · 30 s",
+     "transcription": "[  0.0-  2.0] parakeet"
+    },
+    {
+     "_e164": "+33612345678",
+     "_ms": 1794486100000,
+     "appareil": "PIXEL_8_PRO",
+     "canal": "TELEPHONE",
+     "debutLe": "2026-11-12T12:21:40Z",
+     "direction": "SORTANT",
+     "dureeSecondes": 30,
+     "idSource": "appel:1794486100000:+33612345678",
+     "moteurTranscription": "m",
+     "nomSurTelephone": "",
+     "numero": "+33612345678",
+     "sourceTranscription": "PARAKEET",
+     "titre": "Sortant · 30 s",
+     "transcription": "[  0.0-  2.0] parakeet"
     }
    ]
   }
