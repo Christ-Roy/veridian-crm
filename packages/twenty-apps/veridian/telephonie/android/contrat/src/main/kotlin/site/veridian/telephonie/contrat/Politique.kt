@@ -31,6 +31,29 @@ object Politique {
     fun cleBatterie(niveau: Int?, enCharge: Boolean, neufMinPct: Int = NEUF_MIN_PCT, enChargeMinPct: Int = EN_CHARGE_MIN_PCT) =
         "${enCharge}:${niveau == null || niveau >= neufMinPct}:${niveau == null || niveau >= enChargeMinPct}"
 
+    /** Commande du shell dont la sortie se juge par [processus] : bornée par deux témoins, liste complète. */
+    const val COMMANDE_PROCESSUS = "echo DEBUT-LISTE; ps -A -o ARGS; echo FIN-LISTE"
+
+    /**
+     * Le processus `motif` tourne-t-il, d'après la sortie de [COMMANDE_PROCESSUS] ? Vrai ou faux seulement sur une
+     * liste prouvée complète : les deux témoins présents, et `system_server` dedans (contrôle positif : une liste
+     * qui ne montre pas le système ne prouve l'absence de rien). Sinon null : non vérifiable. Le 14/11/2026, une
+     * sortie vide du shell (connexion adb qui bouge avec le Wi-Fi) était lue « JemRec ne tourne pas » alors qu'il
+     * tournait depuis 11:01, et l'alerte s'affichait à tort.
+     */
+    fun processus(sortie: String, motif: String, temoin: String = "system_server"): Boolean? {
+        val lignes = sortie.lines().map { it.trim() }
+        val debut = lignes.indexOf("DEBUT-LISTE"); val fin = lignes.lastIndexOf("FIN-LISTE")
+        if (debut < 0 || fin <= debut) return null
+        val liste = lignes.subList(debut + 1, fin)
+        if (liste.none { it.contains(temoin) }) return null
+        return liste.any { it.contains(motif) && !it.contains("grep") }
+    }
+
+    /** Le port de la boucle locale, dernier argument de la ligne du processus `motif` (null s'il n'y est pas). */
+    fun portDe(sortie: String, motif: String): Int? =
+        sortie.lines().firstOrNull { it.contains(motif) }?.trim()?.substringAfterLast(' ')?.toIntOrNull()
+
     /**
      * Un appel décroché (durée > 0) sans enregistrement qui commence à ±tolérance de lui : l'enregistreur n'a pas
      * tourné. `debutsEnregistrements` : débuts (ms) lus dans les noms des fichiers de JemRec, toutes directions (on

@@ -1,6 +1,7 @@
 package site.veridian.telephonie
 
 import android.content.Context
+import site.veridian.telephonie.contrat.Politique
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.provider.Settings
@@ -114,7 +115,8 @@ class Adb(private val ctx: Context) {
         // (documenté par JemRec, « Staying alive without Wi-Fi »). Jamais pendant un appel : on garde alors la
         // connexion sans fil. Hors appel, on rouvre (5555 sert au shell hors Wi-Fi jusqu'au prochain redémarrage) et
         // JemRec, en Wi-Fi, relance son enregistreur en quelques secondes ; l'app le vérifie (Enregistreur).
-        val jemrec = try { String(tls.exec("ps -A -o ARGS | grep -c '[c]om.jemcik.jemrec.shell.Main' || true", 10_000)).trim().toIntOrNull() ?: 0 } catch (_: Exception) { 0 }
+        // Liste prouvée complète, sinon on suppose JemRec vivant (le cas prudent : ne pas le tuer).
+        val jemrec = try { if (Politique.processus(String(tls.exec(Politique.COMMANDE_PROCESSUS, 10_000)), Enregistreur.MOTIF) == false) 0 else 1 } catch (_: Exception) { 1 }
         val enAppel = try { ctx.getSystemService(android.telephony.TelephonyManager::class.java).callStateForSubscription != android.telephony.TelephonyManager.CALL_STATE_IDLE } catch (_: Exception) { true }
         if (jemrec > 0 && enAppel) {
             Journal.log("adb : appel en cours, 5555 laissé fermé (rouvrir tuerait l'enregistreur de JemRec), connexion sans fil ($port)")
@@ -220,10 +222,17 @@ class Adb(private val ctx: Context) {
             var distant = 0
             while (true) {
                 val m = lire()
+                // Un message d'un autre flux (reste d'une commande précédente) n'est pas le nôtre : un CLSE égaré
+                // rendait une sortie vide prise pour un résultat (14/11/2026).
+                if (m.commande != CNXN && m.commande != AUTH && m.arg1 != local) continue
                 when (m.commande) {
                     OKAY -> distant = m.arg0
                     WRTE -> { tampon.write(m.donnees); envoyer(OKAY, local, m.arg0, ByteArray(0)) }
-                    CLSE -> { if (distant != 0 || m.arg0 != 0) envoyer(CLSE, local, m.arg0, ByteArray(0)); return tampon.toByteArray() }
+                    CLSE -> {
+                        // Fermé avant d'avoir été ouvert : adbd a refusé le service, ce n'est pas une sortie vide.
+                        if (distant == 0) throw NonAbouti("adb : service $destination refusé par adbd")
+                        envoyer(CLSE, local, m.arg0, ByteArray(0)); return tampon.toByteArray()
+                    }
                     else -> {}
                 }
             }

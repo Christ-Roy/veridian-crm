@@ -53,4 +53,26 @@ class PolitiqueTest {
         assertFalse(Politique.nonEnregistre(0L, 5, listOf(90_000L)))
         assertTrue(Politique.nonEnregistre(0L, 5, listOf(90_001L)))
     }
+
+    private val jem = "com.jemcik.jemrec.shell.Main"
+    private fun liste(vararg l: String) = (listOf("DEBUT-LISTE", "ARGS", "init second_stage", "system_server") + l + "FIN-LISTE").joinToString("\n")
+
+    @Test fun processusVuDansUneListeComplete() =
+        assertEquals(true, Politique.processus(liste("app_process / $jem 28472", "adbd"), jem))
+
+    @Test fun absenceProuveeParUneListeComplete() = assertEquals(false, Politique.processus(liste("adbd"), jem))
+
+    // Le cas du 14/11 : le shell rend une sortie vide, ce n'est pas une absence.
+    @Test fun sortieVideNonVerifiable() = assertEquals(null, Politique.processus("", jem))
+
+    @Test fun listeTronqueeNonVerifiable() =
+        assertEquals(null, Politique.processus("DEBUT-LISTE\nsystem_server\nadbd\n", jem))
+
+    @Test fun listeSansSystemeNonVerifiable() =
+        assertEquals(null, Politique.processus("DEBUT-LISTE\nadbd\nFIN-LISTE\n", jem))
+
+    @Test fun portLuSurLaLigneDuProcessus() {
+        assertEquals(28472, Politique.portDe(liste("app_process / $jem 28472"), jem))
+        assertEquals(null, Politique.portDe(liste("adbd"), jem))
+    }
 }

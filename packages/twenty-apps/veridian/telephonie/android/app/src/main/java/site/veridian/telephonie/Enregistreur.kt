@@ -44,36 +44,48 @@ class Enregistreur(private val ctx: Context, private val synchro: Synchro, priva
         for (d in ensuite) handler.postDelayed({ fil.execute { verifierMaintenant("$origine +${d / 1000} s") } }, d)
     }
 
+    /**
+     * Trois états, jamais deux : ACTIF (processus vu, ou son port répond), INACTIF (absence PROUVÉE : liste complète
+     * des processus sans lui, ou son port refuse la connexion), NON VÉRIFIABLE (le shell ne rend pas de liste
+     * complète et le port n'est pas connu). Seul INACTIF alerte ; NON VÉRIFIABLE se montre à l'écran et attend le
+     * prochain événement (Wi-Fi, appel, fichier, 5555 rouvert), sans conclure.
+     */
     private fun verifierMaintenant(origine: String) {
-        if (!reglages.jemrecPresent) { poser(null, "JemRec absent : enregistrement non proposé", origine); return }
-        val parShell: Boolean? = try {
-            val lignes = synchro.adb.texte("ps -A -o ARGS | grep '[c]om.jemcik.jemrec.shell.Main' || true", 20_000).lines().filter { it.isNotBlank() }
-            // Le port de la boucle locale du processus de JemRec (dernier argument) : il sert à le voir sans le shell.
-            lignes.firstNotNullOfOrNull { it.trim().substringAfterLast(' ').toIntOrNull() }?.let { synchro.base.ecrire("jemrec.port", it.toString()) }
-            lignes.isNotEmpty()
-        } catch (e: Exception) { null }
-        // Sans shell (5555 fermé et pas de Wi-Fi) : le processus de JemRec écoute sur 127.0.0.1:<port> ; une connexion
-        // ouverte puis refermée aussitôt, sans rien envoyer, dit s'il est là.
+        if (!reglages.jemrecPresent) { poser(null, "JemRec absent : enregistrement non proposé", origine, sansObjet = true); return }
+        var parShell = lireShell()
+        if (parShell == null && synchro.adb.etat.startsWith("connecté")) {
+            // Connexion adb restée ouverte mais qui ne rend plus rien (Wi-Fi changé) : une seule reprise, neuve.
+            synchro.adb.fermer(); parShell = lireShell()
+        }
         val port = synchro.base.lire("jemrec.port")?.toIntOrNull()
+        // Sans liste complète : le processus de JemRec écoute sur 127.0.0.1:<port> (28472, stable aux redémarrages du
+        // 13 et du 14/11) ; une connexion ouverte puis refermée aussitôt, sans rien envoyer, dit s'il est là.
         val parPort: Boolean? = if (parShell == null && port != null) try {
             java.net.Socket().use { it.connect(java.net.InetSocketAddress("127.0.0.1", port), 1000) }; true
-        } catch (_: Exception) { false } else null
-        val vivant = parShell ?: parPort
-        when (vivant) {
-            true -> poser(true, if (parShell == true) "actif (processus de JemRec vu par le shell)" else "actif (JemRec répond sur la boucle locale)", origine)
+        } catch (_: java.net.ConnectException) { false } catch (_: Exception) { null } else null
+        when (parShell ?: parPort) {
+            true -> poser(true, if (parShell == true) "actif (processus de JemRec vu par le shell)" else "actif (JemRec répond sur son port $port)", origine)
             false -> {
                 poser(false, when {
-                    parShell == false && wifi() -> "JemRec ne tourne pas ; en Wi-Fi il se relance seul en quelques secondes, sinon ouvrez JemRec"
-                    parShell == false -> "JemRec ne tourne pas ; il ne peut redémarrer qu'en Wi-Fi"
-                    wifi() -> "JemRec ne répond pas sur sa boucle locale (shell injoignable : ${synchro.adb.etat})"
-                    else -> "pas de Wi-Fi depuis le redémarrage : l'enregistreur ne peut pas démarrer, il reprendra au premier Wi-Fi"
+                    parShell == false && wifi() -> "JemRec ne tourne pas (absent de la liste des processus) ; en Wi-Fi il se relance seul, sinon ouvrez JemRec"
+                    parShell == false -> "JemRec ne tourne pas (absent de la liste des processus) ; il ne peut redémarrer qu'en Wi-Fi"
+                    wifi() -> "JemRec ne répond pas sur son port $port ; en Wi-Fi il se relance seul, sinon ouvrez JemRec"
+                    else -> "JemRec ne répond pas sur son port $port et pas de Wi-Fi : il ne peut redémarrer qu'en Wi-Fi"
                 }, origine)
                 if (wifi()) rallumerDebogageSansFil()
             }
-            null -> poser(false, if (wifi()) "état inconnu : le shell du téléphone ne répond pas (${synchro.adb.etat})"
-                else "pas de Wi-Fi et shell injoignable (téléphone redémarré hors Wi-Fi ?) : état inconnu, l'enregistreur ne peut démarrer qu'en Wi-Fi", origine)
+            null -> poser(null, "NON VÉRIFIABLE : le shell ne rend pas la liste des processus (${synchro.adb.etat})" +
+                (if (port == null) ", port de JemRec inconnu" else "") + " ; nouvel essai au prochain événement", origine)
         }
     }
+
+    /** Vrai/faux sur une liste de processus prouvée complète, null sinon (jamais une sortie vide prise pour une absence). */
+    private fun lireShell(): Boolean? = try {
+        val sortie = synchro.adb.texte(Politique.COMMANDE_PROCESSUS, 20_000)
+        Politique.processus(sortie, MOTIF)?.also { present ->
+            if (present) Politique.portDe(sortie, MOTIF)?.let { synchro.base.ecrire("jemrec.port", it.toString()) }
+        }
+    } catch (_: Exception) { null }
 
     /** JemRec a besoin du débogage sans fil pour se relancer ; Android le coupe à chaque perte du Wi-Fi. */
     private fun rallumerDebogageSansFil() {
@@ -85,16 +97,25 @@ class Enregistreur(private val ctx: Context, private val synchro: Synchro, priva
         } catch (e: SecurityException) { Journal.erreur("enregistrement : WRITE_SECURE_SETTINGS manquant", e) }
     }
 
-    private fun poser(vivant: Boolean?, texte: String, origine: String) {
+    private fun poser(vivant: Boolean?, texte: String, origine: String, sansObjet: Boolean = false) {
+        // Non vérifiable après une preuve : l'état prouvé reste affiché (et son alerte aussi), on ne conclut rien de neuf.
+        if (vivant == null && !sansObjet && actif != null) {
+            if (texte != verification) { verification = texte; Journal.log("enregistrement : $texte ($origine), dernier état prouvé gardé") }
+            return
+        }
+        verification = null
         val change = vivant != actif || texte != etat
         if (vivant != actif) depuis = System.currentTimeMillis()
         actif = vivant; etat = texte
         if (change) Journal.log("enregistrement : $texte ($origine)")
         // Juste après le démarrage, JemRec met environ 45 s à revenir (mesuré le 13/11 : 47 s après le noyau) :
-        // pas d'alerte pendant ces 2 minutes, sauf si un appel commence.
+        // pas d'alerte pendant ces 2 minutes, sauf si un appel commence. Alerte seulement sur une absence prouvée.
         val jeune = SystemClock.elapsedRealtime() < 120_000 && !origine.startsWith("appel")
-        if (vivant == false && !jeune) notifierInactif(texte) else if (vivant != false) effacer(NOTIF_INACTIF)
+        if (vivant == false && !jeune) notifierInactif(texte) else if (vivant == true || sansObjet) effacer(NOTIF_INACTIF)
     }
+
+    /** Dernière vérification non aboutie depuis le dernier état prouvé (affichée, jamais une conclusion). */
+    @Volatile private var verification: String? = null
 
     private fun wifi(): Boolean {
         val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
@@ -163,7 +184,7 @@ class Enregistreur(private val ctx: Context, private val synchro: Synchro, priva
         if (notifie == texte) return
         notifie = texte
         canal().notify(NOTIF_INACTIF, Notification.Builder(ctx, CANAL).setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle(if (texte.contains("état inconnu")) "Enregistrement des appels : état inconnu" else "Enregistrement des appels inactif")
+            .setContentTitle("Enregistrement des appels inactif")
             .setContentText(texte).setStyle(Notification.BigTextStyle().bigText("$texte\nTouchez pour ouvrir JemRec."))
             .setContentIntent(ouvrirJemrec()).setOngoing(true).setOnlyAlertOnce(true).build())
     }
@@ -176,11 +197,13 @@ class Enregistreur(private val ctx: Context, private val synchro: Synchro, priva
     /** Une ligne pour l'écran et `etat`. */
     fun resume(): String = when (actif) {
         null -> etat
-        else -> "${if (actif == true) "actif" else "INACTIF"} depuis ${DEPUIS.format(Instant.ofEpochMilli(depuis).atZone(ZoneId.systemDefault()))} : $etat"
+        else -> "${if (actif == true) "actif" else "INACTIF"} depuis ${DEPUIS.format(Instant.ofEpochMilli(depuis).atZone(ZoneId.systemDefault()))} : $etat" +
+            (verification?.let { " (dernière vérification : $it)" } ?: "")
     }
 
     companion object {
         const val JEMREC = "com.jemcik.jemrec"
+        const val MOTIF = "com.jemcik.jemrec.shell.Main"
         const val CANAL = "enregistrement"
         const val NOTIF_INACTIF = 4
         const val NOTIF_MANQUE = 5
