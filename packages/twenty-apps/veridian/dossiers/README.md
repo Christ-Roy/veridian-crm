@@ -7,7 +7,8 @@ l'entrée native « Tasks » de la barre latérale (Robert, 14-15/11/2026 : une 
 
 | Entité | Rôle |
 |---|---|
-| objet `dossier` (Dossiers) | `nom`, **`importance` obligatoire** (Critique, Haute, Normale, Basse ; Normale par défaut), `parent` (vide = dossier racine), `sousDossiers`, `taches` |
+| objet `dossier` (Dossiers) | `nom`, **`importance` obligatoire** (Critique, Haute, Normale, Basse ; Normale par défaut), **`categorie` obligatoire** (Client, Interne, Prospection ; Interne par défaut ; seule celle du dossier racine compte, un sous-dossier la reprend à sa création), `parent` (vide = dossier racine), `sousDossiers`, `taches` |
+| les trois catégories | Robert, 15/11/2026 : trois grandes sections de to-do dans la page, dans l'ordre Client, Interne, Prospection, chacune avec compteurs, avancement agrégé et « + Dossier » ; la pastille de catégorie d'un dossier racine le déplace d'un clic. Valeurs figées dans le code de l'app, jamais éditées dans l'UI |
 | champs sur `task` | `rangement` (« Rangée dans », relation vers Dossier) et **`importance` obligatoire** (mêmes niveaux, Normale par défaut) |
 | front component `arborescence-taches` | la page : dossiers repliables à profondeur libre, triés par importance puis nom ; tâches triées ouvertes, importance, échéance ; **avancement** par tâche (champ existant `suiviAvancement`, +25 % par clic) et **par dossier** (moyenne de toutes ses tâches, sous-dossiers compris, une tâche faite compte 100 %, « — » sans tâche) ; importance et statut changés d'un clic ; « + Dossier », « + Sous-dossier », « + Tâche », « Modifier » ; recherche ; faites masquées par défaut ; clic sur une tâche = panneau latéral natif |
 | page layout `STANDALONE_PAGE` « Tâches » | héberge le composant en pleine page (`TAB_VIEWPORT`) |

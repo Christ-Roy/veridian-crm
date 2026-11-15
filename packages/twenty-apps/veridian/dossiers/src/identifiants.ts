@@ -14,6 +14,14 @@ export const DOSSIER_UNIVERSAL_IDENTIFIER = '2f16f107-6a08-41c4-ae58-453a7eda3d1
 export const DOSSIER_FIELDS = {
   nom: '2f173ddf-51bb-46a1-a28f-955daf31f4c8',
   importance: '99a17d60-411f-486e-9e83-fb24dd0f40c9',
+  categorie: 'e910f084-e471-465e-99aa-faad7730eb83',
+} as const;
+
+// Les trois grandes catégories de dossiers (Robert, 15/11/2026). Figées dans le code : jamais éditées dans l'UI.
+export const CATEGORIE_OPTION_IDS = {
+  CLIENT: 'f72b2b30-0022-457b-9d4f-76cd0e3ca892',
+  INTERNE: '289792a2-877c-4d04-96c1-9a1084b0b4ba',
+  PROSPECTION: 'd5615332-3fac-48d5-a3e0-cc14facdc8d2',
 } as const;
 export const PARENT_ON_DOSSIER_UNIVERSAL_IDENTIFIER = 'bafd737d-dd53-4014-96fd-1e893ac9e25e';
 export const SOUS_DOSSIERS_ON_DOSSIER_UNIVERSAL_IDENTIFIER = 'afba07a5-a872-4589-b77b-92ac1af480d6';

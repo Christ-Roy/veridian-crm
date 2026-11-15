@@ -9,7 +9,7 @@ const m = await import('/tmp/arbre-essai.mjs?' + Date.now());
 let echecs = 0;
 const verifier = (nom, ok) => { console.log(`${ok ? 'OK  ' : 'ECHEC'} ${nom}`); if (!ok) echecs++; };
 
-const D = (id, nom, importance, parentId = null) => ({ id, nom, importance, parentId });
+const D = (id, nom, importance, parentId = null, categorie = 'INTERNE') => ({ id, nom, importance, parentId, categorie });
 const T = (id, rangementId, o = {}) => ({ id, title: id, status: 'TODO', dueAt: null, importance: 'NORMALE', suiviAvancement: 0, rangementId, ...o });
 
 const arbre = m.construireArbre(
@@ -29,4 +29,13 @@ verifier('palier +25 : 0 -> 25', m.avancementSuivant(0) === 25);
 verifier('palier +25 : 30 -> 50', m.avancementSuivant(30) === 50);
 verifier('palier +25 : 100 -> 0', m.avancementSuivant(100) === 0);
 verifier('avancement borné à 100', m.avancementTache(T('x', null, { suiviAvancement: 140 })) === 100);
+const arbre2 = m.construireArbre(
+  [D('p', 'Prosp', 'NORMALE', null, 'PROSPECTION'), D('k', 'Client A', 'NORMALE', null, 'CLIENT'), D('x', 'Bizarre', 'NORMALE', null, 'NIMPORTE')],
+  [T('o', 'inconnu')],
+);
+const g = m.grouperParCategorie(arbre2);
+verifier('sections dans l ordre Client, Interne, Prospection', g.sections.map((x) => x.categorie).join() === 'CLIENT,INTERNE,PROSPECTION');
+verifier('dossier client dans Client', g.sections[0].racines[0]?.id === 'k');
+verifier('catégorie inconnue rangée dans Interne', g.sections[1].racines[0]?.id === 'x');
+verifier('Sans dossier mis à part', g.sansDossier?.taches[0]?.id === 'o' && g.sections.every((x) => x.racines.every((n) => !n.virtuel)));
 process.exit(echecs ? 1 : 0);

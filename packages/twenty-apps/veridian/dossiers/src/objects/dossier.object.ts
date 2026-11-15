@@ -1,6 +1,7 @@
 import { defineObject, FieldType } from 'twenty-sdk/define';
 
-import { DOSSIER_FIELDS, DOSSIER_UNIVERSAL_IDENTIFIER, IMPORTANCE_OPTION_IDS } from '../identifiants';
+import { CATEGORIE_OPTION_IDS, DOSSIER_FIELDS, DOSSIER_UNIVERSAL_IDENTIFIER, IMPORTANCE_OPTION_IDS } from '../identifiants';
+import { optionsCategorie } from '../utils/categorie.util';
 import { optionsImportance } from '../utils/importance.util';
 
 // Un dossier de tâches. Parent vide : dossier racine (un sujet, un client). Avec parent : sous-dossier.
@@ -32,6 +33,17 @@ export default defineObject({
       isNullable: false,
       defaultValue: "'NORMALE'",
       options: optionsImportance(IMPORTANCE_OPTION_IDS.dossier),
+    },
+    {
+      universalIdentifier: DOSSIER_FIELDS.categorie,
+      type: FieldType.SELECT,
+      name: 'categorie',
+      label: 'Catégorie',
+      description: 'Obligatoire : Client, Interne ou Prospection. Celle du dossier racine range tout le dossier',
+      icon: 'IconCategory',
+      isNullable: false,
+      defaultValue: "'INTERNE'",
+      options: optionsCategorie(CATEGORIE_OPTION_IDS),
     },
   ],
 });

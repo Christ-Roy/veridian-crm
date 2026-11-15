@@ -13,11 +13,13 @@ import {
   compter,
   construireArbre,
   type DossierBrut,
+  grouperParCategorie,
   type Noeud,
-  SANS_DOSSIER,
+  type Section,
   type Tache,
   toutesLesTaches,
 } from '../utils/construire-arbre.util';
+import { type Categorie, categorieDe, categorieSuivante, LIBELLES_CATEGORIE } from '../utils/categorie.util';
 import { type Importance, importanceSuivante, LIBELLES_IMPORTANCE } from '../utils/importance.util';
 
 const STATUTS: Record<string, { libelle: string; suivant: string }> = {
@@ -67,7 +69,7 @@ const Arborescence = () => {
     setErreur(null);
     try {
       const [ds, ts] = await Promise.all([
-        toutLire<DossierBrut>('dossiers', { id: true, nom: true, importance: true, parentId: true }),
+        toutLire<DossierBrut>('dossiers', { id: true, nom: true, importance: true, categorie: true, parentId: true }),
         toutLire<Tache>('tasks', {
           id: true,
           title: true,
@@ -92,9 +94,14 @@ const Arborescence = () => {
   }, [charger]);
 
   const arbre = useMemo(() => construireArbre(dossiers, taches ?? []), [dossiers, taches]);
+  const { sections, sansDossier } = useMemo(() => grouperParCategorie(arbre), [arbre]);
+  const idSection = (c: Categorie) => `categorie:${c}`;
 
-  // Par défaut : racines ouvertes, sous-dossiers fermés (on voit d'abord la liste des dossiers).
-  const racines = useMemo(() => new Set(arbre.map((n) => n.id)), [arbre]);
+  // Par défaut : catégories et dossiers racines ouverts, sous-dossiers fermés.
+  const racines = useMemo(
+    () => new Set([...sections.map((x) => idSection(x.categorie)), ...arbre.map((n) => n.id)]),
+    [sections, arbre],
+  );
   const estOuvert = (id: string) => (ouverts ? ouverts.has(id) : racines.has(id));
   const basculer = (id: string) => {
     const suivant = new Set(ouverts ?? racines);
@@ -142,12 +149,15 @@ const Arborescence = () => {
       signaler(`Tâche non créée : ${messageErreur(e)}`);
     }
   };
-  const creerDossier = async (parent: Noeud | null) => {
+  const creerDossier = async (parent: Noeud | null, categorie?: Categorie) => {
     try {
       const data: Record<string, unknown> = { nom: parent ? 'Nouveau sous-dossier' : 'Nouveau dossier' };
       if (parent) data.parentId = parent.id;
+      // Un sous-dossier reprend la catégorie de son parent (seule celle de la racine compte à l'affichage).
+      data.categorie = categorieDe(parent ? parent.categorie : categorie);
       const reponse = await new CoreApiClient().mutation({ createDossier: { __args: { data }, id: true } } as any);
       if (parent) ouvrirAussi(parent.id);
+      else if (categorie) ouvrirAussi(idSection(categorie));
       await charger();
       const id = (reponse as any)?.createDossier?.id;
       if (id) await ouvrir('dossier', id);
@@ -326,7 +336,11 @@ const Arborescence = () => {
     );
   };
 
-  const retrait = (niveau: number) => `calc(${t.spacing[2]} + ${niveau * 24}px)`;
+  // Les dossiers racines sont déjà dans une section de catégorie : un cran de retrait de plus.
+  const retrait = (niveau: number) => `calc(${t.spacing[2]} + ${(niveau + 1) * 24}px)`;
+
+  const couleurCategorie = (c: Categorie) =>
+    c === 'CLIENT' ? t.color.green : c === 'PROSPECTION' ? t.color.orange : t.color.purple;
 
   const rendreTache = (tache: Tache, niveau: number) => (
     <div key={tache.id} style={{ ...s.ligneTache, paddingLeft: retrait(niveau) }}>
@@ -377,6 +391,18 @@ const Arborescence = () => {
             <span style={s.badge}>
               {c.ouvertes} / {c.total}
             </span>
+            {niveau === 0 && !n.virtuel && (
+              <button
+                style={pastille(couleurCategorie(categorieDe(n.categorie)))}
+                title="Catégorie : cliquer pour déplacer le dossier vers la catégorie suivante"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void majDossier(n, { categorie: categorieSuivante(n.categorie) });
+                }}
+              >
+                {LIBELLES_CATEGORIE[categorieDe(n.categorie)]}
+              </button>
+            )}
           </div>
           {n.virtuel ? <span /> : <Importance valeur={n.importance} onClic={() => void majDossier(n, { importance: importanceSuivante(n.importance) })} />}
           <Barre pourcent={avancementDossier(n)} titre="Avancement du dossier : moyenne de ses tâches (faite = 100 %)" />
@@ -430,6 +456,51 @@ const Arborescence = () => {
     );
   };
 
+  const rendreSection = (section: Section): ReactElement | null => {
+    const id = idSection(section.categorie);
+    if (filtre && !section.racines.some(contientVisible)) return null;
+    const ouvert = filtre ? true : estOuvert(id);
+    // Avancement de la catégorie : même règle qu'un dossier, sur toutes les tâches de ses dossiers.
+    const groupe: Noeud = { id, nom: '', importance: null, categorie: null, virtuel: true, enfants: section.racines, taches: [] };
+    const c = compter(toutesLesTaches(groupe));
+    return (
+      <section key={id} style={{ marginBottom: t.spacing[3] }}>
+        <div
+          style={{ ...s.ligneDossier, padding: `${t.spacing[2]} ${t.spacing[3]} ${t.spacing[2]} ${t.spacing[2]}`, borderBottom: `1px solid ${t.border.color.medium}` }}
+          onClick={() => basculer(id)}
+        >
+          <div style={{ ...s.nomDossier, fontSize: t.font.size.lg, fontWeight: t.font.weight.semiBold }}>
+            {ouvert ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+            <span style={{ color: couleurCategorie(section.categorie) }}>{LIBELLES_CATEGORIE[section.categorie]}</span>
+            <span style={s.badge}>
+              {section.racines.length} dossier{section.racines.length > 1 ? 's' : ''} · {c.ouvertes} / {c.total}
+            </span>
+          </div>
+          <span />
+          <Barre pourcent={avancementDossier(groupe)} titre="Avancement de la catégorie : moyenne de toutes ses tâches (faite = 100 %)" />
+          <div style={s.actions}>
+            <button
+              style={s.lien}
+              aria-label={`Nouveau dossier ${LIBELLES_CATEGORIE[section.categorie]}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                void creerDossier(null, section.categorie);
+              }}
+            >
+              <IconPlus size={12} /> Dossier
+            </button>
+          </div>
+        </div>
+        {ouvert &&
+          (section.racines.length === 0 ? (
+            <div style={{ ...s.aucune, paddingLeft: retrait(0) }}>Aucun dossier : « + Dossier » pour en créer un.</div>
+          ) : (
+            section.racines.map((n) => rendreDossier(n, 0))
+          ))}
+      </section>
+    );
+  };
+
   const total = compter(taches ?? []);
   const aucunResultat = !!taches && !!filtre && !arbre.some(contientVisible);
 
@@ -448,13 +519,13 @@ const Arborescence = () => {
             onChange={(e) => setRecherche(e.target.value)}
           />
         </label>
-        <button style={s.bouton} onClick={() => void creerDossier(null)}>
-          + Dossier
-        </button>
         <button style={s.bouton} onClick={() => setVoirFaites((v) => !v)}>
           {voirFaites ? 'Masquer les faites' : 'Voir les faites'}
         </button>
-        <button style={s.bouton} onClick={() => setOuverts(new Set(tousLesIds(arbre)))}>
+        <button
+          style={s.bouton}
+          onClick={() => setOuverts(new Set([...sections.map((x) => idSection(x.categorie)), ...tousLesIds(arbre)]))}
+        >
           Tout déplier
         </button>
         <button style={s.bouton} onClick={() => setOuverts(new Set())}>
@@ -474,10 +545,11 @@ const Arborescence = () => {
           </div>
         ) : !taches ? (
           <div style={s.vide}>Chargement des tâches…</div>
-        ) : arbre.length === 0 ? (
-          <div style={s.vide}>Aucun dossier : crée le premier avec « + Dossier ».</div>
         ) : (
-          arbre.map((n) => rendreDossier(n, 0))
+          <>
+            {sections.map(rendreSection)}
+            {sansDossier && rendreDossier(sansDossier, 0)}
+          </>
         )}
         {aucunResultat && <div style={s.vide}>Aucune tâche ne correspond à « {recherche} ».</div>}
       </div>

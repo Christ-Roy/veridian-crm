@@ -2,6 +2,7 @@
 // `rangement`). Profondeur libre. Tri : importance, puis nom ; tâches : ouvertes d'abord, importance, échéance.
 // Une tâche sans dossier (ou dont le dossier a disparu) va dans « Sans dossier » : rien ne disparaît de la vue.
 
+import { CATEGORIES, type Categorie, categorieDe } from './categorie.util';
 import { rangImportance } from './importance.util';
 
 export type Tache = {
@@ -14,12 +15,19 @@ export type Tache = {
   rangementId: string | null;
 };
 
-export type DossierBrut = { id: string; nom: string | null; importance: string | null; parentId: string | null };
+export type DossierBrut = {
+  id: string;
+  nom: string | null;
+  importance: string | null;
+  categorie: string | null;
+  parentId: string | null;
+};
 
 export type Noeud = {
   id: string;
   nom: string;
   importance: string | null;
+  categorie: string | null;
   virtuel: boolean;
   enfants: Noeud[];
   taches: Tache[];
@@ -45,7 +53,15 @@ const ordreTache = (a: Tache, b: Tache): number => {
 export const construireArbre = (dossiers: DossierBrut[], taches: Tache[]): Noeud[] => {
   const noeuds = new Map<string, Noeud>();
   for (const d of dossiers) {
-    noeuds.set(d.id, { id: d.id, nom: d.nom || 'Sans nom', importance: d.importance, virtuel: false, enfants: [], taches: [] });
+    noeuds.set(d.id, {
+      id: d.id,
+      nom: d.nom || 'Sans nom',
+      importance: d.importance,
+      categorie: d.categorie,
+      virtuel: false,
+      enfants: [],
+      taches: [],
+    });
   }
   const racines: Noeud[] = [];
   for (const d of dossiers) {
@@ -72,12 +88,27 @@ export const construireArbre = (dossiers: DossierBrut[], taches: Tache[]): Noeud
       id: SANS_DOSSIER,
       nom: 'Sans dossier',
       importance: null,
+      categorie: null,
       virtuel: true,
       enfants: [],
       taches: orphelines.sort(ordreTache),
     });
   }
   return racines;
+};
+
+// Les dossiers racines par catégorie, dans l'ordre Client, Interne, Prospection ; chaque catégorie est
+// présente même vide (on y crée son premier dossier). « Sans dossier » reste à part.
+export type Section = { categorie: Categorie; racines: Noeud[] };
+
+export const grouperParCategorie = (racines: Noeud[]): { sections: Section[]; sansDossier: Noeud | null } => {
+  const sections: Section[] = CATEGORIES.map((categorie) => ({ categorie, racines: [] as Noeud[] }));
+  let sansDossier: Noeud | null = null;
+  for (const n of racines) {
+    if (n.virtuel) sansDossier = n;
+    else sections[CATEGORIES.indexOf(categorieDe(n.categorie))].racines.push(n);
+  }
+  return { sections, sansDossier };
 };
 
 // Avancement d'une tâche : 100 si elle est faite, sinon son « Avancement % » borné à 0..100.
