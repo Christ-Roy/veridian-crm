@@ -28,6 +28,9 @@ export const SOUS_DOSSIERS_ON_DOSSIER_UNIVERSAL_IDENTIFIER = 'afba07a5-a872-4589
 export const TACHES_ON_DOSSIER_UNIVERSAL_IDENTIFIER = 'b83bd39d-4b3c-4f76-9ace-fea51161812e';
 export const RANGEMENT_ON_TASK_UNIVERSAL_IDENTIFIER = 'b2d14820-f844-46bc-b69e-7e99f93cd421';
 export const IMPORTANCE_ON_TASK_UNIVERSAL_IDENTIFIER = '31d26485-ebb0-4075-9a2f-58d91db7bfde';
+// Dossier ↔ société (15/11/2026) : la fiche société porte l'historique du client.
+export const SOCIETE_ON_DOSSIER_UNIVERSAL_IDENTIFIER = 'c717835a-36c4-4003-8273-4dea905cd6cc';
+export const DOSSIERS_ON_COMPANY_UNIVERSAL_IDENTIFIER = 'c4e959b7-1106-42ef-9ae9-716395916864';
 
 // Les identifiants d'option sont uniques par champ : un jeu pour Dossier, un pour Task.
 export const IMPORTANCE_OPTION_IDS = {

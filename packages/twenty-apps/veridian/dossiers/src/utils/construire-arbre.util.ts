@@ -21,6 +21,7 @@ export type DossierBrut = {
   importance: string | null;
   categorie: string | null;
   parentId: string | null;
+  societeId?: string | null;
 };
 
 export type Noeud = {
@@ -28,6 +29,7 @@ export type Noeud = {
   nom: string;
   importance: string | null;
   categorie: string | null;
+  societeId?: string | null;
   virtuel: boolean;
   enfants: Noeud[];
   taches: Tache[];
@@ -58,6 +60,7 @@ export const construireArbre = (dossiers: DossierBrut[], taches: Tache[]): Noeud
       nom: d.nom || 'Sans nom',
       importance: d.importance,
       categorie: d.categorie,
+      societeId: d.societeId ?? null,
       virtuel: false,
       enfants: [],
       taches: [],

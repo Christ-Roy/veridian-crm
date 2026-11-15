@@ -1,7 +1,8 @@
 import { type CSSProperties, type ReactElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { CoreApiClient } from 'twenty-client-sdk/core';
+import { MetadataApiClient } from 'twenty-client-sdk/metadata';
 import { defineFrontComponent } from 'twenty-sdk/define';
-import { enqueueSnackbar, openSidePanelPage, SidePanelPages } from 'twenty-sdk/front-component';
+import { AppPath, enqueueSnackbar, navigate, openSidePanelPage, SidePanelPages } from 'twenty-sdk/front-component';
 import { IconChevronDown, IconChevronRight, IconFolder, IconFolderOpen, IconPlus, IconSearch } from 'twenty-ui/icon';
 import { useTheme } from 'twenty-ui/theme';
 
@@ -54,6 +55,35 @@ const toutLire = async <T,>(objet: string, champs: Record<string, true>): Promis
 const ouvrir = (objectNameSingular: 'task' | 'dossier', id: string) =>
   openSidePanelPage({ page: SidePanelPages.ViewRecord, recordId: id, objectNameSingular });
 
+// Listes de prospects rangées dans la catégorie Prospection (ex-dossiers de la barre latérale) : vues de
+// sociétés dont le nom commence par l'un de ces préfixes, retrouvées par leur nom (aucun identifiant en dur).
+const LISTES_PROSPECTION = ['Vente en ligne', 'Site vitrine'];
+type VueListe = { id: string; liste: string; variante: string };
+
+const chargerListesProspection = async (): Promise<VueListe[]> => {
+  const client = new MetadataApiClient();
+  const { objects } = await client.query({
+    objects: { __args: { filter: {}, paging: { first: 200 } }, edges: { node: { id: true, nameSingular: true } } },
+  });
+  const societe = (objects?.edges ?? []).find((e: any) => e.node.nameSingular === 'company')?.node;
+  if (!societe) return [];
+  const reponse = await client.query({ getViews: { __args: { objectMetadataId: societe.id }, id: true, name: true } } as any);
+  const vues = ((reponse as any)?.getViews ?? []) as { id: string; name: string }[];
+  return vues
+    .map((v) => {
+      const liste = LISTES_PROSPECTION.find((p) => v.name.startsWith(p));
+      return liste ? { id: v.id, liste, variante: v.name.slice(liste.length).replace(/^[\s·-]+/, '') || 'Vue' } : null;
+    })
+    .filter((v): v is VueListe => v !== null)
+    .sort((a, b) => LISTES_PROSPECTION.indexOf(a.liste) - LISTES_PROSPECTION.indexOf(b.liste) || a.variante.localeCompare(b.variante, 'fr'));
+};
+
+const ouvrirVueSocietes = (viewId: string) =>
+  navigate(AppPath.RecordIndexPage, { objectNamePlural: 'companies' }, { viewId });
+
+const ouvrirSociete = (id: string) =>
+  navigate(AppPath.RecordShowPage, { objectNameSingular: 'company', objectRecordId: id });
+
 const Arborescence = () => {
   const t = useTheme();
   const [taches, setTaches] = useState<Tache[] | null>(null);
@@ -63,13 +93,28 @@ const Arborescence = () => {
   const [voirFaites, setVoirFaites] = useState(false);
   const [recherche, setRecherche] = useState('');
   const [ouverts, setOuverts] = useState<Set<string> | null>(null);
+  const [listes, setListes] = useState<VueListe[]>([]);
+
+  // Les listes de prospection sont un plus : leur échec ne bloque pas la page.
+  useEffect(() => {
+    chargerListesProspection()
+      .then(setListes)
+      .catch(() => setListes([]));
+  }, []);
 
   const charger = useCallback(async () => {
     setChargement(true);
     setErreur(null);
     try {
       const [ds, ts] = await Promise.all([
-        toutLire<DossierBrut>('dossiers', { id: true, nom: true, importance: true, categorie: true, parentId: true }),
+        toutLire<DossierBrut>('dossiers', {
+          id: true,
+          nom: true,
+          importance: true,
+          categorie: true,
+          parentId: true,
+          societeId: true,
+        }),
         toutLire<Tache>('tasks', {
           id: true,
           title: true,
@@ -97,9 +142,14 @@ const Arborescence = () => {
   const { sections, sansDossier } = useMemo(() => grouperParCategorie(arbre), [arbre]);
   const idSection = (c: Categorie) => `categorie:${c}`;
 
-  // Par défaut : catégories et dossiers racines ouverts, sous-dossiers fermés.
+  // Par défaut : catégories ouvertes ; un dossier racine n'est ouvert que s'il a des tâches ouvertes
+  // (les dossiers clients livrés restent fermés) ; sous-dossiers fermés.
   const racines = useMemo(
-    () => new Set([...sections.map((x) => idSection(x.categorie)), ...arbre.map((n) => n.id)]),
+    () =>
+      new Set([
+        ...sections.map((x) => idSection(x.categorie)),
+        ...arbre.filter((n) => compter(toutesLesTaches(n)).ouvertes > 0).map((n) => n.id),
+      ]),
     [sections, arbre],
   );
   const estOuvert = (id: string) => (ouverts ? ouverts.has(id) : racines.has(id));
@@ -429,6 +479,19 @@ const Arborescence = () => {
                 >
                   <IconPlus size={12} /> Sous-dossier
                 </button>
+                {n.societeId && (
+                  <button
+                    style={s.lien}
+                    aria-label={`Ouvrir la fiche société de ${n.nom}`}
+                    title="Fiche société : historique, notes, mails, encaissements"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void ouvrirSociete(n.societeId!);
+                    }}
+                  >
+                    Fiche
+                  </button>
+                )}
                 <button
                   style={s.lien}
                   aria-label={`Modifier le dossier ${n.nom}`}
@@ -491,6 +554,38 @@ const Arborescence = () => {
             </button>
           </div>
         </div>
+        {ouvert && section.categorie === 'PROSPECTION' && listes.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: t.spacing[3],
+              padding: `${t.spacing[2]} ${t.spacing[3]} ${t.spacing[2]} ${retrait(0)}`,
+              fontSize: t.font.size.sm,
+              color: t.font.color.tertiary,
+            }}
+          >
+            <span>Listes de prospects :</span>
+            {LISTES_PROSPECTION.filter((l) => listes.some((v) => v.liste === l)).map((l) => (
+              <span key={l} style={{ display: 'flex', alignItems: 'center', gap: t.spacing[1] }}>
+                <span style={{ color: t.font.color.secondary, fontWeight: t.font.weight.medium }}>{l}</span>
+                {listes
+                  .filter((v) => v.liste === l)
+                  .map((v) => (
+                    <button
+                      key={v.id}
+                      style={pastille(t.color.orange)}
+                      onClick={() => void ouvrirVueSocietes(v.id)}
+                      aria-label={`Ouvrir ${l} ${v.variante}`}
+                    >
+                      {v.variante}
+                    </button>
+                  ))}
+              </span>
+            ))}
+          </div>
+        )}
         {ouvert &&
           (section.racines.length === 0 ? (
             <div style={{ ...s.aucune, paddingLeft: retrait(0) }}>Aucun dossier : « + Dossier » pour en créer un.</div>
