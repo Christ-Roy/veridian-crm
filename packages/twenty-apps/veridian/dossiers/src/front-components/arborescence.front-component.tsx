@@ -396,30 +396,43 @@ const Projets = () => {
       fontFamily: t.font.family,
     },
     corps: { overflow: 'auto', minHeight: 0, padding: `${t.spacing[2]} ${t.spacing[2]} ${t.spacing[8]}` },
+    // Lignes en flex avec retour à la ligne (15/11/2026, retour de Robert sur mobile) : le nom garde une
+    // largeur de base, pastilles, barre et actions passent dessous quand l'écran est étroit, sans chevaucher.
     ligneDossier: {
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) 76px 150px auto',
+      display: 'flex',
+      flexWrap: 'wrap',
       alignItems: 'center',
-      gap: t.spacing[3],
+      columnGap: t.spacing[3],
+      rowGap: t.spacing[1],
       padding: `${t.spacing[1]} ${t.spacing[3]} ${t.spacing[1]} 0`,
       cursor: 'pointer',
       borderRadius: t.border.radius.sm,
     },
-    nomDossier: { display: 'flex', alignItems: 'center', gap: t.spacing[2], minWidth: 0 },
-    ligneTache: {
-      display: 'grid',
-      gridTemplateColumns: '80px minmax(0, 1fr) 76px 150px 96px',
+    nomDossier: {
+      display: 'flex',
+      flexWrap: 'wrap',
       alignItems: 'center',
-      gap: t.spacing[3],
+      columnGap: t.spacing[2],
+      rowGap: '2px',
+      minWidth: 0,
+      flex: '1 1 260px',
+    },
+    ligneTache: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      columnGap: t.spacing[3],
+      rowGap: t.spacing[1],
       padding: `${t.spacing[1]} ${t.spacing[3]} ${t.spacing[1]} 0`,
       fontSize: t.font.size.md,
       borderBottom: `1px solid ${t.border.color.light}`,
     },
     ligneDevis: {
-      display: 'grid',
-      gridTemplateColumns: '80px minmax(0, 1fr) 76px 150px 96px',
+      display: 'flex',
+      flexWrap: 'wrap',
       alignItems: 'center',
-      gap: t.spacing[3],
+      columnGap: t.spacing[3],
+      rowGap: '2px',
       padding: `2px ${t.spacing[3]} 2px 0`,
       fontSize: t.font.size.sm,
       color: t.font.color.secondary,
@@ -427,8 +440,8 @@ const Projets = () => {
     },
     badge: { color: t.font.color.tertiary, fontSize: t.font.size.sm, fontWeight: t.font.weight.regular, whiteSpace: 'nowrap' },
     aucune: { color: t.font.color.tertiary, fontSize: t.font.size.sm, padding: `${t.spacing[1]} 0 ${t.spacing[2]}` },
-    tronque: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-    actions: { display: 'flex', gap: t.spacing[1], justifyContent: 'flex-end' },
+    tronque: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '0 1 auto' },
+    actions: { display: 'flex', flexWrap: 'wrap', gap: t.spacing[1], justifyContent: 'flex-end', marginLeft: 'auto' },
     lien: {
       border: 'none',
       background: 'transparent',
@@ -496,7 +509,7 @@ const Projets = () => {
             }
           : undefined
       }
-      style={{ display: 'flex', alignItems: 'center', gap: t.spacing[2], cursor: onClic ? 'pointer' : 'default' }}
+      style={{ display: 'flex', alignItems: 'center', gap: t.spacing[2], cursor: onClic ? 'pointer' : 'default', flex: '0 0 150px' }}
     >
       <div style={{ flex: 1, height: '6px', borderRadius: t.border.radius.pill, background: t.background.tertiary, overflow: 'hidden' }}>
         <div style={{ width: `${pourcent ?? 0}%`, height: '100%', background: pourcent === 100 ? t.color.green : t.color.blue }} />
@@ -601,7 +614,7 @@ const Projets = () => {
           >
             {STATUTS[tache.status ?? 'TODO']?.libelle ?? tache.status}
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: t.spacing[2], minWidth: 0 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: t.spacing[2], rowGap: '2px', minWidth: 0, flex: '1 1 240px' }}>
             {tache.suiviType === 'JALON' && <span title="Jalon" style={{ color: t.color.orange }}>◆</span>}
             <span
               style={{
@@ -651,11 +664,11 @@ const Projets = () => {
   const rendreDevis = (d: DevisBrut, niveau: number) => (
     <div key={d.id} style={{ ...s.ligneDevis, paddingLeft: retrait(niveau) }} onClick={() => void ouvrir('devis', d.id)} title={d.preuve ?? ''}>
       <span style={{ ...pastille(t.font.color.secondary), cursor: 'pointer' }}>{d.numero}</span>
-      <span style={s.tronque}>
+      <span style={{ ...s.tronque, flex: '1 1 200px' }}>
         Devis · {LIBELLES_STATUT_DEVIS[d.statut ?? ''] ?? d.statut} · {d.objet}
       </span>
-      <span style={{ textAlign: 'right' }}>{euros(d.montant)}</span>
-      <span style={{ color: couleurEncaissement(d.encaissement), textAlign: 'right' }}>
+      <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{euros(d.montant)}</span>
+      <span style={{ color: couleurEncaissement(d.encaissement), textAlign: 'right', whiteSpace: 'nowrap' }}>
         {LIBELLES_ENCAISSEMENT[d.encaissement ?? ''] ?? d.encaissement}
         {d.encaissement === 'PARTIEL' || d.encaissement === 'TOTAL' ? ` · ${euros(d.montantEncaisse)}` : ''}
       </span>
@@ -884,7 +897,7 @@ const Projets = () => {
     const pas = etendue > 120 * JOUR ? 28 : etendue > 45 * JOUR ? 14 : 7;
     const reperes: number[] = [];
     for (let d = premierLundi; d < max; d += pas * JOUR) reperes.push(d);
-    const grille: CSSProperties = { display: 'grid', gridTemplateColumns: '320px minmax(0, 1fr)', alignItems: 'center' };
+    const grille: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(120px, 30%) minmax(0, 1fr)', alignItems: 'center' };
     const fond = (
       <>
         {reperes.map((d) => (
