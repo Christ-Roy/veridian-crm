@@ -9,19 +9,19 @@ import {
 
 export default definePageLayout({
   universalIdentifier: TACHES_PAGE_LAYOUT_UNIVERSAL_IDENTIFIER,
-  name: 'Tâches',
+  name: 'Projets',
   type: 'STANDALONE_PAGE',
   tabs: [
     {
       universalIdentifier: TACHES_PAGE_LAYOUT_TAB_UNIVERSAL_IDENTIFIER,
-      title: 'Tâches',
+      title: 'Projets',
       position: 0,
-      icon: 'IconCheckbox',
+      icon: 'IconFolders',
       layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
       widgets: [
         {
           universalIdentifier: TACHES_WIDGET_UNIVERSAL_IDENTIFIER,
-          title: 'Tâches',
+          title: 'Projets',
           type: 'FRONT_COMPONENT',
           heightBehavior: 'TAB_VIEWPORT',
           configuration: {

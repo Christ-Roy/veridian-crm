@@ -5,5 +5,5 @@ import { APPLICATION_UNIVERSAL_IDENTIFIER } from './identifiants';
 export default defineApplication({
   universalIdentifier: APPLICATION_UNIVERSAL_IDENTIFIER,
   displayName: 'Dossiers Veridian',
-  description: 'Les tâches rangées en arborescence : sujet, sous-sujet, puis tâches (champ Dossier des tâches)',
+  description: 'Projets en arbre et en Gantt, devis et encaissé prouvé, dépendances, tâches de Robert et Production',
 });

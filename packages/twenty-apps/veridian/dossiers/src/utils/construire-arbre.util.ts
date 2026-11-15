@@ -13,6 +13,10 @@ export type Tache = {
   importance: string | null;
   suiviAvancement: number | null;
   rangementId: string | null;
+  nature?: string | null;
+  suiviType?: string | null;
+  besoinAgenda?: string | null;
+  dureeEstimee?: number | null;
 };
 
 export type DossierBrut = {
