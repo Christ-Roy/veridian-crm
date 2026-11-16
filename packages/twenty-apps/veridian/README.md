@@ -1,0 +1,1 @@
+Les apps Twenty de Veridian (Dossiers, Google Meet, Téléphonie, contacts) sont dans le dépôt privé `Veridian-site/veridian-crm-apps` ; ne reste ici que l app Android Téléphonie (`telephonie/android`, release publique).

@@ -1,3 +1,4 @@
+# L app Twenty (ingestion Python, src) est dans Veridian-site/veridian-crm-apps : outils/recuperer_app.sh la récupère.
 # App Android « Téléphonie CRM » : le contrat Kotlin rend exactement ce que rend le Python de référence
 # (ingestion/), puis l'APK signé est construit et remplace les fichiers de la release « telephonie-android », PUBLIÉE
 # depuis le 12/11/2026 (accord de Robert) et liée depuis https://veridian.site/telephonie. Lien stable public :
@@ -13,10 +14,6 @@ on:
     branches: [staging, main]
     paths:
       - packages/twenty-apps/veridian/telephonie/android/**
-      - packages/twenty-apps/veridian/telephonie/ingestion/crm_telephonie.py
-      - packages/twenty-apps/veridian/telephonie/ingestion/telephone.py
-      - packages/twenty-apps/veridian/telephonie/src/**
-      - packages/twenty-apps/veridian/telephonie/LISEZMOI.md
       - .github/workflows/telephonie-android.yaml
   workflow_dispatch:
 
@@ -40,6 +37,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: App Twenty depuis veridian-crm-apps (contrat Python de référence, sources)
+        env:
+          VERIDIAN_CRM_APPS_DEPLOY_KEY: ${{ secrets.VERIDIAN_CRM_APPS_DEPLOY_KEY }}
+        run: bash outils/recuperer_app.sh
       - name: Fixtures à jour avec le Python de référence
         run: python3 outils/fixtures_contrat.py --verifier
       - name: Contrat Kotlin contre les fixtures
@@ -67,6 +68,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: App Twenty depuis veridian-crm-apps (contrat Python de référence, sources)
+        env:
+          VERIDIAN_CRM_APPS_DEPLOY_KEY: ${{ secrets.VERIDIAN_CRM_APPS_DEPLOY_KEY }}
+        run: bash outils/recuperer_app.sh
       - name: SDK Android (cmdline-tools vérifiés par SHA-256, le reste par sdkmanager)
         run: |
           set -euo pipefail

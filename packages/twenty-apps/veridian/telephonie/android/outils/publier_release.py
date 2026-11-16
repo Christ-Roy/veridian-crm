@@ -96,7 +96,7 @@ def remplacer(r, chemins):
 
 somme = open(SOMME).read().split()[0]
 notes = (f"Téléphonie CRM {VERSION} (commit {COMMIT[:10]}).\n\nSHA-256 de l'APK : `{somme}`\n\n"
-         f"Installation : https://github.com/{DEPOT}/blob/staging/packages/twenty-apps/veridian/telephonie/LISEZMOI.md\n"
+         f"Installation : LISEZMOI.md dans l archive telephonie-twenty-app.tgz de cette release\n"
          "telephonie-twenty-app.tgz : l'app Twenty (objets Appels et SMS, rôle Téléphone), à installer dans votre Twenty.")
 for tag, nom, pre in ((f"telephonie-v{VERSION}", f"Téléphonie CRM {VERSION}", True),
                       (STABLE, "Téléphonie CRM (dernière version)", False)):

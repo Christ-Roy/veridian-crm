@@ -6,6 +6,10 @@ name: veridian-crm-ci
 on:
   push:
     branches: [staging, main]
+    # Les apps Twenty vivent dans Veridian-site/veridian-crm-apps (CI propre) ; l app Android a sa CI telephonie-android.
+    paths-ignore:
+      - packages/twenty-apps/veridian/**
+      - .github/workflows/telephonie-android.yaml
   workflow_dispatch:
 
 permissions:
@@ -28,28 +32,6 @@ jobs:
       # Pas d'historique complet (2,6 Go, plus de 10 min) : le script récupère le marqueur seul.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: bash scripts/ci/check-ee-integrity.sh
-      - if: always()
-        run: git clean -ffdx
-
-  # App Twenty « Téléphonie Veridian » : manifeste compilé par le CLI de la version servie, et logique
-  # d'ingestion (normalisation, association des enregistrements, plan idempotent) testée sans réseau.
-  app-telephonie:
-    runs-on: [self-hosted, veridian-jit]
-    needs: garde-legale
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: packages/twenty-apps/veridian/telephonie
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: packages/twenty-apps/veridian/telephonie/.nvmrc
-      - run: corepack enable && yarn install --immutable
-        env:
-          COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
-      - run: yarn twenty app build
-      - run: python3 -m unittest discover -s ingestion/tests -v
       - if: always()
         run: git clean -ffdx
 
