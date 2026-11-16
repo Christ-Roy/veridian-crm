@@ -53,10 +53,17 @@ rafraîchissement expire au bout de 7 jours (« Reconnecter » une fois par sema
 ## Déployer, tester
 
 ```bash
-./deployer.sh test                    # 19 tests (node --test + tsx) puis typage strict
+./deployer.sh test                    # 21 tests (node --test + tsx) puis typage strict
 ./deployer.sh plan prod veridian-4    # tests, typage, puis plan
 ./deployer.sh apply prod veridian-4   # tests, typage, puis apply
 ```
 
-Les tests (`tests/meet.test.ts`) ont été vus échouer : 12 mutations injectées dans `src/utils/` (16/11), toutes
+Les tests (`tests/meet.test.ts`) ont été vus échouer : 14 mutations injectées dans `src/utils/` (16/11), toutes
 détectées.
+
+## Pièges mesurés le 16/11/2026
+
+- Le bac à sable des front components n'a pas `crypto.randomUUID` (« FrontComponent error » au premier essai) :
+  SHA-256 écrit en clair dans `identifiant-stable.util.ts`, vérifié contre `node:crypto`.
+- Une note créée avec `bodyV2.markdown` seul garde `blocknote` à null : l'app écrit les deux
+  (`blocknote.util.ts`), rendu vérifié dans la note.

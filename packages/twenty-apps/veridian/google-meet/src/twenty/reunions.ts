@@ -1,4 +1,5 @@
 import type { Cible, StatutReunion, TranscriptEntry } from '../types/meet.types';
+import { markdownVersBlocknote } from '../utils/blocknote.util';
 import { uuidDepuisGraine } from '../utils/identifiant-stable.util';
 import { graphql } from './graphql';
 
@@ -96,7 +97,7 @@ const CHAMP_CIBLE: Record<Cible['objet'], string> = {
 // Note créée ou réécrite au même identifiant, puis rattachée à chaque fiche (liens eux aussi à identifiant stable).
 export const ecrireNote = async (noteId: string, titre: string, markdown: string, cibles: Cible[]): Promise<void> => {
   await graphql('core', `mutation N($data: NoteCreateInput!) { createNote(data: $data, upsert: true) { id } }`, {
-    data: { id: noteId, title: titre, bodyV2: { markdown } },
+    data: { id: noteId, title: titre, bodyV2: { markdown, blocknote: JSON.stringify(markdownVersBlocknote(markdown, noteId)) } },
   });
   const uniques = Array.from(new Map(cibles.map((c) => [`${c.objet}:${c.id}`, c])).values());
   const liens = await Promise.all(

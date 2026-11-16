@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { describe, it } from 'node:test';
 
+import { markdownVersBlocknote } from '../src/utils/blocknote.util';
 import type { ConnexionGoogle, SeanceMeet } from '../src/types/meet.types';
 import { choisirConnexion } from '../src/utils/choisir-connexion.util';
 import {
@@ -17,7 +19,7 @@ import { creneauParDefaut } from '../src/utils/creneau.util';
 import { decouperSaisie, emailsDuChamp, normaliserEmails } from '../src/utils/emails.util';
 import { classerErreurGoogle } from '../src/utils/erreur-google.util';
 import { ajouterMinutes, construireEvenement, lireEvenementCree, validerDemande } from '../src/utils/evenement-calendar.util';
-import { estIdEvenementValide, nouvelIdEvenement, uuidDepuisGraine } from '../src/utils/identifiant-stable.util';
+import { estIdEvenementValide, nouvelIdEvenement, sha256, uuidDepuisGraine } from '../src/utils/identifiant-stable.util';
 import { markdownNoteComplete, titreNote } from '../src/utils/note.util';
 
 const demande = {
@@ -188,6 +190,11 @@ describe('choix de la connexion', () => {
 });
 
 describe('identifiants stables', () => {
+  it('calcule le même SHA-256 que Node (vide, un bloc, plusieurs blocs, accents)', () => {
+    for (const t of ['', 'abc', 'x'.repeat(55), 'y'.repeat(64), 'z'.repeat(1000), 'google-meet-note:vrdn1 · éàü 🎥']) {
+      assert.equal(Buffer.from(sha256(t)).toString('hex'), createHash('sha256').update(t).digest('hex'), t.slice(0, 10));
+    }
+  });
   it('rend le même UUID pour la même graine, un autre sinon', async () => {
     const a = await uuidDepuisGraine('google-meet-note:vrdn1');
     assert.equal(a, await uuidDepuisGraine('google-meet-note:vrdn1'));
@@ -206,5 +213,18 @@ describe('créneau par défaut', () => {
   it('propose la demi-heure pleine suivante, heure de Paris, 15 min devant au moins', () => {
     assert.deepEqual(creneauParDefaut(Date.parse('2026-11-17T09:10:00Z')), { date: '2026-11-17', heure: '10:30' });
     assert.deepEqual(creneauParDefaut(Date.parse('2026-07-01T21:50:00Z')), { date: '2026-07-02', heure: '00:30' });
+  });
+});
+
+describe('note BlockNote', () => {
+  it('convertit titres, puces, gras et liens nus', () => {
+    const b = markdownVersBlocknote('## Compte rendu\n\n- Lien : https://meet.google.com/abc-defg-hij\n**Robert** : Bonjour', 'n');
+    assert.equal(b.length, 3);
+    assert.equal(b[0].type, 'heading');
+    assert.equal(b[0].props.level, 2);
+    assert.equal(b[1].type, 'bulletListItem');
+    assert.deepEqual(b[1].content[1], { type: 'link', href: 'https://meet.google.com/abc-defg-hij', content: [{ type: 'text', text: 'https://meet.google.com/abc-defg-hij', styles: {} }] });
+    assert.deepEqual(b[2].content[0], { type: 'text', text: 'Robert', styles: { bold: true } });
+    assert.deepEqual(b.map((x) => x.id), ['n-0', 'n-1', 'n-2']);
   });
 });
