@@ -8,7 +8,7 @@ import { OAUTH_GOOGLE } from './oauth-google';
 export default defineConnectionProvider({
   universalIdentifier: CONNEXION_UTILISATEUR_UNIVERSAL_IDENTIFIER,
   name: FOURNISSEUR_UTILISATEUR,
-  displayName: 'Google (mon agenda)',
+  displayName: 'Google Agenda et Meet (mon compte)',
   type: 'oauth',
   scope: 'USER',
   oauth: OAUTH_GOOGLE,

@@ -8,7 +8,7 @@ import { OAUTH_GOOGLE } from './oauth-google';
 export default defineConnectionProvider({
   universalIdentifier: CONNEXION_ESPACE_UNIVERSAL_IDENTIFIER,
   name: FOURNISSEUR_ESPACE,
-  displayName: 'Google (agenda partagé)',
+  displayName: 'Google Agenda et Meet',
   type: 'oauth',
   scope: 'WORKSPACE',
   oauth: OAUTH_GOOGLE,
