@@ -30,19 +30,19 @@ Twenty marque la connexion, le panneau affiche « Reconnecter » et n'utilise pl
 
 ## Google Cloud
 
-Projet `veridian-crm-8013`, client OAuth « Veridian CRM Web » (celui de la synchro mail et agenda du CRM),
-redirection ajoutée le 16/11 : `https://crm.app.veridian.site/auth/apps/callback`. API activées : Calendar,
-Meet (`gcloud services enable meet.googleapis.com`). Scopes : `openid`, `email`, `calendar.events`,
-`meetings.space.readonly`. Variables serveur `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` posées sur
-l'enregistrement de l'app par l'API metadata (`updateApplicationRegistrationVariable`), lues dans l'env de
-`crm-server` (`AUTH_GOOGLE_CLIENT_*`) : jamais dans ce dépôt.
+Projet dédié `veridian-meet-crm` (n° 170450228896), créé le 16/11/2026 dans l'organisation `veridian.site`
+(782371478809), sans facturation (`billingEnabled: false`). API activées : Calendar, Meet
+(`gcloud services enable calendar-json.googleapis.com meet.googleapis.com`). Écran de consentement « Veridian
+CRM Meet », audience **Interne** : réservé aux comptes veridian.site, pas de validation Google, pas d'expiration
+des jetons à 7 jours. Client OAuth Web, redirection unique `https://crm.app.veridian.site/auth/apps/callback`.
+Scopes : `openid`, `email`, `calendar.events`, `meetings.space.readonly`.
 
-🔴 Le client OAuth est partagé avec la synchro du CRM : **pas de `revokeEndpoint`** (révoquer chez Google révoque
-tout l'accord du compte à ce client, la synchro tomberait) ni d'`include_granted_scopes`.
+Secrets : variables serveur `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` posées sur l'enregistrement de l'app par
+l'API metadata (`updateApplicationRegistrationVariable`), copie de référence `GOOGLE_MEET_CRM_CLIENT_ID` /
+`GOOGLE_MEET_CRM_CLIENT_SECRET` dans `~/credentials/.all-creds.env` du bastion. Jamais dans ce dépôt.
 
-🟠 L'écran de consentement est en **Test** : un compte doit être dans « Utilisateurs tests » et son jeton de
-rafraîchissement expire au bout de 7 jours (« Reconnecter » une fois par semaine). Le passer en Production
-(page Branding à compléter) lève la limite.
+Le client n'est partagé avec rien (la synchro mail et agenda du CRM garde son propre client dans
+`veridian-crm-8013`) : la révocation à la déconnexion (`revokeEndpoint`) ne coupe que cette app.
 
 ## Limites connues
 

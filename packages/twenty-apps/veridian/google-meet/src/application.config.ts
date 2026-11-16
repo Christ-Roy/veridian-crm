@@ -9,7 +9,7 @@ export default defineApplication({
     'Crée un Google Meet depuis une personne, une société ou un dossier (événement d’agenda, invités, note sur les fiches), puis importe le compte rendu : participants, durée, enregistrement et transcription.',
   serverVariables: {
     GOOGLE_CLIENT_ID: {
-      description: 'ID client OAuth Google (projet Google Cloud veridian-crm-8013, client « Veridian CRM Web »).',
+      description: 'ID client OAuth Google (projet Google Cloud veridian-meet-crm, organisation veridian.site, audience Interne).',
       isSecret: false,
       isRequired: true,
     },
