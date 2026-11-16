@@ -49,9 +49,10 @@ class ContratTest {
     }
 
     @Test fun titresEtApercus() {
-        for ((d, s, titre, ancien) in liste("titres")) {
+        for ((d, s, titre, ancien, sansCanal) in liste("titres")) {
             assertEquals(titre, Contrat.titreAppel(d as String, (s as Long).toInt()))
             assertEquals(ancien, Contrat.titreAncien(d, s.toInt()))
+            assertEquals(sansCanal, Contrat.titreSansCanal(d, s.toInt()))
         }
         for ((sens, texte, attendu) in liste("apercu")) assertEquals(attendu, Contrat.apercuMessage(sens as String, texte as String))
         for ((texte, attendu) in liste("empreinte")) assertEquals(attendu, Contrat.empreinte(texte))

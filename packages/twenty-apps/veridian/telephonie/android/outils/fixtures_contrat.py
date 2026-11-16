@@ -156,7 +156,7 @@ def main():
     resultat = {
         "normaliser": [[n, c.normaliser_numero(n)] for n in NUMEROS],
         "cle_numero": [[n, c.cle_numero(n)] for n in NUMEROS],
-        "titres": [[d, s, c.titre_appel(d, s), c.titre_ancien(d, s)]
+        "titres": [[d, s, c.titre_appel(d, s), c.titre_ancien(d, s), c.titre_sans_canal(d, s)]
                    for d in ("ENTRANT", "SORTANT", "MANQUE", "MESSAGERIE", "REJETE", "BLOQUE", "AUTRE", "XYZ")
                    for s in (0, 5, 59, 60, 61, 3599, 3600, 3725, 86400)],
         "apercu": [[s, x, c.apercu_message(s, x)] for s in ("RECU", "ENVOYE", "BROUILLON", "ECHEC", "AUTRE") for x in TEXTES],

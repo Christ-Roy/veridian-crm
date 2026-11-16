@@ -191,12 +191,15 @@ object Contrat {
         else -> "${secondes / 3600} h ${"%02d".format(secondes % 3600 / 60)} min"
     }
 
-    fun titreAppel(direction: String, duree: Int): String {
+    // Titre posé du 10/11 au 16/11/2026, avant que le canal n entre dans le libellé.
+    fun titreSansCanal(direction: String, duree: Int): String {
         val libelle = LIBELLES_DIRECTION[direction] ?: "Appel"
         if (direction == "SORTANT" && duree == 0) return "$libelle · sans réponse"
         if (direction in setOf("MANQUE", "REJETE", "BLOQUE") || duree == 0) return libelle
         return "$libelle · ${dureeLisible(duree)}"
     }
+
+    fun titreAppel(direction: String, duree: Int): String = "Appel téléphone · ${titreSansCanal(direction, duree)}"
 
     fun titreAncien(direction: String?, duree: Int): String {
         val libelle = LIBELLES_DIRECTION[direction] ?: "Appel"
@@ -431,7 +434,9 @@ object Contrat {
                 champs.remove("transcription"); CHAMPS_TRANSCRIPTION.forEach { champs.remove(it) }
             }
             if (pluriel == "appels" && existant["titre"] != voulu["titre"] &&
-                existant["titre"] == titreAncien(voulu["direction"] as String?, (voulu["dureeSecondes"] as Number).toInt())) {
+                (existant["canal"] ?: "TELEPHONE") == "TELEPHONE" &&
+                (existant["titre"] == titreAncien(voulu["direction"] as String?, (voulu["dureeSecondes"] as Number).toInt()) ||
+                    existant["titre"] == titreSansCanal(voulu["direction"] as String? ?: "AUTRE", (voulu["dureeSecondes"] as Number).toInt()))) {
                 champs["titre"] = voulu["titre"]
             }
             if (personne != null && vide(existant["personId"])) champs["personId"] = personne

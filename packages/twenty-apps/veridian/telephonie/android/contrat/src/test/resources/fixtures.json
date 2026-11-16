@@ -319,7 +319,7 @@
     "idSource": "appel:1794485255200:+33612345678",
     "nomSurTelephone": "Alice",
     "numero": "+33612345678",
-    "titre": "Entrant · 2 min 05 s"
+    "titre": "Appel téléphone · Entrant · 2 min 05 s"
    }
   ],
   [
@@ -339,7 +339,7 @@
     "idSource": "appel:1794485255000:masque",
     "nomSurTelephone": "",
     "numero": "",
-    "titre": "Manqué"
+    "titre": "Appel téléphone · Manqué"
    }
   ],
   [
@@ -359,7 +359,7 @@
     "idSource": "appel:1794485255001:CIC",
     "nomSurTelephone": "",
     "numero": "CIC",
-    "titre": "Entrant · 3 s"
+    "titre": "Appel téléphone · Entrant · 3 s"
    }
   ],
   [
@@ -379,7 +379,7 @@
     "idSource": "appel:1794485255002:+33698765432",
     "nomSurTelephone": "Bob",
     "numero": "+33698765432",
-    "titre": "Sortant · sans réponse"
+    "titre": "Appel téléphone · Sortant · sans réponse"
    }
   ],
   [
@@ -399,7 +399,7 @@
     "idSource": "appel:1794485255003:masque",
     "nomSurTelephone": "",
     "numero": "",
-    "titre": "Appel · 10 s"
+    "titre": "Appel téléphone · Appel · 10 s"
    }
   ],
   [
@@ -419,7 +419,7 @@
     "idSource": "appel:1794485255004:*123#",
     "nomSurTelephone": "x",
     "numero": "*123#",
-    "titre": "Bloqué"
+    "titre": "Appel téléphone · Bloqué"
    }
   ]
  ],
@@ -441,7 +441,7 @@
     "idSource": "appel:1794485255200:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 10 s",
+    "titre": "Appel téléphone · Entrant · 10 s",
     "transcription": "texte a"
    },
    {
@@ -460,7 +460,7 @@
     "idSource": "appel:1794485300000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 10 s"
+    "titre": "Appel téléphone · Entrant · 10 s"
    },
    {
     "_e164": "+33612345678",
@@ -478,7 +478,7 @@
     "idSource": "appel:1794485260000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Sortant · 10 s"
+    "titre": "Appel téléphone · Sortant · 10 s"
    },
    {
     "_e164": "+33612345678",
@@ -491,7 +491,7 @@
     "idSource": "appel:1794485500000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 10 s"
+    "titre": "Appel téléphone · Entrant · 10 s"
    },
    {
     "_e164": "+33612345678",
@@ -509,7 +509,7 @@
     "idSource": "appel:1794486100000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 6 s",
+    "titre": "Appel téléphone · Entrant · 6 s",
     "transcription": "sens faux"
    },
    {
@@ -523,7 +523,7 @@
     "idSource": "appel:1794486400000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Manqué"
+    "titre": "Appel téléphone · Manqué"
    }
   ],
   "appels_avant": [
@@ -538,7 +538,7 @@
     "idSource": "appel:1794485255200:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 10 s"
+    "titre": "Appel téléphone · Entrant · 10 s"
    },
    {
     "_e164": "+33612345678",
@@ -551,7 +551,7 @@
     "idSource": "appel:1794485300000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 10 s"
+    "titre": "Appel téléphone · Entrant · 10 s"
    },
    {
     "_e164": "+33612345678",
@@ -564,7 +564,7 @@
     "idSource": "appel:1794485260000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Sortant · 10 s"
+    "titre": "Appel téléphone · Sortant · 10 s"
    },
    {
     "_e164": "+33612345678",
@@ -577,7 +577,7 @@
     "idSource": "appel:1794485500000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 10 s"
+    "titre": "Appel téléphone · Entrant · 10 s"
    },
    {
     "_e164": "+33612345678",
@@ -590,7 +590,7 @@
     "idSource": "appel:1794486100000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Entrant · 6 s"
+    "titre": "Appel téléphone · Entrant · 6 s"
    },
    {
     "_e164": "+33612345678",
@@ -603,7 +603,7 @@
     "idSource": "appel:1794486400000:+33612345678",
     "nomSurTelephone": "",
     "numero": "+33612345678",
-    "titre": "Manqué"
+    "titre": "Appel téléphone · Manqué"
    }
   ],
   "enregistrements": [
@@ -2236,7 +2236,7 @@
       "appareil": "PIXEL_8_PRO",
       "canal": "TELEPHONE",
       "dureeSecondes": 0,
-      "titre": "Sortant · sans réponse"
+      "titre": "Appel téléphone · Sortant · sans réponse"
      },
      null
     ],
@@ -2248,6 +2248,7 @@
       "dureeSecondes": 42,
       "moteurTranscription": "parakeet-tdt-0.6b-v3-q8_0 · x",
       "sourceTranscription": "PARAKEET",
+      "titre": "Appel téléphone · Entrant · 42 s",
       "transcription": "[  0.0-  2.0] nouvelle"
      },
      {
@@ -2274,7 +2275,8 @@
      {
       "appareil": "PIXEL_8_PRO",
       "canal": "TELEPHONE",
-      "personId": "p1"
+      "personId": "p1",
+      "titre": "Appel téléphone · Manqué"
      },
      null
     ],
@@ -2284,7 +2286,7 @@
       "appareil": "PIXEL_8_PRO",
       "canal": "TELEPHONE",
       "dureeSecondes": 0,
-      "titre": "Sortant · sans réponse"
+      "titre": "Appel téléphone · Sortant · sans réponse"
      },
      null
     ],
@@ -2319,7 +2321,7 @@
       "nomSurTelephone": "Alice",
       "numero": "+33612345678",
       "personId": "p1",
-      "titre": "Entrant · 2 min 05 s"
+      "titre": "Appel téléphone · Entrant · 2 min 05 s"
      },
      null
     ],
@@ -2336,7 +2338,7 @@
       "numero": "+33698765432",
       "personId": "p2",
       "sourceTranscription": "GOOGLE",
-      "titre": "Messagerie · 12 s",
+      "titre": "Appel téléphone · Messagerie · 12 s",
       "transcription": "[  0.0-  1.0] allo"
      },
      null
@@ -2351,7 +2353,7 @@
       "idSource": "appel:1794485800000:masque",
       "nomSurTelephone": "",
       "numero": "",
-      "titre": "Entrant · 10 s"
+      "titre": "Appel téléphone · Entrant · 10 s"
      },
      null
     ]
@@ -2433,7 +2435,7 @@
      "numero": "+33612345678",
      "personId": "p1",
      "sourceTranscription": "WHISPER",
-     "titre": "Entrant · 30 s",
+     "titre": "Appel téléphone · Entrant · 30 s",
      "transcription": "[  0.5-  2.0] whisper"
     },
     {
@@ -2445,7 +2447,7 @@
      "numero": "+33612345678",
      "personId": "p1",
      "sourceTranscription": null,
-     "titre": "Sortant · 30 s",
+     "titre": "Appel téléphone · Sortant · 30 s",
      "transcription": ""
     }
    ],
@@ -2467,7 +2469,7 @@
      "idSource": "appel:1794485255200:+33612345678",
      "nomSurTelephone": "Alice",
      "numero": "+33612345678",
-     "titre": "Entrant · 2 min 05 s"
+     "titre": "Appel téléphone · Entrant · 2 min 05 s"
     },
     {
      "_e164": "+33698765432",
@@ -2480,7 +2482,7 @@
      "idSource": "appel:1794485300000:+33698765432",
      "nomSurTelephone": "",
      "numero": "+33698765432",
-     "titre": "Sortant · sans réponse"
+     "titre": "Appel téléphone · Sortant · sans réponse"
     },
     {
      "_e164": "+33611111111",
@@ -2505,7 +2507,7 @@
      "nomSurTelephone": "",
      "numero": "+33611111111",
      "sourceTranscription": "PARAKEET",
-     "titre": "Entrant · 42 s",
+     "titre": "Appel téléphone · Entrant · 42 s",
      "transcription": "[  0.0-  2.0] nouvelle"
     },
     {
@@ -2526,7 +2528,7 @@
      "nomSurTelephone": "Alice",
      "numero": "+33612345678",
      "sourceTranscription": "PARAKEET",
-     "titre": "Sortant · 1 min 01 s",
+     "titre": "Appel téléphone · Sortant · 1 min 01 s",
      "transcription": "[  0.0-  1.0] même"
     },
     {
@@ -2540,7 +2542,7 @@
      "idSource": "appel:1794485600000:+33612345678",
      "nomSurTelephone": "",
      "numero": "+33612345678",
-     "titre": "Manqué"
+     "titre": "Appel téléphone · Manqué"
     },
     {
      "_e164": "+33698765432",
@@ -2555,7 +2557,7 @@
      "nomSurTelephone": "",
      "numero": "+33698765432",
      "sourceTranscription": "GOOGLE",
-     "titre": "Messagerie · 12 s",
+     "titre": "Appel téléphone · Messagerie · 12 s",
      "transcription": "[  0.0-  1.0] allo"
     },
     {
@@ -2569,7 +2571,7 @@
      "idSource": "appel:1794485800000:masque",
      "nomSurTelephone": "",
      "numero": "",
-     "titre": "Entrant · 10 s"
+     "titre": "Appel téléphone · Entrant · 10 s"
     },
     {
      "_e164": "+33612345678",
@@ -2582,7 +2584,7 @@
      "idSource": "appel:1794485900000:+33612345678",
      "nomSurTelephone": "",
      "numero": "+33612345678",
-     "titre": "Sortant · sans réponse"
+     "titre": "Appel téléphone · Sortant · sans réponse"
     },
     {
      "_e164": "+33612345678",
@@ -2607,7 +2609,7 @@
      "nomSurTelephone": "",
      "numero": "+33612345678",
      "sourceTranscription": "PARAKEET",
-     "titre": "Entrant · 30 s",
+     "titre": "Appel téléphone · Entrant · 30 s",
      "transcription": "[  0.0-  2.0] parakeet"
     },
     {
@@ -2623,7 +2625,7 @@
      "nomSurTelephone": "",
      "numero": "+33612345678",
      "sourceTranscription": "PARAKEET",
-     "titre": "Sortant · 30 s",
+     "titre": "Appel téléphone · Sortant · 30 s",
      "transcription": "[  0.0-  2.0] parakeet"
     }
    ]
@@ -2757,7 +2759,7 @@
       "nomSurTelephone": "Alice",
       "numero": "+33612345678",
       "personId": "p1",
-      "titre": "Entrant · 2 min 05 s"
+      "titre": "Appel téléphone · Entrant · 2 min 05 s"
      },
      null
     ],
@@ -2772,7 +2774,7 @@
       "nomSurTelephone": "",
       "numero": "+33698765432",
       "personId": "p2",
-      "titre": "Sortant · sans réponse"
+      "titre": "Appel téléphone · Sortant · sans réponse"
      },
      null
     ],
@@ -2788,7 +2790,7 @@
       "nomSurTelephone": "",
       "numero": "+33611111111",
       "sourceTranscription": "PARAKEET",
-      "titre": "Entrant · 42 s",
+      "titre": "Appel téléphone · Entrant · 42 s",
       "transcription": "[  0.0-  2.0] nouvelle"
      },
      {
@@ -2810,7 +2812,7 @@
       "numero": "+33612345678",
       "personId": "p1",
       "sourceTranscription": "PARAKEET",
-      "titre": "Sortant · 1 min 01 s",
+      "titre": "Appel téléphone · Sortant · 1 min 01 s",
       "transcription": "[  0.0-  1.0] même"
      },
      {
@@ -2830,7 +2832,7 @@
       "nomSurTelephone": "",
       "numero": "+33612345678",
       "personId": "p1",
-      "titre": "Manqué"
+      "titre": "Appel téléphone · Manqué"
      },
      null
     ],
@@ -2847,7 +2849,7 @@
       "numero": "+33698765432",
       "personId": "p2",
       "sourceTranscription": "GOOGLE",
-      "titre": "Messagerie · 12 s",
+      "titre": "Appel téléphone · Messagerie · 12 s",
       "transcription": "[  0.0-  1.0] allo"
      },
      null
@@ -2862,7 +2864,7 @@
       "idSource": "appel:1794485800000:masque",
       "nomSurTelephone": "",
       "numero": "",
-      "titre": "Entrant · 10 s"
+      "titre": "Appel téléphone · Entrant · 10 s"
      },
      null
     ],
@@ -2877,7 +2879,7 @@
       "nomSurTelephone": "",
       "numero": "+33612345678",
       "personId": "p1",
-      "titre": "Sortant · sans réponse"
+      "titre": "Appel téléphone · Sortant · sans réponse"
      },
      null
     ],
@@ -2894,7 +2896,7 @@
       "numero": "+33612345678",
       "personId": "p1",
       "sourceTranscription": "PARAKEET",
-      "titre": "Entrant · 30 s",
+      "titre": "Appel téléphone · Entrant · 30 s",
       "transcription": "[  0.0-  2.0] parakeet"
      },
      {
@@ -2916,7 +2918,7 @@
       "numero": "+33612345678",
       "personId": "p1",
       "sourceTranscription": "PARAKEET",
-      "titre": "Sortant · 30 s",
+      "titre": "Appel téléphone · Sortant · 30 s",
       "transcription": "[  0.0-  2.0] parakeet"
      },
      null
@@ -2941,7 +2943,7 @@
      "idSource": "appel:1794485255200:+33612345678",
      "nomSurTelephone": "Alice",
      "numero": "+33612345678",
-     "titre": "Entrant · 2 min 05 s"
+     "titre": "Appel téléphone · Entrant · 2 min 05 s"
     },
     {
      "_e164": "+33698765432",
@@ -2954,7 +2956,7 @@
      "idSource": "appel:1794485300000:+33698765432",
      "nomSurTelephone": "",
      "numero": "+33698765432",
-     "titre": "Sortant · sans réponse"
+     "titre": "Appel téléphone · Sortant · sans réponse"
     },
     {
      "_e164": "+33611111111",
@@ -2979,7 +2981,7 @@
      "nomSurTelephone": "",
      "numero": "+33611111111",
      "sourceTranscription": "PARAKEET",
-     "titre": "Entrant · 42 s",
+     "titre": "Appel téléphone · Entrant · 42 s",
      "transcription": "[  0.0-  2.0] nouvelle"
     },
     {
@@ -3000,7 +3002,7 @@
      "nomSurTelephone": "Alice",
      "numero": "+33612345678",
      "sourceTranscription": "PARAKEET",
-     "titre": "Sortant · 1 min 01 s",
+     "titre": "Appel téléphone · Sortant · 1 min 01 s",
      "transcription": "[  0.0-  1.0] même"
     },
     {
@@ -3014,7 +3016,7 @@
      "idSource": "appel:1794485600000:+33612345678",
      "nomSurTelephone": "",
      "numero": "+33612345678",
-     "titre": "Manqué"
+     "titre": "Appel téléphone · Manqué"
     },
     {
      "_e164": "+33698765432",
@@ -3029,7 +3031,7 @@
      "nomSurTelephone": "",
      "numero": "+33698765432",
      "sourceTranscription": "GOOGLE",
-     "titre": "Messagerie · 12 s",
+     "titre": "Appel téléphone · Messagerie · 12 s",
      "transcription": "[  0.0-  1.0] allo"
     },
     {
@@ -3043,7 +3045,7 @@
      "idSource": "appel:1794485800000:masque",
      "nomSurTelephone": "",
      "numero": "",
-     "titre": "Entrant · 10 s"
+     "titre": "Appel téléphone · Entrant · 10 s"
     },
     {
      "_e164": "+33612345678",
@@ -3056,7 +3058,7 @@
      "idSource": "appel:1794485900000:+33612345678",
      "nomSurTelephone": "",
      "numero": "+33612345678",
-     "titre": "Sortant · sans réponse"
+     "titre": "Appel téléphone · Sortant · sans réponse"
     },
     {
      "_e164": "+33612345678",
@@ -3081,7 +3083,7 @@
      "nomSurTelephone": "",
      "numero": "+33612345678",
      "sourceTranscription": "PARAKEET",
-     "titre": "Entrant · 30 s",
+     "titre": "Appel téléphone · Entrant · 30 s",
      "transcription": "[  0.0-  2.0] parakeet"
     },
     {
@@ -3097,7 +3099,7 @@
      "nomSurTelephone": "",
      "numero": "+33612345678",
      "sourceTranscription": "PARAKEET",
-     "titre": "Sortant · 30 s",
+     "titre": "Appel téléphone · Sortant · 30 s",
      "transcription": "[  0.0-  2.0] parakeet"
     }
    ]
@@ -3154,432 +3156,504 @@
   [
    "ENTRANT",
    0,
+   "Appel téléphone · Entrant",
    "Entrant",
    "Entrant"
   ],
   [
    "ENTRANT",
    5,
+   "Appel téléphone · Entrant · 5 s",
    "Entrant · 5 s",
    "Entrant · 5 s"
   ],
   [
    "ENTRANT",
    59,
+   "Appel téléphone · Entrant · 59 s",
    "Entrant · 59 s",
    "Entrant · 59 s"
   ],
   [
    "ENTRANT",
    60,
+   "Appel téléphone · Entrant · 1 min 00 s",
    "Entrant · 1 min 00 s",
    "Entrant · 1 min 00 s"
   ],
   [
    "ENTRANT",
    61,
+   "Appel téléphone · Entrant · 1 min 01 s",
    "Entrant · 1 min 01 s",
    "Entrant · 1 min 01 s"
   ],
   [
    "ENTRANT",
    3599,
+   "Appel téléphone · Entrant · 59 min 59 s",
    "Entrant · 59 min 59 s",
    "Entrant · 59 min 59 s"
   ],
   [
    "ENTRANT",
    3600,
+   "Appel téléphone · Entrant · 1 h 00 min",
    "Entrant · 1 h 00 min",
    "Entrant · 1 h 00 min"
   ],
   [
    "ENTRANT",
    3725,
+   "Appel téléphone · Entrant · 1 h 02 min",
    "Entrant · 1 h 02 min",
    "Entrant · 1 h 02 min"
   ],
   [
    "ENTRANT",
    86400,
+   "Appel téléphone · Entrant · 24 h 00 min",
    "Entrant · 24 h 00 min",
    "Entrant · 24 h 00 min"
   ],
   [
    "SORTANT",
    0,
-   "Sortant · sans réponse",
-   "Sortant"
+   "Appel téléphone · Sortant · sans réponse",
+   "Sortant",
+   "Sortant · sans réponse"
   ],
   [
    "SORTANT",
    5,
+   "Appel téléphone · Sortant · 5 s",
    "Sortant · 5 s",
    "Sortant · 5 s"
   ],
   [
    "SORTANT",
    59,
+   "Appel téléphone · Sortant · 59 s",
    "Sortant · 59 s",
    "Sortant · 59 s"
   ],
   [
    "SORTANT",
    60,
+   "Appel téléphone · Sortant · 1 min 00 s",
    "Sortant · 1 min 00 s",
    "Sortant · 1 min 00 s"
   ],
   [
    "SORTANT",
    61,
+   "Appel téléphone · Sortant · 1 min 01 s",
    "Sortant · 1 min 01 s",
    "Sortant · 1 min 01 s"
   ],
   [
    "SORTANT",
    3599,
+   "Appel téléphone · Sortant · 59 min 59 s",
    "Sortant · 59 min 59 s",
    "Sortant · 59 min 59 s"
   ],
   [
    "SORTANT",
    3600,
+   "Appel téléphone · Sortant · 1 h 00 min",
    "Sortant · 1 h 00 min",
    "Sortant · 1 h 00 min"
   ],
   [
    "SORTANT",
    3725,
+   "Appel téléphone · Sortant · 1 h 02 min",
    "Sortant · 1 h 02 min",
    "Sortant · 1 h 02 min"
   ],
   [
    "SORTANT",
    86400,
+   "Appel téléphone · Sortant · 24 h 00 min",
    "Sortant · 24 h 00 min",
    "Sortant · 24 h 00 min"
   ],
   [
    "MANQUE",
    0,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    5,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    59,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    60,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    61,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    3599,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    3600,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    3725,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MANQUE",
    86400,
+   "Appel téléphone · Manqué",
    "Manqué",
    "Manqué"
   ],
   [
    "MESSAGERIE",
    0,
+   "Appel téléphone · Messagerie",
    "Messagerie",
    "Messagerie"
   ],
   [
    "MESSAGERIE",
    5,
+   "Appel téléphone · Messagerie · 5 s",
    "Messagerie · 5 s",
    "Messagerie · 5 s"
   ],
   [
    "MESSAGERIE",
    59,
+   "Appel téléphone · Messagerie · 59 s",
    "Messagerie · 59 s",
    "Messagerie · 59 s"
   ],
   [
    "MESSAGERIE",
    60,
+   "Appel téléphone · Messagerie · 1 min 00 s",
    "Messagerie · 1 min 00 s",
    "Messagerie · 1 min 00 s"
   ],
   [
    "MESSAGERIE",
    61,
+   "Appel téléphone · Messagerie · 1 min 01 s",
    "Messagerie · 1 min 01 s",
    "Messagerie · 1 min 01 s"
   ],
   [
    "MESSAGERIE",
    3599,
+   "Appel téléphone · Messagerie · 59 min 59 s",
    "Messagerie · 59 min 59 s",
    "Messagerie · 59 min 59 s"
   ],
   [
    "MESSAGERIE",
    3600,
+   "Appel téléphone · Messagerie · 1 h 00 min",
    "Messagerie · 1 h 00 min",
    "Messagerie · 1 h 00 min"
   ],
   [
    "MESSAGERIE",
    3725,
+   "Appel téléphone · Messagerie · 1 h 02 min",
    "Messagerie · 1 h 02 min",
    "Messagerie · 1 h 02 min"
   ],
   [
    "MESSAGERIE",
    86400,
+   "Appel téléphone · Messagerie · 24 h 00 min",
    "Messagerie · 24 h 00 min",
    "Messagerie · 24 h 00 min"
   ],
   [
    "REJETE",
    0,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    5,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    59,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    60,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    61,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    3599,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    3600,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    3725,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "REJETE",
    86400,
+   "Appel téléphone · Rejeté",
    "Rejeté",
    "Rejeté"
   ],
   [
    "BLOQUE",
    0,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    5,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    59,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    60,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    61,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    3599,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    3600,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    3725,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "BLOQUE",
    86400,
+   "Appel téléphone · Bloqué",
    "Bloqué",
    "Bloqué"
   ],
   [
    "AUTRE",
    0,
+   "Appel téléphone · Appel",
    "Appel",
    "Appel"
   ],
   [
    "AUTRE",
    5,
+   "Appel téléphone · Appel · 5 s",
    "Appel · 5 s",
    "Appel · 5 s"
   ],
   [
    "AUTRE",
    59,
+   "Appel téléphone · Appel · 59 s",
    "Appel · 59 s",
    "Appel · 59 s"
   ],
   [
    "AUTRE",
    60,
+   "Appel téléphone · Appel · 1 min 00 s",
    "Appel · 1 min 00 s",
    "Appel · 1 min 00 s"
   ],
   [
    "AUTRE",
    61,
+   "Appel téléphone · Appel · 1 min 01 s",
    "Appel · 1 min 01 s",
    "Appel · 1 min 01 s"
   ],
   [
    "AUTRE",
    3599,
+   "Appel téléphone · Appel · 59 min 59 s",
    "Appel · 59 min 59 s",
    "Appel · 59 min 59 s"
   ],
   [
    "AUTRE",
    3600,
+   "Appel téléphone · Appel · 1 h 00 min",
    "Appel · 1 h 00 min",
    "Appel · 1 h 00 min"
   ],
   [
    "AUTRE",
    3725,
+   "Appel téléphone · Appel · 1 h 02 min",
    "Appel · 1 h 02 min",
    "Appel · 1 h 02 min"
   ],
   [
    "AUTRE",
    86400,
+   "Appel téléphone · Appel · 24 h 00 min",
    "Appel · 24 h 00 min",
    "Appel · 24 h 00 min"
   ],
   [
    "XYZ",
    0,
+   "Appel téléphone · Appel",
    "Appel",
    "Appel"
   ],
   [
    "XYZ",
    5,
+   "Appel téléphone · Appel · 5 s",
    "Appel · 5 s",
    "Appel · 5 s"
   ],
   [
    "XYZ",
    59,
+   "Appel téléphone · Appel · 59 s",
    "Appel · 59 s",
    "Appel · 59 s"
   ],
   [
    "XYZ",
    60,
+   "Appel téléphone · Appel · 1 min 00 s",
    "Appel · 1 min 00 s",
    "Appel · 1 min 00 s"
   ],
   [
    "XYZ",
    61,
+   "Appel téléphone · Appel · 1 min 01 s",
    "Appel · 1 min 01 s",
    "Appel · 1 min 01 s"
   ],
   [
    "XYZ",
    3599,
+   "Appel téléphone · Appel · 59 min 59 s",
    "Appel · 59 min 59 s",
    "Appel · 59 min 59 s"
   ],
   [
    "XYZ",
    3600,
+   "Appel téléphone · Appel · 1 h 00 min",
    "Appel · 1 h 00 min",
    "Appel · 1 h 00 min"
   ],
   [
    "XYZ",
    3725,
+   "Appel téléphone · Appel · 1 h 02 min",
    "Appel · 1 h 02 min",
    "Appel · 1 h 02 min"
   ],
   [
    "XYZ",
    86400,
+   "Appel téléphone · Appel · 24 h 00 min",
    "Appel · 24 h 00 min",
    "Appel · 24 h 00 min"
   ]
@@ -4693,7 +4767,7 @@
     "nomSurTelephone": "",
     "numero": "+33612345678",
     "sourceTranscription": "GOOGLE",
-    "titre": "Messagerie · 23 s",
+    "titre": "Appel téléphone · Messagerie · 23 s",
     "transcription": "[  0.0-  1.0] allo"
    }
   ],
@@ -4715,7 +4789,7 @@
     "idSource": "messagerie:1794485255000:+33698765432",
     "nomSurTelephone": "",
     "numero": "+33698765432",
-    "titre": "Messagerie"
+    "titre": "Appel téléphone · Messagerie"
    }
   ],
   [
@@ -4736,7 +4810,7 @@
     "idSource": "messagerie:1794485255000:masque",
     "nomSurTelephone": "",
     "numero": "",
-    "titre": "Messagerie · 7 s",
+    "titre": "Appel téléphone · Messagerie · 7 s",
     "transcription": "texte"
    }
   ]
