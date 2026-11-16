@@ -37,6 +37,8 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 
 `packages/twenty-apps/veridian/telephonie/` (10/11/2026) : app Twenty (SDK natif, aucun patch, aucune fonction serveur) qui ajoute les objets `appel` et `textMessage` reliés à Person, et deux types d'activité `linked` ancrés à la date de l'appel ou du message, donc visibles dans la timeline de la personne, plus des onglets Appels et SMS sur sa fiche ; l'audio vit dans le champ FILES. Ingestion manuelle et idempotente `ingestion/crm_telephonie.py` (Pixel, enregistrements JemRec, sauvegarde S10e). Mode d'emploi et pièges : son `README.md`. 🔴 `twenty app uninstall` supprime les objets et leurs données.
 
+`packages/twenty-apps/veridian/google-meet/` (16/11/2026) : app Twenty (SDK natif, aucun patch, aucune fonction serveur) « Créer un Meet » sur Personne, Société et Dossier, puis import du compte rendu Meet (participants, durée, enregistrement, transcription) en note et Call Recording. OAuth Google tenu par Twenty (fournisseurs USER et WORKSPACE), appels Google faits par le front component. Mode d'emploi et pièges : son `README.md`.
+
 `core-modules/veridian-hub-sso/`, le Hub seule source d'identité (décision Robert, 06/11/2026) :
 
 | Route | Rôle | Contrat |
