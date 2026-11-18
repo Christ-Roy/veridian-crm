@@ -228,10 +228,11 @@ MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 AUTH_GOOGLE_ENABLED=false
 MESSAGING_PROVIDER_GMAIL_ENABLED=false
 CALENDAR_PROVIDER_GOOGLE_ENABLED=true
-# Fonctions des apps COUPÉES (18/11/2026, parente) : en LOCAL, le code d'une app déposée par N'IMPORTE QUEL propriétaire
-# d'espace (4 externes en prod) tournait sur ce serveur ; mesuré : env filtré, disque fermé, MAIS pg-saas joignable en TCP.
-# Rétablir seulement avec un exécuteur isolé (sans réseau vers pg-saas) : ticket todo/2026-11-18-isolation-fonctions-app.md.
-LOGIC_FUNCTION_TYPE=DISABLED
+# Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
+# <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
+# Aujourd'hui : veridian-4 + Google Meet. Exécuteur isolé pour les fonctions des clients : ROB-237.
+LOGIC_FUNCTION_TYPE=LOCAL
+VERIDIAN_LOGIC_FUNCTION_ALLOW=
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -375,10 +376,11 @@ MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 CALENDAR_PROVIDER_GOOGLE_ENABLED=true
-# Fonctions des apps COUPÉES (18/11/2026, parente) : en LOCAL, le code d'une app déposée par N'IMPORTE QUEL propriétaire
-# d'espace (4 externes en prod) tournait sur ce serveur ; mesuré : env filtré, disque fermé, MAIS pg-saas joignable en TCP.
-# Rétablir seulement avec un exécuteur isolé (sans réseau vers pg-saas) : ticket todo/2026-11-18-isolation-fonctions-app.md.
-LOGIC_FUNCTION_TYPE=DISABLED
+# Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
+# <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
+# Aujourd'hui : veridian-4 + Google Meet. Exécuteur isolé pour les fonctions des clients : ROB-237.
+LOGIC_FUNCTION_TYPE=LOCAL
+VERIDIAN_LOGIC_FUNCTION_ALLOW=
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty
