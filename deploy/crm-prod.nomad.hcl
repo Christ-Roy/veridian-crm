@@ -227,7 +227,11 @@ VERIDIAN_HUB_MCP_AUDIENCE=https://crm.app.veridian.site/mcp
 MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 AUTH_GOOGLE_ENABLED=false
 MESSAGING_PROVIDER_GMAIL_ENABLED=false
-CALENDAR_PROVIDER_GOOGLE_ENABLED=false
+CALENDAR_PROVIDER_GOOGLE_ENABLED=true
+# Exécution des fonctions des apps (import Google Meet planifié, 16/11/2026) : pilote LOCAL = processus enfant Node en
+# --permission (lecture limitée à son dossier, écriture dans son tmp), environnement filtré (aucun secret du serveur).
+# Défaut en production : DISABLED. Seules les apps Veridian sont installées sur cette instance.
+LOGIC_FUNCTION_TYPE=LOCAL
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -235,6 +239,9 @@ PGDATABASE=${var.pg_base}
 PGHOST=${var.pg_hote}
 PGPORT=${var.pg_port}
 {{ with nomadVar "nomad/jobs/crm" }}
+AUTH_GOOGLE_CLIENT_ID={{ .AUTH_GOOGLE_CLIENT_ID }}
+AUTH_GOOGLE_CLIENT_SECRET={{ .AUTH_GOOGLE_CLIENT_SECRET }}
+AUTH_GOOGLE_APIS_CALLBACK_URL={{ .AUTH_GOOGLE_APIS_CALLBACK_URL }}
 APP_SECRET={{ .APP_SECRET }}
 HUB_API_SECRET={{ .HUB_API_SECRET }}
 PGPASSWORD={{ .PG_SAAS_PASSWORD }}
@@ -367,6 +374,11 @@ PG_POOL_IDLE_TIMEOUT_MS=60000
 MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
+CALENDAR_PROVIDER_GOOGLE_ENABLED=true
+# Exécution des fonctions des apps (import Google Meet planifié, 16/11/2026) : pilote LOCAL = processus enfant Node en
+# --permission (lecture limitée à son dossier, écriture dans son tmp), environnement filtré (aucun secret du serveur).
+# Défaut en production : DISABLED. Seules les apps Veridian sont installées sur cette instance.
+LOGIC_FUNCTION_TYPE=LOCAL
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty
@@ -374,6 +386,9 @@ PGDATABASE=${var.pg_base}
 PGHOST=${var.pg_hote}
 PGPORT=${var.pg_port}
 {{ with nomadVar "nomad/jobs/crm" }}
+AUTH_GOOGLE_CLIENT_ID={{ .AUTH_GOOGLE_CLIENT_ID }}
+AUTH_GOOGLE_CLIENT_SECRET={{ .AUTH_GOOGLE_CLIENT_SECRET }}
+AUTH_GOOGLE_APIS_CALLBACK_URL={{ .AUTH_GOOGLE_APIS_CALLBACK_URL }}
 APP_SECRET={{ .APP_SECRET }}
 PGPASSWORD={{ .PG_SAAS_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .PG_SAAS_PASSWORD }}@${var.pg_hote}:${var.pg_port}/${var.pg_base}
