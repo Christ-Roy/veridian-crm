@@ -96,7 +96,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
 ## 5. Construire et déployer
 
 - **Image : par la CI**, `.github/workflows/veridian-crm-ci.yaml`, sur nos runners : garde légale, patch-survival, image
-  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Durée mesurée : 13 min le 07/11/2026, 2 h 48 la veille sur un runner plus bridé ; le relevé de la CI fait foi. Pas de
+  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Durée : le relevé de la CI fait foi. Pas de
   `docker build` direct sur un nœud (règle de la plateforme, 07/11/2026) : hors CI, `lourd.sh` en `nice -n 19` sur un nœud libre.
 - `[skip ci]` dans un commit qui ne touche pas le produit. Un push normal annule la CI en cours sur la branche.
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
@@ -105,6 +105,8 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
 - **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
   `timeout` (`restart-task` lancé sans le faire : écritures Nomad du parc bloquées 83 min le 07/11/2026).
 - Démarrage lent : chaque étape d'entrée recharge Nest. Environ 2 min au calme, plus de 20 min sur un nœud saturé.
+- **Job prod `crm` : seule source vivante `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv` ; `nomad-veridian` n'en a qu'une
+  archive). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
 - **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe), depuis le 09/11/2026 ; `crm-db` retiré, dumps au froid. Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis : sans `REDIS_URL` le serveur sort au démarrage, 8 min de coupure le 09/11) en canari
   sans `canary_tags`, santé active Traefik, `shutdown_delay` 30 s ; groupe `worker` hors canari. Réservations
   données par `infra` (non reprenable mesuré + 30 à 50 %, plafond = pointe × 1,5). Jamais de base sur `rise`.
