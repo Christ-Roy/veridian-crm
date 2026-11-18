@@ -1,5 +1,7 @@
 import { WorkflowActionType } from 'twenty-shared/workflow';
 
+import { isVeridianLogicFunctionAllowListActive } from 'src/engine/core-modules/veridian-coupures/is-logic-function-allowed-by-veridian.util';
+
 // Twenty's own default: client code only runs when LOGIC_FUNCTION_TYPE says so, never in production by default.
 const isClientCodeExecutionDisabled = (): boolean =>
   (
@@ -15,7 +17,7 @@ export const isWorkflowActionDisabledByVeridian = (
     type === WorkflowActionType.CODE ||
     type === WorkflowActionType.LOGIC_FUNCTION
   ) {
-    return isClientCodeExecutionDisabled();
+    return isClientCodeExecutionDisabled() || isVeridianLogicFunctionAllowListActive();
   }
 
   if (

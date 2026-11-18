@@ -36,6 +36,7 @@ exige "$SERVEUR/engine/api/mcp/services/mcp-protocol.service.ts" "COMMON_PRELOAD
 exige "$SERVEUR/database/typeorm/core/core.datasource.ts" "...getVeridianPgPoolResilience()"
 exige "$SERVEUR/engine/workspace-query-executor/services/workspace-query-executor.service.ts" "...getVeridianPgPoolResilience()"
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "forRoutes({ path: ApiPath.Mcp"
+exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!isLogicFunctionAllowedByVeridian({"
 exige packages/twenty-front/src/pages/auth/SignInUp.tsx "useRedirectToHubLogin();"
 exige packages/twenty-front/src/modules/domain-manager/hooks/useRedirect.ts "createSingleNavigation"
 exige packages/twenty-front/src/modules/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo.ts "data:image/gif"

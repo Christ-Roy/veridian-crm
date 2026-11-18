@@ -51,6 +51,7 @@ import {
   ThrottlerExceptionCode,
 } from 'src/engine/core-modules/throttler/throttler.exception';
 import { ThrottlerService } from 'src/engine/core-modules/throttler/throttler.service';
+import { isLogicFunctionAllowedByVeridian } from 'src/engine/core-modules/veridian-coupures/is-logic-function-allowed-by-veridian.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { UsageLimitQuotaService } from 'src/engine/core-modules/usage-limit/services/usage-limit-quota.service';
 import { UsageQuotaAdmissionService } from 'src/engine/core-modules/usage-limit/services/usage-quota-admission.service';
@@ -269,6 +270,19 @@ export class LogicFunctionExecutorService {
   }: Pick<ExecutionArgs, 'workspaceId' | 'flatApplication' | 'spenders'> & {
     shouldEnforceUsageLimits?: boolean;
   }): Promise<void> {
+    // Veridian (ROB-235) : seuls les couples (espace, app) de VERIDIAN_LOGIC_FUNCTION_ALLOW s'exécutent, avant tout.
+    if (
+      !isLogicFunctionAllowedByVeridian({
+        workspaceId,
+        applicationUniversalIdentifier: flatApplication.universalIdentifier,
+      })
+    ) {
+      throw new LogicFunctionException(
+        `Application ${flatApplication.universalIdentifier} is not allowed to run code in this workspace`,
+        LogicFunctionExceptionCode.LOGIC_FUNCTION_DISABLED,
+      );
+    }
+
     // Before the shared workspace throttle so a stopped app's flood cannot drain other apps' token bucket.
     await this.assertApplicationNotStopped(flatApplication);
 
