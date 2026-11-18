@@ -228,10 +228,10 @@ MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 AUTH_GOOGLE_ENABLED=false
 MESSAGING_PROVIDER_GMAIL_ENABLED=false
 CALENDAR_PROVIDER_GOOGLE_ENABLED=true
-# Exécution des fonctions des apps (import Google Meet planifié, 16/11/2026) : pilote LOCAL = processus enfant Node en
-# --permission (lecture limitée à son dossier, écriture dans son tmp), environnement filtré (aucun secret du serveur).
-# Défaut en production : DISABLED. Seules les apps Veridian sont installées sur cette instance.
-LOGIC_FUNCTION_TYPE=LOCAL
+# Fonctions des apps COUPÉES (18/11/2026, parente) : en LOCAL, le code d'une app déposée par N'IMPORTE QUEL propriétaire
+# d'espace (4 externes en prod) tournait sur ce serveur ; mesuré : env filtré, disque fermé, MAIS pg-saas joignable en TCP.
+# Rétablir seulement avec un exécuteur isolé (sans réseau vers pg-saas) : ticket todo/2026-11-18-isolation-fonctions-app.md.
+LOGIC_FUNCTION_TYPE=DISABLED
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -375,10 +375,10 @@ MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 CALENDAR_PROVIDER_GOOGLE_ENABLED=true
-# Exécution des fonctions des apps (import Google Meet planifié, 16/11/2026) : pilote LOCAL = processus enfant Node en
-# --permission (lecture limitée à son dossier, écriture dans son tmp), environnement filtré (aucun secret du serveur).
-# Défaut en production : DISABLED. Seules les apps Veridian sont installées sur cette instance.
-LOGIC_FUNCTION_TYPE=LOCAL
+# Fonctions des apps COUPÉES (18/11/2026, parente) : en LOCAL, le code d'une app déposée par N'IMPORTE QUEL propriétaire
+# d'espace (4 externes en prod) tournait sur ce serveur ; mesuré : env filtré, disque fermé, MAIS pg-saas joignable en TCP.
+# Rétablir seulement avec un exécuteur isolé (sans réseau vers pg-saas) : ticket todo/2026-11-18-isolation-fonctions-app.md.
+LOGIC_FUNCTION_TYPE=DISABLED
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty
