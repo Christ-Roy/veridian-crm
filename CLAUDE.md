@@ -5,9 +5,10 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 
 ## 1. Vision
 
-- **Le plus petit fork qui tient.** Tout écart avec l'amont figure dans `VERIDIAN-PATCHES.md`, sinon c'est une
-  anomalie. Du code neuf dans `veridian-*`, de la variable d'environnement d'abord, du patch amont en dernier.
-  Une fonction Veridian retirée reste dans l'historique git (`git log --first-parent`).
+- **On ne modifie plus ce fork** (Robert, 18/11/2026), sauf exception justifiée et listée dans le catalogue
+  `veridian-crm-apps/docs/CATALOGUE.md` (auth Hub, gating, rebrand du bundle). Tout le reste est un plugin du dépôt
+  `Veridian-site/veridian-crm-apps` (standard dans son `CLAUDE.md`) ou un réglage par l'API. Tout écart avec l'amont
+  figure dans `VERIDIAN-PATCHES.md`, sinon c'est une anomalie.
 - **Le Hub, seule source des utilisateurs** (Robert, 06/11/2026). Twenty n'a ni inscription, ni mot de passe client, ni double authentification locale,
   ni changement d'email ou de nom hors Hub, ni invitation interne. Les tables `core` sont des copies alimentées par
   `core-modules/veridian-hub-sso/`, identifiées par `hub_user_id` (= `hub_app.users.supabase_user_id`). Le contrat
@@ -27,9 +28,7 @@ Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true` refuse le drapeau `A
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
 `metadata.crm` pour reconcile, nom du Hub poussé). L'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
-**Accès agent :** skill `twenty-cli` : `twenty-admin agent:grant` (clé rôle Admin + webhook, rangés dans `~/credentials`,
-jamais affichés), usage par le CLI natif `twenty` (`twenty-admin run <ws> -- …`), `import` (bulk JSONL/CSV par l'API),
-`compte:mail` (boîte IMAP/SMTP/CalDAV d'un membre, mot de passe lu dans les credentials, jamais affiché).
+**Accès agent, espaces jetables, plugins :** skill `twenty-cli` (`twenty-admin`), clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
 code client (aucun exécuteur sûr ; isolé après Patroni : `todo/2026-11-08-executeur-isole.md`), réglages en base.
 
@@ -43,7 +42,7 @@ code client (aucun exécuteur sûr ; isolé après Patroni : `todo/2026-11-08-ex
 | MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous ; la porte MCP du Hub y entre avec son JWT (`veridian-hub-mcp/`, CONTRAT-MCP) |
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
 | CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` ; ne crée pas de clé | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
-| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, déployés par `twenty app apply` | MIT | plugins Veridian : dépôt privé `Veridian-site/veridian-crm-apps` (Dossiers, Google Meet, Téléphonie), CI et déploiement propres ; ici seulement l app Android `packages/twenty-apps/veridian/telephonie/android` |
+| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front ; publiées au registre privé puis installées par espace | MIT | plugins Veridian : dépôt privé `Veridian-site/veridian-crm-apps` (Dossiers, Google Meet, Téléphonie, `twenty-admin app:install`) ; ici seulement l app Android `packages/twenty-apps/veridian/telephonie/android` |
 | IA | chat, agents, compétences, actions IA des workflows, tout derrière le drapeau de permission `AI` ; fournisseurs par clés d'env | AGPL | aucun fournisseur : drapeau `AI` forcé à faux (`VERIDIAN_AI_DISABLED`) |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
 | Facturation | Stripe, plans, crédits, `usage-limit` : 211 fichiers Enterprise | EE | inutilisable : `IS_BILLING_ENABLED=false`, aucune limite appliquée sans elle |
