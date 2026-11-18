@@ -30,7 +30,7 @@ ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorksp
 `metadata.crm` pour reconcile, nom du Hub poussé). L'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
 **Accès agent, espaces jetables, plugins :** skill `twenty-cli` (`twenty-admin`), clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
-code client (aucun exécuteur sûr ; isolé après Patroni : `todo/2026-11-08-executeur-isole.md`), réglages en base.
+code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), réglages en base.
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
