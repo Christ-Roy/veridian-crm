@@ -1,7 +1,10 @@
 # Isolation des fonctions d'app (logic functions) — 18/11/2026
 
-**État** : `LOGIC_FUNCTION_TYPE=DISABLED` en prod depuis le 18/11 (était LOCAL depuis le 16/11, commit ec3e64450b, pour
-l'import Google Meet planifié de Robert).
+**État (18/11, 14:20 UTC)** : LOCAL avec garde du fork (72d2f21e02) : seuls les couples (espace, app) de
+`VERIDIAN_LOGIC_FUNCTION_ALLOW` s'exécutent, aujourd'hui veridian-4 + Google Meet. Prouvé en prod : liste vide = tout
+refusé (Meet compris) ; liste posée = Meet exécuté dans veridian-4 (1,5 à 3,2 s), sonde d'un autre espace refusée (403),
+Meet installé dans un autre espace refusé (3 ms), identifiant de Meet recopié refusé dès l'enregistrement.
+Option A (exécuteur isolé, pour les fonctions des clients) : ROB-237.
 
 **Pourquoi coupé** : en LOCAL, une app déposée par n'importe quel propriétaire d'espace (`twenty app apply` avec sa propre
 clé, 4 propriétaires externes en prod, et tout inscrit du Hub en crée un) exécute son code sur le serveur CRM.
