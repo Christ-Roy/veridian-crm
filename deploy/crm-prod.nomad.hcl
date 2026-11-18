@@ -232,7 +232,7 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Aujourd'hui : veridian-4 + Google Meet. Exécuteur isolé pour les fonctions des clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
-VERIDIAN_LOGIC_FUNCTION_ALLOW=
+VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -380,7 +380,7 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Aujourd'hui : veridian-4 + Google Meet. Exécuteur isolé pour les fonctions des clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
-VERIDIAN_LOGIC_FUNCTION_ALLOW=
+VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty
