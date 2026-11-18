@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-7100391" # 10/11/2026 : auteur « Veridian CRM » dans la timeline, audio lisible dans l'aperçu (app Téléphonie)
+  default = "staging-72d2f21" # 18/11/2026 : liste blanche des fonctions d'app (ROB-235) ; précédente staging-7100391
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
