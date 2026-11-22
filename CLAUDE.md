@@ -30,7 +30,7 @@ ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorksp
 `metadata.crm` pour reconcile, nom du Hub poussé). L'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
 **Accès agent, espaces jetables, plugins :** skill `twenty-cli` (`twenty-admin`), clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
-code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), réglages en base.
+code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173, jetable refusé), réglages en base.
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
@@ -87,7 +87,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
-Il retire son compte et vérifie qu'aucun `parcours+*` ne reste. Piège (10/11) : sous Playwright, un `sys.exit` sur SIGTERM n'atteint pas `atexit` ; le gestionnaire nettoie lui-même.
+Il retire son compte et vérifie qu'aucun `parcours+*` ne reste. Piège (10/11) : sous Playwright, `sys.exit` sur SIGTERM n'atteint pas `atexit` : le gestionnaire nettoie.
 
 Avec `lourd`, `dist` est effacé à chaque copie : `nx run twenty-shared:build` avant toute spec.
 
@@ -104,7 +104,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
   tant que le commit n'est pas sur la branche distante.
 - **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
   `timeout`.
-- Démarrage lent : chaque étape d'entrée recharge Nest. Environ 2 min au calme, plus de 20 min sur un nœud saturé.
+- Démarrage lent (chaque étape recharge Nest) : 2 min au calme, plus de 20 min sur un nœud saturé.
 - **Job prod `crm` : seule source vivante `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv` ; `nomad-veridian` n'en a qu'une
   archive). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
 - **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe), depuis le 09/11/2026 ; `crm-db` retiré, dumps au froid. Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis : sans `REDIS_URL` le serveur sort au démarrage, 8 min de coupure le 09/11) en canari

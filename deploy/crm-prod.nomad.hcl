@@ -233,6 +233,9 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # Aujourd'hui : veridian-4 + Google Meet, veridian-4 + Chantier (22/11). Exécuteur isolé pour les clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
 VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3
+# Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
+# installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
+VERIDIAN_APP_INSTALL_ALLOW=
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -381,6 +384,9 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # Aujourd'hui : veridian-4 + Google Meet, veridian-4 + Chantier (22/11). Exécuteur isolé pour les clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
 VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3
+# Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
+# installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
+VERIDIAN_APP_INSTALL_ALLOW=
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty

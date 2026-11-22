@@ -37,6 +37,7 @@ exige "$SERVEUR/database/typeorm/core/core.datasource.ts" "...getVeridianPgPoolR
 exige "$SERVEUR/engine/workspace-query-executor/services/workspace-query-executor.service.ts" "...getVeridianPgPoolResilience()"
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "forRoutes({ path: ApiPath.Mcp"
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!isLogicFunctionAllowedByVeridian({"
+exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "!isApplicationInstallAllowedByVeridian({"
 exige packages/twenty-front/src/pages/auth/SignInUp.tsx "useRedirectToHubLogin();"
 exige packages/twenty-front/src/modules/domain-manager/hooks/useRedirect.ts "createSingleNavigation"
 exige packages/twenty-front/src/modules/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo.ts "data:image/gif"
@@ -98,6 +99,7 @@ exige packages/twenty-front/src/modules/log-console/hooks/useIsLogConsoleAllowed
 exige packages/twenty-front/src/modules/side-panel/pages/workflow/action/components/SidePanelWorkflowSelectAction.tsx "if (type === 'CODE')"
 exige "$SERVEUR/modules/workflow/workflow-builder/workflow-version-step/workflow-version-step-operations.workspace-service.ts" "isWorkflowActionDisabledByVeridian(type)"
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$job" "IS_CONFIG_VARIABLES_IN_DB_ENABLED=false"; done
+for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$job" "VERIDIAN_APP_INSTALL_ALLOW="; done
 
 # Un workflow invalide échoue sans job ni message utile : on le voit ici, avant le push.
 if python3 -c "import yaml" 2>/dev/null; then

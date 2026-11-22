@@ -246,6 +246,9 @@ VERIDIAN_AI_DISABLED=true
 # Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).
 LOGIC_FUNCTION_TYPE=LOCAL
 VERIDIAN_LOGIC_FUNCTION_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3
+# Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
+# installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
+VERIDIAN_APP_INSTALL_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:e3df4b02-559e-4624-b985-3fd49cfd1725,4e8c64ad-e4bd-4633-89cb-746957ef2a81:e3df4b02-559e-4624-b985-3fd49cfd1725
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 8 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=8
@@ -314,6 +317,9 @@ VERIDIAN_AI_DISABLED=true
 # Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).
 LOGIC_FUNCTION_TYPE=LOCAL
 VERIDIAN_LOGIC_FUNCTION_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3
+# Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
+# installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
+VERIDIAN_APP_INSTALL_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:e3df4b02-559e-4624-b985-3fd49cfd1725,4e8c64ad-e4bd-4633-89cb-746957ef2a81:e3df4b02-559e-4624-b985-3fd49cfd1725
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 4 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=4

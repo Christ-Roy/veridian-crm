@@ -71,6 +71,7 @@ import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queu
 import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
+import { isApplicationInstallAllowedByVeridian } from 'src/engine/core-modules/veridian-coupures/is-application-install-allowed-by-veridian.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 
 @Injectable()
@@ -138,6 +139,20 @@ export class ApplicationInstallService {
       );
 
       return true;
+    }
+
+    // Veridian (VER-173) : le registre privé ne vérifie pas qui installe ; seuls les couples (espace, app) de
+    // VERIDIAN_APP_INSTALL_ALLOW installent ou mettent à jour du code publié.
+    if (
+      !isApplicationInstallAllowedByVeridian({
+        workspaceId: params.workspaceId,
+        applicationUniversalIdentifier: appRegistration.universalIdentifier,
+      })
+    ) {
+      throw new ApplicationException(
+        `Installation of application ${appRegistration.universalIdentifier} is not allowed on workspace ${params.workspaceId}`,
+        ApplicationExceptionCode.FORBIDDEN,
+      );
     }
 
     const progressReporter = createApplicationLifecycleProgressReporter({
