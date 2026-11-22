@@ -84,6 +84,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier, espace jetable | mesure, à rejouer sur le nœud de prod |
 | `scripts/ci/preuve-mcp-hub.py <url_mcp> <hub_user_id>` | JWT du Hub sur `/mcp` : connu, inconnu, `tenant_*`, aide hors MCP | prod 401 avant le module (09/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
+| `scripts/ci/preuve-installation-app.py [--env] --attendu refus\|installe <ws> <uid>` | garde d'installation VER-173 sur l'instance : refus `FORBIDDEN` hors couple, rien d'installé | prod 22/11 : jetable installait Chantier avant la garde ; attendu inversé, code 1 |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
