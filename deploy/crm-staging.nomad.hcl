@@ -238,6 +238,11 @@ HUB_URL=https://hub.staging.veridian.site
 HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
 VERIDIAN_AI_DISABLED=true
+# Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
+# <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
+# Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).
+LOGIC_FUNCTION_TYPE=LOCAL
+VERIDIAN_LOGIC_FUNCTION_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 8 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=8
@@ -301,6 +306,11 @@ DEFAULT_SUBDOMAIN=app
 IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
 VERIDIAN_AI_DISABLED=true
+# Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
+# <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
+# Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).
+LOGIC_FUNCTION_TYPE=LOCAL
+VERIDIAN_LOGIC_FUNCTION_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 4 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=4
