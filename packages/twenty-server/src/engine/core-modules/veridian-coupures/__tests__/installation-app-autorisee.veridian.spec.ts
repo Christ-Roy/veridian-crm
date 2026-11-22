@@ -1,3 +1,11 @@
+// twenty-client-sdk n'est pas construit en CI ; le service ne s'en sert pas avant la garde.
+jest.mock('src/engine/core-modules/sdk-client/sdk-client-archive.service', () => ({
+  SdkClientArchiveService: class {},
+}));
+jest.mock('src/engine/core-modules/sdk-client/sdk-client-generation.service', () => ({
+  SdkClientGenerationService: class {},
+}));
+
 import { ApplicationInstallService } from 'src/engine/core-modules/application/application-install/application-install.service';
 import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
 import { ApplicationExceptionCode } from 'src/engine/core-modules/application/application.exception';
