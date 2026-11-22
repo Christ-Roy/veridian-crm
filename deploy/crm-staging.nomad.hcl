@@ -226,6 +226,9 @@ EOH
         env         = true
         data        = <<EOH
 NODE_PORT=3000
+# Traefik joint le serveur par le tailnet : sans 100.64.0.0/10 dans TRUST_PROXY, X-Forwarded-Proto est ignoré, le
+# serveur se croit en http et refuse le cookie de session (rebond Hub en échec, mesuré le 22/11 ; même piège en prod le 08/11).
+TRUST_PROXY=loopback, linklocal, uniquelocal, 100.64.0.0/10
 SERVER_URL=https://crm.staging.veridian.site
 FRONTEND_URL=https://crm.staging.veridian.site
 IS_MULTIWORKSPACE_ENABLED=true
