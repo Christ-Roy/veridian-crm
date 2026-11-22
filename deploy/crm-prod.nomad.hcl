@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-ec306ff" # 22/11/2026 : free grant_manual non immunisé contre Stripe
+  default = "staging-38eaa75" # 22/11/2026 : garde (espace, app) à l'installation, VER-173
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.

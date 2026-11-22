@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-ec306ff" # 22/11/2026 : free grant_manual non immunisé contre Stripe
+  default = "staging-38eaa75" # 22/11/2026 : garde (espace, app) à l'installation, VER-173
 }
 
 job "crm-staging" {
