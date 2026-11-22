@@ -235,7 +235,8 @@ LOGIC_FUNCTION_TYPE=LOCAL
 VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3
 # Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
-VERIDIAN_APP_INSTALL_ALLOW=
+# Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie (épreuve liste vide le 22/11).
+VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -386,7 +387,8 @@ LOGIC_FUNCTION_TYPE=LOCAL
 VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3
 # Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
-VERIDIAN_APP_INSTALL_ALLOW=
+# Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie (épreuve liste vide le 22/11).
+VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty
