@@ -130,7 +130,12 @@ export const decidePlanUpdate = (
   }
 
   // §3.4 invariant 4: an offered plan is never taken back by Stripe or an automatic downgrade.
-  if (current.planSource === 'grant_manual' && planSource !== 'grant_manual') {
+  // A free marked grant_manual is the Hub's initial provisioning, not an offer (§3.3, 22/11/2026).
+  if (
+    current.planSource === 'grant_manual' &&
+    current.plan !== 'free' &&
+    planSource !== 'grant_manual'
+  ) {
     return { kind: 'reject', status: 409, error: 'plan_source_immutable' };
   }
 

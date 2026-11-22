@@ -85,6 +85,21 @@ describe('update-plan (CONTRAT-BILLING v2 §3)', () => {
     },
   );
 
+  it.each(['stripe', 'stripe_trial', 'downgrade_auto'])(
+    'un free posé en grant_manual (provisioning initial du Hub) se laisse remplacer par %s',
+    (source) => {
+      const initial = { plan: 'free', planSource: 'grant_manual' };
+
+      expect(
+        decidePlanUpdate(
+          corps({ plan: 'pro', plan_source: source }),
+          initial,
+          now,
+        ).kind,
+      ).toBe('apply');
+    },
+  );
+
   it('grant_manual a toujours le dernier mot', () => {
     const offert = { plan: 'business', planSource: 'grant_manual' };
 
