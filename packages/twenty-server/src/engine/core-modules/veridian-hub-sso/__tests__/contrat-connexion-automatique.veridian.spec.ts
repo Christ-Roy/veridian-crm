@@ -57,6 +57,9 @@ jest.mock('src/engine/core-modules/key-value-pair/key-value-pair.entity', () => 
 jest.mock('src/engine/core-entity-cache/services/core-entity-cache.service', () => ({
   CoreEntityCacheService: class CoreEntityCacheService {},
 }));
+jest.mock('src/engine/workspace-cache/services/workspace-cache.service', () => ({
+  WorkspaceCacheService: class WorkspaceCacheService {},
+}));
 jest.mock('src/engine/twenty-orm/workspace-orm.manager', () => ({
   WorkspaceOrmManager: class WorkspaceOrmManager {},
 }));

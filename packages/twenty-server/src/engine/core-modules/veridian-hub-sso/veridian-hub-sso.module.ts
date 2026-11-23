@@ -19,6 +19,7 @@ import { HubOnlyIdentityGuard } from 'src/engine/core-modules/veridian-hub-sso/g
 import { WorkspaceMemberIdentityPreQueryHook } from 'src/engine/core-modules/veridian-hub-sso/query-hooks/workspace-member-identity.pre-query.hook';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
     UserSessionModule,
     UserWorkspaceModule,
     CoreEntityCacheModule,
+    WorkspaceCacheModule,
   ],
   controllers: [VeridianHubSsoController],
   providers: [

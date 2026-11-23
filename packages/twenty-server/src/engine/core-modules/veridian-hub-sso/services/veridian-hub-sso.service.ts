@@ -8,7 +8,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { AppPath } from 'twenty-shared/types';
-import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
+import {
+  isWorkspaceProvisioned,
+  WorkspaceActivationStatus,
+} from 'twenty-shared/workspace';
 import { IsNull, Like, Repository } from 'typeorm';
 
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
@@ -38,6 +41,7 @@ import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/worksp
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
+import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
 const RATE_LIMIT_PER_MINUTE = 10;
@@ -90,6 +94,7 @@ export class VeridianHubSsoService {
     private readonly coreEntityCacheService: CoreEntityCacheService,
     private readonly workspaceOrmManager: WorkspaceOrmManager,
     private readonly userSessionService: UserSessionService,
+    private readonly workspaceCacheService: WorkspaceCacheService,
   ) {}
 
   // ── Identity: hub_user_id first, email only to bind an account with no link yet.
@@ -491,6 +496,10 @@ export class VeridianHubSsoService {
         )
       : false;
 
+    if (known && !alreadyMember) {
+      await this.updateMemberRecord(workspace, known.id, 'restore');
+    }
+
     const user = await this.signInUpService.signInUpOnExistingWorkspace({
       workspace,
       userData: known
@@ -547,12 +556,8 @@ export class VeridianHubSsoService {
         })
       : null;
 
-    if (membership) {
-      await this.userWorkspaceService.deleteUserWorkspace({
-        userWorkspaceId: membership.id,
-        workspaceId,
-        softDelete: true,
-      });
+    if (user) {
+      await this.detachMember(user.id, workspaceId, membership?.id);
     }
 
     return Boolean(membership);
@@ -639,12 +644,55 @@ export class VeridianHubSsoService {
     });
 
     for (const membership of memberships) {
+      await this.detachMember(userId, membership.workspaceId, membership.id);
+    }
+  }
+
+  // A live workspaceMember with no live userWorkspace breaks GetCurrentUser for the whole workspace: both go
+  // together. Called again, it also repairs a record left behind.
+  private async detachMember(
+    userId: string,
+    workspaceId: string,
+    userWorkspaceId?: string,
+  ) {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    if (workspace) {
+      await this.updateMemberRecord(workspace, userId, 'softDelete');
+    }
+
+    if (userWorkspaceId) {
       await this.userWorkspaceService.deleteUserWorkspace({
-        userWorkspaceId: membership.id,
-        workspaceId: membership.workspaceId,
+        userWorkspaceId,
+        workspaceId,
         softDelete: true,
       });
     }
+  }
+
+  private async updateMemberRecord(
+    workspace: WorkspaceEntity,
+    userId: string,
+    action: 'softDelete' | 'restore',
+  ) {
+    if (!isWorkspaceProvisioned(workspace)) {
+      return;
+    }
+
+    await this.workspaceOrmManager.executeInWorkspaceContext(async () => {
+      const repository =
+        this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(
+          'workspaceMember',
+        );
+
+      await repository[action]({ userId });
+    }, buildSystemAuthContext(workspace.id));
+
+    await this.workspaceCacheService.invalidateAndRecompute(workspace.id, [
+      'flatWorkspaceMemberMaps',
+    ]);
   }
 
   // CONTRAT-HUB §3.8: humans only, the audit needs the accounts with no Hub link too.

@@ -12,7 +12,7 @@ G=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/guards/hub-onl
 N=packages/twenty-shared/src/utils/navigation/createSingleNavigation.ts
 
 jouer() {
-  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'contrat-connexion-automatique|hub-only-identity|marque.veridian' >/tmp/mutation.log 2>&1)
+  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'contrat-connexion-automatique|hub-only-identity|marque.veridian|retrait-membre' >/tmp/mutation.log 2>&1)
 }
 
 jouer || { tail -30 /tmp/mutation.log; echo "NON ABOUTI : spec rouge sans sabotage"; exit 2; }
@@ -50,6 +50,11 @@ saboter "4. route ouverte au POST" "$C" "@Get('welcome')" "@Post('welcome')"
 saboter "5. origine non contrôlée" "packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util.ts" "if (!isSameHost && !isSubdomain) {" "if (false as boolean) {"
 saboter "5. espace demandé ignoré" "$S" 'ownNext?.subdomain ?? null' 'null'
 saboter "6. revoke_sessions sans effet" "$S" 'if (revokeSessions === true) {' 'if (false as boolean) {'
+saboter "retrait : fiche laissée" "$S" "this.updateMemberRecord(workspace, userId, 'softDelete');" 'undefined;'
+saboter "retrait : appartenance laissée" "$S" 'if (userWorkspaceId) {' 'if (false as boolean) {'
+saboter "retrait : cache des membres figé" "$S" "'flatWorkspaceMemberMaps'," ''
+saboter "retrait : espace sans schéma bloquant" "$S" 'if (!isWorkspaceProvisioned(workspace)) {' 'if (false as boolean) {'
+saboter "retour : fiche non restaurée" "$S" "await this.updateMemberRecord(workspace, known.id, 'restore');" ''
 saboter "boucle : garde retirée" "$N" 'if (url === navigatingToUrl) {' 'if (false as boolean) {'
 
 for mutation in deleteUser deleteUserFromWorkspace deleteCurrentWorkspace initiateOTPProvisioning initiateOTPProvisioningForAuthenticatedUser verifyTwoFactorAuthenticationMethodForAuthenticatedUser deleteTwoFactorAuthenticationMethod generateTwoFactorAuthenticationRecoveryCode revokeTwoFactorAuthenticationRecoveryCode getAuthTokensFromOTP getAuthTokensFromTwoFactorAuthenticationRecoveryCode; do
