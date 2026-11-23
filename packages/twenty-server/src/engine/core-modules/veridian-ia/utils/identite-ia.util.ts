@@ -11,16 +11,20 @@ import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 export const EN_TETE_CONTEXTE_IA = 'x-veridian-ia-contexte';
 export const EN_TETE_IDENTITE_IA = 'x-veridian-ia-identite';
 export const ISSUER_IDENTITE_IA = 'veridian-crm';
-export const AUDIENCE_IDENTITE_IA = 'veridian-hub-ia';
+// Contrat du Hub (veridian-hub/docs/MON-IA.md, « Le fournisseur Veridian ») : aud = la base de son point d'accès.
+export const AUDIENCE_IDENTITE_IA = 'https://app.veridian.site/api/ia/v1';
+// fil : [A-Za-z0-9_-]{1,128}, jamais vide ; un appel sans fil (génération ponctuelle) prend un fil fixe.
+const FIL_PONCTUEL = 'ponctuel';
+const FIL_VALIDE = /^[A-Za-z0-9_-]{1,128}$/;
 const DUREE_S = 60;
 
-export type ContexteIa = { workspaceId: string; userWorkspaceId: string | null; fil: string | null };
+export type ContexteIa = { workspaceId: string; userWorkspaceId: string | null; fil: string };
 export type ClaimsIdentiteIa = {
   iss: string;
   aud: string;
   workspace_id: string;
   hub_user_id: string | null;
-  fil: string | null;
+  fil: string;
   iat: number;
   exp: number;
   jti: string;
@@ -37,7 +41,7 @@ export const encoderContexteIa = (c: {
   c.workspaceId
     ? {
         [EN_TETE_CONTEXTE_IA]: b64url(
-          JSON.stringify({ workspaceId: c.workspaceId, userWorkspaceId: c.userWorkspaceId ?? null, fil: c.threadId ?? c.agentId ?? null }),
+          JSON.stringify({ workspaceId: c.workspaceId, userWorkspaceId: c.userWorkspaceId ?? null, fil: c.threadId ?? c.agentId ?? FIL_PONCTUEL }),
         ),
       }
     : {};
@@ -48,7 +52,7 @@ export const decoderContexteIa = (valeur: string | undefined): ContexteIa | null
     const c = JSON.parse(Buffer.from(valeur, 'base64url').toString('utf8'));
 
     return typeof c?.workspaceId === 'string'
-      ? { workspaceId: c.workspaceId, userWorkspaceId: c.userWorkspaceId ?? null, fil: c.fil ?? null }
+      ? { workspaceId: c.workspaceId, userWorkspaceId: c.userWorkspaceId ?? null, fil: typeof c.fil === 'string' && FIL_VALIDE.test(c.fil) ? c.fil : FIL_PONCTUEL }
       : null;
   } catch {
     return null;
@@ -59,7 +63,7 @@ const signature = (secret: string, signe: string) => createHmac('sha256', secret
 
 export const signerIdentiteIa = (
   secret: string,
-  c: { workspaceId: string; hubUserId: string | null; fil: string | null },
+  c: { workspaceId: string; hubUserId: string | null; fil: string },
   maintenantMs = Date.now(),
 ): string => {
   const iat = Math.floor(maintenantMs / 1000);
@@ -109,6 +113,7 @@ export const verifierIdentiteIa = (
   if (typeof claims.exp !== 'number' || claims.exp <= maintenantS || claims.exp - claims.iat > DUREE_S) return { ok: false, raison: 'expiré' };
   if (typeof claims.jti !== 'string' || claims.jti.length === 0) return { ok: false, raison: 'jti absent' };
   if (typeof claims.workspace_id !== 'string') return { ok: false, raison: 'workspace absent' };
+  if (typeof claims.fil !== 'string' || !FIL_VALIDE.test(claims.fil)) return { ok: false, raison: 'fil invalide' };
   if (attendu.workspaceId !== undefined && claims.workspace_id !== attendu.workspaceId) return { ok: false, raison: 'workspace qui ne correspond pas' };
 
   return { ok: true, claims };

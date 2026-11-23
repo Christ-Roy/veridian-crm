@@ -1,3 +1,5 @@
+import { createHmac } from 'crypto';
+
 import { generateText } from 'ai';
 
 import {
@@ -34,6 +36,20 @@ describe('assertion d’identité IA : vérificateur de référence', () => {
 
   it('refuse une assertion expirée (61 s)', () => {
     expect(verifierIdentiteIa(jeton(Date.now() - 61_000), SECRET)).toEqual({ ok: false, raison: 'expiré' });
+  });
+
+  it('refuse une audience étrangère et un fil hors contrat', () => {
+    const forger = (claims: Record<string, unknown>) => {
+      const signe = `${Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`;
+
+      return `${signe}.${createHmac('sha256', SECRET).update(signe).digest('base64url')}`;
+    };
+    const iat = Math.floor(Date.now() / 1000);
+    const base = { iss: 'veridian-crm', aud: 'https://app.veridian.site/api/ia/v1', workspace_id: WS, hub_user_id: 'h', fil: 'f', iat, exp: iat + 60, jti: 'j' };
+
+    expect(verifierIdentiteIa(forger(base), SECRET).ok).toBe(true);
+    expect(verifierIdentiteIa(forger({ ...base, aud: 'veridian-hub-ia' }), SECRET)).toEqual({ ok: false, raison: 'émetteur ou audience refusés' });
+    expect(verifierIdentiteIa(forger({ ...base, fil: '../x' }), SECRET)).toEqual({ ok: false, raison: 'fil invalide' });
   });
 
   it('refuse un workspace qui ne correspond pas', () => {

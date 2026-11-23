@@ -14,7 +14,7 @@ const forger = (secret, claims) => {
 
 const claims = (autres = {}) => {
   const iat = Math.floor(Date.now() / 1000);
-  return { iss: 'veridian-crm', aud: 'veridian-hub-ia', workspace_id: attendu, hub_user_id: 'epreuve', fil: null, iat, exp: iat + 60, jti: crypto.randomUUID(), ...autres };
+  return { iss: 'veridian-crm', aud: 'https://app.veridian.site/api/ia/v1', workspace_id: attendu, hub_user_id: 'epreuve', fil: 'epreuve', iat, exp: iat + 60, jti: crypto.randomUUID(), ...autres };
 };
 
 const cas = [

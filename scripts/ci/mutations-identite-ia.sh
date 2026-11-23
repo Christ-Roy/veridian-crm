@@ -55,5 +55,8 @@ saboter "7. contexte interne laissé aux autres fournisseurs" "$M" "      return
     const secret"
 saboter "8. identité signée pour tout fournisseur" "$M" "  providerName === (process.env.VERIDIAN_IA_FOURNISSEUR ?? 'veridian');" "  providerName.length > 0;"
 
+saboter "9. audience non comparée" "$U" "claims.aud !== AUDIENCE_IDENTITE_IA) return" "false) return"
+saboter "10. fil non contrôlé" "$U" "!FIL_VALIDE.test(claims.fil)) return" "false) return"
+
 [ "$rate" -eq 0 ] && { echo "CONFORME : chaque garde de l'identité IA est vue échouer"; exit 0; }
 exit 1

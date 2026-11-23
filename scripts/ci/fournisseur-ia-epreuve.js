@@ -27,7 +27,7 @@ const verdict = (jeton) => {
   if (recue.length !== attendue.length || !crypto.timingSafeEqual(recue, attendue)) return 'REFUSE signature fausse';
   const c = JSON.parse(b64(p[1]).toString('utf8'));
   const maintenant = Math.floor(Date.now() / 1000);
-  if (c.iss !== 'veridian-crm' || c.aud !== 'veridian-hub-ia') return 'REFUSE émetteur ou audience';
+  if (c.iss !== 'veridian-crm' || c.aud !== 'https://app.veridian.site/api/ia/v1') return 'REFUSE émetteur ou audience';
   if (!(c.exp > maintenant) || c.exp - c.iat > 60) return 'REFUSE expiré';
   if (ATTENDU && c.workspace_id !== ATTENDU) return 'REFUSE workspace qui ne correspond pas';
   if (vus.has(c.jti)) return 'REFUSE rejoué';
