@@ -8,6 +8,7 @@ const crypto = require('crypto');
 
 const SECRET = process.env.VERIDIAN_IA_IDENTITE_SECRET || '';
 const PORT = Number(process.argv[2] || 18765);
+const ATTENDU = process.argv[3] || null;
 const vus = new Set();
 
 if (SECRET.length < 32) {
@@ -28,6 +29,7 @@ const verdict = (jeton) => {
   const maintenant = Math.floor(Date.now() / 1000);
   if (c.iss !== 'veridian-crm' || c.aud !== 'veridian-hub-ia') return 'REFUSE émetteur ou audience';
   if (!(c.exp > maintenant) || c.exp - c.iat > 60) return 'REFUSE expiré';
+  if (ATTENDU && c.workspace_id !== ATTENDU) return 'REFUSE workspace qui ne correspond pas';
   if (vus.has(c.jti)) return 'REFUSE rejoué';
   vus.add(c.jti);
   return `IDENTITE OK workspace_id=${c.workspace_id} hub_user_id=${c.hub_user_id} fil=${c.fil}`;

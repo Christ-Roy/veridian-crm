@@ -242,8 +242,8 @@ HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
 # IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une
 # identité signée (VERIDIAN_IA_IDENTITE_SECRET). baseUrl = faux fournisseur scripts/ci/fournisseur-ia-epreuve.js, lancé
-# à la main dans ce conteneur le temps d'une épreuve. La prod garde l'IA coupée tant que le Hub ne sert pas.
-VERIDIAN_AI_DISABLED=false
+# à la main dans ce conteneur le temps d'une épreuve (passer à false, prouvé le 23/11). Coupée hors épreuve : pas d'écran mort.
+VERIDIAN_AI_DISABLED=true
 VERIDIAN_IA_FOURNISSEUR=veridian
 AI_PROVIDERS='{"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}'
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
@@ -319,8 +319,8 @@ IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
 # IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une
 # identité signée (VERIDIAN_IA_IDENTITE_SECRET). baseUrl = faux fournisseur scripts/ci/fournisseur-ia-epreuve.js, lancé
-# à la main dans ce conteneur le temps d'une épreuve. La prod garde l'IA coupée tant que le Hub ne sert pas.
-VERIDIAN_AI_DISABLED=false
+# à la main dans ce conteneur le temps d'une épreuve (passer à false, prouvé le 23/11). Coupée hors épreuve : pas d'écran mort.
+VERIDIAN_AI_DISABLED=true
 VERIDIAN_IA_FOURNISSEUR=veridian
 AI_PROVIDERS='{"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}'
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
