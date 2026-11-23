@@ -241,8 +241,8 @@ HUB_URL=https://hub.staging.veridian.site
 HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
 # IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une
-# identité signée (secrets IA_FOURNISSEUR_CLE et IA_IDENTITE_SECRET, posés par scripts/ci/poser-secrets-ia.py depuis
-# nomad/jobs/hub). AI_PROVIDERS est rendu dans le bloc nomadVar plus bas. Coupée hors épreuve : pas d'écran mort.
+# identité signée (secrets de la Variable partagée veridian/ia-identite, posée par l'infra, lisible par hub, crm et
+# crm-staging). Gabarits à brancher dessus dès que l'infra la livre. Coupée hors épreuve : pas d'écran mort.
 VERIDIAN_AI_DISABLED=true
 VERIDIAN_IA_FOURNISSEUR=veridian
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
@@ -318,8 +318,8 @@ DEFAULT_SUBDOMAIN=app
 IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
 # IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une
-# identité signée (secrets IA_FOURNISSEUR_CLE et IA_IDENTITE_SECRET, posés par scripts/ci/poser-secrets-ia.py depuis
-# nomad/jobs/hub). AI_PROVIDERS est rendu dans le bloc nomadVar plus bas. Coupée hors épreuve : pas d'écran mort.
+# identité signée (secrets de la Variable partagée veridian/ia-identite, posée par l'infra, lisible par hub, crm et
+# crm-staging). Gabarits à brancher dessus dès que l'infra la livre. Coupée hors épreuve : pas d'écran mort.
 VERIDIAN_AI_DISABLED=true
 VERIDIAN_IA_FOURNISSEUR=veridian
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
