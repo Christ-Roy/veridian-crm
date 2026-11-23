@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-2c6e252" # 23/11/2026 : identité au contrat du Hub (VER-203)
+  default = "staging-a0965d8" # 23/11/2026 : identité au contrat du Hub (VER-203)
 }
 
 job "crm-staging" {
