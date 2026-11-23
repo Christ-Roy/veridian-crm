@@ -90,7 +90,6 @@ exige packages/twenty-front/src/modules/side-panel/pages/workflow/action/compone
 refuse packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatGptTwentyAppUrl"
 exige packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatgpt.com/#settings/Connectors"
 # L'IA ne s'allume que derrière le seul fournisseur « veridian » avec identité signée (VER-203), jamais un tiers.
-if ! grep -q "^VERIDIAN_AI_DISABLED=true$" deploy/crm-prod.nomad.hcl; then echo "PATCH ABSENT : la prod allume l'IA"; echec=1; fi
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do
   if ! grep -q "^VERIDIAN_AI_DISABLED=true$" "$job"; then
     # entre apostrophes : le format d'environnement de Nomad mange les guillemets d'un JSON nu (staging, 23/11)

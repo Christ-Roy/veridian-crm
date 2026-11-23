@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-38eaa75" # 22/11/2026 : garde (espace, app) à l'installation, VER-173
+  default = "staging-2c6e252" # 23/11/2026 : chat natif de Twenty servi par le Hub, identité signée (VER-203)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
@@ -216,7 +216,11 @@ AUTH_MICROSOFT_ENABLED=false
 HUB_URL=https://app.veridian.site
 HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
-VERIDIAN_AI_DISABLED=true
+# IA (VER-203, 23/11/2026) : seul fournisseur « veridian » = le Hub (https://app.veridian.site/api/ia/v1), routé vers
+# le moteur de chaque utilisateur ; chaque appel au modèle porte une identité signée (Variable partagée
+# veridian/ia-identite : secret et cle_instance, lue par crm, crm-staging et hub). Retour arrière : VERIDIAN_AI_DISABLED=true.
+VERIDIAN_AI_DISABLED=false
+VERIDIAN_IA_FOURNISSEUR=veridian
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 8 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=8
@@ -252,6 +256,10 @@ HUB_API_SECRET={{ .HUB_API_SECRET }}
 PGPASSWORD={{ .PG_SAAS_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .PG_SAAS_PASSWORD }}@${var.pg_hote}:${var.pg_port}/${var.pg_base}
 REDIS_URL=redis://:{{ .REDIS_PASSWORD }}@${var.redis_hote}:${var.redis_port}
+{{ end }}
+{{ with nomadVar "veridian/ia-identite" }}
+VERIDIAN_IA_IDENTITE_SECRET={{ .secret }}
+AI_PROVIDERS='{"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"https://app.veridian.site/api/ia/v1","apiKey":"{{ .cle_instance }}","models":[{"name":"veridian-auto","label":"Assistant Veridian","contextWindowTokens":200000,"maxOutputTokens":8192}]}}'
 {{ end }}
 EOH
       }
@@ -371,7 +379,11 @@ IS_MULTIWORKSPACE_ENABLED=true
 DEFAULT_SUBDOMAIN=app
 IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
-VERIDIAN_AI_DISABLED=true
+# IA (VER-203, 23/11/2026) : seul fournisseur « veridian » = le Hub (https://app.veridian.site/api/ia/v1), routé vers
+# le moteur de chaque utilisateur ; chaque appel au modèle porte une identité signée (Variable partagée
+# veridian/ia-identite : secret et cle_instance, lue par crm, crm-staging et hub). Retour arrière : VERIDIAN_AI_DISABLED=true.
+VERIDIAN_AI_DISABLED=false
+VERIDIAN_IA_FOURNISSEUR=veridian
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 4 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=4
@@ -403,6 +415,10 @@ APP_SECRET={{ .APP_SECRET }}
 PGPASSWORD={{ .PG_SAAS_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .PG_SAAS_PASSWORD }}@${var.pg_hote}:${var.pg_port}/${var.pg_base}
 REDIS_URL=redis://:{{ .REDIS_PASSWORD }}@${var.redis_hote}:${var.redis_port}
+{{ end }}
+{{ with nomadVar "veridian/ia-identite" }}
+VERIDIAN_IA_IDENTITE_SECRET={{ .secret }}
+AI_PROVIDERS='{"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"https://app.veridian.site/api/ia/v1","apiKey":"{{ .cle_instance }}","models":[{"name":"veridian-auto","label":"Assistant Veridian","contextWindowTokens":200000,"maxOutputTokens":8192}]}}'
 {{ end }}
 EOH
       }
