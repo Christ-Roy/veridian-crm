@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-38eaa75" # 22/11/2026 : garde (espace, app) à l'installation, VER-173
+  default = "staging-db70c22" # 23/11/2026 : identité signée sur les appels au modèle (VER-203), épreuve staging
 }
 
 job "crm-staging" {
@@ -240,7 +240,12 @@ AUTH_MICROSOFT_ENABLED=false
 HUB_URL=https://hub.staging.veridian.site
 HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
 TELEMETRY_ENABLED=false
-VERIDIAN_AI_DISABLED=true
+# IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une
+# identité signée (VERIDIAN_IA_IDENTITE_SECRET). baseUrl = faux fournisseur scripts/ci/fournisseur-ia-epreuve.js, lancé
+# à la main dans ce conteneur le temps d'une épreuve. La prod garde l'IA coupée tant que le Hub ne sert pas.
+VERIDIAN_AI_DISABLED=false
+VERIDIAN_IA_FOURNISSEUR=veridian
+AI_PROVIDERS={"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).
@@ -268,6 +273,7 @@ PGUSER=twenty
 PGDATABASE=twenty
 {{ with nomadVar "nomad/jobs/crm-staging" }}
 APP_SECRET={{ .APP_SECRET }}
+VERIDIAN_IA_IDENTITE_SECRET={{ .VERIDIAN_IA_IDENTITE_SECRET }}
 HUB_API_SECRET={{ .HUB_API_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
@@ -311,7 +317,12 @@ IS_MULTIWORKSPACE_ENABLED=true
 DEFAULT_SUBDOMAIN=app
 IS_BILLING_ENABLED=false
 TELEMETRY_ENABLED=false
-VERIDIAN_AI_DISABLED=true
+# IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une
+# identité signée (VERIDIAN_IA_IDENTITE_SECRET). baseUrl = faux fournisseur scripts/ci/fournisseur-ia-epreuve.js, lancé
+# à la main dans ce conteneur le temps d'une épreuve. La prod garde l'IA coupée tant que le Hub ne sert pas.
+VERIDIAN_AI_DISABLED=false
+VERIDIAN_IA_FOURNISSEUR=veridian
+AI_PROVIDERS={"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).
@@ -335,6 +346,7 @@ PGUSER=twenty
 PGDATABASE=twenty
 {{ with nomadVar "nomad/jobs/crm-staging" }}
 APP_SECRET={{ .APP_SECRET }}
+VERIDIAN_IA_IDENTITE_SECRET={{ .VERIDIAN_IA_IDENTITE_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
 {{ end }}

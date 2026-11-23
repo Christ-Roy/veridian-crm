@@ -43,7 +43,7 @@ code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LO
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
 | CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` ; ne crée pas de clé | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
 | SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front ; publiées au registre privé puis installées par espace | MIT | plugins Veridian : dépôt privé `Veridian-site/veridian-crm-apps` (Dossiers, Google Meet, Téléphonie, `twenty-admin app:install`) ; ici seulement l app Android `packages/twenty-apps/veridian/telephonie/android` |
-| IA | chat, agents, compétences, actions IA des workflows, tout derrière le drapeau de permission `AI` ; fournisseurs par clés d'env | AGPL | aucun fournisseur : drapeau `AI` forcé à faux (`VERIDIAN_AI_DISABLED`) |
+| IA | chat, agents, compétences, actions IA des workflows, derrière le drapeau `AI` ; fournisseurs d'instance (`AI_PROVIDERS`) | AGPL | seul fournisseur « veridian » (Hub), identité signée par appel (VER-203) ; prod coupée (`VERIDIAN_AI_DISABLED`) tant que le Hub ne sert pas |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
 | Facturation | Stripe, plans, crédits, `usage-limit` : 211 fichiers Enterprise | EE | inutilisable : `IS_BILLING_ENABLED=false`, aucune limite appliquée sans elle |
 | SSO OIDC/SAML | module `sso` | EE | interdit ; le rebond Hub le remplace |
@@ -84,7 +84,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier, espace jetable | mesure, à rejouer sur le nœud de prod |
 | `scripts/ci/preuve-mcp-hub.py <url_mcp> <hub_user_id>` | JWT du Hub sur `/mcp` : connu, inconnu, `tenant_*`, aide hors MCP | prod 401 avant le module (09/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
-| `scripts/ci/preuve-installation-app.py --attendu refus\|installe <ws> <uid>` | garde d'installation (VER-173) | jetable avant la garde (22/11) |
+| `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
@@ -105,7 +105,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
   tant que le commit n'est pas sur la branche distante.
 - **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
   `timeout`.
-- Démarrage lent : 2 min au calme, 20 min et plus sur un nœud saturé.
+- Démarrage lent : 2 min au calme, 20 min et plus saturé.
 - **Job prod `crm` : seule source vivante `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv` ; `nomad-veridian` n'en a qu'une
   archive). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
 - **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe), depuis le 09/11/2026 ; `crm-db` retiré, dumps au froid. Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis : sans `REDIS_URL` le serveur sort au démarrage, 8 min de coupure le 09/11) en canari
