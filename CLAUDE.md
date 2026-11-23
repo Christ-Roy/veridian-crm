@@ -27,7 +27,7 @@ sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` 
 Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA à tout rôle, MCP reste.
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
-`metadata.crm` pour reconcile, nom du Hub poussé). L'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
+`metadata.crm` pour reconcile, nom du Hub poussé).
 **Accès agent, espaces jetables, plugins :** skill `twenty-cli` (`twenty-admin`), clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
 code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173, jetable refusé), réglages en base.
@@ -66,7 +66,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 
 ## 3. Travailler dans ce dépôt
 
-- Trunk sur `staging`, pas de PR. Promotion vers `main` quand la prod existera.
+- Trunk sur `staging`, pas de PR.
 - Tu touches ce dépôt seul. Un correctif ailleurs : ticket dans le `todo/` du dépôt cible, et signale-le.
 - Tickets : `todo/AAAA-MM-JJ-<sujet>.md`.
 - `docs/spec/` : notes de mai 2026, base légale incluse (`AUDIT-LIMITE-EE-TWENTY.md`). Ce fichier prime sur elles.
@@ -84,6 +84,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier, espace jetable | mesure, à rejouer sur le nœud de prod |
 | `scripts/ci/preuve-mcp-hub.py <url_mcp> <hub_user_id>` | JWT du Hub sur `/mcp` : connu, inconnu, `tenant_*`, aide hors MCP | prod 401 avant le module (09/11) |
 | `scripts/ci/preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage`, code 1 (23/11) |
+| `scripts/ci/preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version, code 1 (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
 | `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
@@ -112,7 +113,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
 - **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe), depuis le 09/11/2026 ; `crm-db` retiré, dumps au froid. Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis : sans `REDIS_URL` le serveur sort au démarrage, 8 min de coupure le 09/11) en canari
   sans `canary_tags`, santé active Traefik, `shutdown_delay` 30 s ; groupe `worker` hors canari. Réservations
   données par `infra` (non reprenable mesuré + 30 à 50 %, plafond = pointe × 1,5). Jamais de base sur `rise`.
-- **pg-saas (09/11/2026) :** budget 24 connexions (pool 8 serveur, 4 worker) ; check Nomad `base` sans redémarrage ; santé Traefik 3 s ; `count = 2` quand ovh-prod aura la RAM.
+- **pg-saas (09/11/2026) :** budget 24 connexions (pool 8 serveur, 4 worker) ; check Nomad `base` sans redémarrage ; santé Traefik 3 s.
 - **Piège (08/11/2026) :** derrière Traefik par le tailnet, `TRUST_PROXY` doit inclure `100.64.0.0/10`, sinon Twenty se croit en
   http et refuse le cookie de session : le rebond du Hub finit sur la page de connexion. Le parcours le vérifie.
 - **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).
