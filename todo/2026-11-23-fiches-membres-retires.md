@@ -10,7 +10,7 @@ connectés et les partages : c'est lui qui fait le travail complet. Par l'API, `
 
 Effet : un ancien collaborateur reste proposable comme responsable d'une fiche. Aucun accès rouvert.
 
-Restes à retirer après décision : `e2e-sso-mwsnpav0743e-role-mcp`, `e2e-sso-mwsnr8mc2b43-role-mcp`,
-`e2e-sso-mwsnxk653889-role-mcp` (`@veridian.site`). Le cas 16 du Hub en ajoute une par passage.
+Restes à retirer après décision : 6 fiches `e2e-sso-*-role-mcp@veridian.site` au 23/11 (02:52Z). Le cas 16 du Hub en
+ajoute une par passage.
 
 À trancher : le retrait par le Hub doit-il passer par le chemin natif complet ? Code du fork (module AGPL `veridian-hub-sso`).
