@@ -24,7 +24,7 @@ mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`.
 **Décisions (08/11/2026) :** le plan vient du Hub par `POST /api/tenants/update-plan` (CONTRAT-BILLING v2 §3), stocké
 sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` ; rien n'est limité ni mis en lecture seule
 (PRICING-VERIDIAN, décision de Robert pour lever un drapeau). Pas de marque blanche dans Twenty : rien à réserver à Business.
-Aucun fournisseur IA (Robert) : `VERIDIAN_AI_DISABLED=true` refuse le drapeau `AI` à tout rôle, MCP reste.
+Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA à tout rôle, MCP reste.
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
 `metadata.crm` pour reconcile, nom du Hub poussé). L'ancienne intégration du Hub (mot de passe et Bearer chiffrés) est retirée.
@@ -43,7 +43,7 @@ code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LO
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
 | CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` ; ne crée pas de clé | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
 | SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front ; publiées au registre privé puis installées par espace | MIT | plugins Veridian : dépôt privé `Veridian-site/veridian-crm-apps` (Dossiers, Google Meet, Téléphonie, `twenty-admin app:install`) ; ici seulement l app Android `packages/twenty-apps/veridian/telephonie/android` |
-| IA | chat, agents, compétences, actions IA des workflows, derrière le drapeau `AI` ; fournisseurs d'instance (`AI_PROVIDERS`) | AGPL | seul fournisseur « veridian » (Hub), identité signée par appel (VER-203) ; prod coupée (`VERIDIAN_AI_DISABLED`) tant que le Hub ne sert pas |
+| IA | chat, agents, compétences, actions IA des workflows, derrière le drapeau `AI` ; fournisseurs d'instance (`AI_PROVIDERS`) | AGPL | seul fournisseur « veridian » (Hub), identité signée par appel (VER-203), servi en prod depuis le 23/11 |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
 | Facturation | Stripe, plans, crédits, `usage-limit` : 211 fichiers Enterprise | EE | inutilisable : `IS_BILLING_ENABLED=false`, aucune limite appliquée sans elle |
 | SSO OIDC/SAML | module `sso` | EE | interdit ; le rebond Hub le remplace |
@@ -117,7 +117,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
   http et refuse le cookie de session : le rebond du Hub finit sur la page de connexion. Le parcours le vérifie.
 - **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).
 - **Piège IA (23/11) :** changer `VERIDIAN_AI_DISABLED` exige `scripts/ci/invalider-cache-roles.sh <job>` (cache Redis des rôles figé).
-- Capacité mesurée : `todo/2026-11-07-passage-prod.md`. Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
+- Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
 
 ## 6. Sync amont
 
