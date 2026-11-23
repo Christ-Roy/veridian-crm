@@ -88,7 +88,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
-Il retire son compte et vérifie qu'aucun `parcours+*` ne reste. Piège (10/11) : sous Playwright, `sys.exit` sur SIGTERM n'atteint pas `atexit` : le gestionnaire nettoie.
+Il retire son compte et vérifie qu'aucun `parcours+*` ne reste.
 
 Avec `lourd`, `dist` est effacé à chaque copie : `nx run twenty-shared:build` avant toute spec.
 
@@ -105,7 +105,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
   tant que le commit n'est pas sur la branche distante.
 - **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
   `timeout`.
-- Démarrage lent : 2 min au calme, 20 min et plus saturé.
+- Démarrage lent : 2 min au calme, 20 min saturé.
 - **Job prod `crm` : seule source vivante `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv` ; `nomad-veridian` n'en a qu'une
   archive). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
 - **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe), depuis le 09/11/2026 ; `crm-db` retiré, dumps au froid. Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis : sans `REDIS_URL` le serveur sort au démarrage, 8 min de coupure le 09/11) en canari
@@ -115,6 +115,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
 - **Piège (08/11/2026) :** derrière Traefik par le tailnet, `TRUST_PROXY` doit inclure `100.64.0.0/10`, sinon Twenty se croit en
   http et refuse le cookie de session : le rebond du Hub finit sur la page de connexion. Le parcours le vérifie.
 - **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).
+- **Piège IA (23/11) :** changer `VERIDIAN_AI_DISABLED` exige `scripts/ci/invalider-cache-roles.sh <job>` (cache Redis des rôles figé).
 - Capacité mesurée : `todo/2026-11-07-passage-prod.md`. Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
 
 ## 6. Sync amont
