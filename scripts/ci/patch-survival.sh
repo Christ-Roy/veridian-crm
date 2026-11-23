@@ -38,6 +38,8 @@ exige "$SERVEUR/engine/workspace-query-executor/services/workspace-query-executo
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "forRoutes({ path: ApiPath.Mcp"
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!isLogicFunctionAllowedByVeridian({"
 exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "!isApplicationInstallAllowedByVeridian({"
+exige "$SERVEUR/engine/metadata-modules/ai/ai-models/utils/build-ai-telemetry.util.ts" "headers: encoderContexteIa(identifiers),"
+exige "$SERVEUR/engine/metadata-modules/ai/ai-models/services/sdk-provider-factory.service.ts" "const instance = this.withVeridianIdentity("
 exige packages/twenty-front/src/pages/auth/SignInUp.tsx "useRedirectToHubLogin();"
 exige packages/twenty-front/src/modules/domain-manager/hooks/useRedirect.ts "createSingleNavigation"
 exige packages/twenty-front/src/modules/ui/navigation/navigation-drawer/constants/DefaultWorkspaceLogo.ts "data:image/gif"

@@ -1,6 +1,7 @@
 import { isNonEmptyString } from '@sniptt/guards';
 import { type TelemetryOptions } from 'ai';
 
+import { encoderContexteIa } from 'src/engine/core-modules/veridian-ia/utils/identite-ia.util';
 import { AI_TELEMETRY_CONFIG } from 'src/engine/metadata-modules/ai/ai-models/constants/ai-telemetry.const';
 
 type BuildAiTelemetryArgs = {
@@ -16,6 +17,7 @@ type BuildAiTelemetryArgs = {
 type AiTelemetryCallOptions = {
   telemetry: TelemetryOptions<Record<string, string>>;
   runtimeContext: Record<string, string>;
+  headers: Record<string, string>;
 };
 
 // telemetry integrations only receive per-call attributes opted in from runtime context
@@ -36,5 +38,7 @@ export const buildAiTelemetry = ({
       ),
     },
     runtimeContext,
+    // Veridian (VER-203) : contexte d'identité, retiré par le middleware du fournisseur, signé pour le seul Hub.
+    headers: encoderContexteIa(identifiers),
   };
 };

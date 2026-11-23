@@ -31,6 +31,7 @@ import {
   AI_SDK_TYPESAFE_AI,
   AI_SDK_XAI,
 } from 'src/engine/metadata-modules/ai/ai-models/constants/ai-sdk-package.const';
+import { middlewareIdentiteIa } from 'src/engine/core-modules/veridian-ia/utils/identite-ia.middleware';
 import { sanitizeGeminiToolResultRefsMiddleware } from 'src/engine/metadata-modules/ai/ai-models/middleware/sanitize-gemini-tool-result-refs.middleware';
 import { type AiEvaluationModel } from 'src/engine/metadata-modules/ai/ai-models/types/ai-evaluation-model.type';
 import { type AiProviderConfig } from 'src/engine/metadata-modules/ai/ai-models/types/ai-provider-config.type';
@@ -60,7 +61,10 @@ export class SdkProviderFactoryService {
       return cached;
     }
 
-    const instance = this.buildProviderInstance(config);
+    const instance = this.withVeridianIdentity(
+      providerName,
+      this.buildProviderInstance(config),
+    );
 
     this.providerInstances.set(providerName, instance);
 
@@ -97,6 +101,27 @@ export class SdkProviderFactoryService {
 
   clearCache(): void {
     this.providerInstances.clear();
+  }
+
+  // Veridian (VER-203) : chaque modèle retire le contexte d'identité interne ; le fournisseur Veridian le signe.
+  private withVeridianIdentity(
+    providerName: string,
+    instance: AiSdkProviderInstance,
+  ): AiSdkProviderInstance {
+    const createModel = instance.createModel;
+
+    if (!isDefined(createModel)) {
+      return instance;
+    }
+
+    return {
+      ...instance,
+      createModel: (modelId: string) =>
+        wrapLanguageModel({
+          model: createModel(modelId) as Parameters<typeof wrapLanguageModel>[0]['model'],
+          middleware: middlewareIdentiteIa(providerName),
+        }),
+    };
   }
 
   private toProviderInstance(
