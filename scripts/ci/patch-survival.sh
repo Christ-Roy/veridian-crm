@@ -95,8 +95,8 @@ for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do
   if ! grep -q "^VERIDIAN_AI_DISABLED=true$" "$job"; then
     # entre apostrophes : le format d'environnement de Nomad mange les guillemets d'un JSON nu (staging, 23/11)
     exige "$job" "AI_PROVIDERS='{\"veridian\":{\"npm\":\"@ai-sdk/openai-compatible\""
-    exige "$job" "VERIDIAN_IA_IDENTITE_SECRET={{ .IA_IDENTITE_SECRET }}"
-    exige "$job" '"apiKey":"{{ .IA_FOURNISSEUR_CLE }}"'
+    exige "$job" "VERIDIAN_IA_IDENTITE_SECRET={{ .secret }}"
+    exige "$job" '"apiKey":"{{ .cle_instance }}"'
     if grep -qE "^(OPENAI|ANTHROPIC|GOOGLE|XAI|GROQ|MISTRAL|TYPESAFE_AI)_API_KEY=" "$job"; then
       echo "PATCH ABSENT : $job allume l'IA avec une clé de fournisseur tiers"; echec=1
     fi
