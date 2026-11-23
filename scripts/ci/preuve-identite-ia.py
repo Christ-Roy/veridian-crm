@@ -17,7 +17,7 @@ import twenty_admin as ta  # noqa: E402
 
 def generer(c, url, jeton):
     code, texte, _ = c.http(f"{url}/rest/ai/generate-text",
-                            json.dumps({"userPrompt": "Épreuve VER-203", "modelId": "veridian/auto"}).encode(),
+                            json.dumps({"userPrompt": "Épreuve VER-203", "modelId": "veridian/veridian-auto"}).encode(),
                             {"Authorization": f"Bearer {jeton}", "Content-Type": "application/json"})
     try:
         d = json.loads(texte)
