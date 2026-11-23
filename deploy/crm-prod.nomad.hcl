@@ -236,7 +236,7 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Aujourd'hui : veridian-4 + Google Meet, Chantier (22/11), Assistant (VER-203 : routes des fils de l'IA). Exécuteur isolé pour les clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
-VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68
+VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3
 # Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
 # Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie, Assistant (VER-203).
@@ -396,7 +396,7 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Aujourd'hui : veridian-4 + Google Meet, Chantier (22/11), Assistant (VER-203 : routes des fils de l'IA). Exécuteur isolé pour les clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
-VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68
+VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3
 # Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
 # Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie, Assistant (VER-203).
