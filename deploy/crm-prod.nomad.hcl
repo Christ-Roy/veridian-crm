@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-2c6e252" # 23/11/2026 : chat natif de Twenty servi par le Hub, identité signée (VER-203)
+  default = "staging-a0965d8" # 23/11/2026 : retrait d'un membre sans fiche orpheline (VER-203)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
