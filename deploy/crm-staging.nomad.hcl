@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-a0965d8" # 23/11/2026 : identité au contrat du Hub (VER-203)
+  default = "staging-a0965d8" # 23/11/2026 : retrait d'un membre sans fiche orpheline (VER-203)
 }
 
 job "crm-staging" {
