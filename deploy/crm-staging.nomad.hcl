@@ -245,7 +245,7 @@ TELEMETRY_ENABLED=false
 # à la main dans ce conteneur le temps d'une épreuve. La prod garde l'IA coupée tant que le Hub ne sert pas.
 VERIDIAN_AI_DISABLED=false
 VERIDIAN_IA_FOURNISSEUR=veridian
-AI_PROVIDERS={"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}
+AI_PROVIDERS='{"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}'
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).
@@ -322,7 +322,7 @@ TELEMETRY_ENABLED=false
 # à la main dans ce conteneur le temps d'une épreuve. La prod garde l'IA coupée tant que le Hub ne sert pas.
 VERIDIAN_AI_DISABLED=false
 VERIDIAN_IA_FOURNISSEUR=veridian
-AI_PROVIDERS={"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}
+AI_PROVIDERS='{"veridian":{"npm":"@ai-sdk/openai-compatible","name":"veridian","label":"Veridian","baseUrl":"http://127.0.0.1:18765/v1","apiKey":"epreuve-staging","models":[{"name":"auto","label":"Veridian (\u00e9preuve)","contextWindowTokens":128000,"maxOutputTokens":4096}]}}'
 # Fonctions des apps (ROB-235, 18/11/2026) : LOCAL, mais seules s'exécutent les apps des couples
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Staging : cheerful-yellow-zebra + chantier (répétition du plugin, 22/11/2026).

@@ -93,7 +93,8 @@ exige packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategori
 if ! grep -q "^VERIDIAN_AI_DISABLED=true$" deploy/crm-prod.nomad.hcl; then echo "PATCH ABSENT : la prod allume l'IA"; echec=1; fi
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do
   if ! grep -q "^VERIDIAN_AI_DISABLED=true$" "$job"; then
-    exige "$job" 'AI_PROVIDERS={"veridian":{"npm":"@ai-sdk/openai-compatible"'
+    # entre apostrophes : le format d'environnement de Nomad mange les guillemets d'un JSON nu (staging, 23/11)
+    exige "$job" "AI_PROVIDERS='{\"veridian\":{\"npm\":\"@ai-sdk/openai-compatible\""
     exige "$job" "VERIDIAN_IA_IDENTITE_SECRET={{ .VERIDIAN_IA_IDENTITE_SECRET }}"
     if grep -qE "^(OPENAI|ANTHROPIC|GOOGLE|XAI|GROQ|MISTRAL|TYPESAFE_AI)_API_KEY=" "$job"; then
       echo "PATCH ABSENT : $job allume l'IA avec une clé de fournisseur tiers"; echec=1
