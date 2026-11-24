@@ -30,6 +30,10 @@ class Base(ctx: Context) : SQLiteOpenHelper(ctx, "telephonie.db", null, 1) {
 
     override fun onUpgrade(db: SQLiteDatabase, ancienne: Int, nouvelle: Int) {}
 
+    /** Retour arrière de l'app : une base écrite par une version plus récente se garde telle quelle (la file n'est pas
+     *  perdue) au lieu de faire planter l'app. Règle qui va avec : un changement de schéma ne fait qu'AJOUTER. */
+    override fun onDowngrade(db: SQLiteDatabase, ancienne: Int, nouvelle: Int) {}
+
     data class Element(val pluriel: String, val idSource: String, val flux: String, val voulu: String,
                        val empreinte: String, val evenement: Double?, val essais: Int, val signale: Long?)
 

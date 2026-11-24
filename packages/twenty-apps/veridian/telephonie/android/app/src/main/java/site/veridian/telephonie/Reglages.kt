@@ -105,6 +105,9 @@ class Reglages(private val ctx: Context) {
     val transcriptionActive get() = transcriptionVoulue && modele.exists()
     /** Messagerie vocale par le shell du téléphone (adb vers lui-même) : fonction avancée, choisie. */
     val messagerieActive get() = drapeau("messagerie")
+    /** Mise à jour de l'app : canal suivi (stable par défaut), et automatique sauf coupée à l'écran. */
+    val canalMaj get() = site.veridian.telephonie.contrat.MiseAJour.Canal.de(texte("canal_maj"))
+    val majAuto get() = prefs.getString("r.maj_auto", null) != "0"
     /** Événements plus anciens que cette date (ms) ignorés ; 0 = tout l'historique. */
     val historiqueDepuisMs get() = nombre("historique_depuis_ms").toLong()
 
@@ -162,6 +165,7 @@ class Reglages(private val ctx: Context) {
         .put("transcription", transcriptionVoulue).put("messagerie", messagerieActive).put("jemrec", jemrecPresent)
         .put("historique_depuis_ms", historiqueDepuisMs)
         .put("cle_sha256_12", cle?.let { site.veridian.telephonie.contrat.Contrat.sha256(it).take(12) })
+        .put("canal_maj", canalMaj.valeur).put("maj_auto", majAuto)
         .put("modele", modele.path).put("modele_present", modele.exists()).put("troncon_s", tronconS)
         .put("chevauchement_s", chevauchementS).put("batterie_min_pct", batterieMinPct).put("batterie_min_neuf_pct", batterieMinNeufPct).put("fils", fils)
         .put("audio_wifi_apres_echecs", echecsAvantWifi).put("ameliorer_anciennes", ameliorerAnciennes)
@@ -173,7 +177,7 @@ class Reglages(private val ctx: Context) {
         val DEFAUT = mapOf("troncon_s" to 30.0, "chevauchement_s" to 0.0, "batterie_min_pct" to 30.0, "batterie_min_neuf_pct" to 10.0,
             "memoire_min_ko" to 1_500_000.0, "fils" to 4.0, "ameliorer_anciennes" to 0.0,
             "audio_wifi_apres_echecs" to 0.0, "historique_depuis_ms" to 0.0)
-        val DEFAUT_TEXTE = mapOf("appareil" to "", "jemrec" to "/sdcard/Recordings/JemRec", "modele" to "")
+        val DEFAUT_TEXTE = mapOf("appareil" to "", "jemrec" to "/sdcard/Recordings/JemRec", "modele" to "", "canal_maj" to "")
 
         /** Options du SELECT `appareil` (appel.object.ts, text-message.object.ts) : PIXEL_8_PRO, GALAXY_S10E, sinon AUTRE. */
         fun appareilDe(fabricant: String?, modele: String?): String {

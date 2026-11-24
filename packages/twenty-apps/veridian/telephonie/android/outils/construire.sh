@@ -35,11 +35,14 @@ if [ ! -f "$PROPRIETES" ]; then
 fi
 
 # 3. fixtures du contrat à jour avec le Python de référence, tests, APK
-python3 outils/fixtures_contrat.py --verifier
+# Retour arrière (CI, action retour) : un ancien commit est reconstruit contre le Python du jour, ses fixtures diffèrent.
+[ "${TELEPHONIE_SANS_FIXTURES:-}" = 1 ] || python3 outils/fixtures_contrat.py --verifier
 ./gradlew -q ${GRADLE_ARGS:-} -p contrat test
 export TELEPHONIE_SIGNATURE="$PROPRIETES"
 export TELEPHONIE_VERSION="${TELEPHONIE_VERSION:-$(git log -1 --format=%cd-%h --date=format:%Y%m%d.%H%M 2>/dev/null || echo dev)}"
-export TELEPHONIE_VERSION_CODE="${TELEPHONIE_VERSION_CODE:-$(date +%y%m%d%H)}"
+# Minutes Unix (24/11/2026 : 29,9 millions, au-dessus des anciens aaMMjjHH). L'ancien code était égal pour deux constructions
+# de la même heure et reculait au passage à l'heure d'hiver : une mise à jour n'aurait pas été vue comme plus récente.
+export TELEPHONIE_VERSION_CODE="${TELEPHONIE_VERSION_CODE:-$(( $(date +%s) / 60 ))}"
 nice -n 10 ./gradlew -q --console=plain ${GRADLE_ARGS:-} :app:assembleRelease
 APK=app/build/outputs/apk/release/app-release.apk
 "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -E "Signer #1 certificate SHA-256" || {

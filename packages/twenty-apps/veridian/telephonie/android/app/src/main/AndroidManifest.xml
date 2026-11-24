@@ -29,6 +29,11 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Mise à jour de l'app par elle-même (MiseAJourApp). L'utilisateur donne « Installer des applis inconnues » une fois ;
+         ensuite Android 12 et plus n'exige plus de geste pour une app qui se met à jour elle-même. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+
     <!-- JemRec, l'enregistreur d'appels : sa notification « Enregistrement des appels inactif » l'ouvre d'un toucher. -->
     <queries>
         <package android:name="com.jemcik.jemrec" />
@@ -127,6 +132,11 @@
                 <data android:mimeType="application/vnd.wap.mms-message" />
             </intent-filter>
         </receiver>
+
+        <!-- Réponse d'Android à l'installation d'une mise à jour (PendingIntent explicite, jamais exporté). -->
+        <receiver
+            android:name=".ResultatInstallation"
+            android:exported="false" />
 
         <!-- Commandes par adb (installation, mode, retranscription) : seul le shell (DUMP) peut les envoyer. -->
         <receiver

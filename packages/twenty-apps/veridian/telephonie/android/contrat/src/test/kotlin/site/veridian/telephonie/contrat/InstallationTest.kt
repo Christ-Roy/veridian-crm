@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import site.veridian.telephonie.contrat.Installation.Demande
 import site.veridian.telephonie.contrat.Installation.Etat
 import site.veridian.telephonie.contrat.Installation.Presence
 import site.veridian.telephonie.contrat.Installation.Reponse
@@ -11,23 +12,45 @@ import site.veridian.telephonie.contrat.Installation.Reponse
 class InstallationTest {
     // Corps relevés sur le staging le 24/11/2026 (espace jetable, jeton OAuth du membre).
     private val absent = """{"statusCode":400,"error":"BadRequestException","messages":["object 'appels' not found. eg: companies"]}"""
-    private val introuvable = """{"message":"Cannot POST /api/veridian/apps/telephonie/assurer","error":"Not Found","statusCode":404}"""
+    // /metadata, même jour, mêmes jetons : tout est en HTTP 200.
+    private val travail = "install-application.6304833e-3367-4872-8137-92259e473304.e3df4b02-559e-4624-b985-3fd49cfd1725-ce1a8a8e-9efa-402b-886d-be9c723b9010"
+    private val acceptee = """{"data":{"triggerInstallApplication":{"jobId":"$travail"}}}"""
+    private fun etatTravail(etat: String, raison: String? = null) =
+        """{"data":{"findInstallApplicationJobStatus":{"state":"$etat","failedReason":${raison?.let { "\"$it\"" } ?: "null"}}}}"""
+    private fun erreur(code: String, message: String) = """{"errors":[{"message":"$message","extensions":{"code":"$code"}}],"data":null}"""
+    private val garde = "Installation of application e3df4b02-559e-4624-b985-3fd49cfd1725 is not allowed on workspace 6304833e-3367-4872-8137-92259e473304"
 
-    @Test fun `la route du contrat`() = assertEquals("/api/veridian/apps/telephonie/assurer", Installation.CHEMIN)
+    @Test fun `l application est celle du plugin, la mutation est native`() {
+        assertEquals("e3df4b02-559e-4624-b985-3fd49cfd1725", Installation.APPLICATION); assertEquals("/metadata", Installation.CHEMIN)
+        assertTrue("triggerInstallApplication(input: \$input) { jobId }" in Installation.DECLENCHER)
+        assertTrue("findInstallApplicationJobStatus(universalIdentifier: \$app, jobId: \$travail)" in Installation.SUIVRE)
+    }
 
-    @Test fun `reponses de la route`() {
-        for (e in listOf("installee", "mise_a_jour", "deja_installee"))
-            assertEquals(Reponse.INSTALLEE, Installation.lire(200, """{"app":"telephonie","etat":"$e","version":"0.3.0"}"""))
-        assertEquals(Reponse.EN_COURS, Installation.lire(200, """{"app":"telephonie","etat" : "en_cours","version":null}"""))
-        assertEquals(Reponse.INSTALLEE, Installation.lire(201, """{"etat":"installee"}"""))  // POST Nest sans @HttpCode : 201
-        assertEquals(Reponse.NON_MAISON, Installation.lire(403, """{"error":"app_non_maison"}"""))
-        assertEquals(Reponse.INTERDIT, Installation.lire(403, """{"message":"Forbidden resource"}"""))
-        assertEquals(Reponse.INTERDIT, Installation.lire(401, "{}"))
-        assertEquals(Reponse.NON_SERVIE, Installation.lire(404, introuvable))
-        for (c in listOf(429, 500, 502, 503)) assertEquals(Reponse.A_RETENTER, Installation.lire(c, ""))
-        // 200 illisible (page du front servie à la place de l'API) : jamais pris pour une installation.
-        assertEquals(Reponse.A_RETENTER, Installation.lire(200, "<!doctype html>"))
-        assertEquals(Reponse.A_RETENTER, Installation.lire(200, """{"etat":"echec"}"""))
+    @Test fun `reponse a la demande, accepter n est pas installer`() {
+        assertEquals(Demande(Reponse.EN_COURS, travail), Installation.lireDemande(200, acceptee))
+        val refusees = listOf(erreur("FORBIDDEN", "Entity performing the request does not have permission") to Reponse.INTERDIT,
+            erreur("FORBIDDEN", garde) to Reponse.NON_PROPOSEE,
+            erreur("NOT_FOUND", "No application registration found for identifier") to Reponse.NON_SERVIE,
+            erreur("GRAPHQL_VALIDATION_FAILED", "Cannot query field") to Reponse.NON_SERVIE,
+            erreur("UNAUTHENTICATED", "Token invalid.") to Reponse.A_RETENTER,
+            erreur("BAD_USER_INPUT", "Cannot install application while its uninstall is in progress") to Reponse.A_RETENTER,
+            erreur("INTERNAL_SERVER_ERROR", "oups") to Reponse.A_RETENTER)
+        for ((corps, attendu) in refusees) assertEquals(corps, Demande(attendu), Installation.lireDemande(200, corps))
+        // org.json peut ajouter des espaces : même lecture.
+        assertEquals(Reponse.INTERDIT, Installation.lireDemande(200, refusees[0].first.replace(":", " : ").replace("[{", "[ {")).reponse)
+        for ((code, attendu) in listOf(0 to Reponse.A_RETENTER, 401 to Reponse.A_RETENTER, 403 to Reponse.INTERDIT, 404 to Reponse.NON_SERVIE,
+            429 to Reponse.A_RETENTER, 500 to Reponse.A_RETENTER, 503 to Reponse.A_RETENTER)) assertEquals("$code", Demande(attendu), Installation.lireDemande(code, ""))
+        for (corps in listOf("<!doctype html>", "{}", """{"data":{"triggerInstallApplication":null}}""")) assertEquals(Demande(Reponse.A_RETENTER), Installation.lireDemande(200, corps))
+    }
+
+    @Test fun `suivi du travail, c est lui qui dit la garde`() {
+        for (e in listOf("WAITING", "PRIORITIZED", "ACTIVE", "DELAYED")) assertEquals(e, Reponse.EN_COURS, Installation.lireTravail(200, etatTravail(e)))
+        assertEquals(Reponse.INSTALLEE, Installation.lireTravail(200, etatTravail("COMPLETED")))
+        assertEquals(Reponse.NON_PROPOSEE, Installation.lireTravail(200, etatTravail("FAILED", garde)))
+        assertEquals(Reponse.ECHEC, Installation.lireTravail(200, etatTravail("FAILED", "Validation errors")))
+        assertEquals("le CRM a oublié ce travail", Reponse.A_RETENTER, Installation.lireTravail(200, """{"data":{"findInstallApplicationJobStatus":null}}"""))
+        assertEquals(Reponse.INTERDIT, Installation.lireTravail(200, erreur("FORBIDDEN", "x")))
+        assertEquals(Reponse.A_RETENTER, Installation.lireTravail(502, etatTravail("COMPLETED")))
     }
 
     @Test fun `presence des objets`() {
@@ -52,38 +75,75 @@ class InstallationTest {
         assertEquals(Presence.INCONNU, Installation.ensemble(emptyList()))
     }
 
-    /** Un CRM simulé : présence et réponses de la route, dans l'ordre. */
-    private class Crm(var presence: Presence, vararg reponses: Reponse, private val oauth: Boolean = true) {
-        val file = ArrayDeque(reponses.toList())
-        var appels = 0
-        val installateur = Installation.Installateur({ presence }, { appels++; if (file.size > 1) file.removeFirst() else file.first() }, { oauth })
+    /** Un CRM simulé : présence, réponses à la demande, puis au suivi du travail, dans l'ordre (la dernière se répète). */
+    private class Crm(var presence: Presence, vararg reponses: Reponse, suivis: List<Reponse> = listOf(Reponse.EN_COURS), private val oauth: Boolean = true) {
+        val file = ArrayDeque(reponses.toList()); val suite = ArrayDeque(suivis)
+        var demandes = 0; var nbSuivis = 0
+        private fun <T> ArrayDeque<T>.tirer() = if (size > 1) removeFirst() else first()
+        val installateur = Installation.Installateur({ presence },
+            { demandes++; file.tirer().let { Demande(it, if (it == Reponse.EN_COURS) "travail-$demandes" else null) } },
+            { nbSuivis++; assertEquals("travail-$demandes", it); suite.tirer() }, { oauth })
     }
 
-    @Test fun `espace deja pret, rien n est demande`() {
-        val c = Crm(Presence.PRESENT, Reponse.INSTALLEE)
-        val d = c.installateur.passer()
-        assertEquals(Etat.PRET, d.etat); assertFalse(d.retient); assertEquals(0, c.appels)
-    }
-
-    @Test fun `a la connexion la route est appelee meme si les objets sont la`() {
-        val c = Crm(Presence.PRESENT, Reponse.INSTALLEE)
-        assertEquals(Etat.PRET, c.installateur.passer(forcer = true).etat); assertEquals(1, c.appels)
-        // Une réponse défavorable ne casse pas un espace qui marche.
-        for (r in Reponse.entries) {
-            val d = Crm(Presence.PRESENT, r).installateur.passer(forcer = true)
-            assertEquals("$r", Etat.PRET, d.etat); assertFalse(d.retient)
+    @Test fun `espace deja pret, rien n est demande, meme a la connexion`() {
+        for (forcer in listOf(false, true)) for (r in Reponse.entries) {
+            val c = Crm(Presence.PRESENT, r)
+            val d = c.installateur.passer(forcer)
+            assertEquals(Etat.PRET, d.etat); assertFalse(d.retient); assertEquals(0, c.demandes); assertEquals(0, c.nbSuivis)
         }
     }
 
     @Test fun `espace neuf, la file est retenue jusqu a ce que les objets existent`() {
-        val c = Crm(Presence.ABSENT, Reponse.EN_COURS, Reponse.EN_COURS, Reponse.INSTALLEE)
+        val c = Crm(Presence.ABSENT, Reponse.EN_COURS, suivis = listOf(Reponse.EN_COURS, Reponse.INSTALLEE))
         var d = c.installateur.passer(forcer = true)
         assertEquals(Etat.INSTALLATION, d.etat); assertTrue(d.retient); assertEquals(2_000L, d.reessayerMs)
         d = c.installateur.passer(); assertTrue(d.retient); assertEquals(3_000L, d.reessayerMs)
-        d = c.installateur.passer(); assertTrue("la route dit installée, les objets ne se lisent pas encore", d.retient)
+        d = c.installateur.passer(); assertTrue("travail fini, les objets ne se lisent pas encore", d.retient)
+        assertEquals("une seule demande, le reste est du suivi", 1, c.demandes); assertEquals(2, c.nbSuivis)
         c.presence = Presence.PRESENT
         d = c.installateur.passer()
         assertEquals(Etat.PRET, d.etat); assertFalse(d.retient); assertEquals(null, d.reessayerMs)
+    }
+
+    @Test fun `garde de l instance, le refus arrive par le travail`() {
+        val c = Crm(Presence.ABSENT, Reponse.EN_COURS, suivis = listOf(Reponse.EN_COURS, Reponse.NON_PROPOSEE))
+        assertEquals(Etat.INSTALLATION, c.installateur.passer(forcer = true).etat)
+        c.installateur.passer()
+        var d = c.installateur.passer()
+        assertEquals(Etat.NON_PROPOSE, d.etat); assertTrue(d.retient); assertTrue(d.reessayerMs!! >= 1_800_000)
+        repeat(8) { d = c.installateur.passer(); assertEquals(Etat.NON_PROPOSE, d.etat) }
+        assertEquals("la demande n'est pas martelée", 1, c.demandes)
+        // Veridian l'active ensuite pour cet espace : la sonde suffit.
+        c.presence = Presence.PRESENT
+        assertEquals(Etat.PRET, c.installateur.passer().etat)
+    }
+
+    @Test fun `simple membre, un administrateur active, la sonde le voit`() {
+        val c = Crm(Presence.ABSENT, Reponse.INTERDIT)
+        var d = c.installateur.passer(forcer = true)
+        assertEquals(Etat.REFUSE, d.etat); assertTrue(d.retient); assertEquals(300_000L, d.reessayerMs)
+        repeat(11) { c.installateur.passer() }
+        assertEquals("une demande par heure au plus", 1, c.demandes)
+        c.installateur.passer(); assertEquals(2, c.demandes)
+        c.installateur.passer(forcer = true); assertEquals("le bouton redemande", 3, c.demandes)
+        c.presence = Presence.PRESENT
+        d = c.installateur.passer()
+        assertEquals(Etat.PRET, d.etat); assertFalse(d.retient)
+        assertTrue("Un administrateur doit activer Téléphonie dans Paramètres > Applications." in Installation.message(Etat.REFUSE, 2))
+        assertTrue("pas encore proposé dans votre CRM" in Installation.message(Etat.NON_PROPOSE, 2))
+    }
+
+    @Test fun `installation ratee, redemandee de plus en plus tard`() {
+        val c = Crm(Presence.ABSENT, Reponse.EN_COURS, suivis = listOf(Reponse.ECHEC))
+        val delais = (0..14).map { c.installateur.passer() }.filter { it.etat == Etat.A_RETENTER }.map { it.reessayerMs!! }
+        assertTrue(delais.size >= 5); assertEquals(delais.sorted(), delais); assertEquals(3_600_000L, delais.last()); assertTrue(delais.first() >= 60_000)
+        assertTrue("redemandée", c.demandes >= 5)
+    }
+
+    @Test fun `travail oublie par le CRM, redemande`() {
+        val c = Crm(Presence.ABSENT, Reponse.EN_COURS, suivis = listOf(Reponse.A_RETENTER, Reponse.EN_COURS))
+        c.installateur.passer(); assertEquals(Etat.A_RETENTER, c.installateur.passer().etat)
+        assertEquals(Etat.INSTALLATION, c.installateur.passer().etat); assertEquals(2, c.demandes)
     }
 
     @Test fun `objets apparus mais installation en cours, on attend la fin, pas indefiniment`() {
@@ -93,7 +153,7 @@ class InstallationTest {
         assertTrue(c.installateur.passer().retient)
         repeat(20) { c.installateur.passer() }
         assertEquals(Etat.PRET, c.installateur.decision.etat)
-        val fini = Crm(Presence.ABSENT, Reponse.EN_COURS, Reponse.INSTALLEE)
+        val fini = Crm(Presence.ABSENT, Reponse.EN_COURS, suivis = listOf(Reponse.INSTALLEE))
         fini.installateur.passer(forcer = true); fini.presence = Presence.PRESENT
         assertEquals(Etat.PRET, fini.installateur.passer().etat)
     }
@@ -108,30 +168,27 @@ class InstallationTest {
         assertFalse(Crm(Presence.INCONNU, Reponse.INSTALLEE).installateur.passer(forcer = true).retient)
     }
 
-    @Test fun `route pas encore servie ou cle API, comportement d avant`() {
-        for (c in listOf(Crm(Presence.ABSENT, Reponse.NON_SERVIE), Crm(Presence.ABSENT, Reponse.INSTALLEE, oauth = false))) {
+    @Test fun `app inconnue de ce CRM ou cle API, comportement d avant`() {
+        for (c in listOf(Crm(Presence.ABSENT, Reponse.NON_SERVIE), Crm(Presence.ABSENT, Reponse.EN_COURS, oauth = false))) {
             val d = c.installateur.passer(forcer = true)
             assertEquals(Etat.NON_GERE, d.etat); assertFalse(d.retient)
         }
-        val cle = Crm(Presence.PRESENT, Reponse.INSTALLEE, oauth = false)
-        assertEquals(Etat.PRET, cle.installateur.passer(forcer = true).etat); assertEquals(0, cle.appels)
-        // La route arrive ensuite : le passage suivant la trouve.
-        val ensuite = Crm(Presence.ABSENT, Reponse.NON_SERVIE, Reponse.INSTALLEE)
+        val cle = Crm(Presence.ABSENT, Reponse.EN_COURS, oauth = false)
+        cle.installateur.passer(forcer = true); assertEquals("une clé ne demande rien", 0, cle.demandes)
+        // L'app arrive ensuite sur l'instance : le passage suivant la trouve.
+        val ensuite = Crm(Presence.ABSENT, Reponse.NON_SERVIE, Reponse.EN_COURS)
         ensuite.installateur.passer(); assertEquals(Etat.INSTALLATION, ensuite.installateur.passer().etat)
     }
 
-    @Test fun `app non maison et refus retiennent sans marteler`() {
-        val non = Crm(Presence.ABSENT, Reponse.NON_MAISON).installateur.passer(forcer = true)
-        assertEquals(Etat.NON_PROPOSE, non.etat); assertTrue(non.retient); assertTrue(non.reessayerMs!! >= 3_600_000)
-        val ref = Crm(Presence.ABSENT, Reponse.INTERDIT).installateur.passer(forcer = true)
-        assertEquals(Etat.REFUSE, ref.etat); assertTrue(ref.retient); assertTrue(ref.reessayerMs!! >= 600_000)
+    @Test fun `panne du CRM, de plus en plus espace`() {
         val pannes = Crm(Presence.ABSENT, Reponse.A_RETENTER)
         val delais = (0..8).map { pannes.installateur.passer().reessayerMs!! }
         assertEquals(30_000L, delais.first()); assertEquals(600_000L, delais.last()); assertEquals(delais.sorted(), delais)
+        assertTrue(pannes.installateur.decision.retient)
     }
 
     @Test fun `plugin retire apres coup, retenu de nouveau puis reinstalle`() {
-        val c = Crm(Presence.PRESENT, Reponse.INSTALLEE)
+        val c = Crm(Presence.PRESENT, Reponse.EN_COURS, suivis = listOf(Reponse.INSTALLEE))
         c.installateur.passer()
         c.presence = Presence.ABSENT
         assertTrue(c.installateur.passer().retient)
@@ -139,10 +196,10 @@ class InstallationTest {
         assertFalse(c.installateur.passer().retient)
     }
 
-    @Test fun `installee mais illisible, la route n est pas martelee`() {
-        val c = Crm(Presence.ABSENT, Reponse.INSTALLEE)
-        repeat(12) { c.installateur.passer() }
-        assertTrue("${c.appels} appels pour 12 passages", c.appels in 2..4)
+    @Test fun `installee mais illisible, la demande n est pas martelee`() {
+        val c = Crm(Presence.ABSENT, Reponse.EN_COURS, suivis = listOf(Reponse.INSTALLEE))
+        repeat(24) { c.installateur.passer() }
+        assertTrue("${c.demandes} demandes pour 24 passages", c.demandes in 2..7)
     }
 
     @Test fun `messages simples, la file y est comptee`() {

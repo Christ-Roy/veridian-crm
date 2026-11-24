@@ -26,6 +26,7 @@ import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
 import site.veridian.telephonie.contrat.Installation
+import site.veridian.telephonie.contrat.MiseAJour
 import java.io.File
 
 /**
@@ -69,6 +70,7 @@ class AccueilActivity : Activity() {
 
     private var formeAffichee: String? = null
     private var vuePreparation: TextView? = null
+    private var vueMaj: TextView? = null
     private var vueModele: TextView? = null
     private var vueMessagerie: TextView? = null
     private var vueEtat: TextView? = null
@@ -78,14 +80,17 @@ class AccueilActivity : Activity() {
     private fun forme(): String = listOf(reglages.configure, reglages.reconnexion, reglages.acces, reglages.url, permissionsManquantes(),
         getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName), reglages.miroir,
         reglages.transcriptionVoulue, reglages.jemrecPresent, Environment.isExternalStorageManager(), reglages.messagerieActive,
-        occupe, resultatTest, Synchro.de(this).preparation.etat).joinToString("|")
+        occupe, resultatTest, Synchro.de(this).preparation.etat, reglages.canalMaj, reglages.majAuto, MiseAJourApp.silencieuse(this)).joinToString("|")
 
     private fun texteEtat(): String {
         val s = Synchro.de(this)
-        return "Enregistrement des appels : ${Enregistreur.instance?.resume() ?: "non vérifié"}\n" +
+        return "Version installée : ${MiseAJourApp.version(this)}\n" +
+            "Enregistrement des appels : ${Enregistreur.instance?.resume() ?: "non vérifié"}\n" +
             "Transcription : ${s.transcriptions.resume()}\n" +
             "Appareil : ${Build.MODEL} (enregistré comme ${reglages.appareil})\nEn file : ${s.base.taille()} · fichiers : ${s.base.taille("televersements")}"
     }
+
+    private fun texteMaj() = "Version ${MiseAJourApp.version(this)} : ${Synchro.de(this).misesAJour.etat}"
 
     private fun texteJournal(): String {
         val delais = File(filesDir, "delais.tsv").takeIf { it.exists() }?.readLines()?.takeLast(5)?.joinToString("\n") ?: "aucun"
@@ -95,6 +100,7 @@ class AccueilActivity : Activity() {
 
     private fun mettreAJour() {
         vuePreparation?.text = Synchro.de(this).preparation.message()
+        vueMaj?.text = texteMaj()
         vueModele?.text = "Modèle Parakeet (640 Mo, téléchargé en Wi-Fi) : ${Modele.etat(this)}"
         vueMessagerie?.text = "Messagerie : ${Synchro.de(this).adb.etat}"
         vueEtat?.text = texteEtat()
@@ -116,7 +122,7 @@ class AccueilActivity : Activity() {
     private fun afficher() {
         val urlSaisie = champUrl?.text?.toString(); val cleSaisie = champCle?.text?.toString()
         formeAffichee = forme()
-        vuePreparation = null; vueModele = null; vueMessagerie = null; vueEtat = null; vueJournal = null
+        vuePreparation = null; vueMaj = null; vueModele = null; vueMessagerie = null; vueEtat = null; vueJournal = null
         racine.removeAllViews()
         titre("Téléphonie CRM", 24f)
         texte("Vos appels et SMS dans votre Twenty, envoyés par le téléphone lui-même. Version ${version()}.", petit = true)
@@ -185,7 +191,25 @@ class AccueilActivity : Activity() {
             bouton("Comment activer la messagerie vocale") { aideMessagerie() }
         }
 
-        // 5. état
+        // 5. mises à jour de l'app
+        section("5. Mises à jour de l'application")
+        vueMaj = texte(texteMaj())
+        bouton("Vérifier maintenant") { Synchro.de(this).misesAJour.verifierMaintenant(); mettreAJour() }
+        interrupteur("Mettre à jour automatiquement", reglages.majAuto) { v ->
+            reglages.poserDrapeau("maj_auto", v, "écran"); if (v) Synchro.de(this).misesAJour.evenement("écran"); afficher() }
+        if (!MiseAJourApp.silencieuse(this)) {
+            texte("Android demandera votre accord à chaque mise à jour. Pour qu'elles s'installent seules : touchez ci-dessous, puis " +
+                "activez « Autoriser cette source » (une seule fois).", petit = true)
+            bouton("Autoriser les mises à jour automatiques") {
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
+        }
+        interrupteur("Recevoir les versions d'essai", reglages.canalMaj == MiseAJour.Canal.ESSAI) { v ->
+            reglages.poserTexte("canal_maj", (if (v) MiseAJour.Canal.ESSAI else MiseAJour.Canal.STABLE).valeur)
+            Journal.log("mise à jour : canal ${reglages.canalMaj.valeur} (écran)")
+            Synchro.de(this).misesAJour.evenement("canal changé"); afficher() }
+        texte("Téléchargées en Wi-Fi, jamais pendant un appel. Rien de votre téléphone ni de votre CRM n'est envoyé pour les vérifier.", petit = true)
+
+        // 6. état
         section("État")
         vueEtat = texte(texteEtat(), petit = true)
         vueJournal = texte(texteJournal(), petit = true, mono = true)

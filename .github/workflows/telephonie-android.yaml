@@ -1,31 +1,53 @@
 # L app Twenty (ingestion Python, src) est dans Veridian-site/veridian-crm-apps : outils/recuperer_app.sh la récupère.
 # App Android « Téléphonie CRM » : le contrat Kotlin rend exactement ce que rend le Python de référence
-# (ingestion/), puis l'APK signé est construit et remplace les fichiers de la release « telephonie-android », PUBLIÉE
-# depuis le 12/11/2026 (accord de Robert) et liée depuis https://veridian.site/telephonie. Lien stable public :
+# (ingestion/), puis l'APK signé est construit. Deux canaux (outils/canaux.py), depuis la mise à jour à distance :
+#   push sur staging        -> canal d'ESSAI seulement (release telephonie-android-essai) ;
+#   promotion à la main     -> canal STABLE, celui des clients (release telephonie-android, lien public ci-dessous) :
+#                              une version déjà publiée en essai, mêmes octets, rien n'est reconstruit.
 #   https://github.com/Christ-Roy/veridian-crm/releases/download/telephonie-android/telephonie-crm.apk
-# Les versions datées (telephonie-v…) restent en brouillon. Remplacement sans trou : android/outils/publier_release.py.
+# À la main aussi : pourcentage, suspendre (coupe-circuit), reprendre, minimale, retour (reconstruire un ancien commit
+# avec un versionCode supérieur, en essai). Marche à suivre : README de l'app, « Mise à jour à distance ».
 # Runners Veridian seulement (loi 7), jamais un runner GitHub hébergé. JAMAIS pull_request ni pull_request_target :
-# dépôt public, un fork exécuterait son code sur notre runner. Push sur staging/main et workflow_dispatch seulement ;
-# le secret de signature ne sert qu'au job apk.
+# dépôt public, un fork exécuterait son code sur notre runner. Le secret de signature ne sert qu'au job apk.
 name: telephonie-android
 
 on:
   push:
-    branches: [staging, main]
+    branches: [staging]
     paths:
       - packages/twenty-apps/veridian/telephonie/android/**
       - .github/workflows/telephonie-android.yaml
   workflow_dispatch:
+    inputs:
+      action:
+        description: Ce qu'il faut faire
+        type: choice
+        default: etat
+        options: [etat, essai, promouvoir, pourcentage, suspendre, reprendre, minimale, retour]
+      canal:
+        description: Canal (pourcentage, suspendre, reprendre, minimale)
+        type: choice
+        default: stable
+        options: [stable, essai]
+      code:
+        description: versionCode (promouvoir, minimale)
+        default: ''
+      pourcentage:
+        description: Part des téléphones, 0 à 100 (promouvoir, pourcentage)
+        default: '10'
+      raison:
+        description: Raison affichée sur les téléphones (suspendre)
+        default: ''
+      commit:
+        description: Commit à reconstruire (retour)
+        default: ''
 
 permissions:
   contents: read
 
-concurrency:
-  group: telephonie-android-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   contrat:
+    if: github.event_name == 'push' || inputs.action == 'essai' || inputs.action == 'retour'
     runs-on: [self-hosted, veridian-jit]
     timeout-minutes: 20
     defaults:
@@ -33,6 +55,13 @@ jobs:
         working-directory: packages/twenty-apps/veridian/telephonie/android
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Retour arrière, le commit demandé peut se reconstruire
+        if: inputs.action == 'retour'
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: bash outils/retour.sh "$COMMIT"
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
@@ -42,16 +71,24 @@ jobs:
           VERIDIAN_CRM_APPS_DEPLOY_KEY: ${{ secrets.VERIDIAN_CRM_APPS_DEPLOY_KEY }}
         run: bash outils/recuperer_app.sh
       - name: Fixtures à jour avec le Python de référence
+        if: inputs.action != 'retour'
         run: python3 outils/fixtures_contrat.py --verifier
       - name: Contrat Kotlin contre les fixtures
         run: ./gradlew -p contrat test --console=plain
+      - name: Canaux (publication, promotion, coupe-circuit)
+        if: inputs.action != 'retour'
+        run: python3 -m unittest discover -s outils/tests
       - if: always()
         run: git clean -ffdx
 
   apk:
     needs: contrat
+    if: github.ref == 'refs/heads/staging'
     runs-on: [self-hosted, veridian-jit]
     timeout-minutes: 90
+    concurrency:
+      group: telephonie-android-construction
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
@@ -63,7 +100,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 20
+          fetch-depth: 0
+      - name: Outil des canaux, celui de la branche (avant un éventuel retour arrière)
+        run: cp outils/canaux.py "$RUNNER_TEMP/canaux.py"
+      - name: Retour arrière, sources du commit demandé
+        if: inputs.action == 'retour'
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: bash outils/retour.sh "$COMMIT"
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
@@ -95,30 +139,72 @@ jobs:
           umask 077
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=telephonie-crm\nkeyPassword=%s\n' "$D/telephonie-crm.jks" "$SIGNATURE_MDP" "$SIGNATURE_MDP" > "$D/telephonie-crm.properties"
       - name: Construire (whisper.cpp épinglé, contrat, APK signé)
+        env:
+          ACTION: ${{ inputs.action }}
         run: |
           set -euo pipefail
           export SIGNATURE_DIR="$RUNNER_TEMP/signature"
           # Runner plafonné en mémoire (memory_max ci-runner) : le 12/11, le démon Gradle (-Xmx3g du dépôt) plus la
           # compilation de ggml l'ont fait tuer. Démon unique borné, compilateur Kotlin dans le même processus.
           export GRADLE_ARGS="--no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx1200m -Dkotlin.compiler.execution.strategy=in-process -Pkotlin.compiler.execution.strategy=in-process"
-          export TELEPHONIE_VERSION_CODE="$(TZ=Europe/Paris date +%y%m%d%H)"
-          export TELEPHONIE_VERSION="$(TZ=Europe/Paris date +%Y%m%d.%H%M)-${GITHUB_SHA::10}"
+          # Minutes Unix : toujours croissant (voir construire.sh). Posé ici, il vaut aussi pour un retour arrière.
+          export TELEPHONIE_VERSION_CODE="$(( $(date +%s) / 60 ))"
+          SOURCE="$(git rev-parse HEAD)"
+          export TELEPHONIE_VERSION="$(TZ=Europe/Paris date +%Y%m%d.%H%M)-${SOURCE::10}"
+          if [ "$ACTION" = retour ]; then export TELEPHONIE_VERSION="$TELEPHONIE_VERSION-retour" TELEPHONIE_SANS_FIXTURES=1; fi
           outils/construire.sh
-          echo "VERSION=$TELEPHONIE_VERSION" >> "$GITHUB_ENV"
-      - name: Publier la release (lien stable et version datée)
+          { echo "VERSION=$TELEPHONIE_VERSION"; echo "CODE=$TELEPHONIE_VERSION_CODE"; echo "SOURCE=$SOURCE"; } >> "$GITHUB_ENV"
+      - name: Publier dans le canal d'essai (jamais le stable)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          APK=app/build/outputs/apk/release/app-release.apk
-          cp "$APK" "$RUNNER_TEMP/telephonie-crm.apk"
-          (cd "$RUNNER_TEMP" && sha256sum telephonie-crm.apk > telephonie-crm.apk.sha256)
           # L'app Twenty (sources du SDK), pour un Twenty qui n'est pas le nôtre : voir LISEZMOI.md
           tar czf "$RUNNER_TEMP/telephonie-twenty-app.tgz" -C ../.. telephonie/src telephonie/package.json \
             telephonie/yarn.lock telephonie/tsconfig.json telephonie/.yarnrc.yml telephonie/.nvmrc telephonie/LISEZMOI.md
-          python3 outils/publier_release.py "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA" "$RUNNER_TEMP/telephonie-crm.apk" \
-            "$RUNNER_TEMP/telephonie-crm.apk.sha256" "$RUNNER_TEMP/telephonie-twenty-app.tgz"
+          python3 "$RUNNER_TEMP/canaux.py" essai "$GITHUB_REPOSITORY" --code "$CODE" --version "$VERSION" --commit "$SOURCE" \
+            app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/telephonie-twenty-app.tgz"
       - if: always()
         run: |
-          rm -rf "$RUNNER_TEMP/signature" "$RUNNER_TEMP/telephonie-crm.apk"* "$RUNNER_TEMP/telephonie-twenty-app.tgz"
-          git clean -ffdx
+          rm -rf "$RUNNER_TEMP/signature" "$RUNNER_TEMP/canaux.py" "$RUNNER_TEMP/telephonie-twenty-app.tgz"
+          git checkout -q -f "$GITHUB_SHA"; git clean -ffdx
+
+  # Le stable n'avance qu'ici, à la main. Un seul à la fois : une promotion n'écrase jamais une suspension en cours.
+  canal:
+    if: github.event_name == 'workflow_dispatch' && inputs.action != 'essai' && inputs.action != 'retour' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')
+    runs-on: [self-hosted, veridian-jit]
+    timeout-minutes: 15
+    concurrency:
+      group: telephonie-android-canal
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: packages/twenty-apps/veridian/telephonie/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Canaux, tests
+        run: python3 -m unittest discover -s outils/tests
+      - name: Agir sur le canal, puis montrer l'état
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ inputs.action }}
+          CANAL: ${{ inputs.canal }}
+          CODE: ${{ inputs.code }}
+          POURCENTAGE: ${{ inputs.pourcentage }}
+          RAISON: ${{ inputs.raison }}
+        run: |
+          set -euo pipefail
+          case "$ACTION" in
+            etat) ;;
+            promouvoir) python3 outils/canaux.py promouvoir "$GITHUB_REPOSITORY" --code "$CODE" --pourcentage "$POURCENTAGE" ;;
+            pourcentage) python3 outils/canaux.py pourcentage "$GITHUB_REPOSITORY" --canal "$CANAL" --pourcentage "$POURCENTAGE" ;;
+            suspendre) python3 outils/canaux.py suspendre "$GITHUB_REPOSITORY" --canal "$CANAL" --raison "$RAISON" ;;
+            reprendre) python3 outils/canaux.py reprendre "$GITHUB_REPOSITORY" --canal "$CANAL" ;;
+            minimale) python3 outils/canaux.py minimale "$GITHUB_REPOSITORY" --canal "$CANAL" --code "$CODE" ;;
+            *) echo "action inconnue" >&2; exit 2 ;;
+          esac
+          python3 outils/canaux.py etat "$GITHUB_REPOSITORY"
+      - if: always()
+        run: git clean -ffdx

@@ -79,6 +79,8 @@ class ServiceSynchro : Service() {
         bindService(Intent(this, ServiceTranscription::class.java), liaison, BIND_AUTO_CREATE)
         Journal.log("service prêt (${synchro.reglages.mode}) : ${synchro.base.taille()} en file, ${synchro.base.taille("televersements")} fichiers")
         synchro.preparation.verifier("démarrage du service")
+        synchro.misesAJour.noterVersion()
+        synchro.misesAJour.evenement("démarrage")
         synchro.prechauffer()
         synchro.signalerTout(complet = synchro.base.lire("premiere-lecture") == null)
         synchro.base.ecrire("premiere-lecture", "faite")
@@ -181,7 +183,7 @@ class ServiceSynchro : Service() {
     private fun surveillerReseau() {
         val cm = getSystemService(ConnectivityManager::class.java)
         reseau = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { handler.postDelayed({ synchro.demanderVidange(); sonder() }, 2000) }
+            override fun onAvailable(network: Network) { handler.postDelayed({ synchro.demanderVidange(); sonder(); synchro.misesAJour.evenement("réseau") }, 2000) }
             override fun onCapabilitiesChanged(network: Network, caps: android.net.NetworkCapabilities) {
                 val libre = caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
                 if (libre && !nonFacture) synchro.reveillerFichiers()
@@ -210,6 +212,8 @@ class ServiceSynchro : Service() {
                     if (etat == TelephonyManager.CALL_STATE_OFFHOOK && dernierEtatAppel != TelephonyManager.CALL_STATE_OFFHOOK) enregistreur.appelCommence()
                     if (etat == TelephonyManager.CALL_STATE_IDLE && dernierEtatAppel != TelephonyManager.CALL_STATE_IDLE) {
                         enregistreur.appelFini()
+                        synchro.misesAJour.finAppelMs = System.currentTimeMillis()
+                        handler.postDelayed({ synchro.misesAJour.evenement("fin d'appel") }, 200_000)
                         // fin d'appel : le journal est écrit dans la seconde (observateur), la messagerie peut suivre
                         synchro.signaler(Synchro.Flux.APPELS); rafale()
                     }
@@ -265,6 +269,7 @@ class ServiceSynchro : Service() {
     private val filet = object : Runnable {
         override fun run() {
             synchro.preparation.verifierSiDu("filet")
+            synchro.misesAJour.evenement("filet")
             synchro.signalerTout()
             synchro.demanderVidange()
             handler.postDelayed(this, FILET_MS)
@@ -274,6 +279,7 @@ class ServiceSynchro : Service() {
     private val transcriptionPrete = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
             synchro.transcriptionPrete(i.getStringExtra("stem") ?: return, i.getStringExtra("flux") ?: "appels")
+            synchro.misesAJour.evenement("transcription finie")
         }
     }
 

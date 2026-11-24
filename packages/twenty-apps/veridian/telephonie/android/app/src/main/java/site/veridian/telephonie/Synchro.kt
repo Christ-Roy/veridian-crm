@@ -34,6 +34,7 @@ class Synchro private constructor(val ctx: Context) {
     val sources = Sources(ctx, reglages, adb)
     val acces = Acces(ctx, reglages)
     val preparation = Preparation(this)
+    val misesAJour = MiseAJourApp(this)
 
     enum class Flux(val nom: String, val pluriel: String) {
         APPELS("appels", "appels"), SMS("sms", "textMessages"), MMS("mms", "textMessages"), MESSAGERIE("messagerie", "appels")

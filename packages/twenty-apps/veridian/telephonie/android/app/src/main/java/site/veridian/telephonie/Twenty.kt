@@ -29,7 +29,7 @@ class Twenty(val url: String, private val acces: Acces?, private val essais: Int
 
     /** `refus401` : faux quand un 401 n'accuse que la route appelée (la préparation du CRM), jamais la connexion : il
      *  ne demande alors aucune reconnexion à l'utilisateur. */
-    fun requete(methode: String, chemin: String, corps: Any? = null, lectureMs: Int = 30_000, refus401: Boolean = true): JSONObject {
+    fun requete(methode: String, chemin: String, corps: Any? = null, refus401: Boolean = true): JSONObject {
         var derniere: Exception? = null
         var jeton = jeton()
         var renouvele = false
@@ -40,7 +40,7 @@ class Twenty(val url: String, private val acces: Acces?, private val essais: Int
                 // Réseau mobile qui décroche : une requête pendue ne doit pas retenir l'envoi deux minutes (mesuré
                 // le 12/11 en 4G : 121 s pour un appel). Deux essais de 10 + 30 s au plus, puis la file attend.
                 cnx.connectTimeout = 10_000
-                cnx.readTimeout = lectureMs
+                cnx.readTimeout = 30_000
                 cnx.setRequestProperty("Authorization", "Bearer $jeton")
                 cnx.setRequestProperty("Content-Type", "application/json")
                 if (corps != null) {

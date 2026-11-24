@@ -164,22 +164,22 @@ pour revenir en arrière : `sv up crm-telephone` et `mode miroir`).
 
 ## Chez un client, sans technicien (Robert, 24/11/2026)
 
-Le plugin Téléphonie n'est dans l'espace d'un client que si quelqu'un l'y installe. Depuis cette version, c'est l'app qui
-le demande : après la connexion OAuth, et à chaque démarrage si les objets manquent, `POST
-{CRM}/api/veridian/apps/telephonie/assurer` avec le jeton du membre. Tout se décide dans `contrat/Installation.kt`
-(`Preparation` ne porte que les requêtes et les délais).
+Téléphonie s'active nativement dans le CRM (Paramètres > Applications). L'app sonde les objets à la connexion et à chaque
+démarrage ; s'ils manquent, elle demande elle-même l'activation avec le jeton OAuth du membre : `triggerInstallApplication`
+sur `/metadata`, puis le suivi du travail (`findInstallApplicationJobStatus`). Tout se décide dans `contrat/Installation.kt`.
 
-| Réponse | État à l'écran | File |
+| Réponse (mesurée le 24/11 sur le staging, toujours en HTTP 200) | État à l'écran | File |
 |---|---|---|
-| 200 `installee`, `mise_a_jour`, `deja_installee`, `en_cours` | « Votre CRM se prépare », puis envoi tout seul | retenue jusqu'à ce que tout se lise |
-| 403 `app_non_maison` | « pas encore proposés, demandez à Veridian », revu toutes les 6 h | retenue |
-| 401, 403 autre | « votre compte n'a pas le droit, un administrateur doit se connecter une fois » | retenue |
-| 404 (route pas servie, autre Twenty), ou clé API | comme avant : « l'app Téléphonie n'est pas installée » | pas retenue |
-| 5xx, 429, réseau, réponse illisible | nouvel essai de 30 s à 10 min | retenue si les objets manquent |
+| `jobId`, travail en attente, actif ou terminé | « Votre CRM se prépare », puis envoi tout seul | retenue jusqu'à ce que tout se lise |
+| `FORBIDDEN` / `PERMISSION_DENIED` : membre sans la permission Applications | « Un administrateur doit activer Téléphonie dans Paramètres > Applications » ; sonde toutes les 5 min | retenue |
+| travail `FAILED`, « is not allowed on workspace » : garde de l'instance (VER-173), connue **après** un `jobId` accepté | « pas encore proposé dans votre CRM » ; sonde toutes les 30 min | retenue |
+| travail `FAILED` pour une autre raison | nouvel essai de 1 min à 1 h | retenue |
+| `NOT_FOUND` (app inconnue), `GRAPHQL_VALIDATION_FAILED` (Twenty ancien), ou clé API | comme avant : « l'app Téléphonie n'est pas installée » | pas retenue |
+| panne, réseau, réponse illisible | nouvel essai de 30 s à 10 min | retenue si les objets manquent |
 
 - **Prêt** = chaque champ que l'app écrit, et `personId`, se lit sur les deux objets (`cheminSonde`). Mesuré le 24/11 sur le
   staging : Twenty rend l'objet lisible avant tous ses champs (migrations différées), la simple lecture mentait.
-- Retenue : rien ne part, rien ne sort de la file, aucun essai n'est compté ; un 401 de cette route ne demande jamais
+- Retenue : rien ne part, rien ne sort de la file, aucun essai n'est compté ; un 401 de cette demande ne demande jamais
   de reconnexion (la sonde, elle, oui si la connexion est vraiment morte).
 - Perte corrigée (`Suite`) : les refus comptaient comme des vérifications. Un appel refusé trois fois (plugin absent) sortait
   de la file aussitôt créé, donc sans son enregistrement ni ses pièces jointes.
@@ -188,6 +188,55 @@ le demande : après la connexion OAuth, et à chaque démarrage si les objets ma
 
 Reste hors de portée d'un client seul : l'enregistrement des appels (JemRec, débogage sans fil) donc leur transcription, la
 messagerie vocale (adb), et la transcription Whisper du serveur (veridian-4 seul).
+
+## Mise à jour à distance (Robert, 24/11/2026)
+
+L'app lit un manifeste public (`manifeste.json` de la release du canal) au démarrage, au retour du réseau et après un appel,
+au plus une fois par jour ; elle télécharge sur réseau non limité, jamais pendant un appel, un enregistrement ou une
+transcription ; elle vérifie taille, SHA-256, paquet, certificat identique au sien et `versionCode` supérieur, puis installe
+par PackageInstaller. Décisions : `contrat/MiseAJour.kt` ; réseau et installation : `MiseAJourApp.kt`.
+
+| Canal | Release | Qui l'avance |
+|---|---|---|
+| essai | `telephonie-android-essai` | chaque push sur `staging` ; née en brouillon, invisible tant que Robert ne la publie pas |
+| stable (défaut, les clients) | `telephonie-android` | une promotion à la main, d'une version déjà en essai : mêmes octets, même SHA-256 |
+
+Actions (GitHub, workflow `telephonie-android`, « Run workflow » sur `staging`) :
+
+| Action | Effet |
+|---|---|
+| `etat` | lecture seule des deux canaux |
+| `promouvoir` (code, pourcentage) | essai → stable, 10 % par défaut ; le lien public ne suit qu'à 100 % |
+| `pourcentage` | élargit ; la part d'un téléphone est stable (tirée au hasard chez lui, jamais envoyée) |
+| `suspendre` (raison) / `reprendre` | coupe-circuit : plus aucune installation, même d'un fichier déjà téléchargé (manifeste relu moins de 10 min avant) |
+| `minimale` (code) | en dessous, le pourcentage ne retient plus |
+| `retour` (commit) | voir « Revenir à une version d'avant » |
+
+**Geste de l'utilisateur.** Une fois : installer à la main la première version qui sait se mettre à jour, puis « Autoriser les
+mises à jour automatiques » (Android : « Installer des applis inconnues »). Ensuite rien : Android 12 et plus laisse une app se
+mettre à jour elle-même (`UPDATE_PACKAGES_WITHOUT_USER_ACTION`, `USER_ACTION_NOT_REQUIRED`). Sans cette autorisation, ou si le
+fabricant ou Play Protect s'y oppose, une notification par jour avec un bouton « Installer ». Protection Avancée (Android 16)
+interdit toute installation hors Play Store.
+
+**Ce qui survit.** Android garde les données privées d'un paquet mis à jour (même nom, même certificat) : base SQLite, réglages,
+clé du Keystore, autorisations. `MiseAJourTest` garde que le code ne renomme ni ne vide rien ; un changement de schéma ne fait
+qu'**ajouter** (`onDowngrade` garde une base plus récente). Android relance le service par `MY_PACKAGE_REPLACED`.
+
+**Vie privée.** Une lecture publique, sans jeton, cookie ni paramètre ; agent fixe (celui d'Android nomme le modèle). GitHub voit
+une adresse IP, comme pour toute page.
+
+**`versionCode`** = minutes Unix. L'ancien `aaMMjjHH` était égal pour deux constructions d'une même heure et reculait au passage
+à l'heure d'hiver.
+
+### Revenir à une version d'avant
+
+Android refuse un `versionCode` inférieur : on reconstruit l'ancien code avec un numéro supérieur.
+
+1. `suspendre` (canal stable, raison) : plus aucun téléphone n'installe la version fautive.
+2. `outils/retour.sh --verifier <commit>` (dit si ce commit peut servir), puis action `retour` avec ce commit : il est
+   reconstruit et publié **en essai** (`…-retour`). Refusé hors de `staging`, et avant la mise à jour à distance (les
+   téléphones n'en reviendraient plus).
+3. Vérifier sur nos téléphones (canal d'essai), puis `reprendre`, `promouvoir` ce code à 100 %.
 
 ## Installable par un tiers (13/11/2026)
 
@@ -217,8 +266,7 @@ plan rapproche par `idSource` (aucun doublon).
 `AUTRE`, sans nouveau champ, pour ne pas réécrire les fiches existantes.
 
 Distribution : `.github/workflows/telephonie-android.yaml` (runners Veridian) construit, signe (secrets
-`TELEPHONIE_SIGNATURE_JKS_B64`, `TELEPHONIE_SIGNATURE_MDP`) et publie la release `telephonie-android` (lien
-stable) et `telephonie-v<version>`, avec l'archive de l'app Twenty.
+`TELEPHONIE_SIGNATURE_JKS_B64`, `TELEPHONIE_SIGNATURE_MDP`) et publie en **essai** ; voir « Mise à jour à distance ».
 
 ### Mesuré le 12/11/2026 (heure de Paris)
 

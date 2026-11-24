@@ -1,14 +1,13 @@
 package site.veridian.telephonie
 
 import org.json.JSONException
-import org.json.JSONObject
 import site.veridian.telephonie.contrat.Installation
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 /**
- * Les objets Appels et SMS existent-ils dans le CRM connecté ? Sinon, l'app demande au CRM de les installer, attend
+ * Les objets Appels et SMS existent-ils dans le CRM connecté ? Sinon, l'app demande leur activation native, attend
  * qu'ils se lisent, et retient l'envoi jusque-là. Toutes les décisions sont dans `contrat/Installation.kt` (testées
  * sans Android) ; ici, les requêtes, les délais et le journal. Un seul fil : deux passages ne se croisent jamais.
  *
@@ -22,7 +21,7 @@ class Preparation(private val synchro: Synchro) {
     @Volatile private var prochain = 0L
     @Volatile private var sansSuite = false
 
-    private val installateur = Installation.Installateur(sonde = ::sonder, demander = ::demander,
+    private val installateur = Installation.Installateur(sonde = ::sonder, declencher = ::declencher, suivre = ::suivre,
         peutDemander = { synchro.reglages.acces == Reglages.ACCES_OAUTH })
 
     val etat get() = installateur.decision.etat
@@ -31,7 +30,7 @@ class Preparation(private val synchro: Synchro) {
 
     fun message(): String = Installation.message(etat, synchro.base.taille())
 
-    /** Un passage tout de suite. `forcer` (connexion, bouton Réessayer) : la route est appelée même si tout est là. */
+    /** Un passage tout de suite. `forcer` (connexion, bouton Réessayer) : l'activation manquante est redemandée tout de suite. */
     fun verifier(origine: String, forcer: Boolean = false) {
         if (!forcer && enCours) return
         programmer(origine, forcer, 0)
@@ -88,7 +87,7 @@ class Preparation(private val synchro: Synchro) {
                     enCours = false
                     prochain = Long.MAX_VALUE
                     if (suivant != null) programmer("suite", false, suivant)
-                    // Route pas servie ou clé API : relu par le filet (30 min), jamais à chaque refus.
+                    // App inconnue de ce CRM ou clé API : relu par le filet (30 min), jamais à chaque refus.
                     else if (retient || etat == Installation.Etat.NON_GERE) prochain = System.currentTimeMillis() + 29 * 60_000L
                 }
             }
@@ -105,16 +104,22 @@ class Preparation(private val synchro: Synchro) {
         })
     }
 
-    private fun demander(): Installation.Reponse {
-        // Deux essais (un jeton expiré se renouvelle au premier) ; ensuite c'est l'installateur qui rejoue. 90 s : une
-        // installation peut répondre lentement.
-        val tw = Twenty(synchro.reglages.url ?: return Installation.Reponse.A_RETENTER, synchro.acces, essais = 2)
-        val reponse = try {
-            val j = tw.requete("POST", Installation.CHEMIN, JSONObject(), lectureMs = 90_000, refus401 = false)
-            Installation.lire(200, j.toString())
-        } catch (e: Refus) { Installation.lire(e.code ?: 0, e.corps) } catch (e: NonAbouti) { Installation.Reponse.A_RETENTER
-        } catch (e: JSONException) { Installation.Reponse.A_RETENTER }  // une page web à la place de l'API
-        Journal.log("préparation du CRM : demande d'installation, réponse $reponse")
-        return reponse
+    /** GraphQL de Twenty : code et corps bruts (l'erreur est dans le corps, en HTTP 200). Deux essais par requête. */
+    private fun metadata(requete: String, variables: Map<String, Any?>): Pair<Int, String> {
+        val tw = Twenty(synchro.reglages.url ?: return 0 to "", synchro.acces, essais = 2)
+        return try {
+            200 to tw.requete("POST", Installation.CHEMIN, mapOf("query" to requete, "variables" to variables), refus401 = false).toString()
+        } catch (e: Refus) { (e.code ?: 0) to e.corps } catch (e: NonAbouti) { 0 to ""
+        } catch (e: JSONException) { 0 to "" }  // une page web à la place de l'API
+    }
+
+    private fun declencher(): Installation.Demande {
+        val (code, corps) = metadata(Installation.DECLENCHER, mapOf("input" to mapOf("universalIdentifier" to Installation.APPLICATION)))
+        return Installation.lireDemande(code, corps).also { Journal.log("préparation du CRM : activation demandée, ${it.reponse}") }
+    }
+
+    private fun suivre(travail: String): Installation.Reponse {
+        val (code, corps) = metadata(Installation.SUIVRE, mapOf("app" to Installation.APPLICATION, "travail" to travail))
+        return Installation.lireTravail(code, corps).also { if (it != Installation.Reponse.EN_COURS) Journal.log("préparation du CRM : activation $it") }
     }
 }

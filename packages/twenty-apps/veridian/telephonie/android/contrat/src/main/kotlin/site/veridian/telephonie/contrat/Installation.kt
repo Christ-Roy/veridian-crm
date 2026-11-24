@@ -1,23 +1,36 @@
 package site.veridian.telephonie.contrat
 
 /**
- * Les objets Appels et SMS dans le CRM du client, sans technicien (Robert, 24/11/2026). Après la connexion, l'app
- * demande au CRM de s'en assurer : `POST {CRM}/api/veridian/apps/telephonie/assurer`, jeton OAuth du membre.
+ * Les objets Appels et SMS dans le CRM du client, sans technicien (Robert, 24/11/2026 : « des app à activer nativement
+ * dans le crm »). L'app les sonde ; s'ils manquent, elle demande l'activation native, avec le jeton OAuth du membre :
+ * `triggerInstallApplication(input: {universalIdentifier})` sur `/metadata`, puis le suivi du travail.
  *
- * Contrat de la route : 200 {app, etat: installee|mise_a_jour|deja_installee|en_cours, version} ; 403
- * {error: "app_non_maison"} ; 401 ; 404 tant qu'elle n'est pas servie (Twenty d'ailleurs, serveur pas à jour).
+ * Mesuré sur le staging le 24/11/2026 (Twenty 2.56.1), tout en HTTP 200 :
+ *  - accepté : `{data: {triggerInstallApplication: {jobId}}}`, AVANT toute garde : le travail dit la suite ;
+ *  - garde de l'instance : le travail passe à FAILED, `failedReason` « … is not allowed on workspace … » (5 s plus tard) ;
+ *  - membre sans la permission APPLICATIONS : `FORBIDDEN`, subCode `PERMISSION_DENIED` ;
+ *  - app inconnue de l'instance : `NOT_FOUND` ; Twenty sans cette mutation : `GRAPHQL_VALIDATION_FAILED`.
  *
  * Tout ce qui décide est ici, sans Android : la file n'envoie rien tant que les objets manquent (`retient`), et rien
- * n'en sort. Sans la route (404) ou avec une clé API, rien n'est retenu : c'est le comportement d'avant.
+ * n'en sort. App inconnue de l'instance, ou clé API : rien n'est retenu, c'est le comportement d'avant.
  */
 object Installation {
-    const val CHEMIN = "/api/veridian/apps/telephonie/assurer"
+    const val CHEMIN = "/metadata"
+    /** Le plugin Téléphonie (`src/identifiants.ts`, jamais changé). */
+    const val APPLICATION = "e3df4b02-559e-4624-b985-3fd49cfd1725"
+    const val DECLENCHER = "mutation TriggerInstallApplication(\$input: TriggerInstallApplicationInput!) " +
+        "{ triggerInstallApplication(input: \$input) { jobId } }"
+    const val SUIVRE = "query(\$app: String!, \$travail: String) " +
+        "{ findInstallApplicationJobStatus(universalIdentifier: \$app, jobId: \$travail) { state failedReason } }"
     val OBJETS = listOf("appels", "textMessages")
 
     enum class Presence { PRESENT, ABSENT, INCONNU }
 
-    /** Ce que la route a répondu. */
-    enum class Reponse { INSTALLEE, EN_COURS, NON_MAISON, INTERDIT, NON_SERVIE, A_RETENTER }
+    /** Ce que le CRM a répondu à la demande, ou au suivi du travail. */
+    enum class Reponse { INSTALLEE, EN_COURS, NON_PROPOSEE, INTERDIT, NON_SERVIE, ECHEC, A_RETENTER }
+
+    /** `travail` : l'identifiant à suivre, quand la demande est acceptée. */
+    data class Demande(val reponse: Reponse, val travail: String? = null)
 
     enum class Etat { INCONNU, PRET, INSTALLATION, NON_PROPOSE, REFUSE, NON_GERE, A_RETENTER }
 
@@ -25,7 +38,11 @@ object Installation {
     /** Le corps arrive en JSON : les guillemets autour du champ y sont échappés. */
     private val CHAMP_ABSENT = Regex("Object (\\w+) doesn't have any \\\\?\"\\w+\\\\?\" field")
     private val SINGULIERS = listOf("appel", "textMessage")
-    private val ETAT = Regex("\"etat\"\\s*:\\s*\"([a-z_]+)\"")
+    private val ERREURS = Regex("\"errors\"\\s*:\\s*\\[\\s*\\{")
+    private val TRAVAIL = Regex("\"jobId\"\\s*:\\s*\"([^\"]+)\"")
+    private val ETAT_TRAVAIL = Regex("\"state\"\\s*:\\s*\"([A-Z_]+)\"")
+    /** La garde d'installation de l'instance (VER-173), dans le message de l'erreur ou du travail. */
+    private const val PAS_PROPOSEE = "is not allowed on workspace"
 
     /**
      * L'objet, ou l'un des champs que l'app écrit, n'existe pas dans cet espace. Relevé sur le staging le 24/11/2026 : 400
@@ -55,16 +72,36 @@ object Installation {
         else -> Presence.INCONNU
     }
 
-    fun lire(code: Int, corps: String): Reponse = when {
-        code in 200..299 -> when (ETAT.find(corps)?.groupValues?.get(1)) {
-            "installee", "mise_a_jour", "deja_installee" -> Reponse.INSTALLEE
-            "en_cours" -> Reponse.EN_COURS
-            else -> Reponse.A_RETENTER
-        }
-        code == 403 && "app_non_maison" in corps -> Reponse.NON_MAISON
-        code == 401 || code == 403 -> Reponse.INTERDIT
+    private fun codeErreur(code: String, corps: String) = Regex("\"code\"\\s*:\\s*\"$code\"").containsMatchIn(corps)
+
+    /** Une réponse qui n'est pas un succès de GraphQL, ou null si elle en est un. */
+    private fun refus(code: Int, corps: String): Reponse? = when {
+        code == 403 -> Reponse.INTERDIT
         code == 404 -> Reponse.NON_SERVIE
-        else -> Reponse.A_RETENTER
+        code !in 200..299 -> Reponse.A_RETENTER
+        !ERREURS.containsMatchIn(corps) -> null
+        PAS_PROPOSEE in corps -> Reponse.NON_PROPOSEE
+        codeErreur("FORBIDDEN", corps) -> Reponse.INTERDIT
+        codeErreur("NOT_FOUND", corps) || codeErreur("GRAPHQL_VALIDATION_FAILED", corps) -> Reponse.NON_SERVIE
+        else -> Reponse.A_RETENTER  // UNAUTHENTICATED (la sonde, juste avant, renouvelle le jeton), désinstallation en cours, panne
+    }
+
+    /** Réponse à `DECLENCHER`. Accepter n'est pas installer : seul le travail le dit. */
+    fun lireDemande(code: Int, corps: String): Demande {
+        refus(code, corps)?.let { return Demande(it) }
+        val travail = TRAVAIL.find(corps)?.groupValues?.get(1) ?: return Demande(Reponse.A_RETENTER)
+        return Demande(Reponse.EN_COURS, travail)
+    }
+
+    /** Réponse à `SUIVRE`. Un travail que le CRM ne connaît plus est à redemander. */
+    fun lireTravail(code: Int, corps: String): Reponse {
+        refus(code, corps)?.let { return it }
+        return when (ETAT_TRAVAIL.find(corps)?.groupValues?.get(1)) {
+            "COMPLETED" -> Reponse.INSTALLEE
+            "FAILED" -> if (PAS_PROPOSEE in corps) Reponse.NON_PROPOSEE else Reponse.ECHEC
+            null -> Reponse.A_RETENTER
+            else -> Reponse.EN_COURS
+        }
     }
 
     /** `retient` : la file garde tout et n'envoie rien. `reessayerMs` : prochain passage, null s'il n'y a rien à attendre. */
@@ -78,12 +115,17 @@ object Installation {
     /** Attente après un essai non abouti : de 30 s à 10 min. */
     fun repriseMs(passage: Int): Long = minOf(600_000L, 30_000L shl minOf(passage, 5))
 
-    /** Les objets manquent et la route a répondu. */
+    /** Après une installation ratée : de 1 min à 1 h. */
+    fun echecMs(passage: Int): Long = minOf(3_600_000L, 60_000L shl minOf(passage, 6))
+
+    /** Les objets manquent et le CRM a répondu. `reessayerMs` : la sonde reprend, la demande n'est pas toujours refaite. */
     fun absents(reponse: Reponse, passage: Int): Decision = when (reponse) {
         Reponse.INSTALLEE, Reponse.EN_COURS -> Decision(Etat.INSTALLATION, true, attenteMs(passage))
-        Reponse.NON_MAISON -> Decision(Etat.NON_PROPOSE, true, 6 * 3_600_000L)
-        Reponse.INTERDIT -> Decision(Etat.REFUSE, true, 1_800_000L)
+        // L'activation peut venir d'un autre : la sonde, légère, reprend seule.
+        Reponse.NON_PROPOSEE -> Decision(Etat.NON_PROPOSE, true, 1_800_000L)
+        Reponse.INTERDIT -> Decision(Etat.REFUSE, true, 300_000L)
         Reponse.NON_SERVIE -> Decision(Etat.NON_GERE, false, null)
+        Reponse.ECHEC -> Decision(Etat.A_RETENTER, true, echecMs(passage))
         Reponse.A_RETENTER -> Decision(Etat.A_RETENTER, true, repriseMs(passage))
     }
 
@@ -97,10 +139,10 @@ object Installation {
         return when (etat) {
             Etat.INSTALLATION -> "Votre CRM se prépare : les appels et SMS s'installent sur les fiches de vos contacts. " +
                 "Cela prend une à deux minutes, l'envoi démarre tout seul ensuite.$attente"
-            Etat.NON_PROPOSE -> "Les appels et SMS ne sont pas encore proposés dans votre CRM. Demandez à Veridian de les activer, " +
+            Etat.NON_PROPOSE -> "Téléphonie n'est pas encore proposé dans votre CRM. Demandez à Veridian de le proposer, " +
                 "l'envoi démarrera tout seul.$attente"
-            Etat.REFUSE -> "Votre compte n'a pas le droit d'ajouter les appels et SMS à ce CRM. Demandez à un administrateur de " +
-                "l'espace de connecter l'app une fois avec son compte.$attente"
+            Etat.REFUSE -> "Un administrateur doit activer Téléphonie dans Paramètres > Applications. " +
+                "Dès que c'est fait, l'envoi démarre tout seul.$attente"
             Etat.A_RETENTER -> "Votre CRM n'a pas répondu à la préparation des appels et SMS. Nouvel essai automatique.$attente"
             Etat.NON_GERE -> "L'app Téléphonie n'est pas installée dans ce CRM. Un administrateur doit l'ajouter une fois.$attente"
             Etat.INCONNU, Etat.PRET -> ""
@@ -108,45 +150,57 @@ object Installation {
     }
 
     /**
-     * La suite des passages. `sonde` : les objets existent-ils ? `demander` : appel de la route. `peutDemander` : connexion
-     * OAuth d'un membre (une clé API au rôle Téléphone ne peut rien installer).
+     * La suite des passages. `sonde` : les objets existent-ils ? `declencher` : demande d'activation ; `suivre` : où en est
+     * son travail. `peutDemander` : connexion OAuth d'un membre (une clé API au rôle Téléphone n'active rien).
      */
-    class Installateur(private val sonde: () -> Presence, private val demander: () -> Reponse, private val peutDemander: () -> Boolean) {
+    class Installateur(private val sonde: () -> Presence, private val declencher: () -> Demande, private val suivre: (String) -> Reponse,
+                       private val peutDemander: () -> Boolean) {
         @Volatile var decision = Decision(Etat.INCONNU, false, null)
             private set
         private var passage = 0
         private var derniere: Reponse? = null
+        private var travail: String? = null
         private var vuAbsent = false
 
-        /** Un passage. `forcer` (connexion, bouton Réessayer) : la route est appelée même si les objets sont là (mise à jour). */
+        /** Un passage. `forcer` (connexion, bouton Réessayer) : si les objets manquent, l'activation est redemandée tout de suite. */
         @Synchronized
         fun passer(forcer: Boolean = false): Decision {
-            if (forcer) { passage = 0; derniere = null }
-            decision = suite(forcer)
-            if (decision.etat == Etat.PRET) { passage = 0; derniere = null; vuAbsent = false } else passage++
+            if (forcer) { passage = 0; derniere = null; travail = null }
+            decision = suite()
+            if (decision.etat == Etat.PRET) { passage = 0; derniere = null; travail = null; vuAbsent = false } else passage++
             return decision
         }
 
-        private fun suite(forcer: Boolean): Decision {
+        private fun suite(): Decision {
             val avant = sonde()
-            if (avant == Presence.PRESENT && !attendLaFin() && !forcer) return PRET
+            if (avant == Presence.PRESENT && !attendLaFin()) return PRET
             if (avant == Presence.ABSENT) vuAbsent = true
             // Réseau absent : on ne sait rien de neuf, ce qui était retenu le reste.
             if (avant == Presence.INCONNU) return Decision(if (decision.retient) decision.etat else Etat.INCONNU, decision.retient, repriseMs(passage))
             if (!peutDemander()) return if (avant == Presence.PRESENT) PRET else Decision(Etat.NON_GERE, false, null)
-            val reponse = if (aRedemander()) demander().also { derniere = it } else derniere!!
+            val reponse = reponse()
             if (avant == Presence.PRESENT) return if (attendLaFin()) absents(reponse, passage) else PRET
             // Deuxième sonde : une installation déjà finie ouvre l'envoi tout de suite.
             return if (sonde() == Presence.PRESENT && !attendLaFin()) PRET else absents(reponse, passage)
+        }
+
+        private fun reponse(): Reponse {
+            val enCours = travail
+            val r = if (derniere == Reponse.EN_COURS && enCours != null) suivre(enCours)
+                else if (aRedemander()) declencher().let { travail = it.travail; it.reponse } else derniere!!
+            derniere = r
+            return r
         }
 
         /** Objets apparus pendant une installation encore en cours : la relation vers la Personne peut manquer. Borné. */
         private fun attendLaFin() = vuAbsent && derniere == Reponse.EN_COURS && passage < PASSAGES_EN_COURS
 
         private fun aRedemander(): Boolean = when (derniere) {
-            null, Reponse.A_RETENTER, Reponse.EN_COURS, Reponse.NON_MAISON, Reponse.INTERDIT, Reponse.NON_SERVIE -> true
-            // Installée d'après la route, mais objets pas encore lisibles (cache) : la sonde suffit, la route un passage sur quatre.
+            null, Reponse.A_RETENTER, Reponse.ECHEC, Reponse.EN_COURS, Reponse.NON_SERVIE -> true
+            // Installée d'après le travail, mais objets pas encore lisibles (cache) : la sonde suffit, la demande un passage sur quatre.
             Reponse.INSTALLEE -> passage % 4 == 0
+            // Refusée : la sonde verra l'activation faite par un autre ; la demande, une fois par heure ou toutes les 6 h.
+            Reponse.INTERDIT, Reponse.NON_PROPOSEE -> passage % 12 == 0
         }
 
         private companion object {
