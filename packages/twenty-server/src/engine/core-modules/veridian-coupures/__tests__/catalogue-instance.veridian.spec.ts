@@ -1,4 +1,5 @@
-// twenty-client-sdk n'est pas construit en CI ; les services ne s'en servent pas avant les gardes.
+// twenty-client-sdk et twenty-emails ne sont pas construits en CI ; les services ne s'en servent pas avant les gardes.
+jest.mock('twenty-emails', () => ({}), { virtual: true });
 jest.mock(
   'src/engine/core-modules/sdk-client/sdk-client-archive.service',
   () => ({ SdkClientArchiveService: class {} }),

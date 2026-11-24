@@ -2,7 +2,7 @@
 """Preuve de « Envoyer au CRM » (VER-246) sur le staging : jeton d'action à `act`, signé localement avec la clé du Hub de
 staging (lue dans Nomad comme preuve-mcp-hub.py, jamais affichée), vers l'outil MCP app_envoyer_au_crm.
 
-  preuve-envoi-crm.py <ss-dom> --email <admin> --tenant <tenant Hub> [--chemin nomad/jobs/hub-staging]
+  preuve-envoi-crm.py <ss-dom> --email <admin> --tenant <tenant Hub> [--chemin nomad/jobs/hub-staging/stack/hub-staging]
 
 Épreuves : sans act (refus), forge de l'origine, portée et outil étrangers, autre espace, rejeu du jeton, un clic, le même
 clic, dix clics simultanés, saisie humaine gardée, corbeille. Les fiches d'épreuve sont détruites à la fin.
@@ -183,7 +183,7 @@ def main():
     p.add_argument("--email", required=True)
     p.add_argument("--tenant", required=True)
     p.add_argument("--autre-tenant")
-    p.add_argument("--chemin", default="nomad/jobs/hub-staging")
+    p.add_argument("--chemin", default="nomad/jobs/hub-staging/stack/hub-staging")
     a = p.parse_args()
     e = None
     try:
