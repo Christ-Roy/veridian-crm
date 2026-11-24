@@ -142,11 +142,12 @@ export class ApplicationInstallService {
     }
 
     // Veridian (VER-173) : le registre privé ne vérifie pas qui installe ; seuls les couples (espace, app) de
-    // VERIDIAN_APP_INSTALL_ALLOW installent ou mettent à jour du code publié.
+    // VERIDIAN_APP_INSTALL_ALLOW installent ou mettent à jour du code publié, hors catalogue d'instance.
     if (
       !isApplicationInstallAllowedByVeridian({
         workspaceId: params.workspaceId,
         applicationUniversalIdentifier: appRegistration.universalIdentifier,
+        applicationRegistration: appRegistration,
       })
     ) {
       throw new ApplicationException(

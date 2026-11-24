@@ -38,6 +38,11 @@ exige "$SERVEUR/engine/workspace-query-executor/services/workspace-query-executo
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "forRoutes({ path: ApiPath.Mcp"
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!isLogicFunctionAllowedByVeridian({"
 exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "!isApplicationInstallAllowedByVeridian({"
+# Catalogue d'instance (24/11/2026) : les drapeaux natifs listée ou préinstallée ouvrent les deux gardes.
+exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "applicationRegistration: appRegistration,"
+exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!(await isCatalogApplicationAllowedByVeridian("
+# Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
+exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "await this.applyUpdate({ id, update });"
 exige "$SERVEUR/engine/metadata-modules/ai/ai-models/utils/build-ai-telemetry.util.ts" "headers: encoderContexteIa(identifiers),"
 exige "$SERVEUR/engine/metadata-modules/ai/ai-models/services/sdk-provider-factory.service.ts" "const instance = this.withVeridianIdentity("
 exige packages/twenty-front/src/pages/auth/SignInUp.tsx "useRedirectToHubLogin();"

@@ -57,6 +57,7 @@ jobs:
       - run: bash scripts/ci/mutations-connexion.sh
       - run: bash scripts/ci/mutations-identite-ia.sh
       - run: bash scripts/ci/mutations-jeton-action.sh
+      - run: bash scripts/ci/mutations-catalogue.sh
       - if: always()
         run: git clean -ffdx
 
