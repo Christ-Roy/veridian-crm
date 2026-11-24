@@ -16,13 +16,14 @@ permissions:
   contents: read
   packages: write
 
+# Un push n'annule plus le run en cours (24/11/2026 : 4 runs annulés d'affilée, aucune image pendant 40 min). Il attend ;
+# GitHub ne garde que le plus récent en attente. Runs courts : image et sabotages partent en parallèle.
 concurrency:
   group: veridian-crm-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   IMAGE: ghcr.io/christ-roy/veridian-crm
-  BUILDAH_ISOLATION: chroot
 
 jobs:
   garde-legale:
@@ -35,76 +36,96 @@ jobs:
       - if: always()
         run: git clean -ffdx
 
-  # Runner de build : `yarn install` dépasse les 3 Go du runner ordinaire (tué, code 137).
+  # Runners hébergés : dépôt PUBLIC, gratuits, aucun accès au parc (loi 7 = dépôts privés). Un job par script de sabotage :
+  # en série ils prenaient 21 min sur un runner déjà occupé par l'image. Tous sont exigés.
   patch-survival:
-    runs-on: [self-hosted, veridian-jit, veridian-jit-build]
+    name: patch-survival (${{ matrix.script }})
+    runs-on: ubuntu-latest
     needs: garde-legale
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # Chaque comportement du §6bis.8.0 est retiré tour à tour : la spec doit casser à chaque fois.
+        script:
+          - patch-survival
+          - mutations-connexion
+          - mutations-identite-ia
+          - mutations-jeton-action
+          - mutations-catalogue
+          - mutations-apps-mcp
+          - mutations-role-hub
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Le binaire Node 26 exige libatomic, absente de l'image du runner (qui tourne en root ici).
-      - run: apt-get update -qq && apt-get install -y -qq --no-install-recommends libatomic1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-serveur-${{ hashFiles('yarn.lock') }}
       - run: |
           node "$(sed -n 's/^yarnPath: //p' .yarnrc.yml)" workspaces focus twenty-monorepo twenty-server twenty-emails twenty-shared twenty-client-sdk
           npx nx run twenty-shared:build
         env:
           YARN_ENABLE_SCRIPTS: 'false'
-      - run: bash scripts/ci/patch-survival.sh
-      # Chaque comportement du §6bis.8.0 est retiré tour à tour : la spec doit casser à chaque fois.
-      - run: bash scripts/ci/mutations-connexion.sh
-      - run: bash scripts/ci/mutations-identite-ia.sh
-      - run: bash scripts/ci/mutations-jeton-action.sh
-      - run: bash scripts/ci/mutations-catalogue.sh
-      - run: bash scripts/ci/mutations-apps-mcp.sh
-      - run: bash scripts/ci/mutations-role-hub.sh
-      - if: always()
-        run: git clean -ffdx
-
-  # 1 cœur réservé sur ce runner : plus de 2 h mesurées le 06/11/2026, contre 23 min sur node02 sans plafond.
-  # En parallèle des tests (24/11/2026 : 10 à 18 min de tests devant 17 min d'image). On ne déploie qu'un run vert en entier.
-  # Une seule image à la fois, toutes branches : `buildah rm --all` ci-dessous effaçait les conteneurs de l'autre.
-  image:
-    runs-on: [self-hosted, veridian-jit, veridian-jit-build]
-    needs: garde-legale
-    concurrency:
-      group: veridian-crm-image
-      cancel-in-progress: false
-    timeout-minutes: 300
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Connexion à ghcr.io
+      - run: bash "scripts/ci/${{ matrix.script }}.sh"
+      # Un script de sabotage ajouté au dépôt et oublié ici ne serait jamais joué.
+      - name: Aucun script de sabotage oublié
+        if: matrix.script == 'patch-survival'
         run: |
           set -euo pipefail
-          printf '%s' '${{ secrets.GITHUB_TOKEN }}' \
-            | buildah login --username '${{ github.actor }}' --password-stdin ghcr.io
-      - name: Construire et pousser
+          for f in scripts/ci/mutations-*.sh; do
+            n="$(basename "$f" .sh)"
+            grep -qxE " +- $n" .github/workflows/veridian-crm-ci.yaml || { echo "::error::$n absent de la matrice"; exit 1; }
+          done
+
+  # En parallèle des tests. On ne déploie qu'un run vert en entier (jobs attendus par la session CRM).
+  image:
+    runs-on: ubuntu-latest
+    needs: garde-legale
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # node_modules du front et du serveur, deux fois : le disque libre du runner n'y suffit pas toujours.
+      - run: (sudo rm -rf /usr/local/lib/android /opt/ghc >/dev/null 2>&1 &); df -h / | tail -1
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          cleanup: false # retirer le builder prenait plus d'une minute ; le runner est jeté de toute façon
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: nom
         run: |
           set -euo pipefail
           SHA="$(git rev-parse --short=7 HEAD)"
-          BRANCHE='${{ github.ref_name }}'
-          nice -n 19 buildah bud --format docker --target twenty \
-            --build-arg APP_VERSION="2.56.1-veridian-$SHA" \
-            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
-            --tag "$IMAGE:$BRANCHE-$SHA" --file packages/twenty-docker/twenty/Dockerfile .
-          buildah push --digestfile /tmp/digest "$IMAGE:$BRANCHE-$SHA"
-          buildah push "$IMAGE:$BRANCHE-$SHA" "docker://$IMAGE:$BRANCHE"
-          echo "$IMAGE:$BRANCHE-$SHA@$(cat /tmp/digest)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ github.ref_name }}-$SHA" >> "$GITHUB_OUTPUT"
+      # Pas de cache GitHub : son export coûte plus que ce qu'il rend (essayé le 24/11, Hub : 8 min).
+      - name: Construire et pousser
+        id: image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: packages/twenty-docker/twenty/Dockerfile
+          target: twenty
+          push: true
+          provenance: false
+          build-args: APP_VERSION=2.56.1-veridian-${{ steps.nom.outputs.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.nom.outputs.tag }}
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+      - run: echo "$IMAGE:${{ steps.nom.outputs.tag }}@${{ steps.image.outputs.digest }}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Scan trivy du digest publié (rapport)
-        env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Trivy manque sur l'image de ce runner : mesure non aboutie affichée, pas un build rouge.
-          if ! trivy --version >/dev/null 2>&1; then
-            echo "::warning::Scan NON ABOUTI : trivy absent du runner"
-            echo "Scan NON ABOUTI : trivy absent du runner" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          nice -n 19 trivy image --severity CRITICAL,HIGH --ignore-unfixed --scanners vuln \
-            --exit-code 0 "$IMAGE@$(cat /tmp/digest)" | tee -a "$GITHUB_STEP_SUMMARY"
-      - if: always()
-        run: buildah rm --all >/dev/null 2>&1 || true
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.image.outputs.digest }}
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          scanners: vuln
+          exit-code: '0'
+          format: table
