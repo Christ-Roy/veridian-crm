@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Preuve de « Envoyer au CRM » (VER-246) sur le staging : jeton d'action à `act`, signé localement avec la clé du Hub de
-staging (lue dans Nomad comme preuve-mcp-hub.py, jamais affichée), vers l'outil MCP app_envoyer_au_crm.
+staging (lue dans Nomad, jamais affichée ni copiée), vers l'outil MCP app_envoyer_au_crm. Le Hub (24/11/2026) le tolère sur
+le staging tant que sa porte n'émet pas ces jetons ; ensuite, ses jetons. Jamais la clé de prod : refusée ici.
 
   preuve-envoi-crm.py <ss-dom> --email <admin> --tenant <tenant Hub> [--chemin nomad/jobs/hub-staging/stack/hub-staging]
 
@@ -30,6 +31,8 @@ OUTIL = "app_envoyer_au_crm"
 
 
 def cle_du_hub(chemin):
+    if not chemin.startswith("nomad/jobs/hub-staging/"):
+        raise ta.Echec("seule la clé du Hub de staging se lit", 2)
     brut = subprocess.run(["nomad-v", "raw", "var", "get", "-item", "MCP_SIGNING_JWK", chemin],
                           capture_output=True, text=True, check=True).stdout.strip()
     jwk = json.loads(brut if brut.startswith("{") else base64.b64decode(brut).decode())

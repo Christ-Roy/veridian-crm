@@ -82,7 +82,6 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, boucle du domaine nu, garde d'identité, marque : chaque comportement retiré casse la spec | à chaque CI |
 | `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, connexion, déconnexion, navigateur sans hôte tiers, écrans sans action réservée au Hub ni nom amont | oui, plusieurs fois |
 | `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier, espace jetable | mesure, à rejouer sur le nœud de prod |
-| `scripts/ci/preuve-mcp-hub.py <url_mcp> <hub_user_id>` | JWT du Hub sur `/mcp` : connu, inconnu, `tenant_*`, aide hors MCP | prod 401 avant le module (09/11) |
 | `scripts/ci/preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage`, code 1 (23/11) |
 | `scripts/ci/preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version, code 1 (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
