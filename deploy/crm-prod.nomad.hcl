@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-a0965d8" # 23/11/2026 : retrait d'un membre sans fiche orpheline (VER-203)
+  default = "main-ff030de" # 24/11/2026 : fiche de membre non repointable, identité fermée (VER-245), sans les apps natives
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
