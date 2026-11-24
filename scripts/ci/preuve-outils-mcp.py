@@ -30,7 +30,10 @@ LECTURE = {"search_records", "get_my_permissions", "get_record_email_threads", "
            "list_connected_accounts", "get_sync_status", "find_duplicate_records", "get_workspace_settings",
            "list_api_keys", "get_record_sharing"}
 ECRITURE = {"restore_records", "retry_channel_sync", "run_workflow"}
-RESERVES_ADMIN = {"list_api_keys", "retry_channel_sync", "run_workflow"}
+RESERVES_ADMIN = {"list_api_keys", "run_workflow"}
+# retry_channel_sync suit CONNECTED_ACCOUNTS, droit d'outil natif porté par le rôle d'épreuve, comme startChannelSync à l'écran.
+DROITS_OUTILS = {"AI", "VIEWS", "UPLOAD_FILE", "DOWNLOAD_FILE", "SEND_EMAIL_TOOL", "CREATE_CALENDAR_EVENT_TOOL", "HTTP_REQUEST_TOOL",
+                 "IMPORT_CSV", "EXPORT_CSV", "CONNECTED_ACCOUNTS", "PROFILE_INFORMATION", "CODE_INTERPRETER_TOOL"}
 REGLAGES = {"id", "displayName", "subdomain", "customDomain", "isCustomDomainEnabled", "activationStatus",
             "trashRetentionDays", "workspaceMembersCount", "createdAt"}
 FUITES = ("accessToken", "refreshToken", "connectionParameters", "syncCursor", "inviteHash")
@@ -195,8 +198,9 @@ class Epreuve:
         ok_m, _, r_m = self.outil(membre, "get_my_permissions")
         res_m = r_m.get("result") or {}
         self.controle("mes droits : le membre porte le rôle d'épreuve et aucun réglage",
-                      ok_a and ok_m and role_id in res_m.get("roleIds", []) and not any(res_m.get("permissionFlags", {}).values()),
-                      json.dumps(res_m)[:140])
+                      ok_a and ok_m and role_id in res_m.get("roleIds", []) and res_m.get("permissionFlags")
+                      and not [k for k, v in res_m["permissionFlags"].items() if v and k not in DROITS_OUTILS],
+                      str([k for k, v in res_m.get("permissionFlags", {}).items() if v]))
         ok_a, texte_a, _ = self.outil(self.admin, "list_api_keys")
         ok_m, _, _ = self.outil(membre, "list_api_keys")
         self.controle("clés : l'Admin les liste sans jamais la valeur, le membre est refusé",
@@ -213,7 +217,7 @@ class Epreuve:
                       not ok_m and not ok_a and "active version" in texte_a, texte_a[:120])
         ok_m, _, _ = self.outil(membre, "retry_channel_sync", connectedAccountId=str(uuid.uuid4()))
         ok_a, texte_a, _ = self.outil(self.admin, "retry_channel_sync", connectedAccountId=str(uuid.uuid4()))
-        self.controle("retry_channel_sync : membre refusé, compte inconnu refusé pour l'Admin", not ok_m and not ok_a, texte_a[:120])
+        self.controle("retry_channel_sync : compte d'autrui ou inconnu refusé, membre comme Admin", not ok_m and not ok_a, texte_a[:120])
         self.controle("retry_channel_sync : une relance par compte et par minute", None,
                       "aucun compte connecté dans un espace jetable : à jouer sur un vrai compte")
         self.controle("run_workflow : lancer une version active", None, "effet irréversible, jamais rejoué ici")

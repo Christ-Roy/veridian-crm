@@ -113,6 +113,11 @@ saboter "plafond de lignes à 1000" "$L" "VERIDIAN_MCP_MAX_ROWS = 100;" "VERIDIA
 saboter "plafond de fiches de doublons à 1000" "$L" "VERIDIAN_MCP_MAX_DUPLICATES_PER_SOURCE = 10;" "VERIDIAN_MCP_MAX_DUPLICATES_PER_SOURCE = 1000;"
 saboter "plafond de pages d'historique à 1000" "$L" "VERIDIAN_MCP_MAX_TIMELINE_PAGE_SIZE = 50;" "VERIDIAN_MCP_MAX_TIMELINE_PAGE_SIZE = 1000;"
 saboter "comptes connectés sans découpe" "$T/list-connected-accounts.tool.ts" ".slice(offset, offset + limit)" ".slice(offset)"
+saboter "recherche : objets illisibles pas écartés" "$T/search-records.tool.ts" "flatObjectMetadatas: readable," "flatObjectMetadatas: filtered,"
+saboter "recherche : lisibilité jugée sans le rôle de l'appelant" "$T/search-records.tool.ts" "        authContext,
+      });" "        authContext: undefined as never,
+      });"
+saboter "réglages : nombre de membres perdu" "$T/get-workspace-settings.tool.ts" "workspaceMembersCount: await" "ignore: await"
 saboter "recherche sans découpe" "$T/search-records.tool.ts" "edges.slice(0, limit)" "edges"
 saboter "restauration sans plafond de 100" "$T/restore-records.tool.ts" ".max(VERIDIAN_MCP_MAX_ROWS)" ".max(100000)"
 

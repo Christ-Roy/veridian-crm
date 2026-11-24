@@ -5,6 +5,7 @@ import { DefineTool } from 'src/engine/core-modules/tool-provider/decorators/def
 import { BaseTool } from 'src/engine/core-modules/tool-provider/interfaces/base-tool.interface';
 import { type ToolExecuteArgs } from 'src/engine/core-modules/tool-provider/types/tool-execute-args.type';
 import { type ToolOutput } from 'src/engine/core-modules/tool/types/tool-output.type';
+import { UserWorkspaceService } from 'src/engine/core-modules/user-workspace/user-workspace.service';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { failure } from 'src/engine/core-modules/veridian-mcp-tools/caller.util';
 import { NativeServices } from 'src/engine/core-modules/veridian-mcp-tools/native-services.service';
@@ -55,7 +56,9 @@ export class GetWorkspaceSettingsTool extends BaseTool<
           isCustomDomainEnabled: workspace.isCustomDomainEnabled,
           activationStatus: workspace.activationStatus,
           trashRetentionDays: workspace.trashRetentionDays,
-          workspaceMembersCount: workspace.workspaceMembersCount,
+          workspaceMembersCount: await this.native
+            .get(UserWorkspaceService)
+            .getUserCount(workspaceId),
           createdAt: workspace.createdAt,
         },
       };

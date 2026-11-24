@@ -11,6 +11,10 @@ stub(
   'WorkspaceManyOrAllFlatEntityMapsCacheService',
 );
 stub('src/engine/permissions/permissions.service', 'PermissionsService');
+stub(
+  'src/engine/core-modules/user-workspace/user-workspace.service',
+  'UserWorkspaceService',
+);
 stub('src/engine/twenty-orm/workspace-orm.manager', 'WorkspaceOrmManager');
 stub(
   'src/engine/core-modules/messaging/services/get-messages.service',
@@ -262,6 +266,10 @@ const S = {
   builder: service(
     'src/engine/core-modules/record-crud/services/common-api-context-builder.service',
     'CommonApiContextBuilderService',
+  ),
+  userWorkspace: service(
+    'src/engine/core-modules/user-workspace/user-workspace.service',
+    'UserWorkspaceService',
   ),
   workspace: service(
     'src/engine/core-modules/workspace/services/workspace.service',
@@ -609,12 +617,7 @@ describe('contexte de l’appelant', () => {
 
   it.each([
     ['fils de mails', tools.threads, S.messages, 'getMessagesFromObjectRecord'],
-    [
-      'agenda',
-      tools.events,
-      S.calendar,
-      'getCalendarEventsFromObjectRecord',
-    ],
+    ['agenda', tools.events, S.calendar, 'getCalendarEventsFromObjectRecord'],
   ])(
     '%s : une fiche illisible pour l’appelant ne rend rien',
     async (_nom, Outil, service, methode) => {
@@ -731,9 +734,14 @@ describe('contexte de l’appelant', () => {
   });
 
   it('recherche : la barre de recherche native, dans l’espace de l’appelant', async () => {
-    const filterObjectMetadataItems = jest
-      .fn()
-      .mockReturnValue([{ nameSingular: 'person' }]);
+    const filterObjectMetadataItems = jest.fn().mockReturnValue([
+      { id: 'objet-personne', nameSingular: 'person' },
+      { id: 'objet-interdit', nameSingular: 'company' },
+    ]);
+    const buildPermissionsPrincipals = jest.fn().mockResolvedValue('roles');
+    const canReadSomeRecords = jest.fn(
+      async ({ objectMetadataId }) => objectMetadataId === 'objet-personne',
+    );
     const getAllRecordsWithObjectMetadataItems = jest
       .fn()
       .mockResolvedValue(['bruts']);
@@ -760,6 +768,7 @@ describe('contexte de l’appelant', () => {
             computeSearchObjectResults,
           },
         ],
+        [S.permissions, { buildPermissionsPrincipals, canReadSomeRecords }],
         [S.maps, { getOrRecomputeManyOrAllFlatEntityMaps }],
         [S.loaders, { createLoaders: () => 'loaders' }],
       ]),
@@ -779,8 +788,19 @@ describe('contexte de l’appelant', () => {
       excludedObjectNameSingulars: [],
     });
     expect(getAllRecordsWithObjectMetadataItems).toHaveBeenCalledWith(
-      expect.objectContaining({ searchInput: 'dupont', limit: 25 }),
+      expect.objectContaining({
+        searchInput: 'dupont',
+        limit: 25,
+        flatObjectMetadatas: [{ id: 'objet-personne', nameSingular: 'person' }],
+      }),
     );
+    expect(buildPermissionsPrincipals).toHaveBeenCalledWith({
+      authContext: sessionAuth,
+    });
+    expect(canReadSomeRecords).toHaveBeenCalledWith({
+      principals: 'roles',
+      objectMetadataId: 'objet-interdit',
+    });
     expect(computeSearchObjectResults).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: ESPACE,
@@ -1053,7 +1073,6 @@ describe('projections : aucun champ sensible', () => {
               isCustomDomainEnabled: false,
               activationStatus: 'ACTIVE',
               trashRetentionDays: 14,
-              workspaceMembersCount: 3,
               createdAt: 1,
               inviteHash: 'HASH-INVITATION',
               isGoogleAuthEnabled: true,
@@ -1062,6 +1081,10 @@ describe('projections : aucun champ sensible', () => {
               allowedEmbeddingOrigins: ['x'],
             }),
           },
+        ],
+        [
+          S.userWorkspace,
+          { getUserCount: async (id: string) => (id === ESPACE ? 3 : 99) },
         ],
       ]),
     );
@@ -1073,6 +1096,7 @@ describe('projections : aucun champ sensible', () => {
       displayName: 'Atelier',
       subdomain: 'atelier',
       trashRetentionDays: 14,
+      workspaceMembersCount: 3,
     });
     for (const interdit of [
       'HASH-INVITATION',
