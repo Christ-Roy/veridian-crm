@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import org.json.JSONObject
+import site.veridian.telephonie.contrat.Adresse
 import site.veridian.telephonie.contrat.RetourOAuth
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -136,13 +137,8 @@ object OAuth {
 
     private fun aleatoire(n: Int) = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(n).also { SecureRandom().nextBytes(it) })
 
-    /** Adresse saisie (« monespace.twenty.com », avec ou sans https) → origine https du workspace. */
-    fun normaliser(saisie: String): String {
-        var s = saisie.trim().trimEnd('/')
-        if (!s.startsWith("http://") && !s.startsWith("https://")) s = "https://$s"
-        val u = Uri.parse(s)
-        return "${u.scheme}://${u.authority}"
-    }
+    /** Adresse saisie (« monentreprise », « monespace.twenty.com », avec ou sans https) → origine https du workspace. */
+    fun normaliser(saisie: String): String = Adresse.normaliser(saisie)
 
     /** Étape 1 (fil de travail) : découverte, enregistrement du client, serveur local ; rend l'adresse à ouvrir. */
     fun preparer(url: String): Pair<Session, String> {

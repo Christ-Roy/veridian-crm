@@ -162,6 +162,33 @@ une date doit être connu de l'app, chaque création qu'elle aurait faite doit e
 Bascule : `mode ecriture`, puis côté Termux `SVDIR=$PREFIX/var/service sv down crm-telephone` (ses fichiers restent
 pour revenir en arrière : `sv up crm-telephone` et `mode miroir`).
 
+## Chez un client, sans technicien (Robert, 24/11/2026)
+
+Le plugin Téléphonie n'est dans l'espace d'un client que si quelqu'un l'y installe. Depuis cette version, c'est l'app qui
+le demande : après la connexion OAuth, et à chaque démarrage si les objets manquent, `POST
+{CRM}/api/veridian/apps/telephonie/assurer` avec le jeton du membre. Tout se décide dans `contrat/Installation.kt`
+(`Preparation` ne porte que les requêtes et les délais).
+
+| Réponse | État à l'écran | File |
+|---|---|---|
+| 200 `installee`, `mise_a_jour`, `deja_installee`, `en_cours` | « Votre CRM se prépare », puis envoi tout seul | retenue jusqu'à ce que tout se lise |
+| 403 `app_non_maison` | « pas encore proposés, demandez à Veridian », revu toutes les 6 h | retenue |
+| 401, 403 autre | « votre compte n'a pas le droit, un administrateur doit se connecter une fois » | retenue |
+| 404 (route pas servie, autre Twenty), ou clé API | comme avant : « l'app Téléphonie n'est pas installée » | pas retenue |
+| 5xx, 429, réseau, réponse illisible | nouvel essai de 30 s à 10 min | retenue si les objets manquent |
+
+- **Prêt** = chaque champ que l'app écrit, et `personId`, se lit sur les deux objets (`cheminSonde`). Mesuré le 24/11 sur le
+  staging : Twenty rend l'objet lisible avant tous ses champs (migrations différées), la simple lecture mentait.
+- Retenue : rien ne part, rien ne sort de la file, aucun essai n'est compté ; un 401 de cette route ne demande jamais
+  de reconnexion (la sonde, elle, oui si la connexion est vraiment morte).
+- Perte corrigée (`Suite`) : les refus comptaient comme des vérifications. Un appel refusé trois fois (plugin absent) sortait
+  de la file aussitôt créé, donc sans son enregistrement ni ses pièces jointes.
+- Un téléphone connecté à un autre CRM que la veille oublie empreintes, personnes et fichiers de l'ancien, et repasse en mode
+  essai. L'adresse se tape en un mot (« monentreprise ») pour un espace Veridian.
+
+Reste hors de portée d'un client seul : l'enregistrement des appels (JemRec, débogage sans fil) donc leur transcription, la
+messagerie vocale (adb), et la transcription Whisper du serveur (veridian-4 seul).
+
 ## Installable par un tiers (13/11/2026)
 
 | Pièce | Rôle |

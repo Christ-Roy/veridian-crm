@@ -9,6 +9,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import site.veridian.telephonie.contrat.Contrat
 import site.veridian.telephonie.contrat.Enregistrement
+import site.veridian.telephonie.contrat.Installation
+import site.veridian.telephonie.contrat.Suite
 import java.io.File
 import java.time.Instant
 import java.util.concurrent.Executors
@@ -31,14 +33,16 @@ class Synchro private constructor(val ctx: Context) {
     val transcriptions = Transcriptions(ctx)
     val sources = Sources(ctx, reglages, adb)
     val acces = Acces(ctx, reglages)
+    val preparation = Preparation(this)
 
     enum class Flux(val nom: String, val pluriel: String) {
         APPELS("appels", "appels"), SMS("sms", "textMessages"), MMS("mms", "textMessages"), MESSAGERIE("messagerie", "appels")
     }
 
     /** Null tant que l'accès manque ou attend une reconnexion : la file garde tout. */
-    private fun twenty(): Twenty? {
+    fun twenty(): Twenty? {
         if (!reglages.configure || reglages.reconnexion != null) return null
+        noterCrm()  // avant tout envoi : rien de l'ancien CRM ne part vers un nouveau
         return Twenty(reglages.url!!, acces, essais = 2)
     }
 
@@ -47,7 +51,32 @@ class Synchro private constructor(val ctx: Context) {
         reglages.reconnexion = null
         Acces.effacerNotification(ctx)
         index = emptyMap(); indexLe = 0
+        preparation.verifier("connexion", forcer = true)
         signalerTout()
+        demanderVidange()
+        televersements.forEach { it.reveiller() }
+    }
+
+    /** Un autre CRM que la dernière fois (essai, puis le vrai) : rien de l'ancien n'est réutilisé, et l'app repasse en
+     *  mode essai pour que l'utilisateur choisisse lui-même ce qui part vers le nouveau. */
+    private fun noterCrm() = synchronized(verrouCrm) {
+        val url = reglages.url ?: return@synchronized
+        val avant = base.lire("crm.url")
+        if (avant == url) return@synchronized
+        if (avant != null) {
+            Journal.log("CRM : adresse changée, empreintes et personnes de l'ancien oubliées, retour en mode essai")
+            reglages.mode = "miroir"
+            base.oublierAncienCrm()
+            index = emptyMap(); indexLe = 0
+        }
+        base.ecrire("crm.url", url)
+        if (avant != null) signalerTout(complet = true)
+    }
+    private val verrouCrm = Any()
+
+    /** Le CRM vient d'être prêt : tout ce qui attendait repart tout de suite. */
+    fun crmPret() {
+        base.reveillerTout()
         demanderVidange()
         televersements.forEach { it.reveiller() }
     }
@@ -156,6 +185,12 @@ class Synchro private constructor(val ctx: Context) {
                 else "envoi : accès au CRM absent (écran de l'app)")
             return true
         }
+        if (preparation.retient) {
+            // Les objets manquent encore dans ce CRM : rien ne part, rien ne sort de la file, aucun essai n'est compté.
+            preparation.verifierSiDu("envoi")
+            if (!depuisTravail) programmerTravail(preparation.dansMs())
+            return !(depuisTravail && preparation.etat in setOf(Installation.Etat.INSTALLATION, Installation.Etat.A_RETENTER))
+        }
         var tours = 0
         while (tours++ < 50) {
             val prets = base.prets(System.currentTimeMillis())
@@ -173,6 +208,13 @@ class Synchro private constructor(val ctx: Context) {
                     if (!depuisTravail) programmerTravail()
                     return false
                 } catch (e: Refus) {
+                    if (Installation.modeleAbsent(e.code, e.corps)) {
+                        // Objets Appels et SMS absents ou incomplets : ce n'est pas l'élément qui est refusé, on prépare le CRM.
+                        elements.forEach { base.reporter(it, 300_000, false) }
+                        Journal.log("envoi : les objets Appels et SMS manquent dans ce CRM, ${base.taille()} en file")
+                        preparation.objetsAbsents()
+                        continue
+                    }
                     elements.forEach { base.reporter(it, minOf(300_000L, 30_000L shl minOf(it.essais, 4)), true) }
                     Journal.log("envoi : refusé par le CRM : ${e.message}")
                 } catch (e: Exception) {
@@ -228,13 +270,14 @@ class Synchro private constructor(val ctx: Context) {
         // 2. vérification : ce qui a été écrit est replanifié (ses fichiers partent alors), le reste sort de la file
         for (e in elements) {
             val idSource = e.idSource
-            val creeOuComplete = plan.creations.any { it.corps["idSource"] == idSource } ||
-                plan.complements.any { it.idSource == idSource && it.champs.isNotEmpty() }
-            when {
-                idSource !in aFaire -> base.termine(e, Json.objet(e.voulu)["_e164"] as String?)
-                base.televersementEnAttente(pluriel, idSource) -> base.reporter(e, 600_000, false)
-                creeOuComplete && e.essais < 3 -> base.reporter(e, 1_000, true)
-                else -> { Journal.log("$pluriel : complément qui ne prend pas, laissé"); base.termine(e, Json.objet(e.voulu)["_e164"] as String?) }
+            val cree = plan.creations.any { it.corps["idSource"] == idSource }
+            val complete = plan.complements.any { it.idSource == idSource && it.champs.isNotEmpty() }
+            when (Suite.de(idSource in aFaire, cree, complete, base.televersementEnAttente(pluriel, idSource), e.essais)) {
+                Suite.TERMINE -> base.termine(e, Json.objet(e.voulu)["_e164"] as String?)
+                Suite.ATTEND_FICHIER -> base.reporter(e, 600_000, false)
+                Suite.REVERIFIE_A_NEUF -> base.reverifierANeuf(e)
+                Suite.REVERIFIE -> base.reporter(e, 1_000, true)
+                Suite.LAISSE -> { Journal.log("$pluriel : complément qui ne prend pas, laissé"); base.termine(e, Json.objet(e.voulu)["_e164"] as String?) }
             }
         }
     }
@@ -402,7 +445,7 @@ class Synchro private constructor(val ctx: Context) {
             while (true) {
                 val t = base.prochainTeleversement(audio, System.currentTimeMillis())
                 val tw = twenty()
-                if (t == null || tw == null || reglages.miroir) { synchronized(signal) { signal.wait(60_000) }; continue }
+                if (t == null || tw == null || reglages.miroir || preparation.retient) { synchronized(signal) { signal.wait(60_000) }; continue }
                 val seuil = reglages.echecsAvantWifi
                 if (seuil > 0 && t.essais >= seuil && reseauFacture()) {
                     // `audio_wifi_apres_echecs` échecs de suite sur réseau facturé : le fichier attend un réseau non

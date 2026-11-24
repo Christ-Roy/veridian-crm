@@ -78,6 +78,7 @@ class ServiceSynchro : Service() {
         registerReceiver(branchement, IntentFilter(Intent.ACTION_POWER_CONNECTED))
         bindService(Intent(this, ServiceTranscription::class.java), liaison, BIND_AUTO_CREATE)
         Journal.log("service prêt (${synchro.reglages.mode}) : ${synchro.base.taille()} en file, ${synchro.base.taille("televersements")} fichiers")
+        synchro.preparation.verifier("démarrage du service")
         synchro.prechauffer()
         synchro.signalerTout(complet = synchro.base.lire("premiere-lecture") == null)
         synchro.base.ecrire("premiere-lecture", "faite")
@@ -122,6 +123,7 @@ class ServiceSynchro : Service() {
         return Notification.Builder(this, CANAL).setSmallIcon(android.R.drawable.sym_action_call)
             .setContentTitle(when {
                 Reglages(this).reconnexion != null -> "CRM : reconnexion à Twenty requise (rien n'est perdu)"
+                s.preparation.retient -> "CRM : en préparation (rien n'est perdu)"
                 mode == "miroir" -> "CRM : mode essai (rien n'est écrit)"
                 else -> "CRM : appels et SMS synchronisés" })
             .setContentText(texte.lineSequence().first()).setStyle(Notification.BigTextStyle().bigText(texte))
@@ -262,6 +264,7 @@ class ServiceSynchro : Service() {
 
     private val filet = object : Runnable {
         override fun run() {
+            synchro.preparation.verifierSiDu("filet")
             synchro.signalerTout()
             synchro.demanderVidange()
             handler.postDelayed(this, FILET_MS)

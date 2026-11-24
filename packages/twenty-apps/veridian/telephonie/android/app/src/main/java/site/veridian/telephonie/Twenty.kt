@@ -13,8 +13,8 @@ import java.net.URLEncoder
 /** Le CRM n'a pas répondu (réseau) : ni vrai ni faux, on retentera au retour du réseau. */
 class NonAbouti(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/** Le CRM a refusé (HTTP) : retenté à 30 s, 1, 2, puis 5 min. */
-class Refus(message: String) : Exception(message)
+/** Le CRM a refusé (HTTP) : retenté à 30 s, 1, 2, puis 5 min. `code` et `corps` : la réponse, quand il y en a une. */
+class Refus(message: String, val code: Int? = null, val corps: String = "") : Exception(message)
 
 /**
  * Client REST et GraphQL de Twenty, comme `crm_telephonie.Twenty` (essais=2 pour le téléphone : hors réseau, il
@@ -27,7 +27,9 @@ class Twenty(val url: String, private val acces: Acces?, private val essais: Int
 
     private fun jeton(): String = cleFixe ?: acces!!.jeton()
 
-    fun requete(methode: String, chemin: String, corps: Any? = null): JSONObject {
+    /** `refus401` : faux quand un 401 n'accuse que la route appelée (la préparation du CRM), jamais la connexion : il
+     *  ne demande alors aucune reconnexion à l'utilisateur. */
+    fun requete(methode: String, chemin: String, corps: Any? = null, lectureMs: Int = 30_000, refus401: Boolean = true): JSONObject {
         var derniere: Exception? = null
         var jeton = jeton()
         var renouvele = false
@@ -38,7 +40,7 @@ class Twenty(val url: String, private val acces: Acces?, private val essais: Int
                 // Réseau mobile qui décroche : une requête pendue ne doit pas retenir l'envoi deux minutes (mesuré
                 // le 12/11 en 4G : 121 s pour un appel). Deux essais de 10 + 30 s au plus, puis la file attend.
                 cnx.connectTimeout = 10_000
-                cnx.readTimeout = 30_000
+                cnx.readTimeout = lectureMs
                 cnx.setRequestProperty("Authorization", "Bearer $jeton")
                 cnx.setRequestProperty("Content-Type", "application/json")
                 if (corps != null) {
@@ -53,13 +55,13 @@ class Twenty(val url: String, private val acces: Acces?, private val essais: Int
                 val texte = (cnx.errorStream?.use { it.readBytes() } ?: ByteArray(0)).toString(Charsets.UTF_8).take(400)
                 if (code == 401 && acces != null && cleFixe == null) {
                     // Jeton expiré ou révoqué : un renouvellement, une seule fois ; sinon reconnexion requise (lève).
-                    if (renouvele) throw acces.signaler("accès refusé par le CRM (HTTP 401)")
+                    if (renouvele) throw if (refus401) acces.signaler("accès refusé par le CRM (HTTP 401)") else Refus("$methode $chemin : HTTP 401", 401, texte)
                     renouvele = true; jeton = acces.refuse(); continue
                 }
                 if (code in setOf(429, 502, 503, 504) && essai + 1 < essais) {
                     Thread.sleep(minOf(60_000L, (1L shl essai) * 3000)); continue
                 }
-                throw Refus("$methode ${chemin.substringBefore('?')} : HTTP $code $texte")
+                throw Refus("$methode ${chemin.substringBefore('?')} : HTTP $code $texte", code, texte)
             } catch (e: IOException) {
                 derniere = e
                 if (essai + 1 < essais) { Thread.sleep(minOf(60_000L, (1L shl essai) * 3000)); continue }

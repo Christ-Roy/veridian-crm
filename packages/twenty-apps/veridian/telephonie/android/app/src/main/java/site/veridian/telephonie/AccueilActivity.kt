@@ -25,6 +25,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
+import site.veridian.telephonie.contrat.Installation
 import java.io.File
 
 /**
@@ -67,6 +68,7 @@ class AccueilActivity : Activity() {
     }
 
     private var formeAffichee: String? = null
+    private var vuePreparation: TextView? = null
     private var vueModele: TextView? = null
     private var vueMessagerie: TextView? = null
     private var vueEtat: TextView? = null
@@ -76,7 +78,7 @@ class AccueilActivity : Activity() {
     private fun forme(): String = listOf(reglages.configure, reglages.reconnexion, reglages.acces, reglages.url, permissionsManquantes(),
         getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName), reglages.miroir,
         reglages.transcriptionVoulue, reglages.jemrecPresent, Environment.isExternalStorageManager(), reglages.messagerieActive,
-        occupe, resultatTest).joinToString("|")
+        occupe, resultatTest, Synchro.de(this).preparation.etat).joinToString("|")
 
     private fun texteEtat(): String {
         val s = Synchro.de(this)
@@ -92,6 +94,7 @@ class AccueilActivity : Activity() {
     }
 
     private fun mettreAJour() {
+        vuePreparation?.text = Synchro.de(this).preparation.message()
         vueModele?.text = "Modèle Parakeet (640 Mo, téléchargé en Wi-Fi) : ${Modele.etat(this)}"
         vueMessagerie?.text = "Messagerie : ${Synchro.de(this).adb.etat}"
         vueEtat?.text = texteEtat()
@@ -113,7 +116,7 @@ class AccueilActivity : Activity() {
     private fun afficher() {
         val urlSaisie = champUrl?.text?.toString(); val cleSaisie = champCle?.text?.toString()
         formeAffichee = forme()
-        vueModele = null; vueMessagerie = null; vueEtat = null; vueJournal = null
+        vuePreparation = null; vueModele = null; vueMessagerie = null; vueEtat = null; vueJournal = null
         racine.removeAllViews()
         titre("Téléphonie CRM", 24f)
         texte("Vos appels et SMS dans votre Twenty, envoyés par le téléphone lui-même. Version ${version()}.", petit = true)
@@ -126,8 +129,13 @@ class AccueilActivity : Activity() {
         section("1. Connexion à votre Twenty")
         if (reglages.configure) {
             texte("Connecté à ${reglages.url} (" + (if (reglages.acces == Reglages.ACCES_OAUTH) "connexion par le navigateur" else "clé API") + ")")
+            val preparation = Synchro.de(this).preparation
+            if (reglages.reconnexion == null && preparation.message().isNotEmpty()) {
+                vuePreparation = bandeau(preparation.message())
+                if (occupe == null) bouton("Réessayer maintenant") { preparation.verifier("bouton Réessayer", forcer = true); toast("Nouvel essai lancé") }
+            } else if (preparation.etat == Installation.Etat.PRET) texte("Appels et SMS prêts dans votre CRM ✓", petit = true)
         }
-        champUrl = champ("Adresse de votre Twenty (ex. monentreprise.twenty.com)", urlSaisie ?: pre?.first ?: reglages.url ?: "", motDePasse = false)
+        champUrl = champ("Nom ou adresse de votre CRM (ex. monentreprise)", urlSaisie ?: pre?.first ?: reglages.url ?: "", motDePasse = false)
         bouton(if (reglages.configure) "Se reconnecter avec Twenty (navigateur)" else "Se connecter avec Twenty (navigateur)") { connecterNavigateur() }
         texte("Ou, pour un accès limité aux appels et SMS : une clé API au rôle « Téléphone », créée dans Twenty " +
             "(Paramètres, API et webhooks, Créer une clé, rôle Téléphone).", petit = true)
@@ -153,7 +161,7 @@ class AccueilActivity : Activity() {
         section("3. Envoi au CRM")
         val ecriture = !reglages.miroir
         texte(if (ecriture) "Envoi actif : chaque appel, SMS et MMS part au CRM dans les secondes qui suivent."
-            else "Mode essai : l'app lit et prépare tout, mais n'écrit rien dans le CRM.")
+            else "Mode essai : l'app lit et prépare tout, mais n'envoie aucun appel ni SMS au CRM.")
         interrupteur("Envoyer au CRM", ecriture, actif = reglages.configure && reglages.reconnexion == null) { v -> basculerEnvoi(v) }
 
         // 4. options
@@ -188,7 +196,7 @@ class AccueilActivity : Activity() {
     private fun urlSaisie(): String? = champUrl?.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { OAuth.normaliser(it) }
 
     private fun connecterNavigateur() {
-        val url = urlSaisie() ?: return toast("Indiquez l'adresse de votre Twenty")
+        val url = urlSaisie() ?: return toast("Indiquez le nom ou l'adresse de votre CRM")
         occupe = "Ouverture de la connexion…"; afficher()
         Thread {
             try {
@@ -196,8 +204,12 @@ class AccueilActivity : Activity() {
                 ui.post { occupe = "Connectez-vous dans le navigateur, puis revenez ici."; afficher()
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(adresse))) }
                 OAuth.attendre(this, session, reglages)
-                val bilan = verifier(Twenty(url, Synchro.de(this).acces))
-                Synchro.de(this).reconnecte()
+                val s = Synchro.de(this)
+                ui.post { occupe = "Connecté. Préparation de votre CRM…"; afficher() }
+                // La préparation part tout de suite et continue seule au-delà de cette attente (service, WorkManager).
+                s.reconnecte()
+                s.preparation.attendre(120_000)
+                val bilan = verifier(Twenty(url, s.acces))
                 ui.post { occupe = null; resultatTest = "Connecté par le navigateur.\n$bilan"; afficher()
                     startActivity(Intent(this, AccueilActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
             } catch (e: Exception) {
@@ -214,7 +226,7 @@ class AccueilActivity : Activity() {
         Thread {
             val texte = try {
                 if (cle.isNotEmpty()) {
-                    url ?: throw IllegalStateException("indiquez l'adresse de votre Twenty")
+                    url ?: throw IllegalStateException("indiquez le nom ou l'adresse de votre CRM")
                     val bilan = verifier(Twenty(url, cle))
                     if (bilan.startsWith("✓")) {
                         reglages.enregistrerCle(url, cle)
@@ -231,6 +243,8 @@ class AccueilActivity : Activity() {
     /** Prouve la lecture et le droit d'écrire sur Appels et SMS sans rien écrire : une modification d'un identifiant
      *  inexistant rend 404 si l'écriture est permise, 403 sinon (mesuré le 13/11/2026 sur le staging). */
     private fun verifier(tw: Twenty): String {
+        val preparation = Synchro.de(this).preparation
+        if (preparation.retient) return "… " + preparation.message()
         val lignes = mutableListOf<String>()
         var ok = true
         fun code(e: Exception) = Regex("HTTP (\\d{3})").find(e.message ?: "")?.groupValues?.get(1)?.toInt()
@@ -380,8 +394,9 @@ class AccueilActivity : Activity() {
     private fun texte(t: String, petit: Boolean = false, gras: Boolean = false, mono: Boolean = false): TextView = TextView(this).apply {
         text = t; textSize = if (petit) 13f else 15f; setPadding(0, dp(4), 0, dp(4)); setTextIsSelectable(true)
         if (gras) setTypeface(typeface, Typeface.BOLD); if (mono) typeface = Typeface.MONOSPACE }.also { racine.addView(it) }
-    private fun bandeau(t: String) = racine.addView(TextView(this).apply {
-        text = t; textSize = 15f; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(0xFFFFE0B2.toInt()); setTextColor(0xFF5D2E00.toInt()) })
+    private fun bandeau(t: String): TextView = TextView(this).apply {
+        text = t; textSize = 15f; setPadding(dp(12), dp(12), dp(12), dp(12)); setBackgroundColor(0xFFFFE0B2.toInt()); setTextColor(0xFF5D2E00.toInt())
+    }.also { racine.addView(it) }
     private fun bouton(t: String, action: () -> Unit) = racine.addView(Button(this).apply { text = t; isAllCaps = false; setOnClickListener { action() } })
     private fun rangee(vararg vues: View) = racine.addView(LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL

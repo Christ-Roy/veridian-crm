@@ -84,6 +84,7 @@ class Commandes : BroadcastReceiver() {
             val j = JSONObject().put("le", java.time.LocalDateTime.now().toString()).put("reglages", s.reglages.resume())
                 .put("file", s.base.taille()).put("televersements", s.base.taille("televersements"))
                 .put("synchro", s.base.taille("synchro")).put("adb", s.adb.etat)
+                .put("preparation", s.preparation.etat.name)
                 .put("enregistrement", Enregistreur.instance?.resume() ?: "non vérifié")
                 .put("transcription", s.transcriptions.resume()).put("transcription_etat", s.transcriptions.lireEtat() ?: JSONObject.NULL)
                 .put("demandes_transcription", org.json.JSONArray(s.transcriptions.lireDemandes().map { "${it.stem}:${it.mode}:${it.audio.exists()}:${s.transcriptions.fichier(it.audio).exists()}" }))
