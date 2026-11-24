@@ -39,6 +39,9 @@ class MiseAJourTest {
             "versionCode" to 3_000_000_000L, "versionName" to " ", "taille" to 0L, "taille" to 300_000_000L, "sha256" to "A".repeat(64),
             "sha256" to "a".repeat(63), "versionMinimale" to 201L, "versionMinimale" to -1L, "pourcentage" to 101L, "pourcentage" to -1L, "minSdk" to 0L))
             assertTrue("$champ=$valeur", lire(champ to valeur) is Lecture.Refuse)
+        // Android plafonne le versionCode : au-delà, aucun APK ne peut le porter, même avec une adresse cohérente.
+        val trop = 2_100_000_001L
+        assertTrue(lire("versionCode" to trop, "url" to MiseAJour.adresseApk(Canal.STABLE, trop)) is Lecture.Refuse)
     }
 
     @Test fun `l'APK ne vient que de la release du canal suivi, sous son nom versionné`() {
@@ -126,6 +129,18 @@ class MiseAJourTest {
     @Test fun `accord demandé par Android, une notification par jour, pas un harcèlement`() {
         assertEquals(Action.ATTENDRE, action(tel.copy(fichierSha256 = sha, gesteAttendu = true)))
         assertEquals(Action.INSTALLER, action(tel.copy(fichierSha256 = sha, gesteAttendu = true, manuel = true)))
+    }
+
+    @Test fun `une seule session à la fois, même à la main`() {
+        for (manuel in listOf(false, true)) assertEquals(Action.ATTENDRE, action(tel.copy(fichierSha256 = sha, remise = true, manuel = manuel)))
+        assertTrue(MiseAJour.remiseEnCours(1_000_000, 1_000_000)); assertTrue(MiseAJour.remiseEnCours(1_000_000, 1_059_999))
+        assertFalse(MiseAJour.remiseEnCours(1_000_000, 1_060_000)); assertFalse("jamais remise", MiseAJour.remiseEnCours(0, NOW))
+    }
+
+    @Test fun `autoriser l'installation n'attend pas le lendemain`() {
+        assertTrue(MiseAJour.gesteAttendu(NOW - 1, false, false, NOW)); assertTrue(MiseAJour.gesteAttendu(NOW - 1, true, true, NOW))
+        assertFalse(MiseAJour.gesteAttendu(NOW - 1, false, true, NOW)); assertFalse(MiseAJour.gesteAttendu(NOW - MiseAJour.JOUR_MS, false, false, NOW))
+        assertFalse(MiseAJour.gesteAttendu(0, false, false, NOW))
     }
 
     // ------------------------------------------------------------ fréquence

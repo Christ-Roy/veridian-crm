@@ -61,10 +61,12 @@ class MiseAJourApp(private val synchro: Synchro) {
         if (avant != null && avant != code) {
             Journal.log("mise à jour : $avant → $code (${version(ctx)}), ${base.taille()} en file")
             dossier.deleteRecursively()
-            base.ecrire("maj.echecs", ""); base.ecrire("maj.geste", "0")
+            base.ecrire("maj.echecs", ""); base.ecrire("maj.geste", "0"); base.ecrire("maj.remise", "0"); base.ecrire("maj.pret", "")
             notifications().cancel(NOTIF)
         }
         base.ecrire("maj.version", code)
+        // Redémarrage du téléphone, app arrêtée : la notification a disparu avec elle. Redemandée tout de suite (pas après un refus).
+        if (base.lire("maj.geste_attente") == "1") { base.ecrire("maj.geste", "0"); base.ecrire("maj.geste_attente", "0") }
     }
 
     private fun passer(origine: String, manuel: Boolean) {
@@ -150,7 +152,8 @@ class MiseAJourApp(private val synchro: Synchro) {
             versionCode = installe().versionCode, sdk = Build.VERSION.SDK_INT, tranche = MiseAJour.tranche(graine()), auto = reglages.majAuto,
             nonLimite = nonLimite(), occupe = occupation(), fichierSha256 = base.lire("maj.pret")?.takeIf { it.isNotEmpty() && apk(it).exists() },
             echecs = base.lire("maj.echecs")?.takeIf { sha != null && it.startsWith("$sha:") }?.substringAfter(':')?.toIntOrNull() ?: 0,
-            gesteAttendu = System.currentTimeMillis() - nombre("maj.geste") in 0 until MiseAJour.JOUR_MS, manuel = manuel))
+            gesteAttendu = MiseAJour.gesteAttendu(nombre("maj.geste"), base.lire("maj.geste_autorise") == "1", silencieuse(ctx), System.currentTimeMillis()),
+            remise = MiseAJour.remiseEnCours(nombre("maj.remise"), System.currentTimeMillis()), manuel = manuel))
     }
 
     /** Tirée une fois au hasard, gardée sur l'appareil, jamais envoyée : elle ne sert qu'au déploiement progressif. */
@@ -245,6 +248,7 @@ class MiseAJourApp(private val synchro: Synchro) {
             if (faute != null) { s.abandon(); compterEchec(m, "installation refusée : $faute"); poser("refusée : $faute"); return }
             occupation()?.let { s.abandon(); poser("version ${m.versionName} prête : $it"); return }
             Journal.log("mise à jour : version ${m.versionName} remise à Android, ${base.taille()} en file (gardés)")
+            base.ecrire("maj.session", id.toString()); base.ecrire("maj.remise", System.currentTimeMillis().toString())
             val retour = Intent(ctx, ResultatInstallation::class.java).putExtra("sha256", m.sha256).putExtra("version", m.versionName)
             s.commit(PendingIntent.getBroadcast(ctx, id, retour, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE).intentSender)
         }
@@ -253,6 +257,7 @@ class MiseAJourApp(private val synchro: Synchro) {
     /** Sessions d'avant (refusées, oubliées, suspendues) : retirées, avec leur notification. */
     private fun abandonner() {
         val pi = ctx.packageManager.packageInstaller
+        base.ecrire("maj.session", "")
         pi.mySessions.forEach { try { pi.abandonSession(it.sessionId) } catch (_: Exception) {} }
         notifications().cancel(NOTIF)
     }
@@ -260,17 +265,20 @@ class MiseAJourApp(private val synchro: Synchro) {
     private fun notifications() = ctx.getSystemService(NotificationManager::class.java)
 
     /** Réponse d'Android à l'installation. Une réussite tue ce processus : la suite est dans `noterVersion`. */
-    fun resultat(statut: Int, texte: String?, confirmer: Intent?, sha: String, version: String) = fil.execute {
+    fun resultat(session: Int, statut: Int, texte: String?, confirmer: Intent?, sha: String, version: String) = fil.execute {
+        // Une session que nous avons abandonnée répond « annulée » : ce n'est pas un refus de l'utilisateur.
+        if (session.toString() != base.lire("maj.session")) return@execute
+        base.ecrire("maj.remise", "0")
         when (statut) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                base.ecrire("maj.geste", System.currentTimeMillis().toString())
+                noterGeste(attente = true)
                 poser("version $version prête : Android attend votre accord (notification)")
                 if (confirmer != null) notifier(version, confirmer)
             }
             PackageInstaller.STATUS_SUCCESS -> poser("version $version installée")
             PackageInstaller.STATUS_FAILURE_ABORTED -> {
                 // Refus de l'utilisateur : pas un échec, on redemandera demain.
-                base.ecrire("maj.geste", System.currentTimeMillis().toString())
+                noterGeste(attente = false)
                 poser("version $version : installation refusée sur le téléphone, proposée de nouveau demain")
             }
             else -> {
@@ -281,13 +289,19 @@ class MiseAJourApp(private val synchro: Synchro) {
         }
     }
 
+    private fun noterGeste(attente: Boolean) {
+        base.ecrire("maj.geste_attente", if (attente) "1" else "0")
+        base.ecrire("maj.geste", System.currentTimeMillis().toString())
+        base.ecrire("maj.geste_autorise", if (silencieuse(ctx)) "1" else "0")
+    }
+
     private fun notifier(version: String, confirmer: Intent) {
         notifications().createNotificationChannel(NotificationChannel(CANAL, "Mise à jour de l'app", NotificationManager.IMPORTANCE_DEFAULT))
         val ouvrir = PendingIntent.getActivity(ctx, NOTIF, confirmer.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val texte = "Une nouvelle version est prête. Vos appels, vos SMS en attente et votre connexion sont gardés."
         notifications().notify(NOTIF, Notification.Builder(ctx, CANAL).setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("Mise à jour de Téléphonie CRM").setContentText(texte)
-            .setStyle(Notification.BigTextStyle().bigText("$texte (version $version)")).setContentIntent(ouvrir).setAutoCancel(true)
+            .setStyle(Notification.BigTextStyle().bigText("$texte (version $version)")).setContentIntent(ouvrir).setAutoCancel(true).setOnlyAlertOnce(true)
             .addAction(Notification.Action.Builder(null, "Installer", ouvrir).build()).build())
     }
 
@@ -308,7 +322,7 @@ class ResultatInstallation : BroadcastReceiver() {
         Journal.init(ctx)
         val confirmer = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
             else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
-        Synchro.de(ctx).misesAJour.resultat(intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE),
+        Synchro.de(ctx).misesAJour.resultat(intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1), intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE),
             intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE), confirmer, intent.getStringExtra("sha256") ?: "", intent.getStringExtra("version") ?: "")
     }
 }

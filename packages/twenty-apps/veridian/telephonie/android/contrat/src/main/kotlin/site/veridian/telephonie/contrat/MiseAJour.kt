@@ -66,6 +66,15 @@ object MiseAJour {
     const val JOUR_MS = 24 * 3_600_000L
     /** Après une lecture ratée, pas de nouvel essai avant une heure. */
     const val ESSAI_MS = 3_600_000L
+    /** Une session confiée à Android répond en quelques secondes ; au-delà, elle est tenue pour perdue. */
+    const val REMISE_MS = 60_000L
+
+    fun remiseEnCours(remiseMs: Long, maintenantMs: Long) = !ecoule(remiseMs, maintenantMs, REMISE_MS)
+
+    /** L'accord demandé ne se redemande qu'un jour après, sauf si l'utilisateur vient d'autoriser (ou de retirer) l'installation. */
+    fun gesteAttendu(demandeMs: Long, autoriseAlors: Boolean, autoriseMaintenant: Boolean, maintenantMs: Long) =
+        autoriseAlors == autoriseMaintenant && !ecoule(demandeMs, maintenantMs, JOUR_MS)
+
     /** Avant d'installer, le manifeste doit avoir été relu depuis moins de 10 min : le coupe-circuit vaut jusqu'au bout. */
     const val FRAIS_MS = 600_000L
 
@@ -86,11 +95,12 @@ object MiseAJour {
     /**
      * `tranche` : 0 à 99, propre à l'appareil et stable (déploiement progressif). `occupe` : ce qui interdit d'interrompre
      * l'app. `fichierSha256` : empreinte du fichier déjà téléchargé ET vérifié. `echecs` : installations ratées de cette
-     * empreinte. `gesteAttendu` : Android a demandé un accord il y a moins d'un jour. `manuel` : bouton de l'écran.
+     * empreinte. `gesteAttendu` : Android a demandé un accord il y a moins d'un jour. `remise` : une session vient d'être
+     * confiée à Android, sa réponse n'est pas arrivée. `manuel` : bouton de l'écran.
      */
     data class Telephone(val versionCode: Long, val sdk: Int, val tranche: Int, val auto: Boolean, val nonLimite: Boolean,
                          val occupe: String?, val fichierSha256: String?, val echecs: Int = 0, val gesteAttendu: Boolean = false,
-                         val manuel: Boolean = false)
+                         val remise: Boolean = false, val manuel: Boolean = false)
 
     const val ECHECS_MAX = 3
 
@@ -115,6 +125,8 @@ object MiseAJour {
             return Decision(Action.TELECHARGER, "téléchargement de la version ${m.versionName}")
         }
         if (t.occupe != null) return Decision(Action.ATTENDRE, "version ${m.versionName} prête : ${t.occupe}")
+        // Vu sur émulateur le 24/11 : deux événements à la même seconde remettaient deux sessions, la seconde annulait la première.
+        if (t.remise) return Decision(Action.ATTENDRE, "version ${m.versionName} : installation en cours")
         if (t.gesteAttendu && !t.manuel) return Decision(Action.ATTENDRE, "version ${m.versionName} prête : Android attend votre accord (notification)")
         return Decision(Action.INSTALLER, "installation de la version ${m.versionName}")
     }
