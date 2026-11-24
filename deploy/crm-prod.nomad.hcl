@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "main-ff030de" # 24/11/2026 : fiche de membre non repointable, identité fermée (VER-245), sans les apps natives
+  default = "staging-74cedc2" # 24/11/2026 : apps par MCP, rôle porté par le Hub (§5.22), jeton d'action borné (VER-246)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
