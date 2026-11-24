@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 jest.mock(
   'src/engine/core-modules/key-value-pair/key-value-pair.entity',
   () => ({
@@ -28,6 +31,7 @@ import {
   PermissionsExceptionCode,
 } from 'src/engine/permissions/permissions.exception';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
+import { assertRoleNotCarriedByHub } from 'src/engine/core-modules/veridian-hub-sso/utils/assert-role-not-carried-by-hub.util';
 import { parseHubOrganisations } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
 
 const ADMIN = {
@@ -48,6 +52,7 @@ const monter = ({
   compte = true,
   parDefaut = MEMBRE as { id: string },
   dernier = false,
+  porte = false,
 } = {}) => {
   const ecrit = jest.fn(async (valeur: unknown) => valeur);
   const efface = jest.fn();
@@ -69,6 +74,10 @@ const monter = ({
 
     if (where.key === `veridian.hub_user:${SUB}`) {
       return compte ? { userId: 'u' } : null;
+    }
+
+    if (where.key === 'veridian.hub_role_carried') {
+      return porte ? { id: 'porte' } : null;
     }
 
     return stocke ? { id: 'kv', value: stocke } : null;
@@ -261,6 +270,96 @@ describe('rôle porté par le Hub (CONTRAT-HUB §5.22)', () => {
       workspaceId: 'ws',
       userId: 'u',
     });
+  });
+});
+
+const marques = (ecrit: jest.Mock) =>
+  ecrit.mock.calls.filter(
+    ([valeur]) => valeur.key === 'veridian.hub_role_carried',
+  );
+
+describe('rôle fermé au natif quand le Hub le porte (§5.22)', () => {
+  it.each([
+    ['appliqué', {}, 'admin'],
+    ['inchangé', { courant: ADMIN }, 'admin'],
+  ])('%s : l’espace est marqué', async (_, etat, role) => {
+    const { pousser, ecrit } = monter(etat);
+
+    await pousser(role);
+    expect(marques(ecrit)).toEqual([
+      [expect.objectContaining({ workspaceId: 'ws', userId: null })],
+    ]);
+  });
+
+  it.each([
+    ['déjà marqué', { porte: true }, 'admin'],
+    ['pas membre', { membre: false }, 'admin'],
+    ['rejoué', { stocke: { role: 'admin', version: 2 } }, 'admin'],
+    ['rôle sur mesure', { courant: SUR_MESURE }, 'member'],
+    ['dernier Admin', { courant: ADMIN, dernier: true }, 'member'],
+  ])('%s : aucune marque écrite', async (_, etat, role) => {
+    const { pousser, ecrit } = monter(etat);
+
+    await pousser(role);
+    expect(marques(ecrit)).toEqual([]);
+  });
+
+  it('release retire la marque de cet espace, et rien d’autre', async () => {
+    const { service, efface, assigner, ecrit } = monter({ porte: true });
+
+    expect(await service.release(TENANT)).toEqual({
+      status: 'ok',
+      applied: false,
+      reason: 'released',
+    });
+    expect(efface).toHaveBeenCalledTimes(1);
+    expect(efface).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'veridian.hub_role_carried',
+        workspaceId: 'ws',
+      }),
+    );
+    expect(assigner).not.toHaveBeenCalled();
+    expect(ecrit).not.toHaveBeenCalled();
+    expect(await monter({ relie: false }).service.release(TENANT)).toEqual({
+      status: 'tenant_not_linked',
+    });
+  });
+
+  it('un humain ne change plus un rôle, sauf espace libre', async () => {
+    const query = jest.fn().mockResolvedValue([{ '?column?': 1 }]);
+    const refus = assertRoleNotCarriedByHub({ query }, 'ws');
+
+    await expect(refus).rejects.toMatchObject({
+      code: PermissionsExceptionCode.PERMISSION_DENIED,
+      message: expect.stringContaining('Veridian Hub'),
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('"userId" IS NULL'),
+      ['veridian.hub_role_carried', 'ws'],
+    );
+    await expect(
+      assertRoleNotCarriedByHub({ query: jest.fn().mockResolvedValue([]) }, 'ws'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('le seul chemin d’un humain, écran et MCP, passe par ce refus avant d’écrire', () => {
+    const source = readFileSync(
+      join(
+        __dirname,
+        '../../../permissions/role-assignment/user-role.service.ts',
+      ),
+      'utf8',
+    );
+    const corps = source.slice(
+      source.indexOf('async assignRoleToWorkspaceMember'),
+      source.indexOf('async assignRoleToManyUserWorkspace'),
+    );
+
+    expect(corps).toContain('await assertRoleNotCarriedByHub(');
+    expect(corps.indexOf('assertRoleNotCarriedByHub(')).toBeLessThan(
+      corps.indexOf('this.assignRoleToManyUserWorkspace('),
+    );
   });
 });
 

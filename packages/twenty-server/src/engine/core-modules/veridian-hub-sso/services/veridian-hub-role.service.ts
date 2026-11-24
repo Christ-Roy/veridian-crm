@@ -13,6 +13,7 @@ import {
   HUB_ROLE_KEY,
   type HubRole,
 } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
+import { HUB_ROLE_CARRIED_KEY } from 'src/engine/core-modules/veridian-hub-sso/utils/assert-role-not-carried-by-hub.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
 import {
@@ -33,7 +34,8 @@ export type HubRoleResult =
         | 'not_member'
         | 'stale'
         | 'native_custom'
-        | 'last_admin';
+        | 'last_admin'
+        | 'released';
     };
 
 type StoredHubRole = { role: HubRole; version: number };
@@ -72,9 +74,7 @@ export class VeridianHubRoleService {
     role: HubRole;
     version: number;
   }): Promise<HubRoleResult> {
-    const tenant = await this.keyValuePairRepository.findOne({
-      where: { key: `veridian.hub_tenant:${hubTenantId}`, userId: IsNull() },
-    });
+    const tenant = await this.findTenant(hubTenantId);
 
     if (!tenant?.workspaceId) {
       return { status: 'tenant_not_linked' };
@@ -116,6 +116,24 @@ export class VeridianHubRoleService {
         );
       }
     }
+  }
+
+  // The Hub gives the roles back to the workspace: nobody's role changes.
+  async release(hubTenantId: string): Promise<HubRoleResult> {
+    const tenant = await this.findTenant(hubTenantId);
+
+    if (!tenant?.workspaceId) {
+      return { status: 'tenant_not_linked' };
+    }
+
+    await this.keyValuePairRepository.delete({
+      key: HUB_ROLE_CARRIED_KEY,
+      workspaceId: tenant.workspaceId,
+      userId: IsNull(),
+    });
+    this.logger.log(`Hub roles released tenant=${hubTenantId}`);
+
+    return { status: 'ok', applied: false, reason: 'released' };
   }
 
   // A member who left comes back with the default role: what the Hub said before no longer describes them.
@@ -163,8 +181,8 @@ export class VeridianHubRoleService {
     ).get(userWorkspace.id)?.[0];
     const isAdmin =
       current?.universalIdentifier === STANDARD_ROLE.admin.universalIdentifier;
-    const remember = () =>
-      this.keyValuePairRepository.save({
+    const remember = async () => {
+      await this.keyValuePairRepository.save({
         ...(stored ? { id: stored.id } : {}),
         key: HUB_ROLE_KEY,
         userId,
@@ -172,6 +190,8 @@ export class VeridianHubRoleService {
         value: { role, version } as unknown as JSON,
         type: KeyValuePairType.USER_VARIABLE,
       });
+      await this.markCarried(workspaceId);
+    };
 
     const target =
       role === 'member'
@@ -209,6 +229,32 @@ export class VeridianHubRoleService {
     await remember();
 
     return { status: 'ok', applied: true, nativeRole: target.label };
+  }
+
+  private findTenant(hubTenantId: string) {
+    return this.keyValuePairRepository.findOne({
+      where: { key: `veridian.hub_tenant:${hubTenantId}`, userId: IsNull() },
+    });
+  }
+
+  private async markCarried(workspaceId: string): Promise<void> {
+    const where = {
+      key: HUB_ROLE_CARRIED_KEY,
+      workspaceId,
+      userId: IsNull(),
+    };
+
+    if (await this.keyValuePairRepository.findOne({ where })) {
+      return;
+    }
+
+    await this.keyValuePairRepository.save({
+      key: HUB_ROLE_CARRIED_KEY,
+      userId: null,
+      workspaceId,
+      value: { since: new Date().toISOString() } as unknown as JSON,
+      type: KeyValuePairType.USER_VARIABLE,
+    });
   }
 
   private findAdminRole(workspaceId: string) {
