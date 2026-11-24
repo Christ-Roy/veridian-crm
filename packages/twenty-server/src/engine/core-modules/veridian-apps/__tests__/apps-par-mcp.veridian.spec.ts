@@ -85,6 +85,17 @@ describe('install_app', () => {
     });
   });
 
+  it.each([
+    [`${APP}@0.4.0 is already installed in this workspace.`, true],
+    ['A higher version of this application is already installed.', false],
+  ])('déjà installée : succès ; rétrogradation : refus (%s)', async (raison, succes) => {
+    const { sortie } = installer([
+      { state: JobStateEnum.FAILED, failedReason: raison } as never,
+    ]);
+
+    await expect(sortie).resolves.toMatchObject({ success: succes });
+  });
+
   it('dit que le travail court encore, sans prétendre installer', async () => {
     const e = installer([]);
 

@@ -41,7 +41,7 @@ describe('getMcpRegistryToolAnnotations', () => {
   );
 
   it.each<[ToolExecutionRef]>([
-    [{ kind: 'static', toolId: 'get_view_fields' }],
+    [{ kind: 'static', toolId: 'update_view_fields' }],
     [
       {
         kind: 'logic_function',
