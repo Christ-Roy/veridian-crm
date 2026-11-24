@@ -100,6 +100,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
 - **Image : par la CI**, `.github/workflows/veridian-crm-ci.yaml`, sur nos runners : garde légale, patch-survival, image
   `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Pas de
   `docker build` direct sur un nœud (règle de la plateforme, 07/11/2026) : hors CI, `lourd.sh` en `nice -n 19` sur un nœud libre.
+- **Ne déployer qu'un run vert EN ENTIER** : depuis le 24/11 l'image se construit en parallèle des tests, sa présence au registre ne prouve rien.
 - `[skip ci]` dans un commit qui ne touche pas le produit. Un push normal annule la CI en cours sur la branche.
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
   push sur `staging`, puis `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl`. Le garde anti-recul refuse
