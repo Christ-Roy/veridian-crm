@@ -66,6 +66,7 @@ const setup = ({
     accessTokenService as never,
     keyValuePairRepository as never,
     userWorkspaceRepository as never,
+    { setIfAbsent: jest.fn(async () => true) } as never,
   );
 
   return { service, accessTokenService };

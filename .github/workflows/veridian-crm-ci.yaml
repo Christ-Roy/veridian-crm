@@ -56,6 +56,7 @@ jobs:
       # Chaque comportement du §6bis.8.0 est retiré tour à tour : la spec doit casser à chaque fois.
       - run: bash scripts/ci/mutations-connexion.sh
       - run: bash scripts/ci/mutations-identite-ia.sh
+      - run: bash scripts/ci/mutations-jeton-action.sh
       - if: always()
         run: git clean -ffdx
 

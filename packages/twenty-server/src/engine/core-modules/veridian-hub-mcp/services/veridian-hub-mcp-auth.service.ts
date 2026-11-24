@@ -5,8 +5,16 @@ import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { IsNull, Repository } from 'typeorm';
 
 import { AccessTokenService } from 'src/engine/core-modules/auth/token/services/access-token.service';
+import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
+import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
+import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
+import {
+  type HubDelegation,
+  isDelegatedCallAllowed,
+  readDelegation,
+} from 'src/engine/core-modules/veridian-hub-mcp/utils/read-delegation.util';
 import {
   type HubJwk,
   type HubMcpClaims,
@@ -19,10 +27,11 @@ const JWKS_MAX_AGE_MS = 60 * 60 * 1000;
 const JWKS_MIN_REFRESH_MS = 60 * 1000;
 const JWKS_FETCH_TIMEOUT_MS = 5000;
 const MAX_CACHED_TOKENS = 1000;
+const USED_JTI_TTL_MS = 5 * 60 * 1000;
 
 export type HubMcpAuthResult =
   | { kind: 'not_hub' }
-  | { kind: 'ok'; accessToken: string }
+  | { kind: 'ok'; accessToken: string; delegation?: HubDelegation }
   | {
       kind: 'refused';
       status: 401 | 403 | 503;
@@ -48,6 +57,8 @@ export class VeridianHubMcpAuthService {
     // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
     @InjectRepository(UserWorkspaceEntity)
     private readonly userWorkspaceRepository: Repository<UserWorkspaceEntity>,
+    @InjectCacheStorage(CacheStorageNamespace.EngineAuthSession)
+    private readonly cacheStorage: CacheStorageService,
   ) {}
 
   private get issuer() {
@@ -58,7 +69,10 @@ export class VeridianHubMcpAuthService {
     return process.env.VERIDIAN_HUB_MCP_AUDIENCE ?? '';
   }
 
-  async authenticate(token: string): Promise<HubMcpAuthResult> {
+  async authenticate(
+    token: string,
+    body?: Parameters<typeof isDelegatedCallAllowed>[1],
+  ): Promise<HubMcpAuthResult> {
     if (!this.issuer || !this.audience || !isHubMcpToken(token, this.issuer)) {
       return { kind: 'not_hub' };
     }
@@ -84,6 +98,18 @@ export class VeridianHubMcpAuthService {
     }
 
     const { claims } = check;
+    const delegationCheck = readDelegation(claims);
+
+    if (delegationCheck.kind === 'refused') {
+      this.logger.warn(`Hub action token refused: ${delegationCheck.error}`);
+
+      return delegationCheck;
+    }
+
+    if (delegationCheck.kind === 'ok') {
+      return this.authenticateAction(claims, delegationCheck.delegation, body);
+    }
+
     const cached = claims.jti ? this.accessTokensByJti.get(claims.jti) : null;
 
     if (cached && cached.expiresAt > Date.now()) {
@@ -97,6 +123,49 @@ export class VeridianHubMcpAuthService {
     }
 
     return result;
+  }
+
+  // One action token, one call: bounded to its tool by app and scope, never cached, never replayed.
+  private async authenticateAction(
+    claims: HubMcpClaims,
+    delegation: HubDelegation,
+    body: Parameters<typeof isDelegatedCallAllowed>[1],
+  ): Promise<HubMcpAuthResult> {
+    const trace = `app=${delegation.app} jti=${delegation.jti} sub=${claims.sub} tenant=${claims.tenant_id}`;
+
+    if (!isDelegatedCallAllowed(delegation, body)) {
+      this.logger.warn(`Hub action refused: delegation_forbidden ${trace}`);
+
+      return {
+        kind: 'refused',
+        status: 403,
+        error: 'delegation_forbidden',
+        message: 'This action token does not allow this call.',
+      };
+    }
+
+    const isFirstUse = await this.cacheStorage.setIfAbsent(
+      `veridian-hub-act:${delegation.jti}`,
+      true,
+      USED_JTI_TTL_MS,
+    );
+
+    if (!isFirstUse) {
+      this.logger.warn(`Hub action refused: token_replayed ${trace}`);
+
+      return {
+        kind: 'refused',
+        status: 401,
+        error: 'token_replayed',
+        message: 'This action token was already used.',
+      };
+    }
+
+    const result = await this.mintAccessToken(claims);
+
+    this.logger.log(`Hub action ${result.kind} ${trace}`);
+
+    return result.kind === 'ok' ? { ...result, delegation } : result;
   }
 
   private async verify(

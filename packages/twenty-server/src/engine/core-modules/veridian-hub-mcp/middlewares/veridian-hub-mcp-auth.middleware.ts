@@ -3,6 +3,10 @@ import { Injectable, type NestMiddleware } from '@nestjs/common';
 import { type NextFunction, type Request, type Response } from 'express';
 
 import { JSON_RPC_ERROR_CODE } from 'src/engine/api/mcp/constants/json-rpc-error-code.const';
+import {
+  ATTESTATION_KEY,
+  stripAttestation,
+} from 'src/engine/core-modules/veridian-hub-mcp/utils/read-delegation.util';
 import { VeridianHubMcpAuthService } from 'src/engine/core-modules/veridian-hub-mcp/services/veridian-hub-mcp-auth.service';
 
 const BEARER_PREFIX = 'Bearer ';
@@ -14,6 +18,8 @@ export class VeridianHubMcpAuthMiddleware implements NestMiddleware {
   constructor(private readonly hubMcpAuthService: VeridianHubMcpAuthService) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
+    stripAttestation(req.body);
+
     const header = req.headers.authorization;
 
     if (!header?.startsWith(BEARER_PREFIX)) {
@@ -24,6 +30,7 @@ export class VeridianHubMcpAuthMiddleware implements NestMiddleware {
 
     const result = await this.hubMcpAuthService.authenticate(
       header.slice(BEARER_PREFIX.length).trim(),
+      req.body,
     );
 
     if (result.kind === 'not_hub') {
@@ -44,6 +51,15 @@ export class VeridianHubMcpAuthMiddleware implements NestMiddleware {
       });
 
       return;
+    }
+
+    if (result.delegation) {
+      const { app, jti } = result.delegation;
+
+      req.body.params.arguments = {
+        ...req.body.params.arguments,
+        [ATTESTATION_KEY]: { app, jti },
+      };
     }
 
     req.headers.authorization = `${BEARER_PREFIX}${result.accessToken}`;

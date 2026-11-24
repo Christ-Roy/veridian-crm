@@ -10,7 +10,9 @@ export type HubMcpClaims = {
   client_id?: string;
   tenant_id?: string;
   jti?: string;
+  iat?: number;
   exp: number;
+  act?: unknown;
 };
 
 export type HubJwk = JsonWebKey & { kid?: string };
