@@ -1125,8 +1125,10 @@ export class ApplicationRegistrationService {
         'category',
         'manifest',
       ],
+      // Veridian : le catalogue montre nos apps publiées et listées, jamais npm (VERIDIAN-PATCHES.md)
       where: {
-        sourceType: ApplicationRegistrationSourceType.NPM,
+        sourceType: ApplicationRegistrationSourceType.TARBALL,
+        isListed: true,
       },
     });
 

@@ -325,7 +325,8 @@ export class ApplicationTarballService {
         latestAvailableVersion: packageJson?.version ?? null,
         additionalFields: {
           tarballFileId: savedFile.id,
-          isListed: false,
+          // Veridian : republier ne délistait pas seulement l'app, il coupait ses fonctions chez tous (VERIDIAN-PATCHES.md)
+          isListed: existingRegistration?.isListed ?? false,
           ownerWorkspaceId,
         },
         publishedVersion: isDefined(packageJson?.version)

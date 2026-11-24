@@ -15,6 +15,7 @@ import { AdminPanelResolver } from 'src/engine/core-modules/admin-panel/admin-pa
 import { ApplicationInstallService } from 'src/engine/core-modules/application/application-install/application-install.service';
 import { ApplicationRegistrationService } from 'src/engine/core-modules/application/application-registration/application-registration.service';
 import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
+import { ApplicationTarballService } from 'src/engine/core-modules/application/application-registration/application-tarball.service';
 import { ApplicationExceptionCode } from 'src/engine/core-modules/application/application.exception';
 import { LogicFunctionExecutorService } from 'src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service';
 import { AdminPanelGuard } from 'src/engine/guards/admin-panel-guard';
@@ -188,6 +189,72 @@ describe('exécution : le catalogue d’instance passe en tout espace', () => {
     await expect(
       executer(ligne({ applicationRegistrationId: null })),
     ).resolves.toBe(true);
+  });
+});
+
+describe('le catalogue visible', () => {
+  it("ne lit que les apps publiées et listées, jamais npm ni l'app privée d'un espace", async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const service = Object.assign(
+      Object.create(ApplicationRegistrationService.prototype),
+      { applicationRegistrationRepository: { find } },
+    ) as ApplicationRegistrationService;
+
+    await service.findManyCatalogCards();
+    expect(find.mock.calls[0][0].where).toEqual({
+      sourceType: TARBALL,
+      isListed: true,
+    });
+  });
+
+  const publier = async (existant: Record<string, unknown> | null) => {
+    const updateFromManifest = jest.fn();
+    const service = Object.assign(
+      Object.create(ApplicationTarballService.prototype),
+      {
+        logger: { log: jest.fn() },
+        appRegistrationRepository: {
+          findOne: async () => existant,
+          findOneOrFail: async () => enregistrement(),
+        },
+        applicationVersionValidationService: {
+          validateVersionProgression: () => ({ allowed: true }),
+        },
+        applicationRegistrationVersionService: {
+          findOneByApplicationRegistrationIdAndVersion: async () => null,
+          isTarballFileReferenced: async () => true,
+        },
+        applicationRegistrationService: {
+          create: async () => enregistrement(),
+          updateFromManifest,
+          emitRegistrationPublishMetric: jest.fn(),
+          enqueueAutoUpgradeApplications: jest.fn(),
+        },
+        applicationRegistrationAssetService: {
+          storeRegistrationAssets: jest.fn(),
+        },
+      },
+    );
+
+    await service.registerExtractedTarballExclusively({
+      extractedTarball: {
+        contentDir: '/nulle-part',
+        manifest: { application: { universalIdentifier: APP } },
+        packageJson: { version: '0.2.0' },
+      },
+      ownerWorkspaceId: CLIENT,
+      storeTarballFile: async () => ({ id: 'fichier' }),
+    });
+
+    return updateFromManifest.mock.calls[0][0].additionalFields.isListed;
+  };
+
+  it.each([
+    ['garde listée', enregistrement({ isListed: true }), true],
+    ['garde non listée', enregistrement(), false],
+    ['ne liste jamais une app neuve :', null, false],
+  ])('republier %s', async (_, existant, attendu) => {
+    await expect(publier(existant)).resolves.toBe(attendu);
   });
 });
 

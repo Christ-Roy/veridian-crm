@@ -63,6 +63,13 @@ saboter "exécution : code local accepté" "$L" "sourceType !== ApplicationRegis
 saboter "exécution : identifiant non comparé" "$L" "registration.universalIdentifier === universalIdentifier &&" ""
 saboter "exécution : lue par l'identifiant du manifeste" "$L" "where: { id: applicationRegistrationId }" "where: { universalIdentifier }"
 saboter "exécution : drapeaux non lus" "$L" "isInstanceCatalogApplication(registration)" "true"
+T=$B/application/application-registration/application-tarball.service.ts
+saboter "catalogue : npm revient" "$R" "sourceType: ApplicationRegistrationSourceType.TARBALL,
+        isListed: true," "sourceType: ApplicationRegistrationSourceType.NPM,"
+saboter "catalogue : apps privées visibles" "$R" "sourceType: ApplicationRegistrationSourceType.TARBALL,
+        isListed: true," "sourceType: ApplicationRegistrationSourceType.TARBALL,"
+saboter "republier déliste" "$T" "isListed: existingRegistration?.isListed ?? false," "isListed: false,"
+saboter "une app neuve se liste seule" "$T" "isListed: existingRegistration?.isListed ?? false," "isListed: true,"
 saboter "amont : un propriétaire pose les drapeaux" "$R" "await this.applyUpdate({ id, update });" "await this.applyUpdate({ id, update, instanceFlags: update as never });"
 saboter "amont : mutation sans AdminPanelGuard" "$A" "@UseGuards(AccessPolicyGuard(ADMIN_PANEL_ACCESS_POLICY), AdminPanelGuard)
   @Mutation(() => ApplicationRegistrationEntity)" "@UseGuards(AccessPolicyGuard(ADMIN_PANEL_ACCESS_POLICY))

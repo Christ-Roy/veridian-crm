@@ -41,6 +41,8 @@ exige "$SERVEUR/engine/core-modules/application/application-install/application-
 # Catalogue d'instance (24/11/2026) : les drapeaux natifs listée ou préinstallée ouvrent les deux gardes.
 exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "applicationRegistration: appRegistration,"
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!(await isCatalogApplicationAllowedByVeridian("
+exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "// Veridian : le catalogue montre nos apps"
+exige "$SERVEUR/engine/core-modules/application/application-registration/application-tarball.service.ts" "isListed: existingRegistration?.isListed ?? false,"
 # Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "await this.applyUpdate({ id, update });"
 exige "$SERVEUR/engine/metadata-modules/ai/ai-models/utils/build-ai-telemetry.util.ts" "headers: encoderContexteIa(identifiers),"
