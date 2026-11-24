@@ -54,6 +54,15 @@ saboter "connexion bloquée par un rôle" "$R" "} catch (error) {
 saboter "rôle du Hub gardé au départ" "$S" "await this.veridianHubRoleService.forgetRole(workspace.id, user.id);" ""
 saboter "rôle inconnu accepté au rebond" "$P" "isHubRole(organisation?.role) &&" ""
 saboter "version non vérifiée au rebond" "$P" "isHubRoleVersion(organisation?.version)" "true"
+A=$V/utils/assert-role-not-carried-by-hub.util.ts
+U=packages/twenty-server/src/engine/permissions/role-assignment/user-role.service.ts
+saboter "espace porté non marqué" "$R" "await this.markCarried(workspaceId);" ""
+saboter "libération : autre espace" "$R" "workspaceId: tenant.workspaceId,
+      userId: IsNull()," "userId: IsNull(),"
+saboter "refus natif retiré" "$U" "await assertRoleNotCarriedByHub(" "void (async (..._: unknown[]) => undefined)("
+saboter "refus d'un autre espace" "$A" '[HUB_ROLE_CARRIED_KEY, workspaceId]' '[HUB_ROLE_CARRIED_KEY]'
+saboter "espace porté accepté" "$A" "carried.length > 0" "false"
+saboter "clé révoquée comptée" "$S" 'AND "revokedAt" IS NULL ' ''
 
 [ "$rate" -eq 0 ] && { echo "CONFORME"; exit 0; }
 exit 1

@@ -152,6 +152,31 @@ describe('retrait et retour d’un membre par le Hub', () => {
     expect(journal).toEqual([FICHE, CACHE, APPARTENANCE]);
   });
 
+  it('remove-member dit combien de clés API ouvrent encore l’espace, et où les couper', async () => {
+    const query = jest.fn().mockResolvedValue([{ count: 2 }]);
+    const buildWorkspaceURL = jest.fn(
+      ({ pathname }: { pathname: string }) =>
+        new URL(pathname, 'https://espace.crm.staging.veridian.site'),
+    );
+    const service = Object.assign(
+      Object.create(VeridianHubSsoService.prototype),
+      {
+        userRepository: { query },
+        workspaceRepository: { findOneByOrFail: async () => ({ id: 'ws' }) },
+        workspaceDomainsService: { buildWorkspaceURL },
+      },
+    ) as VeridianHubSsoService;
+
+    expect(await service.describeApiKeys('ws')).toEqual({
+      active_api_keys: 2,
+      api_keys_url:
+        'https://espace.crm.staging.veridian.site/settings/developers',
+    });
+    expect(query.mock.calls[0][0]).toContain('"revokedAt" IS NULL');
+    expect(query.mock.calls[0][0]).toContain('"expiresAt" > now()');
+    expect(query.mock.calls[0][1]).toEqual(['ws']);
+  });
+
   it('remove-member rejoué répare une fiche orpheline', async () => {
     const { service, journal } = fauxService({ membership: null });
 

@@ -465,7 +465,16 @@ export class VeridianHubSsoController {
       hub_user_id: hubUserId,
       role,
       version,
+      carried,
     } = request.body ?? {};
+
+    if (isUuid(hubTenantId) && carried === false) {
+      const released = await this.veridianHubRoleService.release(hubTenantId);
+
+      return released.status === 'tenant_not_linked'
+        ? response.status(404).json({ error: released.status })
+        : response.status(200).json({ applied: false, reason: 'released' });
+    }
 
     if (
       !isUuid(hubTenantId) ||
@@ -576,7 +585,11 @@ export class VeridianHubSsoController {
       email,
     );
 
-    return response.status(200).json({ tenant_id: tenantId, removed });
+    return response.status(200).json({
+      tenant_id: tenantId,
+      removed,
+      ...(await this.veridianHubSsoService.describeApiKeys(workspaceId)),
+    });
   }
 
   @Delete('api/tenants/:tenantId')

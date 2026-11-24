@@ -7,7 +7,8 @@ import {
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { AppPath } from 'twenty-shared/types';
+import { AppPath, SettingsPath } from 'twenty-shared/types';
+import { getSettingsPath } from 'twenty-shared/utils';
 import {
   isWorkspaceProvisioned,
   WorkspaceActivationStatus,
@@ -40,6 +41,7 @@ import { fromUserEntityToFlat } from 'src/engine/core-modules/user/utils/from-us
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
+import { HUB_ROLE_CARRIED_KEY } from 'src/engine/core-modules/veridian-hub-sso/utils/assert-role-not-carried-by-hub.util';
 import { HUB_ROLE_KEY } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
 import { STANDARD_ROLE } from 'src/engine/workspace-manager/twenty-standard-application/constants/standard-role.constant';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
@@ -600,6 +602,28 @@ export class VeridianHubSsoService {
     return Boolean(membership);
   }
 
+  // Removing a member never cuts a key: the Hub tells the owner how many still open the workspace.
+  async describeApiKeys(workspaceId: string) {
+    const [{ count }] = await this.userRepository.query(
+      `SELECT count(*)::int AS count FROM core."apiKey"
+        WHERE "workspaceId" = $1 AND "revokedAt" IS NULL AND "expiresAt" > now()`,
+      [workspaceId],
+    );
+    const workspace = await this.workspaceRepository.findOneByOrFail({
+      id: workspaceId,
+    });
+
+    return {
+      active_api_keys: count,
+      api_keys_url: this.workspaceDomainsService
+        .buildWorkspaceURL({
+          workspace,
+          pathname: getSettingsPath(SettingsPath.Developers),
+        })
+        .toString(),
+    };
+  }
+
   // CONTRAT-HUB §3.8: found by hub_user_id only, only the fields present are applied.
   async syncUser({
     hubUserId,
@@ -766,11 +790,14 @@ export class VeridianHubSsoService {
       link: TenantLink | null;
       hubRole: string | null;
       nativeAdmin: boolean;
+      roleCarried: boolean;
     }[] = await this.userRepository.query(
       `SELECT w.id AS "workspaceId", w."displayName", w.subdomain, w."activationStatus",
               k.key AS "tenantKey", k.value AS link, r.value->>'role' AS "hubRole",
               EXISTS (SELECT 1 FROM core."roleTarget" rt JOIN core.role ro ON ro.id = rt."roleId"
-                       WHERE rt."userWorkspaceId" = uw.id AND ro."universalIdentifier" = $2) AS "nativeAdmin"
+                       WHERE rt."userWorkspaceId" = uw.id AND ro."universalIdentifier" = $2) AS "nativeAdmin",
+              EXISTS (SELECT 1 FROM core."keyValuePair" c
+                       WHERE c."workspaceId" = w.id AND c."userId" IS NULL AND c.key = $4) AS "roleCarried"
          FROM core."user" u
          JOIN core."userWorkspace" uw ON uw."userId" = u.id AND uw."deletedAt" IS NULL
          JOIN core.workspace w ON w.id = uw."workspaceId" AND w."deletedAt" IS NULL
@@ -779,7 +806,12 @@ export class VeridianHubSsoService {
          LEFT JOIN core."keyValuePair" r
            ON r."workspaceId" = w.id AND r."userId" = u.id AND r.key = $3
         WHERE u.email = $1 AND u."deletedAt" IS NULL AND u.disabled = false`,
-      [email, STANDARD_ROLE.admin.universalIdentifier, HUB_ROLE_KEY],
+      [
+        email,
+        STANDARD_ROLE.admin.universalIdentifier,
+        HUB_ROLE_KEY,
+        HUB_ROLE_CARRIED_KEY,
+      ],
     );
 
     return rows.map(
@@ -792,6 +824,7 @@ export class VeridianHubSsoService {
         link,
         hubRole,
         nativeAdmin,
+        roleCarried,
       }) => ({
         workspace_id: workspaceId,
         tenant_id: tenantKey
@@ -805,6 +838,7 @@ export class VeridianHubSsoService {
         role: link?.ownerEmail === email ? 'owner' : 'member',
         hub_role: hubRole,
         native_admin: nativeAdmin,
+        role_carried: roleCarried,
         plan: link?.plan ?? null,
         plan_source: link?.planSource ?? null,
         trial_status: link?.trialStatus ?? null,
