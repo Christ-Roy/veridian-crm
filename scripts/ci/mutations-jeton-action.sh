@@ -44,8 +44,7 @@ saboter "jti facultatif" "$U" '!isNonEmptyString(claims.jti)' 'false'
 saboter "iat facultatif" "$U" "typeof claims.iat !== 'number'" 'false'
 saboter "durée libre" "$U" 'claims.exp - claims.iat > MAX_LIFETIME_S' 'false'
 saboter "espace facultatif" "$U" '!isNonEmptyString(claims.tenant_id)' 'false'
-saboter "tout outil permis" "$U" "rule.app === delegation.app &&" "true ||"
-saboter "nom hérité" "$U" '!Object.prototype.hasOwnProperty.call(DELEGATED_TOOLS, name)' '!(name in DELEGATED_TOOLS)'
+saboter "tout outil permis" "$U" "rule !== undefined &&" "true ||"
 saboter "autre app permise" "$U" 'rule.app === delegation.app' 'true'
 saboter "portées non exigées" "$U" 'rule.scopes.every(' 'rule.scopes.some('
 saboter "autre méthode permise" "$U" "body?.method !== 'tools/call'" "false"

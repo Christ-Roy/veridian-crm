@@ -147,6 +147,7 @@ describe('jeton d’action du Hub (act)', () => {
     ['l’outil générique', appel('execute_tool', { toolName: 'app_envoyer_au_crm' })],
     ['un nom hérité', appel('toString')],
     ['la liste des outils', { id: 1, method: 'tools/list' }],
+    ['une autre méthode sous le bon nom', { ...appel(), method: 'resources/read' }],
     ['initialize', { id: 1, method: 'initialize' }],
     ['un lot', [appel()]],
     ['un corps vide', undefined],

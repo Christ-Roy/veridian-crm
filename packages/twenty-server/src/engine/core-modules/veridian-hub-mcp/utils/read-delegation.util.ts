@@ -13,12 +13,15 @@ const MAX_LIFETIME_S = 120;
 
 // The pairs and scopes this app accepts (INTEGRATIONS-NATIVES D2, D4): the target keeps the last word.
 // Create and complete only: no destructive tool ever enters this list.
-const DELEGATED_TOOLS: Record<string, { app: string; scopes: string[] }> = {
-  app_envoyer_au_crm: {
-    app: 'app:prospection',
-    scopes: ['crm:societe.ecrire', 'crm:tache.ecrire'],
-  },
-};
+const DELEGATED_TOOLS = new Map([
+  [
+    'app_envoyer_au_crm',
+    {
+      app: 'app:prospection',
+      scopes: ['crm:societe.ecrire', 'crm:tache.ecrire'],
+    },
+  ],
+]);
 
 const refused = (
   status: 401 | 403,
@@ -79,19 +82,14 @@ export const isDelegatedCallAllowed = (
   delegation: HubDelegation,
   body: JsonRpcBody | undefined,
 ): boolean => {
-  const name = body?.params?.name;
-
-  if (
-    body?.method !== 'tools/call' ||
-    typeof name !== 'string' ||
-    !Object.prototype.hasOwnProperty.call(DELEGATED_TOOLS, name)
-  ) {
+  if (body?.method !== 'tools/call') {
     return false;
   }
 
-  const rule = DELEGATED_TOOLS[name];
+  const rule = DELEGATED_TOOLS.get(body.params?.name as string);
 
   return (
+    rule !== undefined &&
     rule.app === delegation.app &&
     rule.scopes.every((scope) => delegation.scopes.includes(scope))
   );
