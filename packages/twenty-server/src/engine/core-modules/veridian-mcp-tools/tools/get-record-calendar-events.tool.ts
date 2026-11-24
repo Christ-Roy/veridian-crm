@@ -12,6 +12,10 @@ import {
   findCallerUserWorkspaceId,
   NO_USER_WORKSPACE,
 } from 'src/engine/core-modules/veridian-mcp-tools/caller.util';
+import {
+  isRecordReadable,
+  RECORD_NOT_READABLE,
+} from 'src/engine/core-modules/veridian-mcp-tools/is-record-readable.util';
 import { NativeServices } from 'src/engine/core-modules/veridian-mcp-tools/native-services.service';
 import { VERIDIAN_MCP_MAX_TIMELINE_PAGE_SIZE } from 'src/engine/core-modules/veridian-mcp-tools/veridian-mcp-tools-limits.constant';
 import { VERIDIAN_MCP_SESSION_ONLY_POLICY } from 'src/engine/core-modules/veridian-mcp-tools/veridian-mcp-tools-policies.constant';
@@ -60,6 +64,17 @@ export class GetRecordCalendarEventsTool extends BaseTool<
     }
 
     try {
+      if (
+        !(await isRecordReadable(
+          this.native,
+          context,
+          objectNameSingular,
+          recordId,
+        ))
+      ) {
+        return failure(RECORD_NOT_READABLE);
+      }
+
       const events = await this.native
         .get(TimelineCalendarEventService)
         .getCalendarEventsFromObjectRecord({

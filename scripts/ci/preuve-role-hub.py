@@ -48,6 +48,10 @@ class Epreuve:
         _, texte, _ = self.c.signe(f"/api/users/by-email?email={email.replace('+', '%2B')}", None, "GET")
         return {w["hub_tenant_id"]: (w.get("hub_role"), w.get("native_admin")) for w in json.loads(texte)["workspaces"]}
 
+    def porte(self, email):
+        _, texte, _ = self.c.signe(f"/api/users/by-email?email={email.replace('+', '%2B')}", None, "GET")
+        return next((w.get("role_carried") for w in json.loads(texte)["workspaces"] if w["hub_tenant_id"] == self.tenant), None)
+
     def mcp(self, jeton, methode, params=None):
         _, texte, _ = self.c.http(self.url + "/mcp", json.dumps({"jsonrpc": "2.0", "id": 1, "method": methode, "params": params or {}}).encode(),
                                   {"Authorization": f"Bearer {jeton}", "Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
@@ -115,13 +119,31 @@ class Epreuve:
                 "canBeAssignedToAgents": False, "canBeAssignedToApiKeys": False}})["createOneRole"]["id"]
             fiches = self.c.gql(self.origine, "{workspaceMembers{edges{node{id userEmail}}}}", None, self.admin, "/graphql")["workspaceMembers"]["edges"]
             m = next(x["node"]["id"] for x in fiches if x["node"]["userEmail"] == mail)
-            self.gql("mutation($m:UUID!,$r:UUID!){updateWorkspaceMemberRole(workspaceMemberId:$m,roleId:$r){id}}", {"m": m, "r": role})
+            poser = "mutation($m:UUID!,$r:UUID!){updateWorkspaceMemberRole(workspaceMemberId:$m,roleId:$r){id}}"
+            self.controle("espace porté, dit par by-email", self.porte(mail) is True, str(self.porte(mail)))
+            try:
+                self.gql(poser, {"m": m, "r": role})
+                self.controle("porté : l'écran ne change plus un rôle", False, "accepté")
+            except ta.Echec as e:
+                self.controle("porté : l'écran ne change plus un rôle", "Hub" in str(e), str(e))
+            r = self.mcp(self.admin, "tools/call", {"name": "assign_role_to_workspace_member", "arguments": {"workspaceMemberId": m, "roleId": role}})
+            self.controle("porté : l'outil MCP non plus", "Veridian Hub" in json.dumps(r), json.dumps(r, ensure_ascii=False)[:140])
+            self.controle("porté : le rôle n'a pas bougé", self.relu(mail).get(self.tenant) == ("member", False), str(self.relu(mail)))
+            code, texte, _ = self.c.http(self.c.base + "/api/hub/members/role", json.dumps({"hub_tenant_id": self.tenant, "carried": False}).encode(),
+                                         {"Content-Type": "application/json"}, "POST")
+            self.controle("rendre la main sans signature : 401", code == 401 and self.porte(mail) is True, f"{code} {texte[:60]}")
+            code, texte, _ = self.c.signe("/api/hub/members/role", {"hub_tenant_id": self.tenant, "carried": False})
+            self.controle("le Hub rend la main", code == 200 and self.porte(mail) is False, f"{code} {texte[:60]}")
+            self.gql(poser, {"m": m, "r": role})
+            self.controle("libre : l'écran change un rôle", True)
             self.attendu("rôle sur mesure : member ne le remplace pas", self.pousser("member", hub), 200, applied=False, reason="native_custom")
             self.attendu("rôle sur mesure : admin le remplace", self.pousser("admin", hub), 200, applied=True, native_role="Admin")
             self.attendu("le propriétaire peut céder, un autre Admin reste", self.pousser("member", self.proprio_hub), 200, applied=True)
             self.attendu("le propriétaire redevient Admin", self.pousser("owner", self.proprio_hub), 200, applied=True, native_role="Admin")
 
-            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            _, texte, _ = self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            r = json.loads(texte)
+            self.controle("retrait : clés API comptées", r.get("active_api_keys", 0) >= 1 and r.get("api_keys_url", "").endswith("/settings/developers"), texte[:160])
             self.attendu("parti : pas membre", self.pousser("admin", hub), 200, applied=False, reason="not_member")
             self.c.signe(f"/api/veridian/workspaces/{wid}/attach-member", {"hub_user_id": hub, "hub_user_email": mail, "role": "member"})
             self.controle("revenu : rôle par défaut, rien de gardé", self.relu(mail).get(self.tenant) == (None, False), str(self.relu(mail)))

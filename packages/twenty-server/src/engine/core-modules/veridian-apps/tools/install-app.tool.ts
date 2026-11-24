@@ -83,6 +83,10 @@ export class InstallAppTool extends BaseTool<typeof installAppInputSchema> {
   }
 
   private failure(error: string): ToolOutput {
+    if (/is already installed in this workspace/.test(error)) {
+      return { success: true, message: 'App already installed' };
+    }
+
     return { success: false, message: 'App not installed', error };
   }
 }

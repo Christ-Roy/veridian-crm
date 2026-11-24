@@ -82,6 +82,10 @@ saboter "agenda ouvert à tout principal" "$T/get-record-calendar-events.tool.ts
 saboter "partage de fiche ouvert aux clés d'API (outil)" "$T/get-record-sharing.tool.ts" "accessPolicy: VERIDIAN_MCP_RECORD_SHARING_POLICY," "accessPolicy: { ...VERIDIAN_MCP_RECORD_SHARING_POLICY, authPrincipals: { ...VERIDIAN_MCP_RECORD_SHARING_POLICY.authPrincipals, apiKey: true } },"
 
 # Contexte de l'appelant
+saboter "fils de mails d'une fiche illisible" "$T/get-record-email-threads.tool.ts" "return failure(RECORD_NOT_READABLE);" ""
+saboter "agenda d'une fiche illisible" "$T/get-record-calendar-events.tool.ts" "return failure(RECORD_NOT_READABLE);" ""
+saboter "fiche lue sans le contexte de l'appelant" "$T/../is-record-readable.util.ts" "    authContext,
+  );" "  );"
 saboter "fils de mails sans jeton de membre" "$T/get-record-email-threads.tool.ts" "if (userWorkspaceId === undefined) {" "if (false) {"
 saboter "agenda sans jeton de membre" "$T/get-record-calendar-events.tool.ts" "if (userWorkspaceId === undefined) {" "if (false) {"
 saboter "comptes connectés sans jeton de membre" "$T/list-connected-accounts.tool.ts" "if (userWorkspaceId === undefined) {" "if (false) {"

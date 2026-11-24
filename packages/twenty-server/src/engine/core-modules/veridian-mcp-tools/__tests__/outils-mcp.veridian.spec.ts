@@ -11,6 +11,7 @@ stub(
   'WorkspaceManyOrAllFlatEntityMapsCacheService',
 );
 stub('src/engine/permissions/permissions.service', 'PermissionsService');
+stub('src/engine/twenty-orm/workspace-orm.manager', 'WorkspaceOrmManager');
 stub(
   'src/engine/core-modules/messaging/services/get-messages.service',
   'GetMessagesService',
@@ -202,6 +203,10 @@ const service = (path: string, name: string) =>
   load<Record<string, new () => object>>(path)[name];
 
 const S = {
+  orm: service(
+    'src/engine/twenty-orm/workspace-orm.manager',
+    'WorkspaceOrmManager',
+  ),
   search: service(
     'src/engine/core-modules/search/services/search.service',
     'SearchService',
@@ -329,6 +334,17 @@ const sansMembre = {
   workspaceId: ESPACE,
   authContext: { type: 'apiKey' },
 } as never;
+
+// La fiche lue avec le contexte de l'appelant : son rôle et ses partages décident.
+const fiche = (lisible = true) => {
+  const executeInWorkspaceContext = jest.fn((fn: () => unknown, _: unknown) =>
+    fn(),
+  );
+  const findOne = jest.fn().mockResolvedValue(lisible ? { id: FICHE } : null);
+  const getRepository = jest.fn((_: string) => ({ findOne }));
+
+  return { executeInWorkspaceContext, getRepository, findOne };
+};
 
 const lignes = (n: number, make: (i: number) => object) =>
   Array.from({ length: n }, (_, i) => make(i));
@@ -532,7 +548,10 @@ describe('contexte de l’appelant', () => {
       relatedPersonIds: [],
     });
     const outil = new tools.threads(
-      fakeNative([[S.messages, { getMessagesFromObjectRecord }]]),
+      fakeNative([
+        [S.orm, fiche()],
+        [S.messages, { getMessagesFromObjectRecord }],
+      ]),
     );
 
     await outil.execute({
@@ -562,7 +581,10 @@ describe('contexte de l’appelant', () => {
       relatedPersonIds: [],
     });
     const outil = new tools.events(
-      fakeNative([[S.calendar, { getCalendarEventsFromObjectRecord }]]),
+      fakeNative([
+        [S.orm, fiche()],
+        [S.calendar, { getCalendarEventsFromObjectRecord }],
+      ]),
     );
 
     await outil.execute({
@@ -584,6 +606,52 @@ describe('contexte de l’appelant', () => {
       pageSize: 5,
     });
   });
+
+  it.each([
+    ['fils de mails', tools.threads, S.messages, 'getMessagesFromObjectRecord'],
+    [
+      'agenda',
+      tools.events,
+      S.calendar,
+      'getCalendarEventsFromObjectRecord',
+    ],
+  ])(
+    '%s : une fiche illisible pour l’appelant ne rend rien',
+    async (_nom, Outil, service, methode) => {
+      const lire = jest.fn();
+      const illisible = fiche(false);
+      const outil = new (Outil as never as new (n: unknown) => {
+        execute: (a: never) => Promise<{ success: boolean }>;
+      })(
+        fakeNative([
+          [S.orm, illisible],
+          [service, { [methode]: lire }],
+        ]),
+      );
+
+      await expect(
+        outil.execute({
+          input: {
+            objectNameSingular: 'person',
+            recordId: FICHE,
+            page: 1,
+            pageSize: 5,
+          },
+          context,
+        } as never),
+      ).resolves.toMatchObject({ success: false });
+      expect(lire).not.toHaveBeenCalled();
+      expect(illisible.getRepository).toHaveBeenCalledWith('person');
+      expect(illisible.findOne).toHaveBeenCalledWith({
+        where: { id: FICHE },
+        select: { id: true },
+      });
+      expect(illisible.executeInWorkspaceContext).toHaveBeenCalledWith(
+        expect.any(Function),
+        sessionAuth,
+      );
+    },
+  );
 
   it('comptes connectés : la liste est celle de l’appelant', async () => {
     const findUsableByCaller = jest.fn().mockResolvedValue([]);

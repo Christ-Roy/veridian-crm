@@ -41,6 +41,7 @@ exige "$SERVEUR/engine/core-modules/application/application-install/application-
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "VeridianAppsModule,"
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "VeridianMcpToolsModule,"
 exige "$SERVEUR/engine/api/mcp/utils/get-mcp-registry-tool-annotations.util.ts" "findVeridianMcpToolAnnotations(executionRef.toolId)"
+exige "$SERVEUR/engine/permissions/role-assignment/user-role.service.ts" "await assertRoleNotCarriedByHub("
 # Catalogue d'instance (24/11/2026) : les drapeaux natifs listée ou préinstallée ouvrent les deux gardes.
 exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "applicationRegistration: appRegistration,"
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!(await isCatalogApplicationAllowedByVeridian("

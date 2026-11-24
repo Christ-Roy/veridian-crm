@@ -41,6 +41,8 @@ saboter "installation ouverte à une autre politique" "$I" "accessPolicy: VERIDI
 saboter "refus pris pour un succès" "$I" "return this.failure(status.failedReason ?? 'unknown');" "return { success: true, message: 'App installed' };"
 saboter "demande acceptée prise pour installée" "$I" "status?.state === JobStateEnum.COMPLETED" "true"
 saboter "erreur avalée" "$I" "return this.failure(error instanceof Error ? error.message : 'unknown');" "return { success: true, message: 'App installed' };"
+saboter "déjà installée prise pour un échec" "$I" "/is already installed in this workspace/.test(error)" "false"
+saboter "rétrogradation prise pour un succès" "$I" "/is already installed in this workspace/" "/is already installed/"
 saboter "apps non listées montrées" "$L" "{ isListed: true }" "{}"
 saboter "version installée absente" "$L" "?.version ?? null" "?.universalIdentifier ?? null"
 
