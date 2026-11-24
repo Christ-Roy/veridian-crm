@@ -38,6 +38,7 @@ exige "$SERVEUR/engine/workspace-query-executor/services/workspace-query-executo
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "forRoutes({ path: ApiPath.Mcp"
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!isLogicFunctionAllowedByVeridian({"
 exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "!isApplicationInstallAllowedByVeridian({"
+exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "VeridianAppsModule,"
 # Catalogue d'instance (24/11/2026) : les drapeaux natifs listée ou préinstallée ouvrent les deux gardes.
 exige "$SERVEUR/engine/core-modules/application/application-install/application-install.service.ts" "applicationRegistration: appRegistration,"
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!(await isCatalogApplicationAllowedByVeridian("

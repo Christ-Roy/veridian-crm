@@ -11,6 +11,7 @@ import { ApiPath } from 'twenty-shared/types';
 import { TokenModule } from 'src/engine/core-modules/auth/token/token.module';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
+import { VeridianAppsModule } from 'src/engine/core-modules/veridian-apps/veridian-apps.module';
 import { VeridianHubMcpAuthMiddleware } from 'src/engine/core-modules/veridian-hub-mcp/middlewares/veridian-hub-mcp-auth.middleware';
 import { VeridianHubMcpAuthService } from 'src/engine/core-modules/veridian-hub-mcp/services/veridian-hub-mcp-auth.service';
 
@@ -20,6 +21,7 @@ import { VeridianHubMcpAuthService } from 'src/engine/core-modules/veridian-hub-
   imports: [
     TypeOrmModule.forFeature([KeyValuePairEntity, UserWorkspaceEntity]),
     TokenModule,
+    VeridianAppsModule,
   ],
   providers: [VeridianHubMcpAuthService, VeridianHubMcpAuthMiddleware],
 })
