@@ -9,6 +9,11 @@ jest.mock(
   () => ({ LogicFunctionTriggerJob: class LogicFunctionTriggerJob {} }),
 );
 
+jest.mock(
+  'src/modules/workflow/workflow-runner/services/core-workflow-runner.service',
+  () => ({ CoreWorkflowRunnerService: class CoreWorkflowRunnerService {} }),
+);
+
 // CONTRAT-HUB §5.4 : un espace suspendu ne lance aucun workflow (déclencheur base, cron, envoi déjà en file)
 // et les crons de logique ne le parcourent pas.
 
