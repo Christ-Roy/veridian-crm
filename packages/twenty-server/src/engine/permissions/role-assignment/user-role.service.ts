@@ -21,6 +21,7 @@ import { InjectWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace
 import { WorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { STANDARD_ROLE } from 'src/engine/workspace-manager/twenty-standard-application/constants/standard-role.constant';
+import { assertRoleNotCarriedByHub } from 'src/engine/core-modules/veridian-hub-sso/utils/assert-role-not-carried-by-hub.util';
 import { WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 
 export class UserRoleService {
@@ -82,6 +83,11 @@ export class UserRoleService {
     if (userWorkspaceRoleMap[userWorkspace.id] === roleId) {
       return { workspaceMember, userWorkspaceId: userWorkspace.id };
     }
+
+    await assertRoleNotCarriedByHub(
+      this.userWorkspaceRepository.manager,
+      workspaceId,
+    );
 
     await this.roleAssignmentValidationService.validateRoleAssignableToUsersOrThrow(
       { roleId, workspaceId },
