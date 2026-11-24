@@ -218,6 +218,10 @@ mettre à jour elle-même (`UPDATE_PACKAGES_WITHOUT_USER_ACTION`, `USER_ACTION_N
 fabricant ou Play Protect s'y oppose, une notification par jour avec un bouton « Installer ». Protection Avancée (Android 16)
 interdit toute installation hors Play Store.
 
+**Limite connue (24/11, émulateur Android 14).** Sans l'autorisation, la notification s'affiche, mais la toucher a ouvert l'app au
+lieu de l'écran d'Android ; cause non trouvée. Le chemin sûr est le bouton « Autoriser les mises à jour automatiques » de l'app :
+une fois l'autorisation donnée, la version en attente s'installe seule, le jour même. « Vérifier maintenant » repose la notification.
+
 **Ce qui survit.** Android garde les données privées d'un paquet mis à jour (même nom, même certificat) : base SQLite, réglages,
 clé du Keystore, autorisations. `MiseAJourTest` garde que le code ne renomme ni ne vide rien ; un changement de schéma ne fait
 qu'**ajouter** (`onDowngrade` garde une base plus récente). Android relance le service par `MY_PACKAGE_REPLACED`.
