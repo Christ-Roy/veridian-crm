@@ -38,6 +38,9 @@ import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { fromUserEntityToFlat } from 'src/engine/core-modules/user/utils/from-user-entity-to-flat.util';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
+import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
+import { HUB_ROLE_KEY } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
+import { STANDARD_ROLE } from 'src/engine/workspace-manager/twenty-standard-application/constants/standard-role.constant';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
@@ -95,6 +98,7 @@ export class VeridianHubSsoService {
     private readonly workspaceOrmManager: WorkspaceOrmManager,
     private readonly userSessionService: UserSessionService,
     private readonly workspaceCacheService: WorkspaceCacheService,
+    private readonly veridianHubRoleService: VeridianHubRoleService,
   ) {}
 
   // ── Identity: hub_user_id first, email only to bind an account with no link yet.
@@ -513,6 +517,7 @@ export class VeridianHubSsoService {
     }
 
     if (!alreadyMember) {
+      await this.veridianHubRoleService.forgetRole(workspace.id, user.id);
       await this.clearOnboarding(user.id, workspace.id);
     }
 
@@ -727,16 +732,22 @@ export class VeridianHubSsoService {
       activationStatus: string;
       tenantKey: string | null;
       link: TenantLink | null;
+      hubRole: string | null;
+      nativeAdmin: boolean;
     }[] = await this.userRepository.query(
       `SELECT w.id AS "workspaceId", w."displayName", w.subdomain, w."activationStatus",
-              k.key AS "tenantKey", k.value AS link
+              k.key AS "tenantKey", k.value AS link, r.value->>'role' AS "hubRole",
+              EXISTS (SELECT 1 FROM core."roleTarget" rt JOIN core.role ro ON ro.id = rt."roleId"
+                       WHERE rt."userWorkspaceId" = uw.id AND ro."universalIdentifier" = $2) AS "nativeAdmin"
          FROM core."user" u
          JOIN core."userWorkspace" uw ON uw."userId" = u.id AND uw."deletedAt" IS NULL
          JOIN core.workspace w ON w.id = uw."workspaceId" AND w."deletedAt" IS NULL
          LEFT JOIN core."keyValuePair" k
            ON k."workspaceId" = w.id AND k."userId" IS NULL AND k.key LIKE 'veridian.hub_tenant:%'
+         LEFT JOIN core."keyValuePair" r
+           ON r."workspaceId" = w.id AND r."userId" = u.id AND r.key = $3
         WHERE u.email = $1 AND u."deletedAt" IS NULL AND u.disabled = false`,
-      [email],
+      [email, STANDARD_ROLE.admin.universalIdentifier, HUB_ROLE_KEY],
     );
 
     return rows.map(
@@ -747,6 +758,8 @@ export class VeridianHubSsoService {
         activationStatus,
         tenantKey,
         link,
+        hubRole,
+        nativeAdmin,
       }) => ({
         workspace_id: workspaceId,
         tenant_id: tenantKey
@@ -755,6 +768,8 @@ export class VeridianHubSsoService {
         workspace_name: displayName,
         subdomain,
         role: link?.ownerEmail === email ? 'owner' : 'member',
+        hub_role: hubRole,
+        native_admin: nativeAdmin,
         plan: link?.plan ?? null,
         plan_source: link?.planSource ?? null,
         trial_status: link?.trialStatus ?? null,

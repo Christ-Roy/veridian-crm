@@ -16,8 +16,15 @@ import { type CookieOptions, type Request, type Response } from 'express';
 
 import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.exception';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 import { buildSignInPage } from 'src/engine/core-modules/veridian-hub-sso/utils/build-sign-in-page.util';
+import {
+  isHubRole,
+  isHubRoleVersion,
+  isUuid,
+  parseHubOrganisations,
+} from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
 import { parseOwnUrl } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util';
 import { isHubSignatureValid } from 'src/engine/core-modules/veridian-hub-sso/utils/is-hub-signature-valid.util';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
@@ -56,6 +63,7 @@ export class VeridianHubSsoController {
   constructor(
     private readonly veridianHubSsoService: VeridianHubSsoService,
     private readonly twentyConfigService: TwentyConfigService,
+    private readonly veridianHubRoleService: VeridianHubRoleService,
   ) {}
 
   // Returns false once it has answered: the caller stops there.
@@ -107,6 +115,11 @@ export class VeridianHubSsoController {
     if (!isNonEmptyString(email) || !UUID_PATTERN.test(hubUserId ?? '')) {
       return this.rejectInvalidBody(response);
     }
+
+    await this.veridianHubRoleService.applyRolesAtSignIn(
+      hubUserId,
+      parseHubOrganisations(request.body?.organisations),
+    );
 
     try {
       const magicLinkUrl = await this.veridianHubSsoService.issueMagicLinkUrl(
@@ -356,6 +369,51 @@ export class VeridianHubSsoController {
       app_user_id: result.userId,
       app_role: role ?? 'member',
     });
+  }
+
+  @Post('api/hub/members/role')
+  async applyMemberRole(
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response)) {
+      return;
+    }
+
+    const {
+      hub_tenant_id: hubTenantId,
+      hub_user_id: hubUserId,
+      role,
+      version,
+    } = request.body ?? {};
+
+    if (
+      !isUuid(hubTenantId) ||
+      !isUuid(hubUserId) ||
+      !isHubRole(role) ||
+      !isHubRoleVersion(version)
+    ) {
+      return this.rejectInvalidBody(response);
+    }
+
+    const result = await this.veridianHubRoleService.applyRole({
+      hubTenantId,
+      hubUserId,
+      role,
+      version,
+    });
+
+    if (result.status === 'tenant_not_linked') {
+      return response.status(404).json({ error: result.status });
+    }
+
+    return response
+      .status(200)
+      .json(
+        result.applied
+          ? { applied: true, native_role: result.nativeRole }
+          : { applied: false, reason: result.reason },
+      );
   }
 
   @Post('api/veridian/workspaces/:workspaceId/attach-member')

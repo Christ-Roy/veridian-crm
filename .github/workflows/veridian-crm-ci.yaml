@@ -59,6 +59,7 @@ jobs:
       - run: bash scripts/ci/mutations-jeton-action.sh
       - run: bash scripts/ci/mutations-catalogue.sh
       - run: bash scripts/ci/mutations-apps-mcp.sh
+      - run: bash scripts/ci/mutations-role-hub.sh
       - if: always()
         run: git clean -ffdx
 

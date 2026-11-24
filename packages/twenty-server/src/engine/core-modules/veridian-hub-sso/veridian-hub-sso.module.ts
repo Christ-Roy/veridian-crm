@@ -6,6 +6,7 @@ import { CoreEntityCacheModule } from 'src/engine/core-entity-cache/core-entity-
 import { AuthModule } from 'src/engine/core-modules/auth/auth.module';
 import { TokenModule } from 'src/engine/core-modules/auth/token/token.module';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
+import { CacheLockModule } from 'src/engine/core-modules/cache-lock/cache-lock.module';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { OnboardingModule } from 'src/engine/core-modules/onboarding/onboarding.module';
 import { ThrottlerModule } from 'src/engine/core-modules/throttler/throttler.module';
@@ -17,8 +18,11 @@ import { UserModule } from 'src/engine/core-modules/user/user.module';
 import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller';
 import { HubOnlyIdentityGuard } from 'src/engine/core-modules/veridian-hub-sso/guards/hub-only-identity.guard';
 import { WorkspaceMemberIdentityPreQueryHook } from 'src/engine/core-modules/veridian-hub-sso/query-hooks/workspace-member-identity.pre-query.hook';
+import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
+import { UserRoleModule } from 'src/engine/permissions/role-assignment/user-role.module';
 import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
 
@@ -29,7 +33,10 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
       UserWorkspaceEntity,
       WorkspaceEntity,
       KeyValuePairEntity,
+      RoleEntity,
     ]),
+    CacheLockModule,
+    UserRoleModule,
     AuthModule,
     TokenModule,
     WorkspaceDomainsModule,
@@ -45,6 +52,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
   controllers: [VeridianHubSsoController],
   providers: [
     VeridianHubSsoService,
+    VeridianHubRoleService,
     WorkspaceMemberIdentityPreQueryHook,
     { provide: APP_GUARD, useClass: HubOnlyIdentityGuard },
   ],

@@ -8,6 +8,10 @@ import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-s
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 
 // Les voisins sont des bouchons, pour un test rapide : contrôleur, service et règles restent réels.
+jest.mock(
+  'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service',
+  () => ({ VeridianHubRoleService: class VeridianHubRoleService {} }),
+);
 jest.mock('src/engine/core-modules/auth/services/sign-in-up.service', () => ({
   SignInUpService: class SignInUpService {},
 }));
@@ -136,7 +140,11 @@ const welcome = async ({
   headers?: Record<string, string>;
 }) => {
   const response = fauxResponse();
-  const controller = new VeridianHubSsoController({} as never, config);
+  const controller = new VeridianHubSsoController(
+    {} as never,
+    config,
+    {} as never,
+  );
 
   await controller.welcome(
     logout as string,

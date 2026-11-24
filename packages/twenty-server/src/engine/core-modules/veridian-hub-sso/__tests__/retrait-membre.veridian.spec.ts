@@ -2,6 +2,10 @@ import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 
+jest.mock(
+  'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service',
+  () => ({ VeridianHubRoleService: class VeridianHubRoleService {} }),
+);
 jest.mock('src/engine/core-modules/auth/services/sign-in-up.service', () => ({
   SignInUpService: class SignInUpService {},
 }));
@@ -126,6 +130,7 @@ const fauxService = ({
     },
     { revokeAllSessionsForUser: ecrire('sessions') },
     { invalidateAndRecompute: ecrire('cache') },
+    { forgetRole: ecrire('role.oublie') },
   );
 
   (service as unknown as { clearOnboarding: unknown }).clearOnboarding =
@@ -183,7 +188,12 @@ describe('retrait et retour d’un membre par le Hub', () => {
 
     await service.attachMember({ workspaceId: 'ws', hubUserId: 'h', email: 'b@b.fr' });
 
-    expect(journal).toEqual(['fiche.restore [{"userId":"u"}]', CACHE, 'signInUp']);
+    expect(journal).toEqual([
+      'fiche.restore [{"userId":"u"}]',
+      CACHE,
+      'signInUp',
+      'role.oublie ["ws","u"]',
+    ]);
   });
 
   it('attach-member d’un membre en place ne touche pas à sa fiche', async () => {
