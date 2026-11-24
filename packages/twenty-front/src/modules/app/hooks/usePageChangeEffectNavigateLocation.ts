@@ -126,19 +126,8 @@ export const usePageChangeEffectNavigateLocation = () => {
     return AppPath.PlanRequired;
   }
 
+  // Veridian (CONTRAT-HUB §5.4) : l'espace suspendu reste sur sa page pleine, jamais de redirection vers Billing.
   if (isWorkspaceSuspended) {
-    const isOnSuspendedWorkspaceAllowedPage = [
-      SettingsPath.Billing,
-      SettingsPath.BillingPlans,
-      SettingsPath.ProfilePage,
-    ].some((settingsPath) =>
-      isMatchingLocation(location, getSettingsPath(settingsPath)),
-    );
-
-    if (!isOnSuspendedWorkspaceAllowedPage) {
-      return getSettingsPath(SettingsPath.Billing);
-    }
-
     return;
   }
 

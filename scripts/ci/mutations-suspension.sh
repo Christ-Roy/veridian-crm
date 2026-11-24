@@ -11,6 +11,10 @@ CLEANER=packages/twenty-server/src/engine/workspace-manager/workspace-cleaner/se
 GARDE=packages/twenty-server/src/engine/guards/workspace-not-suspended.guard.ts
 CLASSE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant.ts
 UTIL=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/is-magic-link-refused-for-suspension.util.ts
+TRIGGER=packages/twenty-server/src/modules/workflow/workflow-trigger/jobs/workflow-trigger.job.ts
+HUBMCP=packages/twenty-server/src/engine/core-modules/veridian-hub-mcp/services/veridian-hub-mcp-auth.service.ts
+WFCRON=packages/twenty-server/src/modules/workflow/workflow-trigger/automated-trigger/crons/jobs/workflow-cron-trigger-cron.job.ts
+FRONT=packages/twenty-front
 JOBS=packages/twenty-server/src/engine/metadata-modules/webhook/jobs
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -53,6 +57,10 @@ saboter "classement : gestionnaire amont non classé" "$CLASSE" "  'MessageChann
 saboter "classement : contrôleur fermé entier retiré" "$CLASSE" "  'BillingResolver.*'," ""
 saboter "webhook : lot d'un espace suspendu traité" "$JOBS/call-webhook-jobs.job.ts" "if (isWorkspaceSuspended(suspendedWorkspace)) {" "if (false) {"
 saboter "webhook : appel en file envoyé après suspension" "$JOBS/call-webhook.job.ts" "if (!isWorkspaceSuspended(workspace)) {" "if (true) {"
+saboter "workflow : run lancé pour un espace suspendu" "$TRIGGER" "if (isWorkspaceSuspended(workspace)) {" "if (false) {"
+saboter "cron des workflows : espaces suspendus parcourus" "$WFCRON" "activationStatus: WorkspaceActivationStatus.ACTIVE," "activationStatus: [WorkspaceActivationStatus.ACTIVE, WorkspaceActivationStatus.SUSPENDED] as never,"
+saboter "jeton du Hub : espace suspendu accepté" "$HUBMCP" "          membership.workspace?.activationStatus ===
+          WorkspaceActivationStatus.ACTIVE," "          membership.workspace !== undefined,"
 saboter "423 : espace demandé suspendu ignoré" "$UTIL" "requestedSuspended || allSuspended;" "allSuspended;"
 saboter "423 : tous suspendus ignoré" "$UTIL" "requestedSuspended || allSuspended;" "requestedSuspended;"
 

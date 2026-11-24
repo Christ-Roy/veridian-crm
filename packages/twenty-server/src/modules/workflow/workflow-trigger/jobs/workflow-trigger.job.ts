@@ -2,6 +2,8 @@ import { Logger, Scope } from '@nestjs/common';
 
 import { isDefined } from 'twenty-shared/utils';
 
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
+import { isWorkspaceSuspended } from 'src/engine/core-modules/workspace/utils/is-workspace-suspended.util';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { Process } from 'src/engine/core-modules/message-queue/decorators/process.decorator';
 import { Processor } from 'src/engine/core-modules/message-queue/decorators/processor.decorator';
@@ -30,10 +32,21 @@ export class WorkflowTriggerJob {
     private readonly workflowCoreSyncService: WorkflowCoreSyncService,
     private readonly workflowVersionCoreSyncService: WorkflowVersionCoreSyncService,
     private readonly exceptionHandlerService: ExceptionHandlerService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   @Process(WorkflowTriggerJob.name)
   async handle(data: WorkflowTriggerJobData): Promise<void> {
+    // Veridian (CONTRAT-HUB §5.4) : déclencheur base, cron (cache d'une heure) ou envoi déjà en file, aucun run pour un espace suspendu.
+    const workspace = await this.coreEntityCacheService.get(
+      'workspaceEntity',
+      data.workspaceId,
+    );
+
+    if (isWorkspaceSuspended(workspace)) {
+      return;
+    }
+
     const dispatchMode = resolveWorkflowTriggerDispatchMode(data);
 
     if (dispatchMode.mode === 'CORE') {

@@ -8,6 +8,7 @@ import { KeyboardShortcutMenu } from '@/keyboard-shortcut-menu/components/Keyboa
 import { LayoutCustomizationBar } from '@/layout-customization/components/LayoutCustomizationBar';
 import { MobileNavigationBar } from '@/navigation/components/MobileNavigationBar';
 import { PageDragDropProvider } from '@/navigation-menu-item/display/dnd/providers/PageDragDropProvider';
+import { VeridianSuspendedGate } from '@/veridian-suspension/components/VeridianSuspendedGate';
 import { useIsMobile } from 'twenty-ui/utilities';
 import { styled } from '@linaria/react';
 import { Outlet } from 'react-router-dom';
@@ -67,26 +68,28 @@ export const DefaultLayout = () => {
 
   return (
     <>
-      <FileUploadProvider>
-        <StyledLayout>
-          <AppErrorBoundary FallbackComponent={AppFullScreenErrorFallback}>
-            <InformationBannerIsImpersonating />
-            <LayoutCustomizationBar />
-            <StyledPageContainer>
-              <PageDragDropProvider>
-                <KeyboardShortcutMenu />
-                <DefaultLayoutNavigationDrawer />
-                <StyledMainContainer>
-                  <AppErrorBoundary FallbackComponent={AppPageErrorFallback}>
-                    <Outlet />
-                  </AppErrorBoundary>
-                </StyledMainContainer>
-              </PageDragDropProvider>
-            </StyledPageContainer>
-            {isMobile && <MobileNavigationBar />}
-          </AppErrorBoundary>
-        </StyledLayout>
-      </FileUploadProvider>
+      <VeridianSuspendedGate>
+        <FileUploadProvider>
+          <StyledLayout>
+            <AppErrorBoundary FallbackComponent={AppFullScreenErrorFallback}>
+              <InformationBannerIsImpersonating />
+              <LayoutCustomizationBar />
+              <StyledPageContainer>
+                <PageDragDropProvider>
+                  <KeyboardShortcutMenu />
+                  <DefaultLayoutNavigationDrawer />
+                  <StyledMainContainer>
+                    <AppErrorBoundary FallbackComponent={AppPageErrorFallback}>
+                      <Outlet />
+                    </AppErrorBoundary>
+                  </StyledMainContainer>
+                </PageDragDropProvider>
+              </StyledPageContainer>
+              {isMobile && <MobileNavigationBar />}
+            </AppErrorBoundary>
+          </StyledLayout>
+        </FileUploadProvider>
+      </VeridianSuspendedGate>
     </>
   );
 };

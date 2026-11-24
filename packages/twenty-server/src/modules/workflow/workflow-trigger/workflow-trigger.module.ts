@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CoreEntityCacheModule } from 'src/engine/core-entity-cache/core-entity-cache.module';
 import { WorkflowCoreModule } from 'src/engine/core-modules/workflow/workflow-core.module';
 
 import { WorkflowVersionValidationModule } from 'src/modules/workflow/workflow-builder/workflow-validation/workflow-version-validation.module';
@@ -14,6 +15,7 @@ import { WorkflowTriggerJob } from 'src/modules/workflow/workflow-trigger/jobs/w
 
 @Module({
   imports: [
+    CoreEntityCacheModule,
     WorkflowCoreModule,
     WorkflowCommonModule,
     CodeStepBuildModule,

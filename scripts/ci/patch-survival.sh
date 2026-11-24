@@ -53,6 +53,11 @@ exige "$SERVEUR/engine/metadata-modules/webhook/jobs/call-webhook.job.ts" "if (!
 exige "$SERVEUR/engine/core-modules/user/user.resolver.ts" "async currentUser("
 exige "$SERVEUR/engine/guards/workspace-not-suspended.guard.ts" "!isClosedWhenSuspended("
 exige "$SERVEUR/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant.ts" "'AuthResolver.signIn',"
+exige "$SERVEUR/modules/workflow/workflow-trigger/jobs/workflow-trigger.job.ts" "if (isWorkspaceSuspended(workspace)) {"
+FRONT=packages/twenty-front/src
+exige "$FRONT/modules/app/components/DefaultLayout.tsx" "<VeridianSuspendedGate>"
+exige "$FRONT/modules/veridian-suspension/components/VeridianSuspendedGate.tsx" "Cet espace est suspendu."
+exige "$FRONT/modules/app/hooks/usePageChangeEffectNavigateLocation.ts" "jamais de redirection vers Billing"
 # Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "await this.applyUpdate({ id, update });"
 exige "$SERVEUR/engine/metadata-modules/ai/ai-models/utils/build-ai-telemetry.util.ts" "headers: encoderContexteIa(identifiers),"
