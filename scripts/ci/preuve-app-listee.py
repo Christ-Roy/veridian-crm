@@ -37,17 +37,17 @@ class Epreuve:
 
     def drapeaux(self):
         return self.c.gql(self.origine, "query($i:String!){findOneAdminApplicationRegistration(id:$i){isListed isPreInstalled}}",
-                          {"i": self.reg["id"]}, self.session)["findOneAdminApplicationRegistration"]
+                          {"i": self.reg["id"]}, self.session, "/admin-panel")["findOneAdminApplicationRegistration"]
 
     def lister(self, valeur):
         self.c.gql(self.origine, "mutation($i:AdminUpdateApplicationRegistrationInput!){updateAdminApplicationRegistration(input:$i){id}}",
-                   {"i": {"id": self.reg["id"], "update": {"isListed": valeur}}}, self.session)
+                   {"i": {"id": self.reg["id"], "update": {"isListed": valeur}}}, self.session, "/admin-panel")
         if self.drapeaux()["isListed"] is not valeur:
             raise ta.Echec("le drapeau n'a pas pris", 2)
 
-    def cle_gql(self, requete, variables=None, editeur=False):
+    def cle_gql(self, requete, variables=None, editeur=False, chemin="/metadata"):
         url, cle = (self.url_ed, self.cle_ed) if editeur else (self.url, self.cle)
-        return ta._gql_cle(self.c, url, cle, requete, variables)
+        return ta._gql_cle(self.c, url, cle, requete, variables, chemin)
 
     def refusee(self, nom, f):
         try:
@@ -89,7 +89,7 @@ class Epreuve:
         self.refusee("non listée : installation refusée", self.installer)
         m = "mutation($i:AdminUpdateApplicationRegistrationInput!){updateAdminApplicationRegistration(input:$i){id}}"
         v = {"i": {"id": self.reg["id"], "update": {"isListed": True}}}
-        self.refusee("drapeau par la clé Admin de l'éditeur : refusé", lambda: self.cle_gql(m, v, editeur=True))
+        self.refusee("drapeau par la clé Admin de l'éditeur : refusé", lambda: self.cle_gql(m, v, editeur=True, chemin="/admin-panel"))
         m2 = "mutation($i:UpdateApplicationRegistrationInput!){updateApplicationRegistration(input:$i){id}}"
         self.refusee("drapeau par la mutation du propriétaire : refusé", lambda: self.cle_gql(m2, v, editeur=True))
         self.controle("toujours non listée", self.drapeaux()["isListed"] is False)
