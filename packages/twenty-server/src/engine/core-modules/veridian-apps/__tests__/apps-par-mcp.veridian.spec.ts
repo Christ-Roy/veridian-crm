@@ -1,3 +1,16 @@
+// Les services natifs sont remplacés dans chaque épreuve ; les charger tire twenty-client-sdk, non construit en CI.
+jest.mock(
+  'src/engine/core-modules/application/application-install/services/application-lifecycle-job.service',
+  () => ({ ApplicationLifecycleJobService: class {} }),
+);
+jest.mock(
+  'src/engine/core-modules/application/application-marketplace/marketplace-query.service',
+  () => ({ MarketplaceQueryService: class {} }),
+);
+jest.mock('src/engine/core-modules/application/application.service', () => ({
+  ApplicationService: class {},
+}));
+
 import { PermissionFlagType } from 'twenty-shared/constants';
 
 import { DEFINE_TOOL_METADATA_KEY } from 'src/engine/core-modules/tool-provider/constants/define-tool-metadata-key.constant';
