@@ -23,7 +23,6 @@ import { setFileResponseHeaders } from 'src/engine/core-modules/file/utils/set-f
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { ApplicationTargetParam } from 'src/engine/decorators/auth/application-target-param.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { FlatEntityMapsRestApiExceptionFilter } from 'src/engine/metadata-modules/flat-entity/filters/flat-entity-maps-rest-api-exception.filter';
 import { FrontComponentRestApiExceptionFilter } from 'src/engine/metadata-modules/front-component/filters/front-component-rest-api-exception.filter';
 import {
@@ -38,7 +37,6 @@ import { FRONT_COMPONENT_READ_ACCESS_POLICY } from 'src/engine/metadata-modules/
 import { AccessPolicyGuard } from 'src/engine/guards/access-policy.guard';
 
 @Controller(`${ApiPath.Rest}/front-components`)
-@AllowSuspendedWorkspace()
 @UseGuards(AccessPolicyGuard(FRONT_COMPONENT_READ_ACCESS_POLICY))
 @UseFilters(
   PermissionsRestApiExceptionFilter,

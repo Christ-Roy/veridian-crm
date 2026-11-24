@@ -18,7 +18,6 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { type IDataloaders } from 'src/engine/dataloaders/dataloader.interface';
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
 import { CommandMenuItemService } from 'src/engine/metadata-modules/command-menu-item/command-menu-item.service';
 import { CommandMenuItemDTO } from 'src/engine/metadata-modules/command-menu-item/dtos/command-menu-item.dto';
@@ -142,7 +141,6 @@ export class CommandMenuItemResolver {
 
   @Query(() => [CommandMenuItemDTO])
   @UseGuards(AccessPolicyGuard(COMMAND_MENU_ITEM_READ_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async commandMenuItems(
     @AuthUserWorkspaceId({ allowUndefined: true })
     userWorkspaceId: string | undefined,

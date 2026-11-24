@@ -60,6 +60,7 @@ jobs:
       - run: bash scripts/ci/mutations-catalogue.sh
       - run: bash scripts/ci/mutations-apps-mcp.sh
       - run: bash scripts/ci/mutations-role-hub.sh
+      - run: bash scripts/ci/mutations-suspension.sh
       - if: always()
         run: git clean -ffdx
 

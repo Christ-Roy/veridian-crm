@@ -44,6 +44,12 @@ exige "$SERVEUR/engine/core-modules/application/application-install/application-
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!(await isCatalogApplicationAllowedByVeridian("
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "// Veridian : le catalogue montre nos apps"
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-tarball.service.ts" "isListed: existingRegistration?.isListed ?? false,"
+# Suspension Veridian (CONTRAT-HUB §5.4, 24/11/2026) : suspendedAt reste NULL (le cron natif efface à 14 j),
+# le webhook sortant et les résolveurs de données ne servent pas un espace suspendu.
+exige "$SERVEUR/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service.ts" "suspendedAt: null,"
+exige "$SERVEUR/engine/metadata-modules/webhook/jobs/call-webhook-jobs.job.ts" "if (isWorkspaceSuspended(suspendedWorkspace)) {"
+exige "$SERVEUR/engine/metadata-modules/webhook/jobs/call-webhook.job.ts" "if (!isWorkspaceSuspended(workspace)) {"
+exige "$SERVEUR/engine/core-modules/user/user.resolver.ts" "async currentUser("
 # Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "await this.applyUpdate({ id, update });"
 exige "$SERVEUR/engine/metadata-modules/ai/ai-models/utils/build-ai-telemetry.util.ts" "headers: encoderContexteIa(identifiers),"

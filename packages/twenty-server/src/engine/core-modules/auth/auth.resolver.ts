@@ -209,7 +209,6 @@ export class AuthResolver {
 
   @Mutation(() => GetAuthorizationUrlForSsoDTO)
   @UseGuards(PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async getAuthorizationUrlForSSO(
     @Args('input') params: GetAuthorizationUrlForSsoInput,
   ) {
@@ -241,7 +240,6 @@ export class AuthResolver {
 
   @Mutation(() => LoginTokenDTO)
   @UseGuards(CaptchaGuard, PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async getLoginTokenFromCredentials(
     @Args()
     getLoginTokenFromCredentialsInput: UserCredentialsInput,
@@ -278,7 +276,6 @@ export class AuthResolver {
 
   @Mutation(() => AvailableWorkspacesAndAccessTokensDTO)
   @UseGuards(CaptchaGuard, PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async signIn(
     @Args()
     userCredentials: UserCredentialsInput,
@@ -326,7 +323,6 @@ export class AuthResolver {
 
   @Mutation(() => VerifyEmailAndGetLoginTokenDTO)
   @UseGuards(PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async verifyEmailAndGetLoginToken(
     @Args()
     getAuthTokenFromEmailVerificationTokenInput: GetAuthTokenFromEmailVerificationTokenInput,
@@ -373,7 +369,6 @@ export class AuthResolver {
 
   @Mutation(() => AvailableWorkspacesAndAccessTokensDTO)
   @UseGuards(PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async verifyEmailAndGetWorkspaceAgnosticToken(
     @Args()
     getAuthTokenFromEmailVerificationTokenInput: GetAuthTokenFromEmailVerificationTokenInput,
@@ -437,7 +432,6 @@ export class AuthResolver {
 
   @Mutation(() => AuthTokens)
   @UseGuards(CaptchaGuard, PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async getAuthTokensFromOTP(
     @Args()
     twoFactorAuthenticationVerificationInput: TwoFactorAuthenticationVerificationInput,
@@ -482,7 +476,6 @@ export class AuthResolver {
 
   @Mutation(() => TwoFactorAuthenticationRecoveryCodeRedemptionDTO)
   @UseGuards(CaptchaGuard, PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async getAuthTokensFromTwoFactorAuthenticationRecoveryCode(
     @Args()
     recoveryCodeVerificationInput: TwoFactorAuthenticationRecoveryCodeVerificationInput,
@@ -532,7 +525,6 @@ export class AuthResolver {
 
   @Mutation(() => AvailableWorkspacesAndAccessTokensDTO)
   @UseGuards(CaptchaGuard, PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async signUp(
     @Args() signUpInput: UserCredentialsInput,
     @Context() context: { req: Request },
@@ -596,7 +588,6 @@ export class AuthResolver {
 
   @Mutation(() => SignUpDTO)
   @UseGuards(CaptchaGuard, PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async signUpInWorkspace(
     @Args() signUpInput: SignUpInput,
   ): Promise<SignUpDTO> {
@@ -693,7 +684,6 @@ export class AuthResolver {
     AccessPolicyGuard(AUTH_WRITE_ACCESS_POLICY),
     WorkspaceCreationCaptchaGuard,
   )
-  @AllowSuspendedWorkspace()
   async signUpInNewWorkspace(
     @AuthUser() currentUser: AuthContextUser,
     @AuthProvider() authProvider: AuthProviderEnum,
@@ -738,7 +728,6 @@ export class AuthResolver {
       'Use createNewWorkspaceLogoUpload and completeNewWorkspaceLogoUpload, which send the logo straight to file storage.',
   })
   @UseGuards(AccessPolicyGuard(WORKSPACE_CREATION_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async uploadNewWorkspaceLogo(
     @AuthUser() currentUser: AuthContextUser,
     @Args('workspaceId') workspaceId: string,
@@ -767,7 +756,6 @@ export class AuthResolver {
 
   @Mutation(() => FileUploadTargetDTO)
   @UseGuards(AccessPolicyGuard(WORKSPACE_CREATION_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async createNewWorkspaceLogoUpload(
     @AuthUser() currentUser: AuthContextUser,
     @Args('workspaceId') workspaceId: string,
@@ -794,7 +782,6 @@ export class AuthResolver {
 
   @Mutation(() => FileWithSignedUrlDTO)
   @UseGuards(AccessPolicyGuard(WORKSPACE_CREATION_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async completeNewWorkspaceLogoUpload(
     @AuthUser() currentUser: AuthContextUser,
     @Args('workspaceId') workspaceId: string,
@@ -1229,7 +1216,6 @@ export class AuthResolver {
 
   @Mutation(() => EmailPasswordResetLinkDTO)
   @UseGuards(CaptchaGuard, PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async emailPasswordResetLink(
     @Args() emailPasswordResetInput: EmailPasswordResetLinkInput,
     @Context() context: I18nContext,
@@ -1258,7 +1244,6 @@ export class AuthResolver {
 
   @Mutation(() => InvalidatePasswordDTO)
   @UseGuards(PublicEndpointGuard, NoPermissionGuard)
-  @AllowSuspendedWorkspace()
   async updatePasswordViaResetToken(
     @Args()
     { passwordResetToken, newPassword }: UpdatePasswordViaResetTokenInput,

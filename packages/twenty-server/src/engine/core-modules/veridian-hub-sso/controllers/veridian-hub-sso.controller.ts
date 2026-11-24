@@ -18,6 +18,10 @@ import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
+import {
+  isSuspensionReason,
+  VeridianHubSuspensionService,
+} from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service';
 import { buildSignInPage } from 'src/engine/core-modules/veridian-hub-sso/utils/build-sign-in-page.util';
 import {
   isHubRole,
@@ -328,6 +332,66 @@ export class VeridianHubSsoController {
     return response.status(200).json(decision.response);
   }
 
+  // CONTRAT-HUB §5.4. Idempotent in both directions.
+  @Post('api/tenants/suspend')
+  async suspendTenant(
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response)) {
+      return;
+    }
+
+    const { tenant_id: tenantId, reason } = request.body ?? {};
+
+    if (!isNonEmptyString(tenantId) || !isSuspensionReason(reason)) {
+      return this.rejectInvalidBody(response);
+    }
+
+    const outcome = await this.veridianHubSuspensionService.suspend(
+      tenantId,
+      reason,
+    );
+
+    if (outcome.status !== 'ok') {
+      return response.status(outcome.status === 'not_found' ? 404 : 410).json({
+        error: outcome.status === 'not_found' ? 'tenant_not_found' : 'workspace_gone',
+      });
+    }
+
+    return response
+      .status(200)
+      .json({ tenant_id: tenantId, suspended_at: outcome.at });
+  }
+
+  @Post('api/tenants/resume')
+  async resumeTenant(
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response)) {
+      return;
+    }
+
+    const { tenant_id: tenantId } = request.body ?? {};
+
+    if (!isNonEmptyString(tenantId)) {
+      return this.rejectInvalidBody(response);
+    }
+
+    const outcome = await this.veridianHubSuspensionService.resume(tenantId);
+
+    if (outcome.status !== 'ok') {
+      return response.status(outcome.status === 'not_found' ? 404 : 410).json({
+        error: outcome.status === 'not_found' ? 'tenant_not_found' : 'workspace_gone',
+      });
+    }
+
+    return response
+      .status(200)
+      .json({ tenant_id: tenantId, resumed_at: outcome.at });
+  }
+
   @Post('api/tenants/:tenantId/sync-member')
   async syncMember(
     @Param('tenantId') tenantId: string,
@@ -445,6 +509,10 @@ export class VeridianHubSsoController {
 
     if (result.status === 'workspace_not_found') {
       return response.status(404).json({ error: result.status });
+    }
+
+    if (result.status === 'workspace_suspended') {
+      return response.status(423).json({ error: result.status });
     }
 
     if (result.status !== 'ok') {

@@ -414,14 +414,12 @@ export class UserResolver {
       requiredPermissionFlags: [],
     }),
   )
-  @AllowSuspendedWorkspace()
   async deleteUser(@AuthUser() { id: userId }: AuthContextUser) {
     return this.userService.deleteUser(userId);
   }
 
   @Mutation(() => UserWorkspaceEntity)
   @UseGuards(AccessPolicyGuard(USER_ACCESS_POLICY), CustomPermissionGuard)
-  @AllowSuspendedWorkspace()
   async deleteUserFromWorkspace(
     @Args('workspaceMemberIdToDelete') workspaceMemberIdToDelete: string,
     @AuthUser() { id: userId }: AuthContextUser,
@@ -516,7 +514,6 @@ export class UserResolver {
     }),
     CustomPermissionGuard,
   )
-  @AllowSuspendedWorkspace()
   async updateWorkspaceMemberSettings(
     @Args('input') input: UpdateWorkspaceMemberSettingsInput,
     @AuthWorkspace() workspace: WorkspaceEntity,

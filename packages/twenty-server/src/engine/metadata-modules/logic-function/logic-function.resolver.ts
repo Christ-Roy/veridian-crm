@@ -32,7 +32,6 @@ import { AuthApplication } from 'src/engine/decorators/auth/auth-application.dec
 import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { CreateLogicFunctionFromSourceInput } from 'src/engine/metadata-modules/logic-function/dtos/create-logic-function-from-source.input';
 import { ExecuteOneLogicFunctionInput } from 'src/engine/metadata-modules/logic-function/dtos/execute-logic-function.input';
@@ -158,7 +157,6 @@ export class LogicFunctionResolver {
 
   @Query(() => [LogicFunctionDTO])
   @UseGuards(AccessPolicyGuard(LOGIC_FUNCTION_READ_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async findManyLogicFunctions(
     @AuthWorkspace()
     { id: workspaceId, workspaceCustomApplicationId }: WorkspaceEntity,

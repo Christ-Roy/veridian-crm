@@ -39,7 +39,6 @@ import { ApplicationTargetArg } from 'src/engine/decorators/auth/application-tar
 import { ApplicationTargetArgs } from 'src/engine/decorators/auth/application-target-args.decorator';
 import { AuthApplication } from 'src/engine/decorators/auth/auth-application.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { WorkspaceMigrationGraphqlApiExceptionInterceptor } from 'src/engine/workspace-manager/workspace-migration/interceptors/workspace-migration-graphql-api-exception.interceptor';
 import { ApplicationTargetGuard } from 'src/engine/guards/application-target.guard';
 import { AccessPolicyGuard } from 'src/engine/guards/access-policy.guard';
@@ -94,7 +93,6 @@ export class ApplicationInstallResolver {
 
   @Query(() => [ApplicationDTO])
   @UseGuards(AccessPolicyGuard(APPLICATION_INSTALL_READ_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async findManyApplications(
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
   ) {

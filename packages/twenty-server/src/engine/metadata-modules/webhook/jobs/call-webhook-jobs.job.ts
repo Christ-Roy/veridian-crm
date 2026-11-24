@@ -15,6 +15,8 @@ import { CallWebhookJob } from 'src/engine/metadata-modules/webhook/jobs/call-we
 import { WebhookRateLimitService } from 'src/engine/metadata-modules/webhook/jobs/webhook-rate-limit.service';
 import { type CallWebhookJobData } from 'src/engine/metadata-modules/webhook/types/webhook-job-data.type';
 import { type WorkspaceEventBatchForWebhook } from 'src/engine/metadata-modules/webhook/types/workspace-event-batch-for-webhook.type';
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
+import { isWorkspaceSuspended } from 'src/engine/core-modules/workspace/utils/is-workspace-suspended.util';
 import { findWebhooksMatchingEventName } from 'src/engine/metadata-modules/webhook/utils/find-webhooks-matching-event-name.util';
 import { transformEventBatchToWebhookEvents } from 'src/engine/metadata-modules/webhook/utils/transform-event-batch-to-webhook-events';
 import { findFlatRoleTargetFromForeignKey } from 'src/engine/metadata-modules/flat-role-target/utils/find-flat-role-target-from-foreign-key.util';
@@ -32,6 +34,7 @@ export class CallWebhookJobsJob {
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly permissionsService: PermissionsService,
     private readonly webhookRateLimitService: WebhookRateLimitService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   @Process(CallWebhookJobsJob.name)
@@ -39,6 +42,15 @@ export class CallWebhookJobsJob {
     workspaceEventBatch: WorkspaceEventBatchForWebhook<ObjectRecordEvent>,
   ): Promise<void> {
     // Keep in sync with packages/twenty-zapier/src/triggers/trigger_record.ts and computeWebhooks.utils.ts
+
+    const suspendedWorkspace = await this.coreEntityCacheService.get(
+      'workspaceEntity',
+      workspaceEventBatch.workspaceId,
+    );
+
+    if (isWorkspaceSuspended(suspendedWorkspace)) {
+      return;
+    }
 
     const { flatWebhookMaps, flatObjectMetadataMaps, flatRoleTargetMaps } =
       await this.workspaceCacheService.getOrRecompute(

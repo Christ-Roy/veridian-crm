@@ -21,7 +21,6 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { AuthApplication } from 'src/engine/decorators/auth/auth-application.decorator';
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { CustomPermissionGuard } from 'src/engine/guards/custom-permission.guard';
 import { ConnectedAccountMetadataService } from 'src/engine/metadata-modules/connected-account/connected-account-metadata.service';
 import { ConnectedAccountPublicDTO } from 'src/engine/metadata-modules/connected-account/dtos/connected-account-public.dto';
@@ -159,7 +158,6 @@ export class MessageChannelResolver {
 
   @Query(() => [MessageChannelDTO])
   @UseGuards(AccessPolicyGuard(MESSAGE_CHANNEL_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async myMessageChannels(
     @AuthWorkspace() workspace: WorkspaceEntity,
     @AuthUserWorkspaceId() userWorkspaceId: string,

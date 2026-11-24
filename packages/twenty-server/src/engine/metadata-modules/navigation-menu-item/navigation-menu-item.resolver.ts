@@ -22,7 +22,6 @@ import { type IDataloaders } from 'src/engine/dataloaders/dataloader.interface';
 import { AuthApiKey } from 'src/engine/decorators/auth/auth-api-key.decorator';
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
 import { AccessPolicyGuard } from 'src/engine/guards/access-policy.guard';
 import { NAVIGATION_MENU_ITEM_READ_ACCESS_POLICY } from 'src/engine/metadata-modules/navigation-menu-item/constants/navigation-menu-item-read-access-policy.constant';
@@ -79,7 +78,6 @@ export class NavigationMenuItemResolver {
 
   @Query(() => [NavigationMenuItemDTO])
   @UseGuards(AccessPolicyGuard(NAVIGATION_MENU_ITEM_READ_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async navigationMenuItems(
     @AuthWorkspace() workspace: WorkspaceEntity,
     @AuthUserWorkspaceId({ allowUndefined: true })

@@ -1,5 +1,7 @@
 import { Logger } from '@nestjs/common';
 
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
+import { isWorkspaceSuspended } from 'src/engine/core-modules/workspace/utils/is-workspace-suspended.util';
 import crypto from 'crypto';
 
 import { ensureAbsoluteUrl } from 'twenty-shared/utils';
@@ -33,6 +35,7 @@ export class CallWebhookJob {
     private readonly eventLogEmitterService: EventLogEmitterService,
     private readonly metricsService: MetricsService,
     private readonly secureHttpClientService: SecureHttpClientService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   private generateSignature(
@@ -48,8 +51,21 @@ export class CallWebhookJob {
 
   @Process(CallWebhookJob.name)
   async handle(webhookJobEvents: WebhookJobData[]): Promise<void> {
+    const activeWebhookJobEvents: WebhookJobData[] = [];
+
+    for (const webhookJobEvent of webhookJobEvents) {
+      const workspace = await this.coreEntityCacheService.get(
+        'workspaceEntity',
+        webhookJobEvent.workspaceId,
+      );
+
+      if (!isWorkspaceSuspended(workspace)) {
+        activeWebhookJobEvents.push(webhookJobEvent);
+      }
+    }
+
     const webhookResponses = await Promise.all(
-      webhookJobEvents.map((webhookJobEvent) =>
+      activeWebhookJobEvents.map((webhookJobEvent) =>
         this.callWebhook(webhookJobEvent),
       ),
     );

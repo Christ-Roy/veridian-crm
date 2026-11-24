@@ -54,7 +54,7 @@ const PROVISION_LOCK_MS = 5 * 60 * 1000;
 // The Hub is the only source of identity. These links live in core.keyValuePair so
 // the fork carries no schema of its own: one key per Hub user, one key per tenant.
 const hubUserKey = (hubUserId: string) => `veridian.hub_user:${hubUserId}`;
-const hubTenantKey = (tenantId: string) => `veridian.hub_tenant:${tenantId}`;
+export const hubTenantKey = (tenantId: string) => `veridian.hub_tenant:${tenantId}`;
 
 type TenantLink = { ownerEmail: string } & StoredPlan;
 
@@ -469,7 +469,7 @@ export class VeridianHubSsoService {
     hubUserId: string;
     email: string;
   }): Promise<
-    | { status: 'workspace_not_found' | 'identity_conflict' }
+    | { status: 'workspace_not_found' | 'workspace_suspended' | 'identity_conflict' }
     | {
         status: 'ok';
         userId: string;
@@ -483,6 +483,10 @@ export class VeridianHubSsoService {
 
     if (!workspace) {
       return { status: 'workspace_not_found' };
+    }
+
+    if (workspace.activationStatus === WorkspaceActivationStatus.SUSPENDED) {
+      return { status: 'workspace_suspended' };
     }
 
     const known = await this.resolveUser(hubUserId, email);

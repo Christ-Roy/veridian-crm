@@ -17,7 +17,6 @@ import { type I18nContext } from 'src/engine/core-modules/i18n/types/i18n-contex
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { type IDataloaders } from 'src/engine/dataloaders/dataloader.interface';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
-import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
 import { PageLayoutTabDTO } from 'src/engine/metadata-modules/page-layout-tab/dtos/page-layout-tab.dto';
 import { PageLayoutWidgetDTO } from 'src/engine/metadata-modules/page-layout-widget/dtos/page-layout-widget.dto';
@@ -78,7 +77,6 @@ export class PageLayoutResolver {
 
   @Query(() => [PageLayoutDTO])
   @UseGuards(AccessPolicyGuard(PAGE_LAYOUT_READ_ACCESS_POLICY))
-  @AllowSuspendedWorkspace()
   async getPageLayouts(
     @AuthWorkspace() workspace: WorkspaceEntity,
     @Args('objectMetadataId', { type: () => String, nullable: true })
