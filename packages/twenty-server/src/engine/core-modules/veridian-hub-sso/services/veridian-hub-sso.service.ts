@@ -765,6 +765,9 @@ export class VeridianHubSsoService {
         tenant_id: tenantKey
           ? tenantKey.slice('veridian.hub_tenant:'.length)
           : null,
+        hub_tenant_id: tenantKey
+          ? tenantKey.slice('veridian.hub_tenant:'.length)
+          : null,
         workspace_name: displayName,
         subdomain,
         role: link?.ownerEmail === email ? 'owner' : 'member',

@@ -46,7 +46,7 @@ class Epreuve:
 
     def relu(self, email):
         _, texte, _ = self.c.signe(f"/api/users/by-email?email={email.replace('+', '%2B')}", None, "GET")
-        return {w["tenant_id"]: (w.get("hub_role"), w.get("native_admin")) for w in json.loads(texte)["workspaces"]}
+        return {w["hub_tenant_id"]: (w.get("hub_role"), w.get("native_admin")) for w in json.loads(texte)["workspaces"]}
 
     def mcp(self, jeton, methode, params=None):
         _, texte, _ = self.c.http(self.url + "/mcp", json.dumps({"jsonrpc": "2.0", "id": 1, "method": methode, "params": params or {}}).encode(),
