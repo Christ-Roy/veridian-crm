@@ -324,7 +324,7 @@ def main(argv=None):
     p.add_argument("--pourcentage", type=int, default=10)
     p.add_argument("--raison", default="")
     p.add_argument("--a-blanc", action="store_true")
-    a = p.parse_args(argv)
+    a = p.parse_intermixed_args(argv)
     c = Canaux(a.depot, GitHub(a.depot, os.environ.get("GH_TOKEN"), a.a_blanc))
     try:
         if a.commande in ("essai", "promouvoir", "minimale") and not a.code and a.code != 0:

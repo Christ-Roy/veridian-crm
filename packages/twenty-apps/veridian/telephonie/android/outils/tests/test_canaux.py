@@ -1,9 +1,13 @@
 """Canaux de l'app Android, sans réseau : GitHub est doublé en mémoire. Lancé par la CI (job contrat)."""
+import contextlib
+import io
 import json
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ANDROID = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ANDROID / "outils"))
@@ -345,6 +349,20 @@ class Workflow(unittest.TestCase):
     def test_aucune_entree_interpolee_dans_un_script(self):
         for bloc in re.findall(r"run: \|\n((?: {10,}.*\n|\n)+)", self.texte) + re.findall(r"run: (?!\|)(.+)", self.texte):
             self.assertNotIn("${{", bloc)
+
+    def test_la_ligne_de_commande_du_workflow_se_lit(self):
+        # 24/11/2026 : fichiers après les options, argparse refusait (code 2) et la CI ne publiait rien.
+        ligne = re.search(r'canaux\.py" (essai (?:.*\\\n)*.*)', self.texte).group(1).replace("\\\n", " ")
+        mots = [m.strip('"') for m in ligne.split()]
+        valeurs = {"$GITHUB_REPOSITORY": "moi/depot", "$CODE": "29925660", "$VERSION": "20261124.1800-abc", "$SOURCE": "d70bf9edc4d7"}
+        with tempfile.TemporaryDirectory() as d:
+            argv = [valeurs.get(m, m) for m in mots]
+            for i, nom in ((-2, "app-release.apk"), (-1, "telephonie-twenty-app.tgz")):
+                argv[i] = str(Path(d, nom))
+                Path(argv[i]).write_bytes(nom.encode())
+            with mock.patch.object(k.Canaux, "essai", return_value={}) as essai, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(k.main(argv), 0)
+        essai.assert_called_once_with(29925660, "20261124.1800-abc", "d70bf9edc4d7", b"app-release.apk", b"telephonie-twenty-app.tgz")
 
 
 if __name__ == "__main__":
