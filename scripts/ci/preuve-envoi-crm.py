@@ -133,6 +133,8 @@ class Epreuve:
         c, r = self.appel(unique)
         self.controle("un clic : société, contact, tâche", r.get("ok") is True and r.get("rejoue") is False, json.dumps(r, ensure_ascii=False)[:200])
         self.controle("un clic : 1, 1, 1 et deux liens", self.compte() == [1, 1, 1, 2], str(self.compte()))
+        url = (r.get("societe") or {}).get("url") or ""
+        self.controle("le lien ouvre la société de cet espace", url == f"{self.origine}/object/company/{(r.get('societe') or {}).get('id')}", url)
         self.refus("le même jeton : refus", unique, 401, "token_replayed")
         f = self.fiches()
         tout = f["companies"] + f["people"] + f["tasks"]
@@ -163,7 +165,33 @@ class Epreuve:
         bons = [r for c, r in rs if c == 200 and r.get("ok") is True]
         self.controle("dix clics simultanés : 1, 1, 1 et deux liens", self.compte() == [1, 1, 1, 2] and bool(bons),
                       f"{self.compte()} ; {len(bons)}/10 abouties")
+        self.lot()
         self.controle("dix clics simultanés : aucun échec rendu", len(bons) == 10, str([r for c, r in rs if r not in bons][:1])[:200])
+
+    def lot(self):
+        base = self.siren
+        sirens = [f"6{i:02d}{base[3:]}" for i in range(19)]
+        envois = []
+        for x in sirens:
+            self.siren = x
+            envois.append({k: v for k, v in self.envoi().items()})
+        envois.append({"siren": "pas un siren", "societe": {"nom": "EPREUVE"}})
+        t = time.time()
+        _, r = self.appel(self.jeton(), arguments={"envois": envois})
+        res = r.get("resultats") or []
+        self.controle("lot de 20 : 19 créés, 1 refusé, dans l'ordre", [x.get("siren") for x in res][:19] == sirens and
+                      [bool(x.get("ok")) for x in res] == [True] * 19 + [False], f"{time.time() - t:.0f} s {json.dumps(r, ensure_ascii=False)[:120]}")
+        _, r = self.appel(self.jeton(), arguments={"envois": envois[:19]})
+        self.controle("le même lot ne crée rien", r.get("ok") is True and all(x.get("rejoue") for x in r.get("resultats") or [{}]), json.dumps(r)[:120])
+        _, r = self.appel(self.jeton(), arguments={"envois": envois + envois[:1]})
+        self.controle("lot de 21 : refusé", r.get("erreur") == "lot_invalide", json.dumps(r, ensure_ascii=False)[:120])
+        comptes = []
+        for x in sirens:
+            self.siren = x
+            comptes.append(self.compte())
+            self.nettoyer()
+        self.controle("lot : 1, 1, 1 et deux liens par SIREN", all(c == [1, 1, 1, 2] for c in comptes), str(comptes[:2]))
+        self.siren = base
 
     def nettoyer(self):
         for objet, mut, filtre in (("tasks", "destroyTasks", "TaskFilterInput"), ("people", "destroyPeople", "PersonFilterInput"),
