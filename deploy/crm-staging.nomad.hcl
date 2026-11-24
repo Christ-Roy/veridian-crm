@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-a0965d8" # 23/11/2026 : retrait d'un membre sans fiche orpheline (VER-203)
+  default = "staging-c995fda" # 24/11/2026 : jeton d'action à act borné, couples liaisons (VER-246)
 }
 
 job "crm-staging" {
