@@ -238,7 +238,7 @@ IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
 AUTH_PASSWORD_ENABLED=false
 AUTH_MICROSOFT_ENABLED=false
 HUB_URL=https://hub.staging.veridian.site
-HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
+HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site,brunon5robert+crm-rebond@gmail.com
 TELEMETRY_ENABLED=false
 # IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une
 # identité signée (secrets de la Variable partagée veridian/ia-identite, posée par l'infra, lisible par hub, crm et
