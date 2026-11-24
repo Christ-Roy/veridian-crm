@@ -10,7 +10,8 @@ import {
 } from 'src/engine/permissions/permissions.exception';
 
 // The generated /graphql and /rest APIs do not go through Nest guards: this hook closes the
-// rename that HubOnlyIdentityGuard closes on /metadata. The Hub writes through the ORM, not here.
+// rename that HubOnlyIdentityGuard closes on /metadata, and pointing a member record at another
+// account, which locks its owner out (VER-245). The Hub writes through the ORM, not here.
 @WorkspaceQueryHook(`workspaceMember.updateOne`)
 export class WorkspaceMemberIdentityPreQueryHook
   implements WorkspacePreQueryHookInstance
@@ -22,7 +23,11 @@ export class WorkspaceMemberIdentityPreQueryHook
   ): Promise<UpdateOneResolverArgs> {
     const data = (payload.data ?? {}) as Record<string, unknown>;
 
-    if (data.name !== undefined || data.userEmail !== undefined) {
+    if (
+      data.name !== undefined ||
+      data.userEmail !== undefined ||
+      data.userId !== undefined
+    ) {
       throw new PermissionsException(
         PermissionsExceptionMessage.PERMISSION_DENIED,
         PermissionsExceptionCode.PERMISSION_DENIED,

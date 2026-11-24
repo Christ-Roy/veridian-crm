@@ -18,6 +18,12 @@ describe('WorkspaceMemberIdentityPreQueryHook', () => {
     );
   });
 
+  it('refuses to point the record at another account', async () => {
+    await expect(
+      run({ userId: '0b9f3c1e-7d2a-4c55-9f1e-2a6b8c4d5e6f' }),
+    ).rejects.toThrow(PermissionsException);
+  });
+
   it('lets other preferences through', async () => {
     await expect(run({ colorScheme: 'Dark' })).resolves.toBeDefined();
   });

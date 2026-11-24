@@ -57,7 +57,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 | `GET /welcome` | rebond `auto=1` une seule fois ; après déconnexion, en iframe ou après un essai : page « Continuer » sans `auto` | §6bis.8.0 |
 
 `HubOnlyIdentityGuard` refuse inscription, connexion par mot de passe, invitations, changement d'email ou de
-nom, suppression de compte, de membre ou de workspace sur les résolveurs Nest, et `updateWorkspace` s'il rouvre ce que le provisioning ferme (`editableProfileFields` limité à la photo, `isPasswordAuthEnabled`, lien d'invitation). La 2FA vit au Hub seul (parente, 07/11/2026) : ses mutations sont refusées, `isTwoFactorAuthenticationEnforced` aussi. `WorkspaceMemberIdentityPreQueryHook` ferme le renommage sur les API générées. Le lien porte un login token Twenty : 15 min, à usage unique, consommé par `/verify`. Liens Hub dans
+nom, suppression de compte, de membre ou de workspace sur les résolveurs Nest, et `updateWorkspace` s'il rouvre ce que le provisioning ferme (`editableProfileFields` limité à la photo, `isPasswordAuthEnabled`, lien d'invitation). La 2FA vit au Hub seul (parente, 07/11/2026) : ses mutations sont refusées, `isTwoFactorAuthenticationEnforced` aussi. `WorkspaceMemberIdentityPreQueryHook` ferme le renommage sur les API générées, et le repointage d'une fiche vers un autre compte (`userId`, un admin enfermait un membre dehors). Aucun chemin n'ajoute un humain sans le Hub : `scripts/ci/preuve-porte-membres.py` (VER-245). Le lien porte un login token Twenty : 15 min, à usage unique, consommé par `/verify`. Liens Hub dans
 `core.keyValuePair`, aucune table neuve. Variables : `HUB_API_SECRET`, `HUB_API_SECRET_NEXT`, `HUB_URL`,
 `HUB_SERVER_ADMIN_EMAILS`. Sans secret, les routes répondent 503.
 

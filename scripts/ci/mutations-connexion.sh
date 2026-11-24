@@ -12,7 +12,7 @@ G=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/guards/hub-onl
 N=packages/twenty-shared/src/utils/navigation/createSingleNavigation.ts
 
 jouer() {
-  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'contrat-connexion-automatique|hub-only-identity|marque.veridian|retrait-membre' >/tmp/mutation.log 2>&1)
+  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'contrat-connexion-automatique|hub-only-identity|workspace-member-identity|marque.veridian|retrait-membre' >/tmp/mutation.log 2>&1)
 }
 
 jouer || { tail -30 /tmp/mutation.log; echo "NON ABOUTI : spec rouge sans sabotage"; exit 2; }
@@ -57,13 +57,17 @@ saboter "retrait : espace sans schéma bloquant" "$S" 'if (!isWorkspaceProvision
 saboter "retour : fiche non restaurée" "$S" "await this.updateMemberRecord(workspace, known.id, 'restore');" ''
 saboter "boucle : garde retirée" "$N" 'if (url === navigatingToUrl) {' 'if (false as boolean) {'
 
-for mutation in deleteUser deleteUserFromWorkspace deleteCurrentWorkspace initiateOTPProvisioning initiateOTPProvisioningForAuthenticatedUser verifyTwoFactorAuthenticationMethodForAuthenticatedUser deleteTwoFactorAuthenticationMethod generateTwoFactorAuthenticationRecoveryCode revokeTwoFactorAuthenticationRecoveryCode getAuthTokensFromOTP getAuthTokensFromTwoFactorAuthenticationRecoveryCode; do
+for mutation in signUp signUpInWorkspace signUpInNewWorkspace signIn getLoginTokenFromCredentials emailPasswordResetLink updatePasswordViaResetToken sendInvitations resendWorkspaceInvitation updateUserEmail verifyEmailAndGetLoginToken verifyEmailAndGetWorkspaceAgnosticToken resendEmailVerificationToken getAuthTokensFromSSOExchangeToken createApprovedAccessDomain validateApprovedAccessDomain createOIDCIdentityProvider createSAMLIdentityProvider editSSOIdentityProvider deleteUser deleteUserFromWorkspace deleteCurrentWorkspace initiateOTPProvisioning initiateOTPProvisioningForAuthenticatedUser verifyTwoFactorAuthenticationMethodForAuthenticatedUser deleteTwoFactorAuthenticationMethod generateTwoFactorAuthenticationRecoveryCode revokeTwoFactorAuthenticationRecoveryCode getAuthTokensFromOTP getAuthTokensFromTwoFactorAuthenticationRecoveryCode; do
   saboter "garde : $mutation permis" "$G" "  '$mutation',"$'\n' ""
 done
 for reglage in editableProfileFields isPasswordAuthEnabled isPasswordAuthBypassEnabled isPublicInviteLinkEnabled isTwoFactorAuthenticationEnforced; do
   saboter "garde : $reglage rouvrable" "$G" "  '$reglage',"$'\n' ""
 done
 saboter "garde : réouverture ignorée" "$G" "isRenaming ||"$'\n'"      isReopening" "isRenaming"
+H=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/query-hooks/workspace-member-identity.pre-query.hook.ts
+for champ in name userEmail userId; do
+  saboter "fiche : $champ modifiable" "$H" "data.$champ !== undefined" "(false as boolean)"
+done
 saboter "marque : nom amont gardé" packages/twenty-front/src/modules/veridian-brand/replaceBrandInMessages.ts "'Veridian CRM'" "'Twenty'"
 saboter "marque : messages compilés ignorés" packages/twenty-front/src/modules/veridian-brand/replaceBrandInMessages.ts "return message.map(replaceBrand);" "return message;"
 
