@@ -13,15 +13,22 @@ const MAX_LIFETIME_S = 120;
 
 // The pairs and scopes this app accepts (INTEGRATIONS-NATIVES D2, D4): the target keeps the last word.
 // Create and complete only: no destructive tool ever enters this list.
+// The application is the one that brings the tool (veridian-crm-apps/liaisons).
 const DELEGATED_TOOLS = new Map([
   [
     'app_envoyer_au_crm',
     {
       app: 'app:prospection',
       scopes: ['crm:societe.ecrire', 'crm:tache.ecrire'],
+      applicationUniversalIdentifier: '1a1ab23e-60e5-4eca-be1f-718c96055c79',
     },
   ],
 ]);
+
+export const findDelegatedApplication = (
+  toolName: unknown,
+): string | undefined =>
+  DELEGATED_TOOLS.get(toolName as string)?.applicationUniversalIdentifier;
 
 const refused = (
   status: 401 | 403,

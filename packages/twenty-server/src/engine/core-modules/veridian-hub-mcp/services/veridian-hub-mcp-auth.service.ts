@@ -10,8 +10,10 @@ import { CacheStorageService } from 'src/engine/core-modules/cache-storage/servi
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
+import { VeridianDelegatedAppService } from 'src/engine/core-modules/veridian-hub-mcp/services/veridian-delegated-app.service';
 import {
   type HubDelegation,
+  findDelegatedApplication,
   isDelegatedCallAllowed,
   readDelegation,
 } from 'src/engine/core-modules/veridian-hub-mcp/utils/read-delegation.util';
@@ -31,7 +33,12 @@ const USED_JTI_TTL_MS = 5 * 60 * 1000;
 
 export type HubMcpAuthResult =
   | { kind: 'not_hub' }
-  | { kind: 'ok'; accessToken: string; delegation?: HubDelegation }
+  | {
+      kind: 'ok';
+      accessToken: string;
+      workspaceId: string;
+      delegation?: HubDelegation;
+    }
   | {
       kind: 'refused';
       status: 401 | 403 | 503;
@@ -46,7 +53,7 @@ export class VeridianHubMcpAuthService {
   // One Hub JWT serves a whole MCP exchange (initialize, tools/list, tools/call) for 5 min.
   private readonly accessTokensByJti = new Map<
     string,
-    { accessToken: string; expiresAt: number }
+    { accessToken: string; workspaceId: string; expiresAt: number }
   >();
 
   constructor(
@@ -59,6 +66,7 @@ export class VeridianHubMcpAuthService {
     private readonly userWorkspaceRepository: Repository<UserWorkspaceEntity>,
     @InjectCacheStorage(CacheStorageNamespace.EngineAuthSession)
     private readonly cacheStorage: CacheStorageService,
+    private readonly delegatedAppService: VeridianDelegatedAppService,
   ) {}
 
   private get issuer() {
@@ -113,13 +121,17 @@ export class VeridianHubMcpAuthService {
     const cached = claims.jti ? this.accessTokensByJti.get(claims.jti) : null;
 
     if (cached && cached.expiresAt > Date.now()) {
-      return { kind: 'ok', accessToken: cached.accessToken };
+      return {
+        kind: 'ok',
+        accessToken: cached.accessToken,
+        workspaceId: cached.workspaceId,
+      };
     }
 
     const result = await this.mintAccessToken(claims);
 
     if (result.kind === 'ok' && claims.jti) {
-      this.remember(claims.jti, result.accessToken, claims.exp * 1000);
+      this.remember(claims.jti, result, claims.exp * 1000);
     }
 
     return result;
@@ -165,7 +177,28 @@ export class VeridianHubMcpAuthService {
 
     this.logger.log(`Hub action ${result.kind} ${trace}`);
 
-    return result.kind === 'ok' ? { ...result, delegation } : result;
+    if (result.kind !== 'ok') {
+      return result;
+    }
+
+    const applicationUniversalIdentifier = findDelegatedApplication(
+      body?.params?.name,
+    );
+
+    if (applicationUniversalIdentifier) {
+      const app = await this.delegatedAppService.ensureInstalled({
+        applicationUniversalIdentifier,
+        workspaceId: result.workspaceId,
+      });
+
+      if (app.kind === 'refused') {
+        this.logger.warn(`Hub action refused: ${app.error} ${trace}`);
+
+        return app;
+      }
+    }
+
+    return { ...result, delegation };
   }
 
   private async verify(
@@ -274,7 +307,7 @@ export class VeridianHubMcpAuthService {
         authProvider: AuthProviderEnum.Password,
       });
 
-      return { kind: 'ok', accessToken: token };
+      return { kind: 'ok', accessToken: token, workspaceId };
     } catch (error) {
       this.logger.warn(
         `Hub MCP access token refused: ${error instanceof Error ? error.message : error}`,
@@ -351,7 +384,11 @@ export class VeridianHubMcpAuthService {
     return { kind: 'ok', workspaceId: tenant.workspaceId };
   }
 
-  private remember(jti: string, accessToken: string, expiresAt: number) {
+  private remember(
+    jti: string,
+    { accessToken, workspaceId }: { accessToken: string; workspaceId: string },
+    expiresAt: number,
+  ) {
     if (this.accessTokensByJti.size >= MAX_CACHED_TOKENS) {
       const now = Date.now();
 
@@ -370,6 +407,6 @@ export class VeridianHubMcpAuthService {
       }
     }
 
-    this.accessTokensByJti.set(jti, { accessToken, expiresAt });
+    this.accessTokensByJti.set(jti, { accessToken, workspaceId, expiresAt });
   }
 }

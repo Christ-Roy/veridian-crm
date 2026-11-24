@@ -10,9 +10,10 @@ D=packages/twenty-server/src/engine/core-modules/veridian-hub-mcp
 U=$D/utils/read-delegation.util.ts
 S=$D/services/veridian-hub-mcp-auth.service.ts
 M=$D/middlewares/veridian-hub-mcp-auth.middleware.ts
+A=$D/services/veridian-delegated-app.service.ts
 
 jouer() {
-  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'jeton-action' >/tmp/mutation-action.log 2>&1)
+  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern '(jeton-action|app-deleguee)' >/tmp/mutation-action.log 2>&1)
 }
 
 jouer || { tail -30 /tmp/mutation-action.log; echo "NON ABOUTI : spec rouge sans sabotage"; exit 2; }
@@ -52,5 +53,16 @@ saboter "rejeu permis" "$S" 'if (!isFirstUse) {' 'if (false as boolean) {'
 saboter "portée non contrôlée" "$S" 'if (!isDelegatedCallAllowed(delegation, body)) {' 'if (false as boolean) {'
 saboter "origine forgée gardée" "$M" 'stripAttestation(req.body);' ''
 saboter "origine non attestée" "$M" 'if (result.delegation) {' 'if (false as boolean) {'
+saboter "app posée sans espace du jeton" "$S" 'workspaceId: result.workspaceId,' "workspaceId: '',"
+saboter "refus de l'app ignoré" "$S" "if (app.kind === 'refused') {" "if (false as boolean) {"
+saboter "app jamais posée" "$S" 'if (applicationUniversalIdentifier) {' 'if (false as boolean) {'
+saboter "app posée sans garde d'installation" "$A" '!isApplicationInstallAllowedByVeridian({' 'false && !isApplicationInstallAllowedByVeridian({'
+saboter "app désinstallée qui revient" "$A" 'if (!isInstalling && (await this.wasSeen(target))) {' 'if (false as boolean) {'
+saboter "installation en cours prise pour une désinstallation" "$A" '!isInstalling && ' ''
+saboter "travail en échec accepté" "$A" 'if (status?.state === JobStateEnum.FAILED) {' 'if (false as boolean) {'
+saboter "ligne sans version prise pour installée" "$A" 'return isNonEmptyString((await this.findApplication(target))?.version);' 'return (await this.findApplication(target)) !== null;'
+saboter "espace jamais marqué" "$A" '    if (await this.wasSeen(target)) {' '    if (true as boolean) {'
+saboter "marque commune à tous les espaces" "$A" '        workspaceId: target.workspaceId,
+        userId: IsNull(),' '        userId: IsNull(),'
 
 exit "$rate"

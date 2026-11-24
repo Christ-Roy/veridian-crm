@@ -1,3 +1,9 @@
+// Chargé pour de vrai, il tire twenty-client-sdk, non construit en CI : éprouvé dans app-deleguee.veridian.spec.ts.
+jest.mock(
+  'src/engine/core-modules/veridian-hub-mcp/services/veridian-delegated-app.service',
+  () => ({ VeridianDelegatedAppService: class {} }),
+);
+
 import { generateKeyPairSync } from 'crypto';
 
 import { type Request, type Response } from 'express';
@@ -42,13 +48,20 @@ const jeton = (
   );
 };
 
-const appel = (name = 'app_envoyer_au_crm', args: unknown = { siren: '1' }) => ({
+const appel = (
+  name = 'app_envoyer_au_crm',
+  args: unknown = { siren: '1' },
+) => ({
   id: 1,
   method: 'tools/call',
   params: { name, arguments: args },
 });
 
-const monter = ({ workspaceDuTenant = 'ws-1' as string | null } = {}) => {
+const monter = ({
+  workspaceDuTenant = 'ws-1' as string | null,
+  app = { kind: 'ok' } as object,
+} = {}) => {
+  const ensureInstalled = jest.fn(async () => app);
   const vus = new Set<string>();
   const generateAccessToken = jest.fn(async () => ({ token: 'twenty' }));
   const service = new VeridianHubMcpAuthService(
@@ -75,6 +88,7 @@ const monter = ({ workspaceDuTenant = 'ws-1' as string | null } = {}) => {
         vus.has(cle) ? false : Boolean(vus.add(cle)),
       ),
     } as never,
+    { ensureInstalled } as never,
   );
   const middleware = new VeridianHubMcpAuthMiddleware(service);
   const passer = async (token: string | undefined, body: unknown) => {
@@ -97,7 +111,7 @@ const monter = ({ workspaceDuTenant = 'ws-1' as string | null } = {}) => {
     return { req, refus, passe: next.mock.calls.length === 1 };
   };
 
-  return { passer, generateAccessToken };
+  return { passer, generateAccessToken, ensureInstalled };
 };
 
 describe('jeton d’action du Hub (act)', () => {
@@ -132,6 +146,60 @@ describe('jeton d’action du Hub (act)', () => {
     );
   });
 
+  it('pose l’app de l’outil dans l’espace du jeton avant de passer', async () => {
+    const { passer, ensureInstalled } = monter();
+
+    expect((await passer(jeton(), appel())).passe).toBe(true);
+    expect(ensureInstalled).toHaveBeenCalledTimes(1);
+    expect(ensureInstalled).toHaveBeenCalledWith({
+      applicationUniversalIdentifier: '1a1ab23e-60e5-4eca-be1f-718c96055c79',
+      workspaceId: 'ws-1',
+    });
+  });
+
+  it('app non posée : refus nommé, la requête ne passe pas', async () => {
+    const { passer } = monter({
+      app: {
+        kind: 'refused',
+        status: 403,
+        error: 'app_not_available',
+        message: 'x',
+      },
+    });
+
+    expect(await passer(jeton(), appel())).toMatchObject({
+      passe: false,
+      refus: { status: 403, error: 'app_not_available' },
+    });
+  });
+
+  it.each([
+    ['une portée refusée', jeton({ scope: 'crm:tache.ecrire' }), {}],
+    ['un autre outil', jeton(), { corps: appel('delete_one_company') }],
+    ['un espace interdit', jeton(), { workspaceDuTenant: 'ws-autre' }],
+    ['un espace non lié', jeton(), { workspaceDuTenant: null }],
+    ['un jeton sans act', jeton({ act: undefined }), {}],
+    ['aucun jeton', undefined, {}],
+  ] as const)('ne pose rien pour %s', async (_nom, token, options) => {
+    const { corps = appel(), ...reste } = options as {
+      corps?: unknown;
+      workspaceDuTenant?: string | null;
+    };
+    const { passer, ensureInstalled } = monter(reste);
+
+    await passer(token, corps);
+    expect(ensureInstalled).not.toHaveBeenCalled();
+  });
+
+  it('ne pose rien au rejeu d’un jeton', async () => {
+    const { passer, ensureInstalled } = monter();
+    const token = jeton();
+
+    await passer(token, appel());
+    await passer(token, appel());
+    expect(ensureInstalled).toHaveBeenCalledTimes(1);
+  });
+
   it('un jeton sert une fois', async () => {
     const { passer } = monter();
 
@@ -144,10 +212,16 @@ describe('jeton d’action du Hub (act)', () => {
 
   it.each([
     ['un autre outil', appel('delete_one_company')],
-    ['l’outil générique', appel('execute_tool', { toolName: 'app_envoyer_au_crm' })],
+    [
+      'l’outil générique',
+      appel('execute_tool', { toolName: 'app_envoyer_au_crm' }),
+    ],
     ['un nom hérité', appel('toString')],
     ['la liste des outils', { id: 1, method: 'tools/list' }],
-    ['une autre méthode sous le bon nom', { ...appel(), method: 'resources/read' }],
+    [
+      'une autre méthode sous le bon nom',
+      { ...appel(), method: 'resources/read' },
+    ],
     ['initialize', { id: 1, method: 'initialize' }],
     ['un lot', [appel()]],
     ['un corps vide', undefined],
@@ -175,7 +249,10 @@ describe('jeton d’action du Hub (act)', () => {
     ['act vide', { act: {} }],
     ['act nul', { act: null }],
     ['act texte', { act: 'app:prospection' }],
-    ['act en chaîne', { act: { sub: 'app:prospection', act: { sub: 'app:x' } } }],
+    [
+      'act en chaîne',
+      { act: { sub: 'app:prospection', act: { sub: 'app:x' } } },
+    ],
     ['act sans préfixe', { act: { sub: 'prospection' } }],
   ])('jamais un jeton complet : %s', async (_nom, claims) => {
     expect((await monter().passer(jeton(claims), appel())).refus).toEqual({
@@ -191,12 +268,15 @@ describe('jeton d’action du Hub (act)', () => {
     expect(await erreur(jeton({}, { jti: '' }))).toBe('invalid_act');
     expect(await erreur(jeton({}, { sansIat: true }))).toBe('invalid_act');
     expect(await erreur(jeton({}, { duree: 300 }))).toBe('invalid_act');
-    expect(await erreur(jeton({ tenant_id: undefined }))).toBe('tenant_required');
+    expect(await erreur(jeton({ tenant_id: undefined }))).toBe(
+      'tenant_required',
+    );
   });
 
   it('règles d’espace du contrat MCP', async () => {
     expect(
-      (await monter({ workspaceDuTenant: null }).passer(jeton(), appel())).refus,
+      (await monter({ workspaceDuTenant: null }).passer(jeton(), appel()))
+        .refus,
     ).toEqual({ status: 403, error: 'tenant_not_linked' });
     expect(
       (await monter({ workspaceDuTenant: 'ws-autre' }).passer(jeton(), appel()))

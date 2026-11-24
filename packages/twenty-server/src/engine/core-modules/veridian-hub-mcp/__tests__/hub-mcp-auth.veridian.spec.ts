@@ -1,3 +1,8 @@
+jest.mock(
+  'src/engine/core-modules/veridian-hub-mcp/services/veridian-delegated-app.service',
+  () => ({ VeridianDelegatedAppService: class {} }),
+);
+
 import { generateKeyPairSync } from 'crypto';
 
 import { type Request, type Response } from 'express';
@@ -67,6 +72,7 @@ const setup = ({
     keyValuePairRepository as never,
     userWorkspaceRepository as never,
     { setIfAbsent: jest.fn(async () => true) } as never,
+    { ensureInstalled: jest.fn() } as never,
   );
 
   return { service, accessTokenService };
@@ -94,6 +100,7 @@ describe('VeridianHubMcpAuthService (CONTRAT-MCP)', () => {
     expect(await service.authenticate(sign())).toEqual({
       kind: 'ok',
       accessToken: 'twenty-token-for-ws-own',
+      workspaceId: 'ws-own',
     });
     expect(accessTokenService.generateAccessToken).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER_ID, workspaceId: 'ws-own' }),
@@ -224,7 +231,11 @@ describe('VeridianHubMcpAuthMiddleware', () => {
   };
 
   it('swaps the Hub JWT for the Twenty token and lets the native guard run', async () => {
-    const { req, next } = await run({ kind: 'ok', accessToken: 'twenty' });
+    const { req, next } = await run({
+      kind: 'ok',
+      accessToken: 'twenty',
+      workspaceId: 'ws-own',
+    });
 
     expect(req.headers.authorization).toBe('Bearer twenty');
     expect(next).toHaveBeenCalled();
