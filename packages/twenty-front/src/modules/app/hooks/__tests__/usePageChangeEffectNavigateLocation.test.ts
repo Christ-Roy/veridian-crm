@@ -601,7 +601,7 @@ describe('usePageChangeEffectNavigateLocation — suspended workspace settings p
     { loc: getSettingsPath(SettingsPath.ProfilePage), res: undefined },
     {
       loc: getSettingsPath(SettingsPath.Usage),
-      res: getSettingsPath(SettingsPath.Billing),
+      res: undefined,
     },
   ])('returns $res from $loc', ({ loc, res }) => {
     setupMockIsMatchingLocation(loc);

@@ -4,6 +4,8 @@ import { CronTriggerCronJob } from 'src/engine/core-modules/logic-function/logic
 import { WorkflowCronTriggerCronJob } from 'src/modules/workflow/workflow-trigger/automated-trigger/crons/jobs/workflow-cron-trigger-cron.job';
 import { WorkflowTriggerJob } from 'src/modules/workflow/workflow-trigger/jobs/workflow-trigger.job';
 
+jest.mock('twenty-client-sdk/generate', () => ({}), { virtual: true });
+
 // CONTRAT-HUB §5.4 : un espace suspendu ne lance aucun workflow (déclencheur base, cron, envoi déjà en file)
 // et les crons de logique ne le parcourent pas.
 

@@ -33,7 +33,7 @@ const jetonAct = (jti = 'a1') =>
   jeton(
     {
       act: { sub: 'app:prospection' },
-      scope: 'crm:societe.ecrire',
+      scope: 'crm:societe.ecrire crm:tache.ecrire',
     },
     jti,
   );

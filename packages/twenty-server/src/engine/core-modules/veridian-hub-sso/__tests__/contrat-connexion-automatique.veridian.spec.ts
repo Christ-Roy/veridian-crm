@@ -144,6 +144,7 @@ const welcome = async ({
     {} as never,
     config,
     {} as never,
+    {} as never,
   );
 
   await controller.welcome(
@@ -298,7 +299,7 @@ describe('CONTRAT-HUB §6bis.8.0', () => {
       );
 
       expect(lien).toBe(`${SERVER}/auth/token?t=jeton`);
-      expect(query.mock.calls[0][1][2]).toBeNull();
+      expect(query.mock.calls[1][1][2]).toBeNull();
     });
 
     it('5. issue-magic-link suit un next de son origine et son espace', async () => {
@@ -312,7 +313,7 @@ describe('CONTRAT-HUB §6bis.8.0', () => {
       expect(lien).toBe(
         `${SERVER}/auth/token?t=jeton&next=%2Fobjects%2Fpeople`,
       );
-      expect(query.mock.calls[0][1][2]).toBe('acme');
+      expect(query.mock.calls[1][1][2]).toBe('acme');
     });
 
     it('6. revoke_sessions coupe les sessions de l’utilisateur', async () => {

@@ -71,6 +71,7 @@ export class VeridianHubSsoController {
     private readonly veridianHubSsoService: VeridianHubSsoService,
     private readonly twentyConfigService: TwentyConfigService,
     private readonly veridianHubRoleService: VeridianHubRoleService,
+    private readonly veridianHubSuspensionService: VeridianHubSuspensionService,
   ) {}
 
   // Returns false once it has answered: the caller stops there.
