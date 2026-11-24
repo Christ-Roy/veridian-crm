@@ -39,6 +39,7 @@ describe('VeridianSuspendedGate', () => {
     expect(screen.queryByText(/billing|facturation|abonnement/i)).toBeNull();
     expect(screen.getAllByRole('button')).toHaveLength(1);
 
+    expect(screen.getByRole('button').textContent).toBe('Se déconnecter');
     fireEvent.click(screen.getByRole('button', { name: /Se déconnecter/ }));
     expect(mockSignOut).toHaveBeenCalledTimes(1);
   });

@@ -53,7 +53,9 @@ export const VeridianSuspendedGate = ({
     <StyledPage>
       <StyledTitle>Cet espace est suspendu.</StyledTitle>
       <StyledText>Vos données sont conservées. Contactez Veridian.</StyledText>
-      <Button variant="outline" title="Se déconnecter" onClick={signOut} />
+      <Button variant="outline" onClick={signOut}>
+        Se déconnecter
+      </Button>
     </StyledPage>
   );
 };
