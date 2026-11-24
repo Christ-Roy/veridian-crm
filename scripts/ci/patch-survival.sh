@@ -50,6 +50,8 @@ exige "$SERVEUR/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspe
 exige "$SERVEUR/engine/metadata-modules/webhook/jobs/call-webhook-jobs.job.ts" "if (isWorkspaceSuspended(suspendedWorkspace)) {"
 exige "$SERVEUR/engine/metadata-modules/webhook/jobs/call-webhook.job.ts" "if (!isWorkspaceSuspended(workspace)) {"
 exige "$SERVEUR/engine/core-modules/user/user.resolver.ts" "async currentUser("
+exige "$SERVEUR/engine/guards/workspace-not-suspended.guard.ts" "!isClosedWhenSuspended("
+exige "$SERVEUR/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant.ts" "'AuthResolver.signIn',"
 # Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "await this.applyUpdate({ id, update });"
 exige "$SERVEUR/engine/metadata-modules/ai/ai-models/utils/build-ai-telemetry.util.ts" "headers: encoderContexteIa(identifiers),"

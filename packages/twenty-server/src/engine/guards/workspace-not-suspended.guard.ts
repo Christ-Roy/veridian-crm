@@ -10,6 +10,7 @@ import {
   AuthExceptionCode,
 } from 'src/engine/core-modules/auth/auth.exception';
 import { isWorkspaceSuspended } from 'src/engine/core-modules/workspace/utils/is-workspace-suspended.util';
+import { isClosedWhenSuspended } from 'src/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant';
 import { ALLOW_SUSPENDED_WORKSPACE_KEY } from 'src/engine/guards/constants/allow-suspended-workspace-key.constant';
 import { getRequest } from 'src/utils/extract-request';
 
@@ -24,7 +25,10 @@ export class WorkspaceNotSuspendedGuard implements CanActivate {
       return true;
     }
 
-    if (this.isAllowedWhenSuspended(context)) {
+    if (
+      this.isAllowedWhenSuspended(context) &&
+      !isClosedWhenSuspended(context.getClass().name, context.getHandler().name)
+    ) {
       return true;
     }
 

@@ -6,6 +6,46 @@ import { CleanerWorkspaceService } from 'src/engine/workspace-manager/workspace-
 // dont suspendedAt est posé (avertissement à 7 j, effacement à 14 j, destruction à 21 j). La suspension
 // Veridian laisse suspendedAt à NULL : le service natif reste donc muet, à toute date.
 
+// Le vrai CleanerWorkspaceService est testé ; ses dépendances lourdes (chaîne d'apps, SDK, e-mails) sont
+// remplacées par des coquilles, puisque la spec ne lit que la décision de date.
+jest.mock('twenty-emails', () => ({
+  CleanSuspendedWorkspaceEmail: () => ({}),
+  WarnSuspendedWorkspaceEmail: () => ({}),
+  renderEmail: async () => '',
+}), { virtual: true });
+jest.mock('src/engine/core-modules/user/services/user.service', () => ({ UserService: class {} }));
+jest.mock('src/engine/core-modules/workspace/services/workspace.service', () => ({ WorkspaceService: class {} }));
+jest.mock('src/engine/core-modules/email/email.service', () => ({ EmailService: class {} }));
+jest.mock('src/engine/core-modules/i18n/i18n.service', () => ({ I18nService: class {} }));
+jest.mock('src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service', () => ({
+  WorkspaceDomainsService: class {},
+}));
+jest.mock('src/engine/core-modules/user/user-vars/services/user-vars.service', () => ({ UserVarsService: class {} }));
+jest.mock('src/engine/core-modules/message-queue/services/message-queue.service', () => ({
+  MessageQueueService: class {},
+}));
+jest.mock('src/engine/core-modules/message-queue/decorators/message-queue.decorator', () => ({
+  InjectMessageQueue: () => () => undefined,
+}));
+jest.mock('src/engine/twenty-orm/workspace-scoped-repository/inject-workspace-scoped-repository.decorator', () => ({
+  InjectWorkspaceScopedRepository: () => () => undefined,
+}));
+jest.mock('src/engine/twenty-orm/workspace-scoped-repository/workspace-scoped-repository', () => ({
+  WorkspaceScopedRepository: class {},
+}));
+jest.mock('src/engine/workspace-manager/workspace-cleaner/jobs/destroy-soft-deleted-workspace.job', () => ({
+  DestroySoftDeletedWorkspaceJob: class {},
+}));
+jest.mock('src/modules/workspace-member/standard-objects/workspace-member.workspace-entity', () => ({
+  WorkspaceMemberWorkspaceEntity: class {},
+}));
+jest.mock('src/engine/core-modules/billing/entities/billing-subscription.entity', () => ({
+  BillingSubscriptionEntity: class {},
+}));
+jest.mock('src/engine/core-modules/billing/enums/billing-subscription-status.enum', () => ({
+  SubscriptionStatus: {},
+}));
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-11-24T12:00:00.000Z');
 
@@ -24,7 +64,9 @@ const buildCleaner = (suspendedAt: Date | null) => {
     suspendedAt,
     deletedAt: null,
   };
-  const workspaceRepository = { find: jest.fn().mockResolvedValue([workspace]) };
+  const workspaceRepository = {
+    find: jest.fn().mockResolvedValue([workspace]),
+  };
   const keyValuePairRepository = { find: jest.fn().mockResolvedValue([]) };
   const workspaceService = { deleteWorkspace: jest.fn() };
   const emailService = { send: jest.fn() };
@@ -60,9 +102,7 @@ const buildCleaner = (suspendedAt: Date | null) => {
   return { run, warn, inform, emailService, workspaceService, destroyQueue };
 };
 
-const expectNothingTouched = (
-  fixture: ReturnType<typeof buildCleaner>,
-) => {
+const expectNothingTouched = (fixture: ReturnType<typeof buildCleaner>) => {
   expect(fixture.warn).not.toHaveBeenCalled();
   expect(fixture.inform).not.toHaveBeenCalled();
   expect(fixture.emailService.send).not.toHaveBeenCalled();

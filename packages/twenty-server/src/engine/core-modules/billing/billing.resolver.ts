@@ -44,6 +44,7 @@ import { AuthApplication } from 'src/engine/decorators/auth/auth-application.dec
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import {
   PermissionsException,
   PermissionsExceptionCode,
@@ -115,6 +116,7 @@ const BILLING_PLAN_READ_ACCESS_POLICY: AccessPolicy = {
 };
 
 @MetadataResolver()
+@AllowSuspendedWorkspace()
 @UsePipes(ResolverValidationPipe)
 @UseFilters(
   PermissionsGraphqlApiExceptionFilter,

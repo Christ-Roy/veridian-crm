@@ -33,6 +33,7 @@ import { AuthApplication } from 'src/engine/decorators/auth/auth-application.dec
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { fromFlatFrontComponentToFrontComponentDto } from 'src/engine/metadata-modules/flat-front-component/utils/from-flat-front-component-to-front-component-dto.util';
 import { CreateFrontComponentInput } from 'src/engine/metadata-modules/front-component/dtos/create-front-component.input';
 import { FrontComponentDTO } from 'src/engine/metadata-modules/front-component/dtos/front-component.dto';
@@ -159,6 +160,7 @@ export class FrontComponentResolver {
 
   @Query(() => [FrontComponentDTO])
   @UseGuards(AccessPolicyGuard(FRONT_COMPONENT_READ_ACCESS_POLICY))
+  @AllowSuspendedWorkspace()
   async frontComponents(
     @AuthWorkspace() workspace: WorkspaceEntity,
     @AuthApplication({ allowUndefined: true })

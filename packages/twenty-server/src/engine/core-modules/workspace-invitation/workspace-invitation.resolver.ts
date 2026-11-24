@@ -19,6 +19,7 @@ import { AuthApplication } from 'src/engine/decorators/auth/auth-application.dec
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthUser } from 'src/engine/decorators/auth/auth-user.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import {
   PermissionsException,
   PermissionsExceptionCode,
@@ -143,6 +144,7 @@ export class WorkspaceInvitationResolver {
 
   @Mutation(() => SendInvitationsDTO)
   @UseGuards(AccessPolicyGuard(WORKSPACE_INVITATION_WRITE_ACCESS_POLICY))
+  @AllowSuspendedWorkspace()
   async sendInvitations(
     @Args() sendInviteLinkInput: SendInvitationsInput,
     @AuthUser() user: AuthContextUser,

@@ -297,6 +297,7 @@ export class WorkspaceResolver {
       requiredPermissionFlags: [PermissionFlagType.WORKSPACE],
     }),
   )
+  @AllowSuspendedWorkspace()
   async deleteCurrentWorkspace(@AuthWorkspace() { id }: WorkspaceEntity) {
     await this.workspaceService.suspendWorkspace(id);
     return this.workspaceService.deleteWorkspace(id, true);

@@ -23,6 +23,7 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { type IDataloaders } from 'src/engine/dataloaders/dataloader.interface';
 import { AuthUserWorkspaceId } from 'src/engine/decorators/auth/auth-user-workspace-id.decorator';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { CustomPermissionGuard } from 'src/engine/guards/custom-permission.guard';
 import { buildViewNameObjectLabels } from 'src/engine/metadata-modules/view/utils/build-view-name-object-labels.util';
 import { resolveViewName } from 'src/engine/metadata-modules/view/utils/resolve-view-name.util';
@@ -138,6 +139,7 @@ export class ViewResolver {
 
   @Query(() => [ViewDTO])
   @UseGuards(AccessPolicyGuard(VIEW_READ_ACCESS_POLICY), CustomPermissionGuard)
+  @AllowSuspendedWorkspace()
   async getViews(
     @AuthWorkspace() workspace: WorkspaceEntity,
     @AuthUserWorkspaceId({ allowUndefined: true })

@@ -17,7 +17,10 @@ import { type CookieOptions, type Request, type Response } from 'express';
 import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.exception';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
-import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
+import {
+  VeridianHubSsoService,
+  WORKSPACE_SUSPENDED_LINK,
+} from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 import {
   isSuspensionReason,
   VeridianHubSuspensionService,
@@ -132,6 +135,10 @@ export class VeridianHubSsoController {
         next,
       );
 
+      if (magicLinkUrl === WORKSPACE_SUSPENDED_LINK) {
+        return response.status(423).json({ error: 'workspace_suspended' });
+      }
+
       if (!magicLinkUrl) {
         return response.status(400).json({
           error: 'user_not_in_app',
@@ -239,13 +246,13 @@ export class VeridianHubSsoController {
       fetchDest === 'iframe';
 
     if (isBlocked) {
-      return response
-        .status(200)
-        .type('html')
-        .send(buildSignInPage(bounce));
+      return response.status(200).type('html').send(buildSignInPage(bounce));
     }
 
-    response.cookie(AUTO_TRY_COOKIE, '1', { ...options, maxAge: FIVE_MINUTES_MS });
+    response.cookie(AUTO_TRY_COOKIE, '1', {
+      ...options,
+      maxAge: FIVE_MINUTES_MS,
+    });
 
     return response.redirect(`${bounce}&auto=1`);
   }
@@ -355,7 +362,10 @@ export class VeridianHubSsoController {
 
     if (outcome.status !== 'ok') {
       return response.status(outcome.status === 'not_found' ? 404 : 410).json({
-        error: outcome.status === 'not_found' ? 'tenant_not_found' : 'workspace_gone',
+        error:
+          outcome.status === 'not_found'
+            ? 'tenant_not_found'
+            : 'workspace_gone',
       });
     }
 
@@ -383,7 +393,10 @@ export class VeridianHubSsoController {
 
     if (outcome.status !== 'ok') {
       return response.status(outcome.status === 'not_found' ? 404 : 410).json({
-        error: outcome.status === 'not_found' ? 'tenant_not_found' : 'workspace_gone',
+        error:
+          outcome.status === 'not_found'
+            ? 'tenant_not_found'
+            : 'workspace_gone',
       });
     }
 
@@ -402,8 +415,11 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const { user_email: email, hub_user_id: hubUserId, role } =
-      request.body ?? {};
+    const {
+      user_email: email,
+      hub_user_id: hubUserId,
+      role,
+    } = request.body ?? {};
 
     if (!isNonEmptyString(email) || !UUID_PATTERN.test(hubUserId ?? '')) {
       return this.rejectInvalidBody(response);
@@ -490,8 +506,11 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const { hub_user_email: email, hub_user_id: hubUserId, role } =
-      request.body ?? {};
+    const {
+      hub_user_email: email,
+      hub_user_id: hubUserId,
+      role,
+    } = request.body ?? {};
 
     if (
       !isNonEmptyString(email) ||

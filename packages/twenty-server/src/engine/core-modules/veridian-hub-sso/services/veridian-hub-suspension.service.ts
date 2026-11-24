@@ -66,7 +66,11 @@ export class VeridianHubSuspensionService {
     return { link, workspaceId: link.workspaceId, workspace };
   }
 
-  private async writeFields(linkId: string, current: object, fields: SuspensionFields) {
+  private async writeFields(
+    linkId: string,
+    current: object,
+    fields: SuspensionFields,
+  ) {
     await this.keyValuePairRepository.update(linkId, {
       value: { ...current, ...fields } as unknown as JSON,
     });
@@ -114,7 +118,10 @@ export class VeridianHubSuspensionService {
       this.eventEmitter.emit(WORKSPACE_SUSPENDED_EVENT, {
         workspaceId,
       } satisfies WorkspaceSuspendedEvent);
-      await this.coreEntityCacheService.invalidate('workspaceEntity', workspaceId);
+      await this.coreEntityCacheService.invalidate(
+        'workspaceEntity',
+        workspaceId,
+      );
     }
 
     await this.writeFields(link.id, link.value ?? {}, {

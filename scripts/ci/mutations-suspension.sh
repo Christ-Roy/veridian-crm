@@ -8,6 +8,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 SERVICE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service.ts
 CLEANER=packages/twenty-server/src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service.ts
+GARDE=packages/twenty-server/src/engine/guards/workspace-not-suspended.guard.ts
+CLASSE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant.ts
+UTIL=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/is-magic-link-refused-for-suspension.util.ts
+JOBS=packages/twenty-server/src/engine/metadata-modules/webhook/jobs
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -42,5 +46,14 @@ saboter "reprise sans réactivation natif" "$SERVICE" "await this.workspaceServi
 saboter "événement natif de suspension non émis" "$SERVICE" "this.eventEmitter.emit(WORKSPACE_SUSPENDED_EVENT, {" "void ({"
 saboter "cron natif agit sans suspendedAt" "$CLEANER" "if (isDefined(workspace.suspendedAt)) {" "if (!isDefined(workspace.suspendedAt)) { return 9999; }
     if (isDefined(workspace.suspendedAt)) {"
+
+saboter "garde : tout passe pour un espace suspendu" "$GARDE" "if (" "if (true || "
+saboter "garde : entrée fermée ignorée (décorée, donc passante)" "$CLASSE" '  SUSPENDED_WORKSPACE_CLOSED_HANDLERS.has(`${className}.${handlerName}`) ||' "  false ||"
+saboter "classement : gestionnaire amont non classé" "$CLASSE" "  'MessageChannelResolver.myMessageChannels'," ""
+saboter "classement : contrôleur fermé entier retiré" "$CLASSE" "  'BillingResolver.*'," ""
+saboter "webhook : lot d'un espace suspendu traité" "$JOBS/call-webhook-jobs.job.ts" "if (isWorkspaceSuspended(suspendedWorkspace)) {" "if (false) {"
+saboter "webhook : appel en file envoyé après suspension" "$JOBS/call-webhook.job.ts" "if (!isWorkspaceSuspended(workspace)) {" "if (true) {"
+saboter "423 : espace demandé suspendu ignoré" "$UTIL" "requestedSuspended || allSuspended;" "allSuspended;"
+saboter "423 : tous suspendus ignoré" "$UTIL" "requestedSuspended || allSuspended;" "requestedSuspended;"
 
 exit "$rate"

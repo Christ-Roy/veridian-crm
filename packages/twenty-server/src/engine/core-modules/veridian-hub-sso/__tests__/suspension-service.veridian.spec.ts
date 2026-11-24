@@ -2,18 +2,30 @@ import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { VeridianHubSuspensionService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service';
 
-jest.mock('src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service', () => ({
-  hubTenantKey: (tenantId: string) => `veridian.hub_tenant:${tenantId}`,
-}));
-jest.mock('src/engine/core-modules/workspace/services/workspace.service', () => ({
-  WorkspaceService: class WorkspaceService {},
-}));
-jest.mock('src/engine/core-entity-cache/services/core-entity-cache.service', () => ({
-  CoreEntityCacheService: class CoreEntityCacheService {},
-}));
-jest.mock('src/engine/core-modules/key-value-pair/key-value-pair.entity', () => ({
-  KeyValuePairEntity: class KeyValuePairEntity {},
-}));
+jest.mock(
+  'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service',
+  () => ({
+    hubTenantKey: (tenantId: string) => `veridian.hub_tenant:${tenantId}`,
+  }),
+);
+jest.mock(
+  'src/engine/core-modules/workspace/services/workspace.service',
+  () => ({
+    WorkspaceService: class WorkspaceService {},
+  }),
+);
+jest.mock(
+  'src/engine/core-entity-cache/services/core-entity-cache.service',
+  () => ({
+    CoreEntityCacheService: class CoreEntityCacheService {},
+  }),
+);
+jest.mock(
+  'src/engine/core-modules/key-value-pair/key-value-pair.entity',
+  () => ({
+    KeyValuePairEntity: class KeyValuePairEntity {},
+  }),
+);
 jest.mock('src/engine/core-modules/workspace/workspace.entity', () => ({
   WorkspaceEntity: class WorkspaceEntity {},
 }));
@@ -22,16 +34,24 @@ const TENANT = 'tenant-1';
 const WORKSPACE = 'ws-1';
 
 const build = (activationStatus: WorkspaceActivationStatus) => {
-  const link = { id: 'kv-1', workspaceId: WORKSPACE, value: { ownerEmail: 'a@b.c' } };
+  const link = {
+    id: 'kv-1',
+    workspaceId: WORKSPACE,
+    value: { ownerEmail: 'a@b.c' },
+  };
   const keyValuePairRepository = {
     findOne: jest.fn().mockResolvedValue(link),
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
   const workspaceRepository = {
-    findOne: jest.fn().mockResolvedValue({ id: WORKSPACE, activationStatus, deletedAt: null }),
+    findOne: jest
+      .fn()
+      .mockResolvedValue({ id: WORKSPACE, activationStatus, deletedAt: null }),
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
-  const workspaceService = { reactivateWorkspace: jest.fn().mockResolvedValue(true) };
+  const workspaceService = {
+    reactivateWorkspace: jest.fn().mockResolvedValue(true),
+  };
   const eventEmitter = { emit: jest.fn() };
   const coreEntityCacheService = { invalidate: jest.fn() };
 
@@ -43,7 +63,13 @@ const build = (activationStatus: WorkspaceActivationStatus) => {
     coreEntityCacheService as never,
   );
 
-  return { service, keyValuePairRepository, workspaceRepository, workspaceService, eventEmitter };
+  return {
+    service,
+    keyValuePairRepository,
+    workspaceRepository,
+    workspaceService,
+    eventEmitter,
+  };
 };
 
 describe('suspension Veridian (service)', () => {
@@ -78,7 +104,9 @@ describe('suspension Veridian (service)', () => {
     const fixture = build(WorkspaceActivationStatus.ACTIVE);
     fixture.keyValuePairRepository.findOne.mockResolvedValue(null);
 
-    expect(await fixture.service.suspend(TENANT, 'admin_action')).toEqual({ status: 'not_found' });
+    expect(await fixture.service.suspend(TENANT, 'admin_action')).toEqual({
+      status: 'not_found',
+    });
   });
 
   it('resume : repasse par reactivateWorkspace natif, puis note resumed_at', async () => {
@@ -87,7 +115,9 @@ describe('suspension Veridian (service)', () => {
     const outcome = await fixture.service.resume(TENANT);
 
     expect(outcome.status).toBe('ok');
-    expect(fixture.workspaceService.reactivateWorkspace).toHaveBeenCalledWith(WORKSPACE);
+    expect(fixture.workspaceService.reactivateWorkspace).toHaveBeenCalledWith(
+      WORKSPACE,
+    );
     const [, linkPatch] = fixture.keyValuePairRepository.update.mock.calls[0];
     expect(linkPatch.value.resumedAt).toEqual(expect.any(String));
   });

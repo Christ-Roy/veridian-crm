@@ -19,6 +19,7 @@ import { I18nContext } from 'src/engine/core-modules/i18n/types/i18n-context.typ
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { type IDataloaders } from 'src/engine/dataloaders/dataloader.interface';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
+import { AllowSuspendedWorkspace } from 'src/engine/decorators/auth/allow-suspended-workspace.decorator';
 import { FieldMetadataDTO } from 'src/engine/metadata-modules/field-metadata/dtos/field-metadata.dto';
 import { FieldFilterInput } from 'src/engine/metadata-modules/field-metadata/dtos/field-filter.input';
 import { fromFlatObjectMetadataToObjectMetadataDto } from 'src/engine/metadata-modules/flat-object-metadata/utils/from-flat-object-metadata-to-object-metadata-dto.util';
@@ -95,6 +96,7 @@ export class ObjectMetadataResolver {
 
   @UseGuards(AccessPolicyGuard(OBJECT_METADATA_READ_ACCESS_POLICY))
   @Query(() => ObjectConnectionDTO)
+  @AllowSuspendedWorkspace()
   async objects(
     @AuthWorkspace() { id: workspaceId }: WorkspaceEntity,
     @Args('paging', {
