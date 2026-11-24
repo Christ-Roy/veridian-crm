@@ -39,7 +39,7 @@ describe('VeridianSuspendedGate', () => {
     expect(screen.queryByText(/billing|facturation|abonnement/i)).toBeNull();
     expect(screen.getAllByRole('button')).toHaveLength(1);
 
-    fireEvent.click(screen.getByText('Se déconnecter'));
+    fireEvent.click(screen.getByRole('button', { name: /Se déconnecter/ }));
     expect(mockSignOut).toHaveBeenCalledTimes(1);
   });
 
@@ -49,6 +49,6 @@ describe('VeridianSuspendedGate', () => {
 
     expect(screen.getByText('Contenu du CRM')).toBeTruthy();
     expect(screen.queryByText('Cet espace est suspendu.')).toBeNull();
-    expect(screen.queryByText('Se déconnecter')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });
