@@ -86,7 +86,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
 | `scripts/ci/preuve-app-deleguee.py`, `preuve-reponse-mail.py` (jetable) | app posée au premier jeton d'action, réponse Mail sans membre | 25/11, clés du Hub injoignables |
 | `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables) | document du Hub (VER-252), suspension dans tous les processus (VER-254, réponse en 2 s), personne = `hub_user_id` | sabotages CI |
-| `scripts/ci/preuve-redemarrage-redis.py` (jetable) | Redis redémarré sans perte, coupure vue | 25/11, `--sabotage` ; prod 0 raté |
+| `scripts/ci/preuve-redemarrage-redis.py` (jetable) | Redis redémarré sans perte | `--sabotage` (25/11) |
 | `scripts/ci/admins-instance.py <env>`, `preuve-admins.py` (staging) | administrateurs d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS`, jamais l'adresse | 25/11, codes 1 et 2 |
 | `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
@@ -103,7 +103,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
   `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Hors CI : règle
   Machines de la plateforme.
 - **Ne déployer qu'un run vert EN ENTIER** : depuis le 24/11 l'image se construit en parallèle des tests, sa présence au registre ne prouve rien.
-- `[skip ci]` dans un commit qui ne touche pas le produit. Un push normal annule la CI en cours sur la branche.
+- `[skip ci]` si le produit ne bouge pas : un push normal annule la CI en cours.
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
   push sur `staging`, puis `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl`. Le garde anti-recul refuse
   tant que le commit n'est pas sur la branche distante.
