@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-940b9eb" # 25/11/2026 : app posée au premier appel d'action, outils MCP, rôle fermé (VER-246)
+  default = "staging-f2fa600" # 25/11/2026 : outils d'API VER-253
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
