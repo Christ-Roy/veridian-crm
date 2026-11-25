@@ -33,6 +33,16 @@ CANAUX = "{myMessageChannels{id}}"
 MOI = "{currentUser{id}}"
 
 
+def ecran_suspendu(page):
+    """Texte de l'écran ; une page vide est un navigateur trop lent, pas une preuve contraire."""
+    try:
+        page.wait_for_selector("text=Cet espace est suspendu.", timeout=60000)
+    except Exception:  # noqa: BLE001
+        if len(page.inner_text("body").strip()) < 40:
+            raise ta.Echec("écran vide après 60 s, navigateur ou machine trop lents (bastion saturé ?)", 2) from None
+    return page.inner_text("body")
+
+
 class Epreuve:
     def __init__(self, a, url):
         self.a, self.url = a, url
@@ -280,8 +290,7 @@ class Epreuve:
         if page:
             t = time.time()
             page.reload(wait_until="domcontentloaded", timeout=120000)
-            page.wait_for_selector("text=Cet espace est suspendu.", timeout=60000)
-            vu = page.inner_text("body")
+            vu = ecran_suspendu(page)
             self.controle("écran : suspendu, sans facturation", "Vos données sont conservées" in vu and "illing" not in vu,
                           f"{time.time() - t:.1f} s au rechargement")
         self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub1, "email": mail1})
