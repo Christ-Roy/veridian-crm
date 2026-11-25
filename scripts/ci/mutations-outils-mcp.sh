@@ -128,7 +128,7 @@ saboter "valeur de la clé dans la liste des clés" "$T/list-api-keys.tool.ts" "
 saboter "curseur de synchro dans les dossiers" "$T/get-sync-status.tool.ts" "isSentFolder: folder.isSentFolder," "isSentFolder: folder.isSentFolder, syncCursor: (folder as unknown as { syncCursor: string }).syncCursor,"
 
 # Annotations
-saboter "run_workflow non destructeur" "$A" "['run_workflow']," "[],"
+saboter "run_workflow non destructeur" "$A" "['run_workflow', 'api_supprimer']," "['api_supprimer'],"
 saboter "search_records non déclaré en lecture seule" "$A" "  'search_records'," "  'search_records_x',"
 saboter "annotations : crochet du registre retiré" "$U" "findVeridianMcpToolAnnotations(executionRef.toolId)" "undefined"
 
