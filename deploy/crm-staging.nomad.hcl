@@ -27,11 +27,6 @@ variable "image_tag" {
   default = "staging-3345605" # 24/11/2026 : jeton d'action à act borné, couples liaisons (VER-246)
 }
 
-variable "redis_hote" {
-  type    = string
-  default = "100.108.136.89" # adresse tailnet du bastion
-}
-
 variable "redis_port" {
   type    = number
   default = 16382
@@ -203,7 +198,7 @@ EOH
         command      = "/bin/sh"
         args = [
           "-ec",
-          "for i in $(seq 1 120); do pg_isready -h 127.0.0.1 -p 5432 -U twenty && nc -z -w 3 ${var.redis_hote} ${var.redis_port} && exit 0; sleep 1; done; exit 1",
+          "for i in $(seq 1 120); do pg_isready -h 127.0.0.1 -p 5432 -U twenty && nc -z -w 3 $NOMAD_HOST_IP_http ${var.redis_port} && exit 0; sleep 1; done; exit 1",
         ]
       }
       resources {
@@ -290,7 +285,7 @@ APP_SECRET={{ .APP_SECRET }}
 HUB_API_SECRET={{ .HUB_API_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
-REDIS_URL=redis://:{{ sha256Hex (printf "crm-redis-%s" .POSTGRES_PASSWORD) }}@${var.redis_hote}:${var.redis_port}
+REDIS_URL=redis://:{{ sha256Hex (printf "crm-redis-%s" .POSTGRES_PASSWORD) }}@{{ env "NOMAD_HOST_IP_http" }}:${var.redis_port}
 {{ end }}
 {{ with nomadVar "veridian/ia-identite" }}
 VERIDIAN_IA_IDENTITE_SECRET={{ .secret }}
@@ -366,7 +361,7 @@ PGDATABASE=twenty
 APP_SECRET={{ .APP_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
-REDIS_URL=redis://:{{ sha256Hex (printf "crm-redis-%s" .POSTGRES_PASSWORD) }}@${var.redis_hote}:${var.redis_port}
+REDIS_URL=redis://:{{ sha256Hex (printf "crm-redis-%s" .POSTGRES_PASSWORD) }}@{{ env "NOMAD_HOST_IP_http" }}:${var.redis_port}
 {{ end }}
 {{ with nomadVar "veridian/ia-identite" }}
 VERIDIAN_IA_IDENTITE_SECRET={{ .secret }}
