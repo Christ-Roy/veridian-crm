@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-bd1c31f" # 25/11/2026 : garde de suspension rendu à l'amont, module unique
+  default = "staging-677f515" # 25/11/2026 : marque en calque, appel entre apps
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
