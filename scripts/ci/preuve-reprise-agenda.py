@@ -84,6 +84,8 @@ class Epreuve:
                            "host": self.url, "port": 443, "username": COMPTE, "password": self.passe,
                            "connectionSecurity": "SSL_TLS"}}}, self.session)["saveImapSmtpCaldavAccount"]
         self.controle("agenda de test branché", r["success"] is True, r["connectedAccountId"])
+        self.c.gql(self.origine, "mutation($i:UUID!){startChannelSync(connectedAccountId:$i){success}}",
+                   {"i": r["connectedAccountId"]}, self.session)
         t = self.attendre(avant, 900)
         if t is None:
             raise ta.Echec("l'agenda ne synchronise pas avant toute suspension : mesure impossible", 2)
