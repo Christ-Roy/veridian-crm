@@ -1,0 +1,165 @@
+From 21533bb8a164d8b621e1458ae2b6b0690d0f435e Mon Sep 17 00:00:00 2001
+From: sim <sim@local>
+Date: Tue, 24 Nov 2026 22:16:11 +0100
+Subject: [PATCH 1/2] =?UTF-8?q?telephonie=20:=20SMS=20et=20MMS=20seulement?=
+ =?UTF-8?q?=20pour=20les=20num=C3=A9ros=20connus=20du=20CRM?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Vie privée : un SMS de banque ou d'un proche ne part plus vers le CRM. Réglage
+sms_connus_seuls (défaut oui, « 0 » envoie tout). Un appel n'est pas filtré : un
+numéro inconnu va dans « À rattacher ». Tests du module contrat verts (87, dont
+FiltreSmsTest 2) ; APK debug construit sur rise, non installé (voir rapport).
+---
+ .../java/site/veridian/telephonie/Reglages.kt |  2 ++
+ .../java/site/veridian/telephonie/Synchro.kt  | 18 +++++++++++++--
+ .../veridian/telephonie/contrat/FiltreSms.kt  | 18 +++++++++++++++
+ .../telephonie/contrat/FiltreSmsTest.kt       | 23 +++++++++++++++++++
+ 4 files changed, 59 insertions(+), 2 deletions(-)
+ create mode 100644 packages/twenty-apps/veridian/telephonie/android/contrat/src/main/kotlin/site/veridian/telephonie/contrat/FiltreSms.kt
+ create mode 100644 packages/twenty-apps/veridian/telephonie/android/contrat/src/test/kotlin/site/veridian/telephonie/contrat/FiltreSmsTest.kt
+
+diff --git a/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Reglages.kt b/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Reglages.kt
+index 8908267b2c..4b88d253d0 100644
+--- a/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Reglages.kt
++++ b/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Reglages.kt
+@@ -108,6 +108,8 @@ class Reglages(private val ctx: Context) {
+     /** Mise à jour de l'app : canal suivi (stable par défaut), et automatique sauf coupée à l'écran. */
+     val canalMaj get() = site.veridian.telephonie.contrat.MiseAJour.Canal.de(texte("canal_maj"))
+     val majAuto get() = prefs.getString("r.maj_auto", null) != "0"
++    /** SMS et MMS : seulement les numéros connus du CRM (défaut, vie privée) ; « 0 » envoie tout. */
++    val smsConnusSeuls get() = prefs.getString("r.sms_connus_seuls", null) != "0"
+     /** Événements plus anciens que cette date (ms) ignorés ; 0 = tout l'historique. */
+     val historiqueDepuisMs get() = nombre("historique_depuis_ms").toLong()
+ 
+diff --git a/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Synchro.kt b/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Synchro.kt
+index d6cb75290b..c8878c8e48 100644
+--- a/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Synchro.kt
++++ b/packages/twenty-apps/veridian/telephonie/android/app/src/main/java/site/veridian/telephonie/Synchro.kt
+@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
+ import androidx.work.WorkManager
+ import site.veridian.telephonie.contrat.Contrat
+ import site.veridian.telephonie.contrat.Enregistrement
++import site.veridian.telephonie.contrat.FiltreSms
+ import site.veridian.telephonie.contrat.Installation
+ import site.veridian.telephonie.contrat.Suite
+ import java.io.File
+@@ -236,11 +237,24 @@ class Synchro private constructor(val ctx: Context) {
+     }
+ 
+     @Suppress("UNCHECKED_CAST")
+-    private fun traiter(tw: Twenty, pluriel: String, elements: List<Base.Element>) {
++    private fun traiter(tw: Twenty, pluriel: String, elementsBruts: List<Base.Element>) {
+         val debut = System.currentTimeMillis()
++        val index = personnes(tw)
++        // Vie privée : un SMS ou MMS d'un numéro inconnu du CRM n'y part pas (réglage sms_connus_seuls, défaut oui).
++        // Il est clos sans envoi ; un appel n'est jamais filtré (il va dans « À rattacher »).
++        val tri = if (pluriel == "textMessages") FiltreSms.trier(elementsBruts.map { Json.objet(it.voulu) }, index, reglages.smsConnusSeuls)
++            else null
++        val elements = if (tri == null) elementsBruts else {
++            val gardes = tri.retenus.map { it["idSource"] as String }.toSet()
++            elementsBruts.filter { it.idSource in gardes }.also { ok ->
++                val ecartes = elementsBruts.filter { it.idSource !in gardes }
++                ecartes.forEach { base.termine(it, null) }
++                if (ecartes.isNotEmpty()) Journal.log("envoi : ${ecartes.size} SMS d'un numéro inconnu du CRM non envoyés")
++            }
++        }
++        if (elements.isEmpty()) return
+         val voulus = elements.map { Json.objet(it.voulu) }
+         val existants = existants(tw, pluriel, voulus)
+-        val index = personnes(tw)
+         if (pluriel == "appels") reprendreEtDemander(voulus, existants)
+         val plan = Contrat.planifier(pluriel, voulus, existants, index)
+         val parId = elements.associateBy { it.idSource }
+diff --git a/packages/twenty-apps/veridian/telephonie/android/contrat/src/main/kotlin/site/veridian/telephonie/contrat/FiltreSms.kt b/packages/twenty-apps/veridian/telephonie/android/contrat/src/main/kotlin/site/veridian/telephonie/contrat/FiltreSms.kt
+new file mode 100644
+index 0000000000..4d1e6fa5b8
+--- /dev/null
++++ b/packages/twenty-apps/veridian/telephonie/android/contrat/src/main/kotlin/site/veridian/telephonie/contrat/FiltreSms.kt
+@@ -0,0 +1,18 @@
++package site.veridian.telephonie.contrat
++
++/**
++ * Vie privée : un SMS ou MMS part vers le CRM seulement si son numéro est celui d'une personne du CRM (index E.164).
++ * Un SMS de banque ou d'un proche reste sur le téléphone. Un appel n'est pas filtré : il va dans « À rattacher ».
++ */
++object FiltreSms {
++    data class Tri(val retenus: List<Map<String, Any?>>, val ecartes: List<Map<String, Any?>>)
++
++    fun trier(voulus: List<Map<String, Any?>>, index: Map<String, String>, seulsConnus: Boolean): Tri {
++        if (!seulsConnus) return Tri(voulus, emptyList())
++        val (retenus, ecartes) = voulus.partition { v ->
++            val e164 = v["_e164"] as String?
++            !e164.isNullOrEmpty() && index.containsKey(e164)
++        }
++        return Tri(retenus, ecartes)
++    }
++}
+diff --git a/packages/twenty-apps/veridian/telephonie/android/contrat/src/test/kotlin/site/veridian/telephonie/contrat/FiltreSmsTest.kt b/packages/twenty-apps/veridian/telephonie/android/contrat/src/test/kotlin/site/veridian/telephonie/contrat/FiltreSmsTest.kt
+new file mode 100644
+index 0000000000..c63d5768bf
+--- /dev/null
++++ b/packages/twenty-apps/veridian/telephonie/android/contrat/src/test/kotlin/site/veridian/telephonie/contrat/FiltreSmsTest.kt
+@@ -0,0 +1,23 @@
++package site.veridian.telephonie.contrat
++
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class FiltreSmsTest {
++    private val index = mapOf("+33611111111" to "personne-1")
++    private fun sms(id: String, e164: String?) = mapOf<String, Any?>("idSource" to id, "_e164" to e164)
++
++    @Test fun seulsLesNumerosConnusPartent() {
++        val voulus = listOf(sms("a", "+33611111111"), sms("b", "+33622222222"), sms("c", null), sms("d", ""))
++        val tri = FiltreSms.trier(voulus, index, seulsConnus = true)
++        assertEquals(listOf("a"), tri.retenus.map { it["idSource"] })
++        assertEquals(listOf("b", "c", "d"), tri.ecartes.map { it["idSource"] })
++    }
++
++    @Test fun toutPartQuandLeReglageEstCoupe() {
++        val voulus = listOf(sms("a", "+33611111111"), sms("b", "+33622222222"))
++        val tri = FiltreSms.trier(voulus, index, seulsConnus = false)
++        assertEquals(2, tri.retenus.size)
++        assertEquals(0, tri.ecartes.size)
++    }
++}
+-- 
+2.43.0
+
+
+From a27dd37add2869349e74515e6db6bdc49e452538 Mon Sep 17 00:00:00 2001
+From: sim <sim@local>
+Date: Tue, 24 Nov 2026 23:08:55 +0100
+Subject: [PATCH 2/2] docs(telephonie-android): transcription de l'enregistreur
+ natif, ce qui est et n'est pas possible
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Pas d'API publique pour lire la transcription de l'enregistreur natif Pixel : l'app ne la lit pas.
+Ce qui reste possible : sa propre transcription (Parakeet, JemRec). Non vérifié sur téléphone.
+---
+ packages/twenty-apps/veridian/telephonie/android/README.md | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/packages/twenty-apps/veridian/telephonie/android/README.md b/packages/twenty-apps/veridian/telephonie/android/README.md
+index 667fbc2ec2..3fa7e8d783 100644
+--- a/packages/twenty-apps/veridian/telephonie/android/README.md
++++ b/packages/twenty-apps/veridian/telephonie/android/README.md
+@@ -189,6 +189,11 @@ sur `/metadata`, puis le suivi du travail (`findInstallApplicationJobStatus`). T
+ Reste hors de portée d'un client seul : l'enregistrement des appels (JemRec, débogage sans fil) donc leur transcription, la
+ messagerie vocale (adb), et la transcription Whisper du serveur (veridian-4 seul).
+ 
++**Transcription de l'enregistreur natif (Pixel, 24/11/2026).** Possible : tout ce que l'app transcrit elle-même, à partir de l'audio
++qu'elle a (Parakeet sur le téléphone, JemRec pour les appels). Pas possible : lire la transcription que l'enregistreur natif
++de Google produit, faute d'API publique pour une app tierce ; l'app ne la lit donc pas et ne la remonte pas. Non vérifié sur
++un téléphone, aucun test n'a été joué sur ce point.
++
+ ## Mise à jour à distance (Robert, 24/11/2026)
+ 
+ L'app lit un manifeste public (`manifeste.json` de la release du canal) au démarrage, au retour du réseau et après un appel,
+-- 
+2.43.0
+
