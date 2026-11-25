@@ -20,7 +20,7 @@ if not SECRET:
     print("NON ABOUTI : HUB_API_SECRET absent")
     sys.exit(2)
 LOCATAIRE, HUB_ID = str(uuid.uuid4()), str(uuid.uuid4())
-EMAIL = f"charge+{int(time.time())}@veridian.site"
+EMAIL = f"e2e-charge+{int(time.time())}@veridian.site"
 provisionne = False
 
 

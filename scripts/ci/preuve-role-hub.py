@@ -36,7 +36,7 @@ class Epreuve:
         if not ok:
             self.echecs.append(nom)
 
-    def pousser(self, role, hub, version=None, tenant=None, email="x@veridian.site"):
+    def pousser(self, role, hub, version=None, tenant=None, email="e2e-role@veridian.site"):
         if version is None:
             self.v += 1
             version = self.v

@@ -18,6 +18,7 @@ import { VeridianAppsModule } from 'src/engine/core-modules/veridian-apps/veridi
 import { VeridianMcpApiModule } from 'src/engine/core-modules/veridian-mcp-api/veridian-mcp-api.module';
 import { VeridianMcpToolsModule } from 'src/engine/core-modules/veridian-mcp-tools/veridian-mcp-tools.module';
 import { VeridianHubMcpAuthMiddleware } from 'src/engine/core-modules/veridian-hub-mcp/middlewares/veridian-hub-mcp-auth.middleware';
+import { VeridianHelpCenterGate } from 'src/engine/core-modules/veridian-hub-mcp/services/veridian-help-center-gate.service';
 import { VeridianDelegatedAppService } from 'src/engine/core-modules/veridian-hub-mcp/services/veridian-delegated-app.service';
 import { VeridianHubMcpAuthService } from 'src/engine/core-modules/veridian-hub-mcp/services/veridian-hub-mcp-auth.service';
 
@@ -38,6 +39,7 @@ import { VeridianHubMcpAuthService } from 'src/engine/core-modules/veridian-hub-
     VeridianDelegatedAppService,
     VeridianHubMcpAuthService,
     VeridianHubMcpAuthMiddleware,
+    VeridianHelpCenterGate,
   ],
 })
 export class VeridianHubMcpModule implements NestModule {

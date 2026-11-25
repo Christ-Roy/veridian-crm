@@ -245,9 +245,8 @@ IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
 AUTH_PASSWORD_ENABLED=false
 AUTH_MICROSOFT_ENABLED=false
 HUB_URL=https://hub.staging.veridian.site
-# Administrateurs d'instance par identité du Hub (25/11/2026). Les adresses ne servent plus qu'à un retour à une image antérieure.
+# Administrateurs d'instance par identité du Hub (25/11/2026) : jamais d'adresse dans ce dépôt public.
 # Avant de changer l'une des deux listes : scripts/ci/admins-instance.py staging
-HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site,brunon5robert+crm-rebond@gmail.com
 HUB_SERVER_ADMIN_HUB_USER_IDS=03edb21f-4560-4698-987b-37b5f4d230d1,f4c4ed75-5103-4494-a58d-27f207529fb5
 TELEMETRY_ENABLED=false
 # IA (VER-203, épreuve staging du 23/11/2026) : seul fournisseur « veridian » ; chaque appel au modèle porte une

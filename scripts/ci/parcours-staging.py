@@ -19,7 +19,7 @@ BASE, OUT = sys.argv[1], sys.argv[2]
 NB = int(sys.argv[3]) if len(sys.argv) > 3 else 7
 SECRET = os.environ.get("HUB_API_SECRET", "")
 DOMAINE = urlparse(BASE).hostname
-EMAIL = f"parcours+{int(time.time())}@veridian.site"
+EMAIL = f"e2e-parcours+{int(time.time())}@veridian.site"
 MDP = "Parcours-Staging-2026!x"
 echecs = []
 
@@ -129,17 +129,17 @@ if NB > 5:
     controle(f"{NB} workspaces d'un coup, au-delà de l'ancienne limite de 5", True)
 code, texte = signe("/api/tenants/provision", {"tenant_id": locataires[0][0], "owner_email": EMAIL, "workspace_name": "Parcours 1", "plan": "free", "metadata": {"hub_user_id": HUB_ID}})
 controle("provisioning idempotent", code == 200 and json.loads(texte)["created"] is False, f"{code}")
-code, _ = signe("/api/tenants/provision", {"tenant_id": locataires[0][0], "owner_email": "autre@veridian.site", "workspace_name": "x", "plan": "free", "metadata": {"hub_user_id": str(uuid.uuid4())}})
+code, _ = signe("/api/tenants/provision", {"tenant_id": locataires[0][0], "owner_email": "e2e-autre@veridian.site", "workspace_name": "x", "plan": "free", "metadata": {"hub_user_id": str(uuid.uuid4())}})
 controle("autre propriétaire : 409", code == 409, str(code))
 
 # ── 3. refus du contrat
 code, _ = rebond(HUB_ID, EMAIL, signer=False)
 controle("rebond sans signature : 401", code == 401, str(code))
-code, texte = rebond(str(uuid.uuid4()), f"inconnu+{int(time.time())}@veridian.site")
+code, texte = rebond(str(uuid.uuid4()), f"e2e-inconnu+{int(time.time())}@veridian.site")
 controle("inconnu : 400 user_not_in_app", code == 400 and "user_not_in_app" in texte, f"{code} {texte[:80]}")
 code, texte = rebond(str(uuid.uuid4()), EMAIL)
 controle("email connu lié à un autre hub_user_id : refusé", code == 400, f"{code} {texte[:80]}")
-code, texte = rebond(HUB_ID, "email-change@veridian.site")
+code, texte = rebond(HUB_ID, "e2e-email-change@veridian.site")
 controle("hub_user_id prime sur l'email", code == 200, str(code))
 code, texte = signe("/api/hub/users/sync", {"hub_user_id": HUB_ID, "name": "Parcours Hub"})
 controle("nom poussé par le Hub", code == 200, f"{code} {texte[:80]}")

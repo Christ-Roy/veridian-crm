@@ -35,6 +35,9 @@ if [ -x "$repo_root/scripts/ci/patch-survival.sh" ]; then
   bash "$repo_root/scripts/ci/patch-survival.sh" --statique || fail "patch-survival : un patch Veridian a disparu"
 fi
 
+# Étage 0 ter : dépôt public, aucune adresse de personne (0 conforme, 1 trouvée, 2 non abouti : rouge aussi).
+bash "$repo_root/scripts/ci/adresses-personnes.sh" || fail "adresses-personnes : adresse de personne dans le dépôt ou contrôle non abouti"
+
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$z40" ] && continue  # suppression de branche
 

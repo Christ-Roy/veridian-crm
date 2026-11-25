@@ -195,9 +195,8 @@ export class McpProtocolService {
       actorContext,
     };
 
-    // Veridian: preloaded tools skip the registry filter, so the MCP exclusions apply here too.
     const preloadedTools = await this.toolRegistry.getToolsByName(
-      COMMON_PRELOAD_TOOLS.filter((name) => !MCP_EXCLUDED_TOOL_NAMES.has(name)),
+      COMMON_PRELOAD_TOOLS,
       toolContext,
     );
 

@@ -34,8 +34,6 @@ exige packages/twenty-front/src/modules/app/components/SettingsRoutes.tsx "path=
 exige packages/twenty-front/src/modules/settings/hooks/useSettingsNavigationItems.tsx "path: SettingsPath.VeridianIa"
 exige packages/twenty-front/src/modules/navigation/components/MainNavigationDrawerScrollableItems.tsx "<VeridianIaNavigationItem />"
 exige packages/twenty-front/src/modules/settings/mcp/components/SettingsMcpSetup.tsx "<VeridianIaSetup />"
-exige "$SERVEUR/engine/api/mcp/constants/mcp-excluded-tool-names.constant.ts" ": ['search_help_center']),"
-exige "$SERVEUR/engine/api/mcp/services/mcp-protocol.service.ts" "COMMON_PRELOAD_TOOLS.filter((name) => !MCP_EXCLUDED_TOOL_NAMES.has(name))"
 exige "$SERVEUR/database/typeorm/core/core.datasource.ts" "...getVeridianPgPoolResilience()"
 exige "$SERVEUR/engine/workspace-query-executor/services/workspace-query-executor.service.ts" "...getVeridianPgPoolResilience()"
 exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "forRoutes({ path: ApiPath.Mcp"
@@ -89,6 +87,11 @@ refuse() {
   fi
 }
 refuse "$SERVEUR/engine/core-modules/frontend/frontend.service.ts" "Unable to load Twenty"
+# search_help_center : fermé hors des fichiers amont (VeridianHelpCenterGate), qui restent ceux de l'amont.
+exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module.ts" "    VeridianHelpCenterGate,"
+exige "$SERVEUR/engine/core-modules/veridian-hub-mcp/services/veridian-help-center-gate.service.ts" "closeHelpCenterToolForMcp();"
+refuse "$SERVEUR/engine/api/mcp/constants/mcp-excluded-tool-names.constant.ts" "search_help_center"
+refuse "$SERVEUR/engine/api/mcp/services/mcp-protocol.service.ts" "MCP_EXCLUDED_TOOL_NAMES.has(name)"
 refuse packages/twenty-front/src/pages/settings/members/SettingsWorkspaceMembers.tsx "SettingsWorkspaceMembersInviteTab"
 refuse packages/twenty-front/src/pages/settings/profile/SettingsProfile.tsx "<DeleteAccount"
 refuse packages/twenty-front/src/pages/settings/profile/SettingsProfile.tsx "Two Factor Authentication"
@@ -120,6 +123,10 @@ exige packages/twenty-front/src/modules/side-panel/pages/workflow/action/compone
 refuse packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatGptTwentyAppUrl"
 exige packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategories.tsx "chatgpt.com/#settings/Connectors"
 # L'IA ne s'allume que derrière le seul fournisseur « veridian » avec identité signée (VER-203), jamais un tiers.
+# Repris de l'amont (8f367e0f62) : une session d'emprunt ne fabrique aucun jeton qui lui survit.
+exige packages/twenty-server/src/engine/core-modules/api-key/constants/api-key-role-write-access-policy.constant.ts "impersonated: false"
+exige packages/twenty-server/src/engine/core-modules/impersonation/impersonation.resolver.ts "playground: false"
+[ "$(grep -cF "impersonated: false" packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts)" -ge 3 ] || { echo "PATCH ABSENT : auth.resolver.ts laisse une session d'emprunt fabriquer un jeton"; echec=1; }
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do
   if ! grep -q "^VERIDIAN_AI_DISABLED=true$" "$job"; then
     # entre apostrophes : le format d'environnement de Nomad mange les guillemets d'un JSON nu (staging, 23/11)
