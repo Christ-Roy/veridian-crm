@@ -8,6 +8,7 @@ import {
 } from 'graphql';
 
 import { extractArgumentsFromAst } from 'src/engine/api/graphql/direct-execution/utils/extract-arguments-from-ast.util';
+import { type ApiObjects } from 'src/engine/core-modules/veridian-mcp-api/utils/build-api-objects.util';
 import { type ResolverNameMapEntry } from 'src/engine/api/graphql/direct-execution/utils/build-resolver-name-map.util';
 
 export type ApiToolKind = 'lire' | 'ecrire' | 'supprimer';
@@ -17,7 +18,7 @@ export const API_LIMITS = {
   tokens: 4_000,
   variables: 200_000,
   rootFields: 10,
-  depth: 8,
+  depth: 12,
   ids: 100,
   result: 200_000,
 };
@@ -141,6 +142,48 @@ const checkShape = (operation: OperationDefinitionNode): string | undefined => {
   return reason;
 };
 
+const CONNECTION_FIELDS = new Set(['edges', 'node', 'pageInfo']);
+
+// Every relation followed must lead to a readable object: the root object is not the only one the answer shows.
+const checkSelection = (
+  node: FieldNode,
+  objectUniversalIdentifier: string,
+  objects: ApiObjects,
+): string | undefined => {
+  for (const selection of node.selectionSet?.selections ?? []) {
+    const field = selection as FieldNode;
+    const name = field.name.value;
+
+    if (!field.selectionSet) {
+      continue;
+    }
+
+    let next = objectUniversalIdentifier;
+
+    if (!CONNECTION_FIELDS.has(name)) {
+      const target = objects.get(objectUniversalIdentifier)?.fields.get(name);
+
+      if (target === null) {
+        continue;
+      }
+
+      if (target === undefined || !objects.get(target)?.readable) {
+        return `The object behind ${name} is not readable here.`;
+      }
+
+      next = target;
+    }
+
+    const refusal = checkSelection(field, next, objects);
+
+    if (refusal) {
+      return refusal;
+    }
+  }
+
+  return undefined;
+};
+
 // Only record operations of this workspace pass: a root field that is not one of them (auth, members, keys, roles, apps,
 // settings, introspection) is not in the resolver map and is refused.
 export const checkApiOperation = ({
@@ -148,13 +191,13 @@ export const checkApiOperation = ({
   variables,
   kind,
   resolverNameMap,
-  isObjectAllowed,
+  objects,
 }: {
   query: string;
   variables: Record<string, unknown>;
   kind: ApiToolKind;
   resolverNameMap: Record<string, ResolverNameMapEntry>;
-  isObjectAllowed: (objectUniversalIdentifier: string) => boolean;
+  objects: ApiObjects;
 }): ApiOperationCheck => {
   if (
     query.length > API_LIMITS.query ||
@@ -208,15 +251,19 @@ export const checkApiOperation = ({
       return no(`${name} is not allowed in api_${kind}.`);
     }
 
-    if (!isObjectAllowed(entry.objectMetadataUniversalIdentifier)) {
+    const object = objects.get(entry.objectMetadataUniversalIdentifier);
+
+    if (!(kind === 'lire' ? object?.readable : object?.writable)) {
       return no(`The object behind ${name} is not allowed here.`);
     }
 
-    const refusal = checkArguments(
-      entry.method,
-      kind,
-      extractArgumentsFromAst(field.arguments, variables),
-    );
+    const refusal =
+      checkArguments(
+        entry.method,
+        kind,
+        extractArgumentsFromAst(field.arguments, variables),
+      ) ??
+      checkSelection(field, entry.objectMetadataUniversalIdentifier, objects);
 
     if (refusal) {
       return no(refusal);

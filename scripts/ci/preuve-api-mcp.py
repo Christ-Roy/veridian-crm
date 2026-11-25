@@ -63,6 +63,12 @@ class Epreuve(outils.Epreuve):
                     i=ids[0], d={"deletedAt": "2026-11-25T00:00:00Z"})
         self.refuse("tout l'objet", self.admin, "api_ecrire", "mutation{updateCompanies(filter:{},data:{name:\"x\"}){id}}")
         self.refuse("un membre", self.admin, "api_ecrire", "mutation($i:UUID!){updateWorkspaceMember(id:$i,data:{locale:\"en\"}){id}}", i=str(uuid.uuid4()))
+        self.refuse("retirer un membre", self.admin, "api_supprimer", "mutation($i:UUID!){deleteWorkspaceMember(id:$i){id}}", i=str(uuid.uuid4()))
+        self.refuse("un membre sous un alias", self.admin, "api_ecrire", "mutation($i:UUID!){createCompany:updateWorkspaceMember(id:$i,data:{locale:\"en\"}){id}}", i=str(uuid.uuid4()))
+        self.refuse("les mails", self.admin, "api_lire", "{messages{totalCount}}")
+        self.refuse("les mails par une fiche", self.admin, "api_lire", "{people(first:1){edges{node{messageParticipants{edges{node{id}}}}}}}")
+        ok, t, _ = self.api(self.admin, "api_lire", "{people(first:1){edges{node{id name{firstName} company{id name accountOwner{id}} taskTargets{edges{node{task{id title} targetCompany{id}}}}}}} workspaceMembers(first:1){edges{node{id}}}}")
+        self.controle("Admin : relations utiles lisibles", ok, t[-170:])
         self.refuse("une écriture", self.admin, "api_lire", "mutation{createCompany(data:{name:\"x\"}){id}}")
         for nom, q in (("les rôles", "{getRoles{id}}"), ("les clés", "{apiKeys{id}}"), ("moi", "{currentUser{id}}"),
                        ("le schéma", "{__schema{types{name}}}"), ("les workflows", "{workflows{totalCount}}")):

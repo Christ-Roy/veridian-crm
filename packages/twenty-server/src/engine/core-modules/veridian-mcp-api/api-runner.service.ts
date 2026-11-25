@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 
 import { type Request } from 'express';
 import { isDefined } from 'twenty-shared/utils';
-import { canObjectBeManagedByAutomation } from 'twenty-shared/workflow';
 
 import { DirectExecutionService } from 'src/engine/api/graphql/direct-execution/direct-execution.service';
 import { withWorkspaceAuthContext } from 'src/engine/core-modules/auth/storage/workspace-auth-context.storage';
@@ -10,12 +9,12 @@ import { type ToolProviderContext } from 'src/engine/core-modules/tool-provider/
 import { type ToolOutput } from 'src/engine/core-modules/tool/types/tool-output.type';
 import { NativeServices } from 'src/engine/core-modules/veridian-mcp-tools/native-services.service';
 import { failure } from 'src/engine/core-modules/veridian-mcp-tools/caller.util';
+import { buildApiObjects } from 'src/engine/core-modules/veridian-mcp-api/utils/build-api-objects.util';
 import {
   API_LIMITS,
   type ApiToolKind,
   checkApiOperation,
 } from 'src/engine/core-modules/veridian-mcp-api/utils/check-api-operation.util';
-import { getDatabaseCrudToolFlatObjects } from 'src/engine/metadata-modules/ai/ai-agent/utils/get-database-crud-tool-flat-objects.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 
 // The native direct execution runs the record resolvers as the caller: roles, field and row permissions, record shares,
@@ -45,33 +44,27 @@ export class VeridianApiRunnerService {
     }
 
     try {
-      const { graphQLResolverNameMap, flatObjectMetadataMaps } =
-        await this.native
-          .get(WorkspaceCacheService)
-          .getOrRecompute(workspaceId, [
-            'graphQLResolverNameMap',
-            'flatObjectMetadataMaps',
-          ]);
-
-      const allowed = new Set(
-        getDatabaseCrudToolFlatObjects(
-          flatObjectMetadataMaps.byUniversalIdentifier,
-        )
-          .filter(
-            ({ nameSingular }) =>
-              kind === 'lire' ||
-              canObjectBeManagedByAutomation({ nameSingular }),
-          )
-          .map(({ universalIdentifier }) => universalIdentifier),
-      );
+      const {
+        graphQLResolverNameMap,
+        flatObjectMetadataMaps,
+        flatFieldMetadataMaps,
+      } = await this.native
+        .get(WorkspaceCacheService)
+        .getOrRecompute(workspaceId, [
+          'graphQLResolverNameMap',
+          'flatObjectMetadataMaps',
+          'flatFieldMetadataMaps',
+        ]);
 
       const check = checkApiOperation({
         query,
         variables,
         kind,
         resolverNameMap: graphQLResolverNameMap,
-        isObjectAllowed: (universalIdentifier) =>
-          allowed.has(universalIdentifier),
+        objects: buildApiObjects({
+          flatObjectMetadataMaps,
+          flatFieldMetadataMaps,
+        }),
       });
 
       if (!check.ok) {

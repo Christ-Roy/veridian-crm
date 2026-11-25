@@ -8,6 +8,7 @@ jest.mock(
   () => ({ WorkspaceCacheService: class {} }),
 );
 
+import { TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER } from 'twenty-shared/application';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 
 import { getMcpRegistryToolAnnotations } from 'src/engine/api/mcp/utils/get-mcp-registry-tool-annotations.util';
@@ -50,8 +51,36 @@ const CARTE = {
   mergePeople: entree('mergeMany'),
   workspaceMembers: entree('findMany', 'membre'),
   updateWorkspaceMember: entree('updateOne', 'membre'),
+  deleteWorkspaceMember: entree('deleteOne', 'membre'),
   workflows: entree('findMany', 'workflow'),
 } as never;
+
+const apiObjet = (
+  readable: boolean,
+  writable: boolean,
+  fields: [string, string | null][] = [],
+) => ({ readable, writable, fields: new Map(fields) });
+const OBJETS = new Map([
+  [
+    'personne',
+    apiObjet(true, true, [
+      ['name', null],
+      ['company', 'societe'],
+      ['messageParticipants', 'message'],
+      ['owner', 'membre'],
+    ]),
+  ],
+  [
+    'societe',
+    apiObjet(true, true, [
+      ['company', 'societe'],
+      ['people', 'personne'],
+      ['messages', 'message'],
+    ]),
+  ],
+  ['membre', apiObjet(true, false, [['comptes', 'compte']])],
+  ['message', apiObjet(false, false)],
+]);
 
 const juger = (
   kind: ApiToolKind,
@@ -63,7 +92,7 @@ const juger = (
     variables,
     kind,
     resolverNameMap: CARTE,
-    isObjectAllowed: (objet) => objet === 'personne',
+    objects: OBJETS,
   }).ok;
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `id-${i}`);
 
@@ -72,6 +101,11 @@ describe('tri des opérations : la méthode réelle décide, jamais le nom', () 
     ['lire', '{ people(first: 5) { edges { node { id } } } }'],
     ['lire', '{ person(filter: {id: {eq: "a"}}) { id company { name } } }'],
     ['lire', '{ a: peopleGroupBy { x } b: personDuplicates { x } }'],
+    ['lire', '{ workspaceMembers { edges { node { id } } } }'],
+    [
+      'lire',
+      '{ people { edges { node { name { firstName } company { people { edges { node { id owner { id } } } } } } } } }',
+    ],
     ['ecrire', 'mutation { createPerson(data: {}) { id } }'],
     ['ecrire', 'mutation { updatePerson(id: "a", data: {}) { id } }'],
     ['supprimer', 'mutation { deletePerson(id: "a") { id } }'],
@@ -112,7 +146,6 @@ describe('tri des opérations : la méthode réelle décide, jamais le nom', () 
     ['nom hérité', '{ constructor }'],
     ['nom hérité', '{ toString { id } }'],
     ['objet interdit', '{ workflows { id } }'],
-    ['membres', '{ workspaceMembers { id } }'],
     ['un fragment', 'query { ...f } fragment f on Query { people { id } }'],
     ['un fragment profond', 'query { people { ...f } } fragment f on P { id }'],
     ['un fragment sans définition', '{ people { id ...f } }'],
@@ -123,6 +156,13 @@ describe('tri des opérations : la méthode réelle décide, jamais le nom', () 
       'une mutation derrière la requête',
       'query a { people { id } } mutation b { deletePerson(id: "a") { id } }',
     ],
+    ['les mails par relation', '{ people { messageParticipants { id } } }'],
+    [
+      'les mails par relation profonde',
+      '{ people { edges { node { company { x: messages { edges { node { id } } } } } } } }',
+    ],
+    ['un objet absent par relation', '{ people { owner { comptes { id } } } }'],
+    ['une relation inconnue', '{ people { inconnue { id } } }'],
     ['un secret', '{ people { node { accessToken } } }'],
     ['un secret sous un alias', '{ people { x: refreshToken } }'],
     ['du texte', 'DROP TABLE'],
@@ -136,6 +176,18 @@ describe('tri des opérations : la méthode réelle décide, jamais le nom', () 
       juger(
         'ecrire',
         'mutation { updateWorkspaceMember(id: "a", data: {}) { id } }',
+      ),
+    ).toBe(false);
+  });
+
+  it('écrire ou supprimer un objet lisible seulement est refusé', () => {
+    expect(
+      juger('supprimer', 'mutation { deleteWorkspaceMember(id: "a") { id } }'),
+    ).toBe(false);
+    expect(
+      juger(
+        'ecrire',
+        'mutation { createPerson(data: {}) { messageParticipants { id } } }',
       ),
     ).toBe(false);
   });
@@ -226,10 +278,14 @@ describe('tri des opérations : la méthode réelle décide, jamais le nom', () 
 
 const ESPACE = '0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b';
 const membre = { type: 'user', workspace: { id: ESPACE } };
-const objet = (nameSingular: string) => ({
+const objet = (nameSingular: string, plus: object = {}) => ({
+  applicationUniversalIdentifier:
+    TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+  isSystem: false,
+  isActive: true,
+  ...plus,
   nameSingular,
   universalIdentifier: `u-${nameSingular}`,
-  isActive: true,
 });
 
 const monter = (resultat: unknown = { data: { people: [] } }) => {
@@ -249,6 +305,12 @@ const monter = (resultat: unknown = { data: { people: [] } }) => {
       STANDARD_OBJECTS.workflow.universalIdentifier,
     ),
     vieux: entree('findMany', 'u-inactif'),
+    messages: entree('findMany', 'u-message'),
+    nouveaux: entree('findMany', 'u-nouveauDeLAmont'),
+    createNouveau: entree('createOne', 'u-nouveauDeLAmont'),
+    deleteWorkspaceMember: entree('deleteOne', 'u-workspaceMember'),
+    updateAppel: entree('updateOne', 'u-appel'),
+    updateCache: entree('updateOne', 'u-cache'),
   };
   const services = new Map<unknown, object>([
     [DirectExecutionService, { execute }],
@@ -269,7 +331,35 @@ const monter = (resultat: unknown = { data: { people: [] } }) => {
                   universalIdentifier:
                     STANDARD_OBJECTS.workflow.universalIdentifier,
                 },
-                d: { ...objet('inactif'), isActive: false },
+                d: objet('inactif', {
+                  applicationUniversalIdentifier: 'app',
+                  isActive: false,
+                }),
+                e: objet('message', { isSystem: true }),
+                f: objet('nouveauDeLAmont'),
+                g: objet('appel', { applicationUniversalIdentifier: 'app' }),
+                h: objet('cache', {
+                  applicationUniversalIdentifier: 'app',
+                  isSystem: true,
+                }),
+              },
+            },
+            flatFieldMetadataMaps: {
+              byUniversalIdentifier: {
+                a: {
+                  name: 'messages',
+                  objectMetadataUniversalIdentifier: 'u-person',
+                  relationTargetObjectMetadataUniversalIdentifier: 'u-message',
+                },
+                b: {
+                  name: 'appels',
+                  objectMetadataUniversalIdentifier: 'u-person',
+                  relationTargetObjectMetadataUniversalIdentifier: 'u-appel',
+                },
+                c: {
+                  name: 'name',
+                  objectMetadataUniversalIdentifier: 'u-person',
+                },
               },
             },
           };
@@ -327,6 +417,12 @@ describe('exécution : sous l’identité du membre, par le service natif', () =
   it.each<[ApiToolKind, string]>([
     ['lire', '{ workflows { id } }'],
     ['lire', '{ vieux { id } }'],
+    ['lire', '{ messages { id } }'],
+    ['lire', '{ nouveaux { id } }'],
+    ['lire', '{ people { messages { id } } }'],
+    ['ecrire', 'mutation { createNouveau(data: {}) { id } }'],
+    ['ecrire', 'mutation { updateCache(id: "a", data: {}) { id } }'],
+    ['supprimer', 'mutation { deleteWorkspaceMember(id: "a") { id } }'],
     ['ecrire', 'mutation { updateWorkspaceMember(id: "a", data: {}) { id } }'],
     ['ecrire', '{ people { id } }'],
   ])('%s n’exécute pas %s', async (kind, query) => {
@@ -335,6 +431,20 @@ describe('exécution : sous l’identité du membre, par le service natif', () =
     expect((await e.run(kind, query)).success).toBe(false);
     expect(e.execute).not.toHaveBeenCalled();
   });
+
+  it.each<[ApiToolKind, string]>([
+    ['lire', '{ workspaceMembers { id } }'],
+    ['lire', '{ people { name { firstName } appels { id } } }'],
+    ['ecrire', 'mutation { updateAppel(id: "a", data: {}) { id } }'],
+  ])(
+    '%s exécute %s (liste blanche et objets des apps)',
+    async (kind, query) => {
+      const e = monter();
+
+      expect((await e.run(kind, query)).success).toBe(true);
+      expect(e.execute).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('une erreur native est un échec, pas un succès vide', async () => {
     const e = monter({ data: { people: null }, errors: [{ message: 'non' }] });

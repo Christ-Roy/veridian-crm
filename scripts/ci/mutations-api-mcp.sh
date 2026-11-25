@@ -6,6 +6,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 V=packages/twenty-server/src/engine/core-modules/veridian-mcp-api
 C=$V/utils/check-api-operation.util.ts
 R=$V/api-runner.service.ts
+O=$V/utils/build-api-objects.util.ts
 A=packages/twenty-server/src/engine/core-modules/veridian-mcp-tools/veridian-mcp-tool-annotations.constant.ts
 LOG=$(mktemp); SAUVE=$(mktemp); EN_COURS=""
 trap '[ -n "$EN_COURS" ] && cp "$SAUVE" "$EN_COURS"; rm -f "$LOG" "$SAUVE"' EXIT
@@ -32,7 +33,7 @@ saboter "méthode non jugée" "$C" '!METHODS[kind].has(entry.method)' 'false'
 saboter "suppression dans l'écriture" "$C" "'updateOne', 'updateMany'])" "'updateOne', 'updateMany', 'deleteOne'])"
 saboter "écriture dans la lecture" "$C" "'findDuplicates', 'groupBy'])" "'findDuplicates', 'groupBy', 'createOne', 'deleteOne'])"
 saboter "type d'opération non jugé" "$C" "operation.operation !== (kind === 'lire' ? 'query' : 'mutation')" 'false'
-saboter "objet non jugé" "$C" '!isObjectAllowed(entry.objectMetadataUniversalIdentifier)' 'false'
+saboter "objet non jugé" "$C" "!(kind === 'lire' ? object?.readable : object?.writable)" 'false'
 saboter "plusieurs opérations" "$C" '|| others.length > 0' ''
 saboter "fragments nommés permis" "$C" "    FragmentSpread: () => {
       reason ??= 'Fragments are not supported: write the fields out.';" "    FragmentSpread: () => {"
@@ -54,10 +55,17 @@ saboter "deletedAt écrit" "$C" "kind === 'ecrire' && hasKey(args, 'deletedAt')"
 saboter "variables non lues" "$C" 'extractArgumentsFromAst(field.arguments, variables)' 'extractArgumentsFromAst(field.arguments, {})'
 saboter "clé ou app acceptée" "$R" "authContext.type !== 'user' ||" ''
 saboter "autre espace accepté" "$R" 'authContext.workspace.id !== workspaceId' 'false'
-saboter "objets de workflow lisibles" "$R" 'getDatabaseCrudToolFlatObjects(
-          flatObjectMetadataMaps.byUniversalIdentifier,
-        )' '(Object.values(flatObjectMetadataMaps.byUniversalIdentifier) as never as { nameSingular: string; universalIdentifier: string }[])'
-saboter "objets protégés écrits" "$R" "kind === 'lire' ||" 'true ||'
+saboter "objet lisible pris pour inscriptible" "$C" "kind === 'lire' ? object?.readable : object?.writable" 'object?.readable'
+saboter "relations imbriquées non jugées" "$C" 'target === undefined || !objects.get(target)?.readable' 'target === undefined'
+saboter "objets inactifs lisibles" "$O" 'getDatabaseCrudToolFlatObjects(' '((m: object) => Object.values(m) as never as FlatObjectMetadata[])('
+saboter "standard lu sans liste" "$O" 'READ_ONLY_STANDARD_OBJECTS.has(flatObject.nameSingular)' 'true'
+saboter "standard écrit sans liste" "$O" '? WRITABLE_STANDARD_OBJECTS.has(flatObject.nameSingular)' '? true'
+saboter "membres inscriptibles" "$O" "  'noteTarget',
+]);" "  'noteTarget',
+  'workspaceMember',
+]);"
+saboter "objets système des apps inscriptibles" "$O" ': flatObject.isSystem === false' ': true'
+saboter "objets des apps fermés" "$O" ': flatObject.isSystem === false' ': false'
 saboter "hors du contexte du membre" "$R" 'withWorkspaceAuthContext(authContext, () =>' 'withWorkspaceAuthContext({ ...authContext, type: "system" } as never, () =>'
 saboter "introspection ouverte" "$R" '          false,
           true,' '          true,
