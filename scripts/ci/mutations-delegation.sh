@@ -82,6 +82,11 @@ saboter "app locale au même identifiant acceptée" "$ENTREE" "return isOurs ?" 
 saboter "écriture sans clé de geste" "$ENTREE" "        idempotencyKey === undefined)" "        false)"
 saboter "corps sans limite" "$ENTREE" "JSON.stringify(payload).length > PAYLOAD_MAX_BYTES ||" ""
 saboter "action hors registre" "$REGISTRE" "Object.keys(actions).includes(action) ? actions[action] : null" "({ isIdempotent: false })"
+saboter "séquence inscrite avec la portée des listes" "$REGISTRE" "scope: 'notifuse:sequences.inscrire'," "scope: 'notifuse:contacts.ecrire',"
+saboter "portée de l'action perdue" "$ENTREE" "scope: delegated.scope," "scope: 'notifuse:contacts.ecrire',"
+saboter "séquence inscrite sans clé de geste" "$REGISTRE" "      scope: 'notifuse:sequences.inscrire',
+      isIdempotent: true," "      scope: 'notifuse:sequences.inscrire',
+      isIdempotent: false,"
 saboter "cible hors registre" "$REGISTRE" "Object.keys(DELEGATED_TARGETS).includes(value)" "true"
 
 [ "$rate" -eq 0 ] && echo "CONFORME"

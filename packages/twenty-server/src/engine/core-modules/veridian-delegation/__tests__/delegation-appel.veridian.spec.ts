@@ -48,6 +48,7 @@ const run = async (
     ...ACTOR,
     target: 'notifuse',
     action: 'contacts.importer',
+    scope: 'notifuse:contacts.ecrire',
     payload: { list_ids: ['l'], contacts: [{ email: 'a@b.fr' }] },
     idempotencyKey: 'geste-12345678',
     ...extra,
@@ -104,18 +105,19 @@ describe('appel du CRM vers une autre app (CONTRAT-HUB §5.19.5)', () => {
     expect(calls[1].init.redirect).toBe('error');
   });
 
-  it('demande la portée de la cible et pas une autre', async () => {
+  it('demande la portée de l action et pas une autre', async () => {
     const { calls } = await run(
       [exchanged(), answer(200, {})],
       grantService(),
       {
         target: 'prospection',
-        action: 'societes.lire',
+        action: 'entreprises.chercher',
+        scope: 'prospection:entreprise.lire',
       },
     );
 
     expect(JSON.parse(calls[0].init.body as string).scope).toBe(
-      'prospection:societe.lire',
+      'prospection:entreprise.lire',
     );
   });
 

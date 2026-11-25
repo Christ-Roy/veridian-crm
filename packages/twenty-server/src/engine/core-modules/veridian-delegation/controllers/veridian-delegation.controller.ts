@@ -88,6 +88,7 @@ export class VeridianDelegationController {
       ...actor,
       target,
       action,
+      scope: delegated.scope,
       payload,
       idempotencyKey,
     });

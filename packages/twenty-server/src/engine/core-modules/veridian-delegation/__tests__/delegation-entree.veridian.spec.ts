@@ -1,6 +1,6 @@
 import {
+  DELEGATED_TARGETS,
   DELEGATING_APP,
-  findDelegatedAction,
 } from 'src/engine/core-modules/veridian-delegation/constants/delegated-targets.constant';
 import { VeridianDelegationController } from 'src/engine/core-modules/veridian-delegation/controllers/veridian-delegation.controller';
 
@@ -70,6 +70,7 @@ describe('entrée de l appel entre apps : une personne, par l écran de Liaisons
         userId: 'user-1',
         workspaceId: WORKSPACE,
         target: 'notifuse',
+        scope: 'notifuse:contacts.ecrire',
         idempotencyKey: 'geste-12345678',
       }),
     );
@@ -164,14 +165,33 @@ describe('entrée de l appel entre apps : une personne, par l écran de Liaisons
     ).toBe(200);
   });
 
-  it('aucune action du registre ne supprime ni n envoie', () => {
-    for (const action of [
-      'contacts.supprimer',
-      'message.envoyer',
-      'societes.ecrire',
-    ]) {
-      expect(findDelegatedAction('notifuse', action)).toBeNull();
-      expect(findDelegatedAction('prospection', action)).toBeNull();
-    }
+  it('aucune action ne supprime, une seule peut faire partir du courrier, avec sa portée à elle', async () => {
+    const actions = Object.values(DELEGATED_TARGETS).flatMap((target) =>
+      Object.entries(target),
+    );
+
+    expect(
+      actions.filter(([name]) => /supprim|delet|effac|retir/.test(name)),
+    ).toEqual([]);
+    expect(
+      actions
+        .filter(([, { scope }]) => scope === 'notifuse:sequences.inscrire')
+        .map(([name]) => name),
+    ).toEqual(['sequences.inscrire']);
+
+    const { act } = await post(request(), 'notifuse', 'sequences.inscrire');
+
+    expect(act).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'notifuse:sequences.inscrire' }),
+    );
+    expect(
+      (
+        await post(
+          request({ body: { payload: { contacts: [] } } }),
+          'notifuse',
+          'sequences.inscrire',
+        )
+      ).code,
+    ).toBe(400);
   });
 });

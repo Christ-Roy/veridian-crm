@@ -36,12 +36,14 @@ export class VeridianDelegationService {
   async act({
     target,
     action,
+    scope,
     payload,
     idempotencyKey,
     ...actor
   }: Actor & {
     target: DelegatedTarget;
     action: string;
+    scope: string;
     payload: Record<string, unknown>;
     idempotencyKey?: string;
   }): Promise<DelegationAnswer> {
@@ -63,7 +65,7 @@ export class VeridianDelegationService {
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
       subject_grant: grant,
       audience: target,
-      scope: DELEGATED_TARGETS[target].scope,
+      scope,
       motif: action,
     });
 
