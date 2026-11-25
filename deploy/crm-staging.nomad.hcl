@@ -34,6 +34,7 @@ variable "redis_port" {
 
 job "crm-staging" {
   datacenters = ["veridian-eu"]
+  node_pool   = "dragonair" # 25/11/2026 : hors bastion saturé (charge 18-30). Retour arrière : ce commit inversé, les données du bastion sont gardées.
   type        = "service"
   priority    = 30
 
@@ -50,7 +51,7 @@ job "crm-staging" {
 
     constraint {
       attribute = "${meta.provider}"
-      value     = "contabo"
+      value     = "dragonair"
     }
 
     # Volumes locaux : le bind ne suit pas une replanification.
@@ -383,7 +384,7 @@ EOH
 
     constraint {
       attribute = "${meta.provider}"
-      value     = "contabo"
+      value     = "dragonair"
     }
 
     reschedule {
