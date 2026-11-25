@@ -189,6 +189,26 @@ sur `/metadata`, puis le suivi du travail (`findInstallApplicationJobStatus`). T
 Reste hors de portée d'un client seul : l'enregistrement des appels (JemRec, débogage sans fil) donc leur transcription, la
 messagerie vocale (adb), et la transcription Whisper du serveur (veridian-4 seul).
 
+**Transcription de l'enregistreur natif (Pixel, 24/11/2026).** Possible : tout ce que l'app transcrit elle-même, à partir de l'audio
+qu'elle a (Parakeet sur le téléphone, JemRec pour les appels). Pas possible : lire la transcription que l'enregistreur natif
+de Google produit, faute d'API publique pour une app tierce ; l'app ne la lit donc pas et ne la remonte pas. Non vérifié sur
+un téléphone, aucun test n'a été joué sur ce point.
+
+## Numéros inconnus du CRM (Robert, 25/11/2026)
+
+« On transfère uniquement les SMS et transcripts des personnes présentes dans Twenty, mais être sûr que la data est bien reliée. »
+Trois choix à l'écran (`contrat/Retenue.kt`), par défaut le premier :
+
+- les personnes du CRM, plus la ligne des appels inconnus (numéro, date, durée ; ni nom, ni audio, ni texte) : SMS inconnus retenus ;
+- seulement les personnes du CRM ;
+- tout.
+
+Rien n'est jeté : un retenu garde son numéro dans `synchro`. Quand il apparaît sur une personne, `oublierNumeros` le remet en jeu, le
+téléphone est relu, la ligne déjà au CRM se complète (nom, audio, texte, personne) sans doublon. Un numéro porté par deux personnes
+compte comme inconnu : rien n'est rattaché au hasard. Le côté privé est donc le téléphone : le partage ligne à ligne de Twenty
+(`record-share`, `private-record`, `rls`) est sous licence Enterprise, interdit ici. Limite : un SMS effacé du téléphone avant que la
+personne entre au CRM est perdu ; un expéditeur sans numéro (« BNP ») ne part jamais, sauf en « tout ».
+
 ## Mise à jour à distance (Robert, 24/11/2026)
 
 L'app lit un manifeste public (`manifeste.json` de la release du canal) au démarrage, au retour du réseau et après un appel,

@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import site.veridian.telephonie.contrat.Contrat
 import site.veridian.telephonie.contrat.Enregistrement
 import site.veridian.telephonie.contrat.Installation
+import site.veridian.telephonie.contrat.Retenue
 import site.veridian.telephonie.contrat.Suite
 import java.io.File
 import java.time.Instant
@@ -228,6 +229,14 @@ class Synchro private constructor(val ctx: Context) {
         base.taille() == 0
     }
 
+    /** Le choix sur les inconnus change : tout est rejoué contre le CRM (ce qui y est déjà n'est ni recréé ni modifié). */
+    fun inconnusChanges(mode: Retenue.Mode) {
+        reglages.poserTexte("inconnus", mode.valeur)
+        Journal.log("numéros inconnus du CRM : ${mode.libelle} (écran)")
+        base.oublierTout()
+        signalerTout(complet = true)
+    }
+
     private fun programmerTravail(apresMs: Long = 0) {
         val travail = OneTimeWorkRequestBuilder<Vidange>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
@@ -236,11 +245,19 @@ class Synchro private constructor(val ctx: Context) {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun traiter(tw: Twenty, pluriel: String, elements: List<Base.Element>) {
+    private fun traiter(tw: Twenty, pluriel: String, tous: List<Base.Element>) {
         val debut = System.currentTimeMillis()
-        val voulus = elements.map { Json.objet(it.voulu) }
-        val existants = existants(tw, pluriel, voulus)
         val index = personnes(tw)
+        // Un retenu garde son numéro : dès qu'il apparaît au CRM, oublierNumeros le remet en jeu et le téléphone est relu.
+        val tri = Retenue.trier(pluriel, tous.map { Json.objet(it.voulu) }, index, reglages.inconnus)
+        val voulus = tri.envoyes
+        val envoyes = voulus.map { it["idSource"] as String }.toSet()
+        val elements = tous.filter { it.idSource in envoyes }
+        (tous - elements.toSet()).forEach { base.termine(it, Json.objet(it.voulu)["_e164"] as String?) }
+        if (tri.retenus.isNotEmpty()) Journal.log("$pluriel : ${tri.retenus.size} d'un numéro inconnu du CRM, gardés sur le téléphone")
+        if (tri.reduits > 0) Journal.log("$pluriel : ${tri.reduits} d'un numéro inconnu du CRM, ligne seule")
+        if (elements.isEmpty()) return
+        val existants = existants(tw, pluriel, voulus)
         if (pluriel == "appels") reprendreEtDemander(voulus, existants)
         val plan = Contrat.planifier(pluriel, voulus, existants, index)
         val parId = elements.associateBy { it.idSource }
@@ -325,7 +342,8 @@ class Synchro private constructor(val ctx: Context) {
         val debut = System.currentTimeMillis()
         val nouveau = Contrat.indexTelephones(tw.toutLister("people")).first
         val apparus = nouveau.keys - index.keys
-        val premier = index.isEmpty()
+        // « Jamais chargé », pas « vide » : dans un CRM sans personne, la première personne doit libérer ce qui attend.
+        val premier = indexLe == 0L
         index = nouveau; indexLe = System.currentTimeMillis()
         base.ecrire("personnes.index", org.json.JSONObject().put("le", indexLe).put("index", org.json.JSONObject(nouveau)).toString())
         Journal.log("personnes : ${nouveau.size} numéros en ${System.currentTimeMillis() - debut} ms")

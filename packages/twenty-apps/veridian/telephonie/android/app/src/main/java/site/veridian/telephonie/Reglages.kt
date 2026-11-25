@@ -108,6 +108,8 @@ class Reglages(private val ctx: Context) {
     /** Mise à jour de l'app : canal suivi (stable par défaut), et automatique sauf coupée à l'écran. */
     val canalMaj get() = site.veridian.telephonie.contrat.MiseAJour.Canal.de(texte("canal_maj"))
     val majAuto get() = prefs.getString("r.maj_auto", null) != "0"
+    /** Numéros inconnus du CRM : ce qui part, ce qui attend sur le téléphone (contrat/Retenue.kt). */
+    val inconnus get() = site.veridian.telephonie.contrat.Retenue.Mode.de(prefs.getString("r.inconnus", null))
     /** Événements plus anciens que cette date (ms) ignorés ; 0 = tout l'historique. */
     val historiqueDepuisMs get() = nombre("historique_depuis_ms").toLong()
 
@@ -163,7 +165,7 @@ class Reglages(private val ctx: Context) {
     fun resume(): JSONObject = JSONObject().put("mode", mode).put("crm", configure).put("acces", acces)
         .put("reconnexion", reconnexion).put("appareil", appareil).put("schema", prefs.getInt("schema", 1))
         .put("transcription", transcriptionVoulue).put("messagerie", messagerieActive).put("jemrec", jemrecPresent)
-        .put("historique_depuis_ms", historiqueDepuisMs)
+        .put("historique_depuis_ms", historiqueDepuisMs).put("inconnus", inconnus.valeur)
         .put("cle_sha256_12", cle?.let { site.veridian.telephonie.contrat.Contrat.sha256(it).take(12) })
         .put("canal_maj", canalMaj.valeur).put("maj_auto", majAuto)
         .put("modele", modele.path).put("modele_present", modele.exists()).put("troncon_s", tronconS)

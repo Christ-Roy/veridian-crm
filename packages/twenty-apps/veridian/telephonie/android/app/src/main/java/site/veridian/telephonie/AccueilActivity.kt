@@ -25,6 +25,7 @@ import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
+import site.veridian.telephonie.contrat.Retenue
 import site.veridian.telephonie.contrat.Installation
 import site.veridian.telephonie.contrat.MiseAJour
 import java.io.File
@@ -80,7 +81,7 @@ class AccueilActivity : Activity() {
     private fun forme(): String = listOf(reglages.configure, reglages.reconnexion, reglages.acces, reglages.url, permissionsManquantes(),
         getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName), reglages.miroir,
         reglages.transcriptionVoulue, reglages.jemrecPresent, Environment.isExternalStorageManager(), reglages.messagerieActive,
-        occupe, resultatTest, Synchro.de(this).preparation.etat, reglages.canalMaj, reglages.majAuto, MiseAJourApp.silencieuse(this)).joinToString("|")
+        occupe, resultatTest, Synchro.de(this).preparation.etat, reglages.canalMaj, reglages.majAuto, reglages.inconnus, MiseAJourApp.silencieuse(this)).joinToString("|")
 
     private fun texteEtat(): String {
         val s = Synchro.de(this)
@@ -170,6 +171,9 @@ class AccueilActivity : Activity() {
             else "Mode essai : l'app lit et prépare tout, mais n'envoie aucun appel ni SMS au CRM.")
         interrupteur("Envoyer au CRM", ecriture, actif = reglages.configure && reglages.reconnexion == null) { v -> basculerEnvoi(v) }
 
+        texte("Numéros inconnus du CRM : ${reglages.inconnus.libelle}. Ce qui ne part pas reste sur ce téléphone et part tout seul quand la personne est ajoutée au CRM.", petit = true)
+        bouton("Choisir pour les numéros inconnus") { choisirInconnus() }
+
         // 4. options
         section("4. Options (facultatives)")
         interrupteur("Transcrire les appels enregistrés, sur le téléphone", reglages.transcriptionVoulue) { v -> basculerTranscription(v) }
@@ -216,6 +220,15 @@ class AccueilActivity : Activity() {
     }
 
     // ------------------------------------------------------------------ connexion
+
+    private fun choisirInconnus() {
+        val modes = Retenue.Mode.entries
+        AlertDialog.Builder(this).setTitle("Numéros inconnus du CRM")
+            .setSingleChoiceItems(modes.map { it.libelle }.toTypedArray(), modes.indexOf(reglages.inconnus)) { d, i ->
+                d.dismiss()
+                if (modes[i] != reglages.inconnus) Thread { Synchro.de(this).inconnusChanges(modes[i]); ui.post { afficher() } }.start()
+            }.setNegativeButton("Fermer", null).show()
+    }
 
     private fun urlSaisie(): String? = champUrl?.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { OAuth.normaliser(it) }
 
