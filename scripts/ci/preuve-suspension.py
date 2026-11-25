@@ -211,8 +211,14 @@ class Epreuve:
         self.installer_acces()
         code, ident = self.societe(f"Preuve suspension avant {int(time.time())}")
         self.controle("avant : REST crée une fiche", code == 201 and ident, f"HTTP {code}")
-        self.controle("avant : webhook reçu et signé (témoin positif)",
-                      self.attendre_recu(0, a.attente) and all(ok for _, ok in self.recus()), f"{self.recus()}")
+        # Le nom du tunnel met parfois des minutes à se résoudre côté serveur : le témoin attend que le CRM le joigne.
+        fin = time.time() + 600
+        while not self.attendre_recu(0, a.attente) and time.time() < fin:
+            self.societe(f"Preuve suspension témoin {int(time.time())}")
+        if not self.recus():
+            raise ta.Echec("le CRM ne joint pas le récepteur en 10 min : mesure impossible", 2)
+        self.controle("avant : webhook reçu et signé (témoin positif)", all(ok for _, ok in self.recus()), f"{self.recus()}")
+        time.sleep(a.attente)
         hub0, mail0 = self.membre()
         self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail0})
         self.controle("avant : un membre retiré par le Hub émet son webhook (témoin positif)",
