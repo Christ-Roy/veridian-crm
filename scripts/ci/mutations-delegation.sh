@@ -83,6 +83,7 @@ saboter "écriture sans clé de geste" "$ENTREE" "        idempotencyKey === und
 saboter "corps sans limite" "$ENTREE" "JSON.stringify(payload).length > PAYLOAD_MAX_BYTES ||" ""
 saboter "action hors registre" "$REGISTRE" "Object.keys(actions).includes(action) ? actions[action] : null" "({ isIdempotent: false })"
 saboter "séquence inscrite avec la portée des listes" "$REGISTRE" "scope: 'notifuse:sequences.inscrire'," "scope: 'notifuse:contacts.ecrire',"
+saboter "lecture d'un contact avec la portée d'écriture" "$REGISTRE" "scope: 'notifuse:contacts.lire'," "scope: 'notifuse:contacts.ecrire',"
 saboter "portée de l'action perdue" "$ENTREE" "scope: delegated.scope," "scope: 'notifuse:contacts.ecrire',"
 saboter "séquence inscrite sans clé de geste" "$REGISTRE" "      scope: 'notifuse:sequences.inscrire',
       isIdempotent: true," "      scope: 'notifuse:sequences.inscrire',

@@ -179,6 +179,10 @@ describe('entrée de l appel entre apps : une personne, par l écran de Liaisons
         .map(([name]) => name),
     ).toEqual(['sequences.inscrire']);
 
+    expect(DELEGATED_TARGETS.notifuse['contacts.lire'].scope).toBe(
+      'notifuse:contacts.lire',
+    );
+
     const { act } = await post(request(), 'notifuse', 'sequences.inscrire');
 
     expect(act).toHaveBeenCalledWith(

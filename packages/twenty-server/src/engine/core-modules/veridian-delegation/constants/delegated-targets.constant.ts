@@ -13,6 +13,7 @@ export const DELEGATED_TARGETS = {
       scope: 'notifuse:contacts.ecrire',
       isIdempotent: true,
     },
+    'contacts.lire': { scope: 'notifuse:contacts.lire', isIdempotent: false },
     'sequences.lister': {
       scope: 'notifuse:contacts.ecrire',
       isIdempotent: false,
