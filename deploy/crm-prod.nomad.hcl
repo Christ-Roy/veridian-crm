@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-7d4af31" # 25/11/2026 : chaque app sur ses cibles
+  default = "staging-6f5dd8f" # 25/11/2026 : emprunt sans jeton, Node 26.13.1
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
