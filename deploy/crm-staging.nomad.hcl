@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-829e22f" # 24/11/2026 : jeton d'action à act borné, couples liaisons (VER-246)
+  default = "staging-f2fa600" # 24/11/2026 : jeton d'action à act borné, couples liaisons (VER-246)
 }
 
 job "crm-staging" {
