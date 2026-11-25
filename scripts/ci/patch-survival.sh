@@ -62,7 +62,7 @@ exige "$SERVEUR/engine/core-modules/auth/token/services/renew-token.service.ts" 
 exige "$SERVEUR/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service.ts" "if (SUSPENSION_NEVER_ERASES) {"
 exige "$SERVEUR/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant.ts" "'AuthResolver.signIn',"
 FRONT=packages/twenty-front/src
-exige "$FRONT/modules/app/components/DefaultLayout.tsx" "<VeridianSuspendedGate>"
+exige "$FRONT/modules/app/hooks/useCreateWorkspaceAppRouter.tsx" "<VeridianSuspendedGate>"
 exige "$FRONT/modules/veridian-suspension/components/VeridianSuspendedGate.tsx" "Cet espace est suspendu."
 exige "$FRONT/modules/app/hooks/usePageChangeEffectNavigateLocation.ts" "jamais de redirection vers Billing"
 # Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
@@ -104,8 +104,9 @@ exige packages/twenty-front/src/utils/i18n/dynamicActivate.ts "replaceBrandInMes
 exige packages/twenty-front/src/modules/activities/timeline-activities/utils/getTimelineActivityAuthorFullName.ts "return getVeridianSystemAuthorFullName(event);"
 refuse packages/twenty-front/src/modules/activities/timeline-activities/utils/getTimelineActivityAuthorFullName.ts "return 'Twenty'"
 exige packages/twenty-front/src/modules/activities/files/components/DocumentViewer.tsx "<VeridianAudioPreview audioName={documentName} audioUrl={documentUrl} />"
-exige packages/twenty-front/index.html "<title>Veridian CRM</title>"
-exige packages/twenty-front/public/manifest.json '"name": "Veridian CRM"'
+exige deploy/marque/packages/twenty-front/index.html "<title>Veridian CRM</title>"
+exige deploy/marque/packages/twenty-front/public/manifest.json '"name": "Veridian CRM"'
+exige .github/workflows/veridian-crm-ci.yaml "      - run: bash scripts/ci/poser-marque.sh"
 exige packages/twenty-front/src/modules/navigation/components/SettingsNavigationDrawerContent.tsx "Basé sur Twenty, AGPL"
 exige packages/twenty-front/src/modules/navigation/components/SettingsNavigationDrawerContent.tsx "github.com/Christ-Roy/veridian-crm-source"
 exige "$SERVEUR/engine/core-modules/auth/auth.module.ts" "SignInUpService,

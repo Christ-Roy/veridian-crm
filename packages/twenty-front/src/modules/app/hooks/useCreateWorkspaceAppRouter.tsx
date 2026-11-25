@@ -20,6 +20,7 @@ import { AuthFlowLayout } from '@/ui/layout/page/components/AuthFlowLayout';
 import { BlankLayout } from '@/ui/layout/page/components/BlankLayout';
 import { DefaultLayout } from '@/app/components/DefaultLayout';
 import { MainAppLayoutWithSidePanel } from '@/app/components/MainAppLayoutWithSidePanel';
+import { VeridianSuspendedGate } from '@/veridian-suspension/components/VeridianSuspendedGate';
 import { Verify } from '~/pages/onboarding/Verify';
 import { lazyWithPreload } from '~/utils/lazyWithPreload';
 
@@ -120,7 +121,11 @@ const createWorkspaceAppRouter = ({
               element: <MinimalMetadataGate />,
               children: [
                 {
-                  element: <DefaultLayout />,
+                  element: (
+                    <VeridianSuspendedGate>
+                      <DefaultLayout />
+                    </VeridianSuspendedGate>
+                  ),
                   children: [
                     {
                       element: <MainAppLayoutWithSidePanel />,

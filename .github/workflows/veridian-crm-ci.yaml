@@ -33,6 +33,7 @@ jobs:
       # Pas d'historique complet (2,6 Go, plus de 10 min) : le script récupère le marqueur seul.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: bash scripts/ci/check-ee-integrity.sh
+      - run: bash scripts/ci/poser-marque.sh --verifier
       # Loi 7 outillée : refuse un runner hébergé si le dépôt devient privé (code 2 = visibilité illisible = rouge aussi).
       - run: bash scripts/ci/garde-runners.sh
         env:
@@ -179,6 +180,7 @@ jobs:
           SHA="$(git rev-parse --short=7 HEAD)"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "tag=${{ github.ref_name }}-$SHA" >> "$GITHUB_OUTPUT"
+      - run: bash scripts/ci/poser-marque.sh
       # Pas de cache GitHub : son export coûte plus que ce qu'il rend (essayé le 24/11, Hub : 8 min).
       - name: Construire et pousser
         id: image
