@@ -16,6 +16,7 @@ import { type CookieOptions, type Request, type Response } from 'express';
 
 import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.exception';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { VeridianHubOrganisationService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-organisation.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 import { buildSignInPage } from 'src/engine/core-modules/veridian-hub-sso/utils/build-sign-in-page.util';
@@ -25,6 +26,7 @@ import {
   isUuid,
   parseHubOrganisations,
 } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
+import { parseHubOrganisation } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisation.util';
 import { parseOwnUrl } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util';
 import { isHubSignatureValid } from 'src/engine/core-modules/veridian-hub-sso/utils/is-hub-signature-valid.util';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
@@ -64,6 +66,7 @@ export class VeridianHubSsoController {
     private readonly veridianHubSsoService: VeridianHubSsoService,
     private readonly twentyConfigService: TwentyConfigService,
     private readonly veridianHubRoleService: VeridianHubRoleService,
+    private readonly veridianHubOrganisationService: VeridianHubOrganisationService,
   ) {}
 
   // Returns false once it has answered: the caller stops there.
@@ -554,6 +557,68 @@ export class VeridianHubSsoController {
     return synced
       ? response.status(200).json({ synced: true })
       : response.status(404).json({ error: 'user_not_in_app' });
+  }
+
+  @Post('api/hub/organisations/sync')
+  async syncOrganisation(
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response)) {
+      return;
+    }
+
+    const organisation = parseHubOrganisation(
+      request.body,
+      process.env.HUB_URL,
+    );
+
+    if ('error' in organisation) {
+      return organisation.error === 'invalid_body'
+        ? this.rejectInvalidBody(response)
+        : response.status(422).json({ error: organisation.error });
+    }
+
+    const result =
+      await this.veridianHubOrganisationService.apply(organisation);
+
+    if (result.status !== 'ok') {
+      return response
+        .status(result.status === 'tenant_not_linked' ? 404 : 502)
+        .json({ error: result.status });
+    }
+
+    return response.status(200).json(
+      result.applied
+        ? {
+            applied: true,
+            attached: result.attached,
+            refused: result.refused,
+          }
+        : { applied: false, reason: result.reason },
+    );
+  }
+
+  @Get('api/hub/organisations/sync')
+  async readOrganisation(
+    @Query('hub_tenant_id') hubTenantId: string,
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
+      return;
+    }
+
+    if (!isUuid(hubTenantId)) {
+      return this.rejectInvalidBody(response);
+    }
+
+    const version =
+      await this.veridianHubOrganisationService.readVersion(hubTenantId);
+
+    return version === null
+      ? response.status(404).json({ error: 'tenant_not_linked' })
+      : response.status(200).json({ version });
   }
 
   // No body on these two: the signature covers `${ts}.` (§3.8, §6.1).

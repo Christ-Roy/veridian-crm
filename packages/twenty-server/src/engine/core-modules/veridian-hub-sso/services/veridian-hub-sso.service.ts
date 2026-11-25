@@ -552,6 +552,44 @@ export class VeridianHubSsoService {
     return (await this.findTenant(tenantId))?.workspaceId ?? null;
   }
 
+  async describeMembership({
+    workspaceId,
+    hubUserId,
+    email,
+  }: {
+    workspaceId: string;
+    hubUserId: string;
+    email: string;
+  }): Promise<{
+    isMember: boolean;
+    isDisabled: boolean;
+    removedAt: Date | null;
+  }> {
+    const user =
+      (await this.findUserByHubUserId(hubUserId)) ??
+      (await this.userRepository.findOne({
+        where: { email: email.toLowerCase() },
+      }));
+
+    if (!user) {
+      return { isMember: false, isDisabled: false, removedAt: null };
+    }
+
+    const memberships = await this.userWorkspaceRepository.find({
+      where: { userId: user.id, workspaceId },
+      withDeleted: true,
+    });
+    const removals = memberships
+      .filter(({ deletedAt }) => deletedAt)
+      .map(({ deletedAt }) => new Date(deletedAt).getTime());
+
+    return {
+      isMember: memberships.some(({ deletedAt }) => !deletedAt),
+      isDisabled: Boolean(user.disabled),
+      removedAt: removals.length > 0 ? new Date(Math.max(...removals)) : null,
+    };
+  }
+
   // CONTRAT-HUB §5.19.2: soft delete, the member's records stay in the workspace.
   async removeMember(workspaceId: string, email: string) {
     const user = await this.userRepository.findOne({

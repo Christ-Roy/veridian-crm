@@ -237,14 +237,16 @@ export class VeridianHubRoleService {
     });
   }
 
-  private async markCarried(workspaceId: string): Promise<void> {
-    const where = {
-      key: HUB_ROLE_CARRIED_KEY,
-      workspaceId,
-      userId: IsNull(),
-    };
+  async isCarried(workspaceId: string): Promise<boolean> {
+    const mark = await this.keyValuePairRepository.findOne({
+      where: { key: HUB_ROLE_CARRIED_KEY, workspaceId, userId: IsNull() },
+    });
 
-    if (await this.keyValuePairRepository.findOne({ where })) {
+    return Boolean(mark);
+  }
+
+  private async markCarried(workspaceId: string): Promise<void> {
+    if (await this.isCarried(workspaceId)) {
       return;
     }
 

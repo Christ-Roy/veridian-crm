@@ -144,6 +144,7 @@ const welcome = async ({
     {} as never,
     config,
     {} as never,
+    {} as never,
   );
 
   await controller.welcome(

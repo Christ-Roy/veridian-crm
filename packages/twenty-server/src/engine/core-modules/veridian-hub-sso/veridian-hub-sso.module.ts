@@ -7,6 +7,7 @@ import { AuthModule } from 'src/engine/core-modules/auth/auth.module';
 import { TokenModule } from 'src/engine/core-modules/auth/token/token.module';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
 import { CacheLockModule } from 'src/engine/core-modules/cache-lock/cache-lock.module';
+import { FileCorePictureModule } from 'src/engine/core-modules/file/file-core-picture/file-core-picture.module';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { OnboardingModule } from 'src/engine/core-modules/onboarding/onboarding.module';
 import { ThrottlerModule } from 'src/engine/core-modules/throttler/throttler.module';
@@ -18,6 +19,7 @@ import { UserModule } from 'src/engine/core-modules/user/user.module';
 import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller';
 import { HubOnlyIdentityGuard } from 'src/engine/core-modules/veridian-hub-sso/guards/hub-only-identity.guard';
 import { WorkspaceMemberIdentityPreQueryHook } from 'src/engine/core-modules/veridian-hub-sso/query-hooks/workspace-member-identity.pre-query.hook';
+import { VeridianHubOrganisationService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-organisation.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
@@ -36,6 +38,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
       RoleEntity,
     ]),
     CacheLockModule,
+    FileCorePictureModule,
     UserRoleModule,
     AuthModule,
     TokenModule,
@@ -53,6 +56,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
   providers: [
     VeridianHubSsoService,
     VeridianHubRoleService,
+    VeridianHubOrganisationService,
     WorkspaceMemberIdentityPreQueryHook,
     { provide: APP_GUARD, useClass: HubOnlyIdentityGuard },
   ],

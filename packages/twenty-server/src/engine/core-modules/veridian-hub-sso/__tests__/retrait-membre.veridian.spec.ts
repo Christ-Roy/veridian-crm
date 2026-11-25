@@ -229,3 +229,42 @@ describe('retrait et retour d’un membre par le Hub', () => {
     expect(journal).toEqual(['signInUp']);
   });
 });
+
+describe('appartenance lue pour le document du Hub (CONTRAT-HUB §5.19.6)', () => {
+  const lire = (memberships: unknown[]) =>
+    fauxService({ memberships }).service.describeMembership({
+      workspaceId: 'ws',
+      hubUserId: 'hub',
+      email: 'B@b.fr',
+    });
+
+  it('présent, jamais venu, ou retiré à sa dernière date', async () => {
+    expect(await lire([{ deletedAt: null }])).toEqual({
+      isMember: true,
+      isDisabled: false,
+      removedAt: null,
+    });
+    expect(await lire([])).toEqual({
+      isMember: false,
+      isDisabled: false,
+      removedAt: null,
+    });
+    expect(
+      await lire([
+        { deletedAt: new Date('2026-11-01') },
+        { deletedAt: new Date('2026-11-09') },
+        { deletedAt: new Date('2026-11-03') },
+      ]),
+    ).toEqual({
+      isMember: false,
+      isDisabled: false,
+      removedAt: new Date('2026-11-09'),
+    });
+  });
+
+  it('revenu après un retrait : présent', async () => {
+    expect(
+      await lire([{ deletedAt: new Date('2026-11-01') }, { deletedAt: null }]),
+    ).toMatchObject({ isMember: true });
+  });
+});
