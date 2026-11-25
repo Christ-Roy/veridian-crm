@@ -39,9 +39,21 @@ def cle_du_hub(chemin):
     return jwt.algorithms.ECAlgorithm.from_jwk(json.dumps(jwk)), jwk["kid"]
 
 
+def reveiller_hub():
+    """Le Hub de staging dort : sans ses clés publiques le CRM rend 503, ce qui n'est pas un verdict."""
+    for _ in range(30):
+        r = subprocess.run(["curl", "-s", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", f"{ISS}/.well-known/jwks.json"],
+                           capture_output=True, text=True).stdout
+        if r == "200":
+            return
+        time.sleep(4)
+    raise ta.Echec("Hub de staging injoignable", 2)
+
+
 class Epreuve:
     def __init__(self, a):
         self.a = a
+        reveiller_hub()
         self.c = ta.Client("staging")
         self.origine, self.session, self.ws = self.c.session(a.email, a.espace)
         self.url = self.c.base + "/mcp"
