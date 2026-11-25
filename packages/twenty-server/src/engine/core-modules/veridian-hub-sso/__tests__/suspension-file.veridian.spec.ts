@@ -90,11 +90,12 @@ describe('suspension Veridian : file de tâches', () => {
     expect(add).toHaveBeenCalledTimes(attendu ? 1 : 0);
   });
 
-  it('la révocation des abonnements Google et Microsoft tourne pendant la suspension', async () => {
-    const { reportee, add } = await passer(
-      { workspaceId: 'suspendu', action: 'REVOKE' },
-      'SyncWorkspaceWebhookSubscriptionsJob',
-    );
+  // Reportée, la révocation tomberait après la reprise et couperait ce que la reprise vient de recréer.
+  it.each([
+    'SyncWorkspaceWebhookSubscriptionsJob',
+    'RevokeWebhookSubscriptionJob',
+  ])('%s tourne pendant la suspension', async (nom) => {
+    const { reportee, add } = await passer({ workspaceId: 'suspendu' }, nom);
 
     expect(reportee).toBe(false);
     expect(add).not.toHaveBeenCalled();

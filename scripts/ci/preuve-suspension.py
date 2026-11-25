@@ -75,6 +75,13 @@ class Epreuve:
         except ta.Echec as e:
             return False, str(e)
 
+    def suppression_refusee(self, qui, jeton):
+        try:
+            self.c.gql(self.origine, "mutation{deleteCurrentWorkspace{id}}", jeton=jeton)
+            self.controle(f"suppression de l'espace refusée [{qui}]", False, "ACCEPTÉE")
+        except ta.Echec as e:
+            self.controle(f"suppression de l'espace refusée [{qui}]", any(m in str(e) for m in ("Veridian Hub", "suspended")), str(e))
+
     def coupure(self, quoi, essai, debut, borne=60):
         while time.time() - debut < borne:
             if not essai():
@@ -211,6 +218,8 @@ class Epreuve:
         self.controle("avant : un membre retiré par le Hub émet son webhook (témoin positif)",
                       self.attendre_recu(0, a.attente, "workspaceMember.deleted"), str(self.recus("workspaceMember.deleted")))
         hub1, mail1 = self.membre()
+        self.suppression_refusee("actif, clé API", self.cle)
+        self.suppression_refusee("actif, session du propriétaire", self.session_a)
         avant_a, avant_b = self.fiches(self.origine, self.session_a), self.fiches(self.origine_b, self.session_b)
         self.controle("avant : fiches comptées", bool(avant_a) and bool(avant_b), f"A={avant_a} B={avant_b}")
         page = self.ouvrir_ecran()
@@ -237,6 +246,8 @@ class Epreuve:
         self.controle("rafraîchissement de A refusé", not ok and "suspended" in detail.lower(), detail)
         st, texte, _ = self.rebond(self.email, self.hub_a, self.origine)
         self.controle("rebond du Hub vers A : 423", st == 423 and "workspace_suspended" in texte, f"HTTP {st}")
+        self.suppression_refusee("suspendu, clé API", self.cle)
+        self.suppression_refusee("suspendu, session", self.session_a)
         code, texte = self.organisation()
         self.controle("document d'organisation : 423", code == 423, f"{code} {texte[:60]}")
         if page:

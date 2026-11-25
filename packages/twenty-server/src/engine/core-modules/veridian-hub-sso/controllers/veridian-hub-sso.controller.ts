@@ -51,6 +51,7 @@ const SUSPENSION_ERRORS = {
   not_found: [404, 'tenant_not_found'],
   workspace_gone: [410, 'workspace_gone'],
   not_active: [409, 'workspace_not_active'],
+  not_suspended_by_hub: [409, 'not_suspended_by_hub'],
 } as const;
 
 const ORGANISATION_ERRORS = {

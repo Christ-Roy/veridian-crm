@@ -16,7 +16,10 @@ const READ_ATTEMPTS = 5;
 const READ_RETRY_MS = 1000;
 
 // What suspending itself asks for: the push subscriptions at Google and Microsoft are revoked, then created again.
-const JOBS_RUN_WHILE_SUSPENDED = ['SyncWorkspaceWebhookSubscriptionsJob'];
+const JOBS_RUN_WHILE_SUSPENDED = [
+  'SyncWorkspaceWebhookSubscriptionsJob',
+  'RevokeWebhookSubscriptionJob',
+];
 
 const logger = new Logger('SuspendedWorkspaceJobs');
 

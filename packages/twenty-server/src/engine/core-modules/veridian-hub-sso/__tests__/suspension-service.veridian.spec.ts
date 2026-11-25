@@ -10,143 +10,206 @@ jest.mock(
 );
 jest.mock(
   'src/engine/core-modules/workspace/services/workspace.service',
-  () => ({
-    WorkspaceService: class WorkspaceService {},
-  }),
+  () => ({ WorkspaceService: class {} }),
 );
 jest.mock(
   'src/engine/core-entity-cache/services/core-entity-cache.service',
-  () => ({
-    CoreEntityCacheService: class CoreEntityCacheService {},
-  }),
+  () => ({ CoreEntityCacheService: class {} }),
 );
+jest.mock('src/engine/core-modules/cache-lock/cache-lock.service', () => ({
+  CacheLockService: class {},
+}));
 jest.mock(
   'src/engine/core-modules/key-value-pair/key-value-pair.entity',
   () => ({
-    KeyValuePairEntity: class KeyValuePairEntity {},
+    KeyValuePairEntity: class {},
+    KeyValuePairType: { USER_VARIABLE: 'USER_VARIABLE' },
   }),
 );
 jest.mock('src/engine/core-modules/workspace/workspace.entity', () => ({
-  WorkspaceEntity: class WorkspaceEntity {},
+  WorkspaceEntity: class {},
 }));
 
 const TENANT = 'tenant-1';
 const WORKSPACE = 'ws-1';
+const { ACTIVE, SUSPENDED, ONGOING_CREATION } = WorkspaceActivationStatus;
 
-const build = (activationStatus: WorkspaceActivationStatus) => {
-  const link = {
-    id: 'kv-1',
-    workspaceId: WORKSPACE,
-    value: { ownerEmail: 'a@b.c' },
-  };
-  const keyValuePairRepository = {
-    findOne: jest.fn().mockResolvedValue(link),
-    update: jest.fn().mockResolvedValue({ affected: 1 }),
-  };
-  const workspaceRepository = {
-    findOne: jest
-      .fn()
-      .mockResolvedValue({ id: WORKSPACE, activationStatus, deletedAt: null }),
-    update: jest.fn().mockResolvedValue({ affected: 1 }),
-  };
-  const workspaceService = {
-    reactivateWorkspace: jest.fn().mockResolvedValue(true),
-  };
-  const eventEmitter = { emit: jest.fn() };
-  const coreEntityCacheService = { invalidate: jest.fn() };
+// Une base en mémoire : l'état survit à un appel coupé, comme en vrai.
+const monter = ({
+  statut = ACTIVE as WorkspaceActivationStatus,
+  suspendedAt = null as Date | null,
+  deletedAt = null as Date | null,
+  marque = null as { suspendedAt: string; reason: string } | null,
+  relie = true,
+} = {}) => {
+  const espace = { id: WORKSPACE, activationStatus: statut, suspendedAt, deletedAt };
+  let ligne = marque ? { id: 'marque', value: marque } : null;
+  const fil: string[] = [];
+  let panne: string | null = null;
+  const couper = (etape: string) => {
+    if (panne === etape) {
+      panne = null;
+      throw new Error(`coupé avant ${etape}`);
+    }
 
-  const service = new VeridianHubSuspensionService(
-    keyValuePairRepository as never,
-    workspaceRepository as never,
-    workspaceService as never,
-    eventEmitter as never,
-    coreEntityCacheService as never,
+    fil.push(etape);
+  };
+  const lectures: { key: string; workspaceId?: string }[] = [];
+  const verrou = jest.fn((fn: () => unknown, _: string) => fn());
+  const service = new (VeridianHubSuspensionService as never as new (
+    ...args: unknown[]
+  ) => VeridianHubSuspensionService)(
+    {
+      findOne: jest.fn(async ({ where }: { where: { key: string } }) => {
+        lectures.push(where);
+
+        return where.key === `veridian.hub_tenant:${TENANT}`
+          ? relie
+            ? { workspaceId: WORKSPACE }
+            : null
+          : ligne;
+      }),
+      save: jest.fn(async (entree: { value: never; key: string }) => {
+        couper('marque');
+        ligne = { id: 'marque', value: entree.value };
+      }),
+      delete: jest.fn(async () => {
+        couper('marque retirée');
+        ligne = null;
+      }),
+    },
+    {
+      findOne: jest.fn(async () => ({ ...espace })),
+      update: jest.fn(async (_: unknown, champs: object) => {
+        couper('statut');
+        Object.assign(espace, champs);
+      }),
+    },
+    {
+      reactivateWorkspace: jest.fn(async () => {
+        couper('reprise native');
+        espace.activationStatus = ACTIVE;
+      }),
+    },
+    { emit: jest.fn((nom: string) => couper(nom)) },
+    { invalidate: jest.fn(async () => couper('cache')) },
+    { withLock: verrou },
   );
 
   return {
-    service,
-    coreEntityCacheService,
-    keyValuePairRepository,
-    workspaceRepository,
-    workspaceService,
-    eventEmitter,
+    espace,
+    fil,
+    lectures,
+    verrou,
+    marque: () => ligne?.value ?? null,
+    couperAvant: (etape: string) => (panne = etape),
+    suspendre: () => service.suspend(TENANT, 'admin_action'),
+    reprendre: () => service.resume(TENANT),
   };
 };
 
 describe('suspension Veridian (service)', () => {
-  it('suspend : passe SUSPENDED sans poser suspendedAt, émet l événement natif, garde la date sur le lien', async () => {
-    const fixture = build(WorkspaceActivationStatus.ACTIVE);
+  it('suspend : la marque du Hub d abord, puis le statut sans date, le cache et l événement natif', async () => {
+    const m = monter();
 
-    const outcome = await fixture.service.suspend(TENANT, 'admin_action');
-
-    expect(outcome.status).toBe('ok');
-    const [, patch] = fixture.workspaceRepository.update.mock.calls[0];
-    expect(patch).toEqual({
-      activationStatus: WorkspaceActivationStatus.SUSPENDED,
+    expect(await m.suspendre()).toMatchObject({ status: 'ok' });
+    expect(m.fil).toEqual(['marque', 'statut', 'cache', 'workspace.suspended']);
+    expect(m.espace).toMatchObject({
+      activationStatus: SUSPENDED,
       suspendedAt: null,
     });
-    expect(fixture.eventEmitter.emit).toHaveBeenCalledTimes(1);
-    expect(fixture.coreEntityCacheService.invalidate).toHaveBeenCalledWith(
-      'workspaceEntity',
-      WORKSPACE,
+    expect(m.marque()).toMatchObject({ reason: 'admin_action' });
+    expect(m.verrou.mock.calls[0][1]).toBe(
+      `veridian-hub-suspension:${WORKSPACE}`,
     );
-    const [, linkPatch] = fixture.keyValuePairRepository.update.mock.calls[0];
-    expect(linkPatch.value).toMatchObject({ suspendedReason: 'admin_action' });
-    expect(linkPatch.value.suspendedAt).toEqual(expect.any(String));
-  });
-
-  it('suspend idempotent : déjà suspendu, aucune écriture sur l espace', async () => {
-    const fixture = build(WorkspaceActivationStatus.SUSPENDED);
-
-    const outcome = await fixture.service.suspend(TENANT, 'quota_exceeded');
-
-    expect(outcome.status).toBe('ok');
-    expect(fixture.workspaceRepository.update).not.toHaveBeenCalled();
-    expect(fixture.eventEmitter.emit).not.toHaveBeenCalled();
-  });
-
-  it('espace en cours de création : refusé, ni événement ni date', async () => {
-    const fixture = build(WorkspaceActivationStatus.ONGOING_CREATION);
-    fixture.workspaceRepository.update.mockResolvedValue({ affected: 0 });
-
-    expect(await fixture.service.suspend(TENANT, 'admin_action')).toEqual({
-      status: 'not_active',
-    });
-    expect(fixture.workspaceRepository.update.mock.calls[0][0]).toMatchObject({
-      id: WORKSPACE,
-      activationStatus: WorkspaceActivationStatus.ACTIVE,
-    });
-    expect(fixture.eventEmitter.emit).not.toHaveBeenCalled();
-    expect(fixture.keyValuePairRepository.update).not.toHaveBeenCalled();
-  });
-
-  it('tenant inconnu : not_found', async () => {
-    const fixture = build(WorkspaceActivationStatus.ACTIVE);
-    fixture.keyValuePairRepository.findOne.mockResolvedValue(null);
-
-    expect(await fixture.service.suspend(TENANT, 'admin_action')).toEqual({
-      status: 'not_found',
+    expect(m.lectures[1]).toMatchObject({
+      key: 'veridian.hub_suspension',
+      workspaceId: WORKSPACE,
     });
   });
 
-  it('resume : repasse par reactivateWorkspace natif, puis note resumed_at', async () => {
-    const fixture = build(WorkspaceActivationStatus.SUSPENDED);
+  it.each(['statut', 'cache', 'workspace.suspended'])(
+    'suspend coupé avant « %s » : le rejeu finit, et la reprise reste possible',
+    async (etape) => {
+      const m = monter();
 
-    const outcome = await fixture.service.resume(TENANT);
+      m.couperAvant(etape);
+      await expect(m.suspendre()).rejects.toThrow('coupé');
+      expect(m.marque()).not.toBeNull();
 
-    expect(outcome.status).toBe('ok');
-    expect(fixture.workspaceService.reactivateWorkspace).toHaveBeenCalledWith(
-      WORKSPACE,
-    );
-    const [, linkPatch] = fixture.keyValuePairRepository.update.mock.calls[0];
-    expect(linkPatch.value.resumedAt).toEqual(expect.any(String));
+      const premiere = m.marque();
+
+      expect(await m.suspendre()).toMatchObject({ status: 'ok' });
+      expect(m.marque()).toEqual(premiere);
+      expect(m.espace.activationStatus).toBe(SUSPENDED);
+      expect(m.fil).toContain('workspace.suspended');
+      expect(await m.reprendre()).toMatchObject({ status: 'ok' });
+      expect(m.espace.activationStatus).toBe(ACTIVE);
+      expect(m.marque()).toBeNull();
+    },
+  );
+
+  it.each(['reprise native', 'marque retirée'])(
+    'reprise coupée avant « %s » : le rejeu finit',
+    async (etape) => {
+      const m = monter();
+
+      await m.suspendre();
+      m.couperAvant(etape);
+      await expect(m.reprendre()).rejects.toThrow('coupé');
+      m.fil.length = 0;
+      expect(await m.reprendre()).toMatchObject({ status: 'ok' });
+      expect(m.espace.activationStatus).toBe(ACTIVE);
+      expect(m.marque()).toBeNull();
+      expect(m.fil).toContain(
+        etape === 'marque retirée' ? 'workspace.reactivated' : 'reprise native',
+      );
+    },
+  );
+
+  it('déjà suspendu par un autre chemin, date posée : la marque vient et la date part', async () => {
+    const m = monter({ statut: SUSPENDED, suspendedAt: new Date() });
+
+    expect(await m.suspendre()).toMatchObject({ status: 'ok' });
+    expect(m.espace.suspendedAt).toBeNull();
+    expect(m.marque()).not.toBeNull();
   });
 
-  it('resume sur espace actif : aucune réactivation', async () => {
-    const fixture = build(WorkspaceActivationStatus.ACTIVE);
+  it('suspend rejoué plus tard : même date rendue, marque jamais réécrite', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-25T05:00:00.000Z'));
+    const m = monter();
+    const premier = await m.suspendre();
 
-    await fixture.service.resume(TENANT);
+    jest.setSystemTime(new Date('2026-11-26T05:00:00.000Z'));
+    expect(await m.suspendre()).toEqual(premier);
+    expect(m.marque()?.suspendedAt).toBe('2026-11-25T05:00:00.000Z');
+    expect(m.fil.filter((etape) => etape === 'marque')).toHaveLength(1);
+    jest.useRealTimers();
+  });
 
-    expect(fixture.workspaceService.reactivateWorkspace).not.toHaveBeenCalled();
+  it('reprise : un espace suspendu par un autre chemin ne se ranime pas', async () => {
+    const m = monter({ statut: SUSPENDED });
+
+    expect(await m.reprendre()).toEqual({ status: 'not_suspended_by_hub' });
+    expect(m.espace.activationStatus).toBe(SUSPENDED);
+    expect(m.fil).toEqual([]);
+  });
+
+  it('reprise sur un espace actif sans marque : ok, rien ne bouge', async () => {
+    const m = monter();
+
+    expect(await m.reprendre()).toMatchObject({ status: 'ok' });
+    expect(m.fil).toEqual([]);
+  });
+
+  it.each([
+    ['inconnu', { relie: false }, 'not_found'],
+    ['supprimé', { deletedAt: new Date() }, 'workspace_gone'],
+    ['en création', { statut: ONGOING_CREATION }, 'not_active'],
+  ])('suspend, espace %s : %s refusé, aucune écriture', async (_, cas, status) => {
+    const m = monter(cas);
+
+    expect(await m.suspendre()).toEqual({ status });
+    expect(m.fil).toEqual([]);
   });
 });

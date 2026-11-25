@@ -46,15 +46,30 @@ saboter() {
 }
 
 saboter "suspendedAt posé à la suspension" "$SERVICE" "suspendedAt: null," "suspendedAt: new Date(),"
-saboter "reprise sans réactivation natif" "$SERVICE" "await this.workspaceService.reactivateWorkspace(workspaceId);" "void workspaceId;"
+saboter "suspendedAt laissé à la date d'un autre chemin" "$SERVICE" "          suspendedAt: null,
+" ""
+saboter "reprise sans réactivation native" "$SERVICE" "await this.workspaceService.reactivateWorkspace(workspace.id);" ""
+saboter "reprise d'un espace suspendu par un autre chemin" "$SERVICE" "? { status: 'not_suspended_by_hub' }" "? (await this.workspaceService.reactivateWorkspace(workspace.id), { status: 'ok', at })"
+saboter "reprise coupée : événement non rejoué" "$SERVICE" "this.eventEmitter.emit(WORKSPACE_REACTIVATED_EVENT, {" "void ({"
+saboter "marque gardée après la reprise" "$SERVICE" "await this.keyValuePairRepository.delete(mark.id);" ""
 saboter "événement natif de suspension non émis" "$SERVICE" "this.eventEmitter.emit(WORKSPACE_SUSPENDED_EVENT, {" "void ({"
+saboter "marque réécrite au rejeu" "$SERVICE" "if (!known) {" "if (true as boolean) {"
+saboter "date neuve au rejeu" "$SERVICE" "known?.value.suspendedAt ?? " ""
+saboter "marque d'un autre espace" "$SERVICE" "where: { key: HUB_SUSPENSION_KEY, workspaceId, userId: IsNull() }," "where: { key: HUB_SUSPENSION_KEY, userId: IsNull() },"
+saboter "sans verrou par espace" "$SERVICE" '`veridian-hub-suspension:${workspaceId}`' "'veridian-hub-suspension'"
+saboter "espace supprimé suspendu" "$SERVICE" "workspace && !workspace.deletedAt" "workspace"
+saboter "statut avant la marque" "$SERVICE" "      const known = await this.findMark(workspace.id);" "      await this.workspaceRepository.update({ id: workspace.id }, { activationStatus: WorkspaceActivationStatus.SUSPENDED, suspendedAt: null });
+      const known = await this.findMark(workspace.id);"
 saboter "nettoyage natif rebranché" "$CLEANER" "if (SUSPENSION_NEVER_ERASES) {" "if (false as boolean) {"
 saboter "nettoyage natif rebranché par sa constante" "$CLEANER" "SUSPENSION_NEVER_ERASES: boolean = true;" "SUSPENSION_NEVER_ERASES: boolean = false;"
-saboter "espace en création suspendu" "$SERVICE" "if ((affected ?? 0) === 0) {" "if (false as boolean) {"
-saboter "cache de l'espace gardé à la suspension" "$SERVICE" "await this.coreEntityCacheService.invalidate(
-      'workspaceEntity',
-      workspaceId,
-    );" ""
+saboter "espace en création suspendu" "$SERVICE" "return { status: 'not_active' };" ""
+saboter "cache de l'espace gardé à la suspension" "$SERVICE" "      await this.coreEntityCacheService.invalidate(
+        'workspaceEntity',
+        workspace.id,
+      );
+      this" "      this"
+saboter "file : révocation en file reportée après la reprise" "$FILE" "  'RevokeWebhookSubscriptionJob',
+" ""
 saboter "file : espace suspendu exécuté" "$FILE" "if (!(await readIsSuspended(workspaceId, coreEntityCacheService))) {" "if (true as boolean) {"
 saboter "file : démarrage du worker, une seule lecture" "$FILE" "const READ_ATTEMPTS = 5;" "const READ_ATTEMPTS = 1;"
 saboter "file : panne du cache perd la tâche" "$FILE" "  return false;

@@ -1,17 +1,25 @@
 import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { IsNull, Repository } from 'typeorm';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
+import { In, IsNull, type Repository } from 'typeorm';
 
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
+import { CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
+import {
+  KeyValuePairEntity,
+  KeyValuePairType,
+} from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
+import { hubTenantKey } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
+import { WORKSPACE_REACTIVATED_EVENT } from 'src/engine/core-modules/workspace/constants/workspace-reactivated-event.constant';
 import { WORKSPACE_SUSPENDED_EVENT } from 'src/engine/core-modules/workspace/constants/workspace-suspended-event.constant';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
-import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { type WorkspaceReactivatedEvent } from 'src/engine/core-modules/workspace/types/workspace-reactivated-event.type';
 import { type WorkspaceSuspendedEvent } from 'src/engine/core-modules/workspace/types/workspace-suspended-event.type';
-import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
-import { hubTenantKey } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
+import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+
+export const HUB_SUSPENSION_KEY = 'veridian.hub_suspension';
 
 export const SUSPENSION_REASONS = [
   'billing_past_due',
@@ -25,18 +33,21 @@ export const isSuspensionReason = (value: unknown): value is SuspensionReason =>
   typeof value === 'string' &&
   (SUSPENSION_REASONS as readonly string[]).includes(value);
 
-type SuspensionFields = {
-  suspendedAt?: string;
-  suspendedReason?: SuspensionReason;
-  resumedAt?: string;
-};
+type SuspensionMark = { suspendedAt: string; reason: SuspensionReason };
 
 export type SuspensionOutcome =
-  | { status: 'not_found' | 'workspace_gone' | 'not_active' }
+  | {
+      status:
+        | 'not_found'
+        | 'workspace_gone'
+        | 'not_active'
+        | 'not_suspended_by_hub';
+    }
   | { status: 'ok'; at: string };
 
-// CONTRAT-HUB §5.4. The date and the reason live on the tenant link. suspendedAt stays NULL on
-// purpose: the native CleanSuspendedWorkspacesJob erases a space whose suspendedAt is set.
+// CONTRAT-HUB §5.4. The Hub's mark has its own row (a plan update rewrites the tenant link) and is written first: any
+// call cut halfway is finished by replaying it. suspendedAt stays NULL on purpose, the native
+// CleanSuspendedWorkspacesJob erases a space whose suspendedAt is set.
 @Injectable()
 export class VeridianHubSuspensionService {
   constructor(
@@ -49,120 +60,124 @@ export class VeridianHubSuspensionService {
     private readonly workspaceService: WorkspaceService,
     private readonly eventEmitter: EventEmitter2,
     private readonly coreEntityCacheService: CoreEntityCacheService,
+    private readonly cacheLockService: CacheLockService,
   ) {}
-
-  private async findLink(tenantId: string) {
-    const link = await this.keyValuePairRepository.findOne({
-      where: { key: hubTenantKey(tenantId), userId: IsNull() },
-    });
-
-    if (!link?.workspaceId) {
-      return null;
-    }
-
-    const workspace = await this.workspaceRepository.findOne({
-      where: { id: link.workspaceId },
-      withDeleted: true,
-    });
-
-    return { link, workspaceId: link.workspaceId, workspace };
-  }
-
-  private async writeFields(
-    linkId: string,
-    current: object,
-    fields: SuspensionFields,
-  ) {
-    await this.keyValuePairRepository.update(linkId, {
-      value: { ...current, ...fields } as unknown as JSON,
-    });
-  }
 
   async suspend(
     tenantId: string,
     reason: SuspensionReason,
   ): Promise<SuspensionOutcome> {
-    const found = await this.findLink(tenantId);
+    return this.withWorkspace(tenantId, async (workspace) => {
+      if (
+        workspace.activationStatus !== WorkspaceActivationStatus.ACTIVE &&
+        workspace.activationStatus !== WorkspaceActivationStatus.SUSPENDED
+      ) {
+        return { status: 'not_active' };
+      }
 
-    if (!found) {
-      return { status: 'not_found' };
-    }
+      const known = await this.findMark(workspace.id);
+      const at = known?.value.suspendedAt ?? new Date().toISOString();
 
-    const { link, workspaceId, workspace } = found;
+      if (!known) {
+        await this.keyValuePairRepository.save({
+          key: HUB_SUSPENSION_KEY,
+          userId: null,
+          workspaceId: workspace.id,
+          value: { suspendedAt: at, reason } as unknown as JSON,
+          type: KeyValuePairType.USER_VARIABLE,
+        });
+      }
 
-    if (!workspace || workspace.deletedAt) {
-      return { status: 'workspace_gone' };
-    }
-
-    const current = (link.value ?? {}) as SuspensionFields;
-
-    if (workspace.activationStatus === WorkspaceActivationStatus.SUSPENDED) {
-      const at = current.suspendedAt ?? new Date().toISOString();
+      await this.workspaceRepository.update(
+        {
+          id: workspace.id,
+          activationStatus: In([
+            WorkspaceActivationStatus.ACTIVE,
+            WorkspaceActivationStatus.SUSPENDED,
+          ]),
+          deletedAt: IsNull(),
+        },
+        {
+          activationStatus: WorkspaceActivationStatus.SUSPENDED,
+          suspendedAt: null,
+        },
+      );
+      await this.coreEntityCacheService.invalidate(
+        'workspaceEntity',
+        workspace.id,
+      );
+      this.eventEmitter.emit(WORKSPACE_SUSPENDED_EVENT, {
+        workspaceId: workspace.id,
+      } satisfies WorkspaceSuspendedEvent);
 
       return { status: 'ok', at };
-    }
-
-    const at = new Date().toISOString();
-
-    const { affected } = await this.workspaceRepository.update(
-      {
-        id: workspaceId,
-        activationStatus: WorkspaceActivationStatus.ACTIVE,
-        deletedAt: IsNull(),
-      },
-      {
-        activationStatus: WorkspaceActivationStatus.SUSPENDED,
-        suspendedAt: null,
-      },
-    );
-
-    // A workspace still being created would come back ACTIVE without its schema.
-    if ((affected ?? 0) === 0) {
-      return { status: 'not_active' };
-    }
-
-    await this.coreEntityCacheService.invalidate(
-      'workspaceEntity',
-      workspaceId,
-    );
-    this.eventEmitter.emit(WORKSPACE_SUSPENDED_EVENT, {
-      workspaceId,
-    } satisfies WorkspaceSuspendedEvent);
-
-    await this.writeFields(link.id, link.value ?? {}, {
-      suspendedAt: at,
-      suspendedReason: reason,
-      resumedAt: undefined,
     });
-
-    return { status: 'ok', at };
   }
 
+  // Only what the Hub suspended: another path (deletion, billing) keeps its own reason to close the space.
   async resume(tenantId: string): Promise<SuspensionOutcome> {
-    const found = await this.findLink(tenantId);
+    return this.withWorkspace(tenantId, async (workspace) => {
+      const mark = await this.findMark(workspace.id);
+      const at = new Date().toISOString();
 
-    if (!found) {
+      if (!mark) {
+        return workspace.activationStatus ===
+          WorkspaceActivationStatus.SUSPENDED
+          ? { status: 'not_suspended_by_hub' }
+          : { status: 'ok', at };
+      }
+
+      if (workspace.activationStatus === WorkspaceActivationStatus.SUSPENDED) {
+        await this.workspaceService.reactivateWorkspace(workspace.id);
+      } else {
+        // Cut after the native reactivation: its event and its cache are replayed.
+        await this.coreEntityCacheService.invalidate(
+          'workspaceEntity',
+          workspace.id,
+        );
+        this.eventEmitter.emit(WORKSPACE_REACTIVATED_EVENT, {
+          workspaceId: workspace.id,
+        } satisfies WorkspaceReactivatedEvent);
+      }
+
+      await this.keyValuePairRepository.delete(mark.id);
+
+      return { status: 'ok', at };
+    });
+  }
+
+  private async withWorkspace(
+    tenantId: string,
+    act: (workspace: WorkspaceEntity) => Promise<SuspensionOutcome>,
+  ): Promise<SuspensionOutcome> {
+    const link = await this.keyValuePairRepository.findOne({
+      where: { key: hubTenantKey(tenantId), userId: IsNull() },
+    });
+    const workspaceId = link?.workspaceId;
+
+    if (!workspaceId) {
       return { status: 'not_found' };
     }
 
-    const { link, workspaceId, workspace } = found;
+    return this.cacheLockService.withLock(async () => {
+      const workspace = await this.workspaceRepository.findOne({
+        where: { id: workspaceId },
+        withDeleted: true,
+      });
 
-    if (!workspace || workspace.deletedAt) {
-      return { status: 'workspace_gone' };
-    }
+      return workspace && !workspace.deletedAt
+        ? act(workspace)
+        : { status: 'workspace_gone' };
+    }, `veridian-hub-suspension:${workspaceId}`);
+  }
 
-    const at = new Date().toISOString();
-
-    if (workspace.activationStatus === WorkspaceActivationStatus.SUSPENDED) {
-      await this.workspaceService.reactivateWorkspace(workspaceId);
-    }
-
-    await this.writeFields(link.id, link.value ?? {}, {
-      suspendedAt: undefined,
-      suspendedReason: undefined,
-      resumedAt: at,
+  private async findMark(workspaceId: string) {
+    const pair = await this.keyValuePairRepository.findOne({
+      where: { key: HUB_SUSPENSION_KEY, workspaceId, userId: IsNull() },
     });
 
-    return { status: 'ok', at };
+    return pair
+      ? { id: pair.id, value: pair.value as unknown as SuspensionMark }
+      : null;
   }
 }
