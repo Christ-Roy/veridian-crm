@@ -55,7 +55,7 @@ saboter "retrait : fiche laissée" "$S" "this.updateMemberRecord(workspace, user
 saboter "retrait : appartenance laissée" "$S" 'if (userWorkspaceId) {' 'if (false as boolean) {'
 saboter "retrait : cache des membres figé" "$S" "'flatWorkspaceMemberMaps'," ''
 saboter "retrait : espace sans schéma bloquant" "$S" 'if (!isWorkspaceProvisioned(workspace)) {' 'if (false as boolean) {'
-saboter "retour : fiche non restaurée" "$S" "await this.updateMemberRecord(workspace, known.id, 'restore');" ''
+saboter "retour : fiche non restaurée" "$S" "await this.updateMemberRecord(workspace, known.id, 'restore', known.email);" ''
 saboter "boucle : garde retirée" "$N" 'if (url === navigatingToUrl) {' 'if (false as boolean) {'
 
 for mutation in signUp signUpInWorkspace signUpInNewWorkspace signIn getLoginTokenFromCredentials emailPasswordResetLink updatePasswordViaResetToken sendInvitations resendWorkspaceInvitation updateUserEmail verifyEmailAndGetLoginToken verifyEmailAndGetWorkspaceAgnosticToken resendEmailVerificationToken getAuthTokensFromSSOExchangeToken createApprovedAccessDomain validateApprovedAccessDomain createOIDCIdentityProvider createSAMLIdentityProvider editSSOIdentityProvider deleteUser deleteUserFromWorkspace deleteCurrentWorkspace initiateOTPProvisioning initiateOTPProvisioningForAuthenticatedUser verifyTwoFactorAuthenticationMethodForAuthenticatedUser deleteTwoFactorAuthenticationMethod generateTwoFactorAuthenticationRecoveryCode revokeTwoFactorAuthenticationRecoveryCode getAuthTokensFromOTP getAuthTokensFromTwoFactorAuthenticationRecoveryCode; do

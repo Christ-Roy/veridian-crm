@@ -188,7 +188,6 @@ export class VeridianHubOrganisationService {
     const membership = await this.veridianHubSsoService.describeMembership({
       workspaceId,
       hubUserId,
-      email,
     });
 
     if (membership.isMember) {
@@ -207,6 +206,7 @@ export class VeridianHubOrganisationService {
       workspaceId,
       hubUserId,
       email,
+      emailProven: true,
     });
 
     if (result.status !== 'ok') {

@@ -90,7 +90,7 @@ class Epreuve:
             self.controle("la liste dit la version installée", self.apps(self.cle).get(self.a.listee, {}).get("installedVersion") ==
                           self.versions().get(self.a.listee), str(self.versions().get(self.a.listee)))
         finally:
-            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": mail})
             self.c.signe("/api/hub/users/sync", {"hub_user_id": hub, "deleted": True})
 
 

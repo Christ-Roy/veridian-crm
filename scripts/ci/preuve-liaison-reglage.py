@@ -133,7 +133,7 @@ class Epreuve(envoi.Epreuve):
                 tout = {k: True for k in ("canReadObjectRecords", "canUpdateObjectRecords", "canSoftDeleteObjectRecords", "canDestroyObjectRecords")}
                 self.permettre(depart_role, d or [{"objectMetadataId": verrou, **tout}])
             self.gql("mutation($i:UUID!,$d:LiaisonUpdateInput!){updateLiaison(id:$i,data:$d){id}}", i=self.liaison["id"], d=depart)
-            self.c.signe(f"/api/tenants/{self.a.tenant}/remove-member", {"email": membre})
+            self.c.signe(f"/api/tenants/{self.a.tenant}/remove-member", {"hub_user_id": hub, "email": membre})
             self.c.signe("/api/hub/users/sync", {"hub_user_id": hub, "deleted": True})
         fin = self.lue()
         self.controle("réglages d'origine remis", all(fin[k] == v for k, v in depart.items()), str(depart))

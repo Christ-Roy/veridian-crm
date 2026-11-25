@@ -4,7 +4,11 @@ import {
   type PlanUpdateRequest,
   type StoredPlan,
 } from 'src/engine/core-modules/veridian-hub-sso/utils/decide-plan-update.util';
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { AppPath, SettingsPath } from 'twenty-shared/types';
@@ -52,6 +56,7 @@ import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-membe
 
 const RATE_LIMIT_PER_MINUTE = 10;
 const ONE_MINUTE_MS = 60 * 1000;
+const POSTGRES_UNIQUE_VIOLATION = '23505';
 const PROVISION_LOCK_MS = 5 * 60 * 1000;
 
 // The Hub is the only source of identity. These links live in core.keyValuePair so
@@ -62,10 +67,14 @@ const hubUserKey = (hubUserId: string) => `veridian.hub_user:${hubUserId}`;
 export const hubTenantKey = (tenantId: string) =>
   `veridian.hub_tenant:${tenantId}`;
 
-type TenantLink = { ownerEmail: string } & StoredPlan;
+// ownerHubUserId: undefined = not converted yet, null = converted once with no match, never guessed again.
+type TenantLink = {
+  ownerEmail: string;
+  ownerHubUserId?: string | null;
+} & StoredPlan;
 
 export type ProvisionResult =
-  | { status: 'conflict' | 'in_progress' | 'identity_conflict' }
+  | { status: 'owner_mismatch' | 'in_progress' | 'hub_user_conflict' }
   | {
       status: 'ok';
       created: boolean;
@@ -75,7 +84,9 @@ export type ProvisionResult =
     };
 
 @Injectable()
-export class VeridianHubSsoService {
+export class VeridianHubSsoService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(VeridianHubSsoService.name);
+
   constructor(
     // eslint-disable-next-line twenty/prefer-workspace-scoped-repository
     @InjectRepository(UserEntity)
@@ -107,7 +118,36 @@ export class VeridianHubSsoService {
     private readonly veridianHubRoleService: VeridianHubRoleService,
   ) {}
 
-  // ── Identity: hub_user_id first, email only to bind an account with no link yet.
+  // CONTRAT-HUB §5.19.7: an owner recorded by email is converted once, by the linked local copy. A row with no match is
+  // marked and counted, so that an email taken over later by someone else never makes them the owner.
+  async onApplicationBootstrap() {
+    try {
+      const [rows] = await this.keyValuePairRepository.query(
+        `UPDATE core."keyValuePair" k
+            SET value = k.value || jsonb_build_object('ownerHubUserId',
+                  (SELECT CASE WHEN count(*) = 1 THEN min(substr(l.key, $1)) END
+                     FROM core."user" u
+                     JOIN core."keyValuePair" l
+                       ON l."userId" = u.id AND l."workspaceId" IS NULL AND l.key LIKE 'veridian.hub_user:%'
+                    WHERE u.email = k.value->>'ownerEmail' AND u."deletedAt" IS NULL))
+          WHERE k.key LIKE 'veridian.hub_tenant:%' AND k."userId" IS NULL AND NOT k.value ? 'ownerHubUserId'
+      RETURNING k.value->>'ownerHubUserId' AS owner`,
+        ['veridian.hub_user:'.length + 1],
+      );
+
+      if (rows.length > 0) {
+        this.logger.log(
+          `Hub owners converted: ${rows.length}, without a match: ${
+            rows.filter(({ owner }: { owner: string | null }) => !owner).length
+          }`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Hub owners conversion failed: ${error}`);
+    }
+  }
+
+  // ── Identity: by hub_user_id alone. An email only binds an account with no link yet, and only a proven one.
   private async findUserByHubUserId(hubUserId: string) {
     const link = await this.keyValuePairRepository.findOne({
       where: { key: hubUserKey(hubUserId), workspaceId: IsNull() },
@@ -128,11 +168,12 @@ export class VeridianHubSsoService {
     });
   }
 
-  // Returns null when the email belongs to an account bound to another Hub user:
-  // an email alone must never open an account that the Hub attributes to someone else.
+  // Returns null when the email belongs to an account bound to another Hub user, or to an account with no link when the
+  // Hub did not say the email is proven: an email alone must never open someone else's account.
   private async resolveUser(
     hubUserId: string,
     rawEmail: string,
+    emailProven: boolean,
   ): Promise<UserEntity | null | undefined> {
     const linked = await this.findUserByHubUserId(hubUserId);
 
@@ -156,7 +197,7 @@ export class VeridianHubSsoService {
       },
     });
 
-    if (otherLink) {
+    if (otherLink || !emailProven) {
       return null;
     }
 
@@ -195,6 +236,7 @@ export class VeridianHubSsoService {
     hubUserId: string,
     rawEmail: string,
     next?: unknown,
+    emailProven = false,
   ): Promise<string | null | typeof WORKSPACE_SUSPENDED_LINK> {
     await this.throttlerService.tokenBucketThrottleOrThrow(
       `veridian-hub-sso:issue-magic-link:${hubUserId}`,
@@ -203,7 +245,7 @@ export class VeridianHubSsoService {
       ONE_MINUTE_MS,
     );
 
-    const user = await this.resolveUser(hubUserId, rawEmail);
+    const user = await this.resolveUser(hubUserId, rawEmail, emailProven);
 
     if (!user || user.disabled) {
       return null;
@@ -381,24 +423,22 @@ export class VeridianHubSsoService {
     workspaceName,
     hubUserId,
     plan,
+    emailProven,
   }: {
     tenantId: string;
     ownerEmail: string;
     workspaceName: string;
     hubUserId: string;
     plan: string;
+    emailProven: boolean;
   }): Promise<ProvisionResult> {
     const existing = await this.findTenant(tenantId);
 
     if (existing) {
-      if (existing.value.ownerEmail !== ownerEmail.toLowerCase()) {
-        return { status: 'conflict' };
-      }
+      const owner = await this.findUserByHubUserId(hubUserId);
 
-      const owner = await this.resolveUser(hubUserId, ownerEmail);
-
-      if (!owner) {
-        return { status: 'identity_conflict' };
+      if (!owner || existing.value.ownerHubUserId !== hubUserId) {
+        return { status: 'owner_mismatch' };
       }
 
       return {
@@ -422,10 +462,10 @@ export class VeridianHubSsoService {
     }
 
     try {
-      const known = await this.resolveUser(hubUserId, ownerEmail);
+      const known = await this.resolveUser(hubUserId, ownerEmail, emailProven);
 
       if (known === null) {
-        return { status: 'identity_conflict' };
+        return { status: 'hub_user_conflict' };
       }
 
       const { user, workspace } =
@@ -466,7 +506,11 @@ export class VeridianHubSsoService {
         key: hubTenantKey(tenantId),
         userId: null,
         workspaceId: workspace.id,
-        value: { ownerEmail: ownerEmail.toLowerCase(), plan } as unknown as JSON,
+        value: {
+          ownerEmail: ownerEmail.toLowerCase(),
+          ownerHubUserId: hubUserId,
+          plan,
+        } as unknown as JSON,
         type: KeyValuePairType.USER_VARIABLE,
       });
 
@@ -487,16 +531,18 @@ export class VeridianHubSsoService {
     workspaceId,
     hubUserId,
     email,
+    emailProven,
   }: {
     workspaceId: string;
     hubUserId: string;
     email: string;
+    emailProven: boolean;
   }): Promise<
     | {
         status:
           | 'workspace_not_found'
           | 'workspace_suspended'
-          | 'identity_conflict';
+          | 'hub_user_conflict';
       }
     | {
         status: 'ok';
@@ -517,10 +563,10 @@ export class VeridianHubSsoService {
       return { status: 'workspace_suspended' };
     }
 
-    const known = await this.resolveUser(hubUserId, email);
+    const known = await this.resolveUser(hubUserId, email, emailProven);
 
     if (known === null) {
-      return { status: 'identity_conflict' };
+      return { status: 'hub_user_conflict' };
     }
 
     const alreadyMember = known
@@ -533,7 +579,7 @@ export class VeridianHubSsoService {
       : false;
 
     if (known && !alreadyMember) {
-      await this.updateMemberRecord(workspace, known.id, 'restore');
+      await this.updateMemberRecord(workspace, known.id, 'restore', known.email);
     }
 
     const user = await this.signInUpService.signInUpOnExistingWorkspace({
@@ -585,21 +631,15 @@ export class VeridianHubSsoService {
   async describeMembership({
     workspaceId,
     hubUserId,
-    email,
   }: {
     workspaceId: string;
     hubUserId: string;
-    email: string;
   }): Promise<{
     isMember: boolean;
     isDisabled: boolean;
     removedAt: Date | null;
   }> {
-    const user =
-      (await this.findUserByHubUserId(hubUserId)) ??
-      (await this.userRepository.findOne({
-        where: { email: email.toLowerCase() },
-      }));
+    const user = await this.findUserByHubUserId(hubUserId);
 
     if (!user) {
       return { isMember: false, isDisabled: false, removedAt: null };
@@ -621,10 +661,8 @@ export class VeridianHubSsoService {
   }
 
   // CONTRAT-HUB §5.19.2: soft delete, the member's records stay in the workspace.
-  async removeMember(workspaceId: string, email: string) {
-    const user = await this.userRepository.findOne({
-      where: { email: email.toLowerCase() },
-    });
+  async removeMember(workspaceId: string, hubUserId: string) {
+    const user = await this.findUserByHubUserId(hubUserId);
     const membership = user
       ? await this.userWorkspaceRepository.findOne({
           where: { userId: user.id, workspaceId },
@@ -673,17 +711,26 @@ export class VeridianHubSsoService {
     name?: string;
     deleted?: boolean;
     revokeSessions?: boolean;
-  }) {
+  }): Promise<'synced' | 'user_not_in_app' | 'email_conflict'> {
     const user = await this.findUserByHubUserId(hubUserId);
 
     if (!user) {
-      return false;
+      return 'user_not_in_app';
     }
 
     if (deleted === true) {
       await this.cutAccess(user.id);
 
-      return true;
+      return 'synced';
+    }
+
+    // The email first: when another account holds it, nothing else of the call is written.
+    if (
+      email &&
+      email.toLowerCase() !== user.email &&
+      !(await this.moveEmail(user.id, email.toLowerCase()))
+    ) {
+      return 'email_conflict';
     }
 
     if (revokeSessions === true) {
@@ -693,15 +740,8 @@ export class VeridianHubSsoService {
       });
     }
 
-    if (email && email.toLowerCase() !== user.email) {
-      await this.userService.updateEmailFromVerificationToken(
-        user.id,
-        email.toLowerCase(),
-      );
-    }
-
     if (name === undefined) {
-      return true;
+      return 'synced';
     }
 
     const [firstName, ...others] = name.trim().split(/\s+/);
@@ -709,9 +749,17 @@ export class VeridianHubSsoService {
 
     await this.userRepository.update(user.id, fullName);
     await this.coreEntityCacheService.invalidate('user', user.id);
+    await this.writeMemberRecords(user.id, { name: fullName });
 
+    return 'synced';
+  }
+
+  private async writeMemberRecords(
+    userId: string,
+    fields: Partial<Pick<WorkspaceMemberWorkspaceEntity, 'name' | 'userEmail'>>,
+  ) {
     const memberships = await this.userWorkspaceRepository.find({
-      where: { userId: user.id },
+      where: { userId },
     });
 
     for (const { workspaceId } of memberships) {
@@ -721,9 +769,29 @@ export class VeridianHubSsoService {
             'workspaceMember',
           );
 
-        await repository.update({ userId: user.id }, { name: fullName });
+        await repository.update({ userId }, fields);
       }, buildSystemAuthContext(workspaceId));
     }
+  }
+
+  private async moveEmail(userId: string, email: string): Promise<boolean> {
+    if (await this.userRepository.findOne({ where: { email } })) {
+      return false;
+    }
+
+    try {
+      await this.userService.updateEmailFromVerificationToken(userId, email);
+    } catch (error) {
+      // Taken between the read and the write: the unique index speaks.
+      if (error?.code === POSTGRES_UNIQUE_VIOLATION) {
+        return false;
+      }
+
+      throw error;
+    }
+
+    // Natively a background job: until it runs, whoever takes the old email over cannot enter the workspace.
+    await this.writeMemberRecords(userId, { userEmail: email });
 
     return true;
   }
@@ -773,6 +841,7 @@ export class VeridianHubSsoService {
     workspace: WorkspaceEntity,
     userId: string,
     action: 'softDelete' | 'restore',
+    email?: string,
   ) {
     if (!isWorkspaceProvisioned(workspace)) {
       return;
@@ -783,6 +852,11 @@ export class VeridianHubSsoService {
         this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(
           'workspaceMember',
         );
+
+      // Gone while the address changed: the record comes back under the address of today, the old one may be taken.
+      if (email) {
+        await repository.update({ userId }, { userEmail: email });
+      }
 
       await repository[action]({ userId });
     }, buildSystemAuthContext(workspace.id));
@@ -814,9 +888,14 @@ export class VeridianHubSsoService {
     }));
   }
 
-  // CONTRAT-HUB §5.12.
-  async listWorkspacesByEmail(rawEmail: string) {
-    const email = rawEmail.toLowerCase();
+  // CONTRAT-HUB §5.12 and §5.19.7: hub_user_id first, the email only when it is absent.
+  async listWorkspaces({
+    hubUserId,
+    email,
+  }: {
+    hubUserId?: string;
+    email?: string;
+  }) {
     const rows: {
       workspaceId: string;
       displayName: string;
@@ -827,13 +906,17 @@ export class VeridianHubSsoService {
       hubRole: string | null;
       nativeAdmin: boolean;
       roleCarried: boolean;
+      isOwner: boolean;
     }[] = await this.userRepository.query(
       `SELECT w.id AS "workspaceId", w."displayName", w.subdomain, w."activationStatus",
               k.key AS "tenantKey", k.value AS link, r.value->>'role' AS "hubRole",
               EXISTS (SELECT 1 FROM core."roleTarget" rt JOIN core.role ro ON ro.id = rt."roleId"
                        WHERE rt."userWorkspaceId" = uw.id AND ro."universalIdentifier" = $2) AS "nativeAdmin",
               EXISTS (SELECT 1 FROM core."keyValuePair" c
-                       WHERE c."workspaceId" = w.id AND c."userId" IS NULL AND c.key = $4) AS "roleCarried"
+                       WHERE c."workspaceId" = w.id AND c."userId" IS NULL AND c.key = $4) AS "roleCarried",
+              EXISTS (SELECT 1 FROM core."keyValuePair" o
+                       WHERE o."userId" = u.id AND o."workspaceId" IS NULL
+                         AND o.key = 'veridian.hub_user:' || (k.value->>'ownerHubUserId')) AS "isOwner"
          FROM core."user" u
          JOIN core."userWorkspace" uw ON uw."userId" = u.id AND uw."deletedAt" IS NULL
          JOIN core.workspace w ON w.id = uw."workspaceId" AND w."deletedAt" IS NULL
@@ -841,9 +924,15 @@ export class VeridianHubSsoService {
            ON k."workspaceId" = w.id AND k."userId" IS NULL AND k.key LIKE 'veridian.hub_tenant:%'
          LEFT JOIN core."keyValuePair" r
            ON r."workspaceId" = w.id AND r."userId" = u.id AND r.key = $3
-        WHERE u.email = $1 AND u."deletedAt" IS NULL AND u.disabled = false`,
+        WHERE ${
+          hubUserId
+            ? `EXISTS (SELECT 1 FROM core."keyValuePair" p
+                       WHERE p."userId" = u.id AND p."workspaceId" IS NULL AND p.key = $1)`
+            : 'u.email = $1'
+        }
+          AND u."deletedAt" IS NULL AND u.disabled = false`,
       [
-        email,
+        hubUserId ? hubUserKey(hubUserId) : (email ?? '').toLowerCase(),
         STANDARD_ROLE.admin.universalIdentifier,
         HUB_ROLE_KEY,
         HUB_ROLE_CARRIED_KEY,
@@ -861,6 +950,7 @@ export class VeridianHubSsoService {
         hubRole,
         nativeAdmin,
         roleCarried,
+        isOwner,
       }) => ({
         workspace_id: workspaceId,
         tenant_id: tenantKey
@@ -871,7 +961,7 @@ export class VeridianHubSsoService {
           : null,
         workspace_name: displayName,
         subdomain,
-        role: link?.ownerEmail === email ? 'owner' : 'member',
+        role: isOwner ? 'owner' : 'member',
         hub_role: hubRole,
         native_admin: nativeAdmin,
         role_carried: roleCarried,

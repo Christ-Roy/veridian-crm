@@ -108,7 +108,7 @@ class Epreuve:
             self.controle("présent : rôle inchangé", r[1].get("attached") == 0 and bool(roles) and self.role(mail) == roles, f"{roles} {r}")
             r = self.pousser()
             self.controle("absent du document : pas retiré", r[1].get("applied") and self.appartient(mail), str(r))
-            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": mail})
             self.controle("retiré par le Hub", not self.appartient(mail))
             r = self.pousser([membre()])
             self.controle("retiré : une vieille adhésion ne le ramène pas", r[1].get("refused") == 1 and not self.appartient(mail), str(r))
@@ -121,7 +121,7 @@ class Epreuve:
                 self.pousser()
                 self.controle("logo nul : il reste", bool(self.espace()["logo"]))
         finally:
-            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": mail})
             self.c.signe("/api/hub/users/sync", {"hub_user_id": hub, "deleted": True})
 
 

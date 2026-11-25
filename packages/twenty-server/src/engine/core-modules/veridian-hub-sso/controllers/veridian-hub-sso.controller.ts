@@ -126,6 +126,11 @@ export class VeridianHubSsoController {
     return response.status(400).json({ error: 'invalid_body' });
   }
 
+  // CONTRAT-HUB §5.19.7: a person is named by hub_user_id, the email is information.
+  private rejectInvalidPayload(response: Response) {
+    return response.status(400).json({ error: 'invalid_payload' });
+  }
+
   @Post('api/sso/issue-magic-link')
   async issueMagicLink(
     @Req() request: RawBodyRequest<Request>,
@@ -151,6 +156,7 @@ export class VeridianHubSsoController {
         hubUserId,
         email,
         next,
+        request.body?.email_proven === true,
       );
 
       if (magicLinkUrl === WORKSPACE_SUSPENDED_LINK) {
@@ -291,7 +297,8 @@ export class VeridianHubSsoController {
       plan,
       metadata,
     } = request.body ?? {};
-    const hubUserId = metadata?.hub_user_id;
+    const hubUserId =
+      request.body?.owner_hub_user_id ?? metadata?.hub_user_id;
 
     if (
       !UUID_PATTERN.test(tenantId ?? '') ||
@@ -314,6 +321,7 @@ export class VeridianHubSsoController {
       workspaceName: workspaceName.slice(0, 32),
       hubUserId,
       plan,
+      emailProven: request.body?.email_proven === true,
     });
 
     if (result.status !== 'ok') {
@@ -432,11 +440,11 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const { user_email: email, hub_user_id: hubUserId, role } =
-      request.body ?? {};
+    const { hub_user_id: hubUserId, role } = request.body ?? {};
+    const email = request.body?.email ?? request.body?.user_email;
 
     if (!isNonEmptyString(email) || !UUID_PATTERN.test(hubUserId ?? '')) {
-      return this.rejectInvalidBody(response);
+      return this.rejectInvalidPayload(response);
     }
 
     const workspaceId =
@@ -450,14 +458,18 @@ export class VeridianHubSsoController {
       workspaceId,
       hubUserId,
       email,
+      emailProven: request.body?.email_proven === true,
     });
 
     if (result.status !== 'ok') {
-      return response.status(409).json({ error: result.status });
+      return response
+        .status(result.status === 'workspace_suspended' ? 423 : 409)
+        .json({ error: result.status });
     }
 
     return response.status(200).json({
       tenant_id: tenantId,
+      hub_user_id: hubUserId,
       user_email: email,
       synced: true,
       app_user_id: result.userId,
@@ -529,21 +541,22 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const { hub_user_email: email, hub_user_id: hubUserId, role } =
-      request.body ?? {};
+    const { hub_user_id: hubUserId, role } = request.body ?? {};
+    const email = request.body?.email ?? request.body?.hub_user_email;
 
     if (
       !isNonEmptyString(email) ||
       !UUID_PATTERN.test(hubUserId ?? '') ||
       !UUID_PATTERN.test(workspaceId)
     ) {
-      return this.rejectInvalidBody(response);
+      return this.rejectInvalidPayload(response);
     }
 
     const result = await this.veridianHubSsoService.attachMember({
       workspaceId,
       hubUserId,
       email,
+      emailProven: request.body?.email_proven === true,
     });
 
     if (result.status === 'workspace_not_found') {
@@ -578,10 +591,10 @@ export class VeridianHubSsoController {
       return;
     }
 
-    const { email } = request.body ?? {};
+    const hubUserId = request.body?.hub_user_id;
 
-    if (!isNonEmptyString(email)) {
-      return this.rejectInvalidBody(response);
+    if (!UUID_PATTERN.test(hubUserId ?? '')) {
+      return this.rejectInvalidPayload(response);
     }
 
     const workspaceId =
@@ -593,12 +606,14 @@ export class VeridianHubSsoController {
 
     const removed = await this.veridianHubSsoService.removeMember(
       workspaceId,
-      email,
+      hubUserId,
     );
 
     return response.status(200).json({
       tenant_id: tenantId,
+      hub_user_id: hubUserId,
       removed,
+      removed_at: removed ? new Date().toISOString() : null,
       ...(await this.veridianHubSsoService.describeApiKeys(workspaceId)),
     });
   }
@@ -637,11 +652,14 @@ export class VeridianHubSsoController {
       revoke_sessions: revokeSessions,
     } = request.body ?? {};
 
-    if (!UUID_PATTERN.test(hubUserId ?? '')) {
-      return this.rejectInvalidBody(response);
+    if (
+      !UUID_PATTERN.test(hubUserId ?? '') ||
+      (email !== undefined && email !== null && !isNonEmptyString(email))
+    ) {
+      return this.rejectInvalidPayload(response);
     }
 
-    const synced = await this.veridianHubSsoService.syncUser({
+    const outcome = await this.veridianHubSsoService.syncUser({
       hubUserId,
       email,
       name,
@@ -649,9 +667,13 @@ export class VeridianHubSsoController {
       revokeSessions,
     });
 
-    return synced
-      ? response.status(200).json({ synced: true })
-      : response.status(404).json({ error: 'user_not_in_app' });
+    if (outcome !== 'synced') {
+      return response
+        .status(outcome === 'email_conflict' ? 409 : 404)
+        .json({ error: outcome });
+    }
+
+    return response.status(200).json({ synced: true });
   }
 
   @Post('api/hub/organisations/sync')
@@ -733,6 +755,7 @@ export class VeridianHubSsoController {
 
   @Get('api/users/by-email')
   async usersByEmail(
+    @Query('hub_user_id') hubUserId: string,
     @Query('email') email: string,
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
@@ -741,12 +764,14 @@ export class VeridianHubSsoController {
       return;
     }
 
-    if (!isNonEmptyString(email)) {
-      return this.rejectInvalidBody(response);
+    if (hubUserId ? !isUuid(hubUserId) : !isNonEmptyString(email)) {
+      return this.rejectInvalidPayload(response);
     }
 
-    const workspaces =
-      await this.veridianHubSsoService.listWorkspacesByEmail(email);
+    const workspaces = await this.veridianHubSsoService.listWorkspaces({
+      hubUserId,
+      email,
+    });
 
     return response
       .status(200)

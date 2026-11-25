@@ -273,6 +273,7 @@ describe("document d'organisation du Hub : effet", () => {
       workspaceId: 'ws',
       hubUserId: SUB,
       email: 'a@test.fr',
+      emailProven: true,
     });
   });
 
@@ -327,7 +328,7 @@ describe("document d'organisation du Hub : effet", () => {
     expect(coupe.attacher).not.toHaveBeenCalled();
 
     const conteste = monter({
-      rattache: { status: 'identity_conflict' },
+      rattache: { status: 'hub_user_conflict' },
       portes: true,
     });
 

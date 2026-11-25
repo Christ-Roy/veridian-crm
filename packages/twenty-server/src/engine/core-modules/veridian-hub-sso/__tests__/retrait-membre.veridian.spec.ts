@@ -148,7 +148,7 @@ describe('retrait et retour d’un membre par le Hub', () => {
   it('remove-member retire la fiche et l’appartenance, et relit le cache', async () => {
     const { service, journal } = fauxService();
 
-    expect(await service.removeMember('ws', 'B@b.fr')).toBe(true);
+    expect(await service.removeMember('ws', 'h')).toBe(true);
     expect(journal).toEqual([FICHE, CACHE, APPARTENANCE]);
   });
 
@@ -180,7 +180,7 @@ describe('retrait et retour d’un membre par le Hub', () => {
   it('remove-member rejoué répare une fiche orpheline', async () => {
     const { service, journal } = fauxService({ membership: null });
 
-    expect(await service.removeMember('ws', 'b@b.fr')).toBe(false);
+    expect(await service.removeMember('ws', 'h')).toBe(false);
     expect(journal).toEqual([FICHE, CACHE]);
   });
 
@@ -211,9 +211,10 @@ describe('retrait et retour d’un membre par le Hub', () => {
   it('attach-member d’un ancien membre restaure sa fiche avant de le rattacher', async () => {
     const { service, journal } = fauxService({ membership: null });
 
-    await service.attachMember({ workspaceId: 'ws', hubUserId: 'h', email: 'b@b.fr' });
+    await service.attachMember({ workspaceId: 'ws', hubUserId: 'h', email: 'b@b.fr', emailProven: true });
 
     expect(journal).toEqual([
+      'fiche.update [{"userId":"u"},{"userEmail":"b@b.fr"}]',
       'fiche.restore [{"userId":"u"}]',
       CACHE,
       'signInUp',
@@ -224,7 +225,7 @@ describe('retrait et retour d’un membre par le Hub', () => {
   it('attach-member d’un membre en place ne touche pas à sa fiche', async () => {
     const { service, journal } = fauxService();
 
-    await service.attachMember({ workspaceId: 'ws', hubUserId: 'h', email: 'b@b.fr' });
+    await service.attachMember({ workspaceId: 'ws', hubUserId: 'h', email: 'b@b.fr', emailProven: true });
 
     expect(journal).toEqual(['signInUp']);
   });
@@ -235,7 +236,6 @@ describe('appartenance lue pour le document du Hub (CONTRAT-HUB §5.19.6)', () =
     fauxService({ memberships }).service.describeMembership({
       workspaceId: 'ws',
       hubUserId: 'hub',
-      email: 'B@b.fr',
     });
 
   it('présent, jamais venu, ou retiré à sa dernière date', async () => {

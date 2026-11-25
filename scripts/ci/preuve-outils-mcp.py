@@ -125,7 +125,7 @@ class Epreuve:
         finally:
             for nom, i in graine:
                 self.outil(self.admin, f"destroy_one_{nom}", id=i)
-            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": mail})
             self.c.signe("/api/hub/users/sync", {"hub_user_id": hub, "deleted": True})
             r = self.role()
             if r:

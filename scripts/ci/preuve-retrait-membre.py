@@ -4,9 +4,8 @@
 Dans un espace de test : attache un compte jetable par la route signée du Hub, le retire, le rattache, le retire de
 nouveau, puis coupe le compte. À chaque étape, l'admin doit charger son compte (la requête de l'écran, GetCurrentUser).
 
-  preuve-retrait-membre.py <ss-dom> --email <admin> [--env staging|prod] [--reparer]
+  preuve-retrait-membre.py <ss-dom> --email <admin> [--env staging|prod]
 
---reparer rejoue d'abord remove-member sur les fiches e2e-sso-*-role-mcp@veridian.site restées orphelines.
 Codes : 0 vrai, 1 faux, 2 mesure non aboutie.
 """
 import argparse
@@ -58,8 +57,8 @@ class Epreuve:
                                       {"hub_user_id": hub, "hub_user_email": email, "role": "member"})
         self.controle("attach-member", code == attendu, f"{code} {texte[:80]}" if code != attendu else str(code))
 
-    def retirer(self, email):
-        code, texte, _ = self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": email})
+    def retirer(self, hub, email):
+        code, texte, _ = self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": email})
         return code == 200, ta.json.loads(texte).get("removed") if code == 200 else texte[:80]
 
     def fiches(self, email):
@@ -75,38 +74,23 @@ class Epreuve:
             return False
 
 
-def reparer(e):
-    d = e.c.gql(e.origine, "{workspaceMembers(first:60){edges{node{userEmail}}}}", None, e.jeton, "/graphql")
-    actifs = {(u.get("email") or "").lower() for u in e.c.utilisateurs()}
-    cibles = [x["node"]["userEmail"] for x in d["workspaceMembers"]["edges"]]
-    cibles = [m for m in cibles if m.startswith("e2e-sso-") and m.endswith("-role-mcp@veridian.site") and m not in actifs]
-    vus, erreur = e.membres()
-    print(f"avant réparation : {erreur or f'{len(vus)} membre(s)'} ; {len(cibles)} fiche(s) à réparer")
-    for m in cibles:
-        ok, removed = e.retirer(m)
-        e.controle(f"réparation {m}", ok and not e.fiches(m), f"removed={removed}")
-
-
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("espace")
     p.add_argument("--email", required=True)
     p.add_argument("--env", choices=["staging", "prod"], default="staging")
-    p.add_argument("--reparer", action="store_true")
     a = p.parse_args()
     hub = str(uuid.uuid4())
     email = f"e2e-retrait-{int(time.time())}@veridian.site"
     e = None
     try:
         e = Epreuve(a)
-        if a.reparer:
-            reparer(e)
         e.charge("au départ", absent=email)
         e.attacher(hub, email, 201)
         e.charge("membre attaché", present=email)
         fiche = e.fiches(email)
         e.controle("le membre entre", e.entre(email))
-        ok, removed = e.retirer(email)
+        ok, removed = e.retirer(hub, email)
         e.controle("remove-member", ok and removed is True, f"removed={removed}")
         e.charge("membre retiré", absent=email)
         e.controle("le membre n'entre plus", not e.entre(email))
@@ -123,7 +107,7 @@ def main():
         return err.code
     finally:
         if e:
-            e.retirer(email)
+            e.retirer(hub, email)
             e.c.signe("/api/hub/users/sync", {"hub_user_id": hub, "deleted": True})
     print("VERDICT :", "retrait sûr" if not e.echecs else f"ÉCHEC {e.echecs}")
     return 0 if not e.echecs else 1

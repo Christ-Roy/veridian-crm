@@ -220,7 +220,7 @@ class Epreuve:
         self.controle("avant : webhook reçu et signé (témoin positif)", all(ok for _, ok in self.recus()), f"{self.recus()}")
         time.sleep(a.attente)
         hub0, mail0 = self.membre()
-        self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail0})
+        self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub0, "email": mail0})
         self.controle("avant : un membre retiré par le Hub émet son webhook (témoin positif)",
                       self.attendre_recu(0, a.attente, "workspaceMember.deleted"), str(self.recus("workspaceMember.deleted")))
         hub1, mail1 = self.membre()
@@ -263,7 +263,7 @@ class Epreuve:
             vu = page.inner_text("body")
             self.controle("écran : suspendu, sans facturation", "Vos données sont conservées" in vu and "illing" not in vu,
                           f"{time.time() - t:.1f} s au rechargement")
-        self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail1})
+        self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub1, "email": mail1})
         time.sleep(a.attente)
         self.controle("pendant : aucun webhook, ni création ni membre retiré",
                       len(self.recus()) == recus_avant and len(self.recus("workspaceMember.deleted")) == partis_avant,

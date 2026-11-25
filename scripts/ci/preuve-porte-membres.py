@@ -203,7 +203,7 @@ class Epreuve:
             except ta.Echec as e:
                 self.juger("le membre ajouté par le Hub entre", False, str(e))
         finally:
-            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": adr})
+            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": adr})
             self.c.signe("/api/hub/users/sync", {"hub_user_id": hub, "deleted": True})
         n = self.compte()
         self.juger("retiré par le Hub : accès et fiche reviennent", (n["acces"], n["fiches"]) == (avant["acces"], avant["fiches"]), str(n))

@@ -141,14 +141,14 @@ class Epreuve:
             self.attendu("le propriétaire peut céder, un autre Admin reste", self.pousser("member", self.proprio_hub), 200, applied=True)
             self.attendu("le propriétaire redevient Admin", self.pousser("owner", self.proprio_hub), 200, applied=True, native_role="Admin")
 
-            _, texte, _ = self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            _, texte, _ = self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": mail})
             r = json.loads(texte)
             self.controle("retrait : clés API comptées", r.get("active_api_keys", 0) >= 1 and r.get("api_keys_url", "").endswith("/settings/developers"), texte[:160])
             self.attendu("parti : pas membre", self.pousser("admin", hub), 200, applied=False, reason="not_member")
             self.c.signe(f"/api/veridian/workspaces/{wid}/attach-member", {"hub_user_id": hub, "hub_user_email": mail, "role": "member"})
             self.controle("revenu : rôle par défaut, rien de gardé", self.relu(mail).get(self.tenant) == (None, False), str(self.relu(mail)))
         finally:
-            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"email": mail})
+            self.c.signe(f"/api/tenants/{self.tenant}/remove-member", {"hub_user_id": hub, "email": mail})
             self.c.signe("/api/hub/users/sync", {"hub_user_id": hub, "deleted": True})
 
 

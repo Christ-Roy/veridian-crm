@@ -55,6 +55,7 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 |---|---|---|
 | `POST /api/sso/issue-magic-link`, `GET /auth/token?t=` | rebond ; `hub_user_id` d'abord, email pour rattacher un compte sans lien | §6bis.8 |
 | `POST /api/tenants/provision`, `DELETE /api/tenants/:id` | crée utilisateur et workspace ; supprime le workspace et ses données (signature `${ts}.`) | §5.1, §5 |
+| toute route signée qui vise une personne | `hub_user_id` seul (400 `invalid_payload` sinon) ; l'adresse n'est qu'informative : jamais un compte choisi par elle, un compte sans lien ne se relie que si `email_proven` ; `remove-member` d'un inconnu : `removed: false` ; `users/sync` vers une adresse prise : 409 `email_conflict`, rien d'écrit ; propriétaire noté `ownerHubUserId` (409 `owner_mismatch`), anciens `ownerEmail` convertis UNE fois au démarrage ; `by-email` lit `hub_user_id` d'abord | §5.19.7 |
 | `POST /api/tenants/:id/sync-member`, `POST /api/veridian/workspaces/:id/attach-member` | ajoute un membre | §5.18.3, §5.22.2 |
 | `POST /api/tenants/:id/remove-member` | retire un membre, données conservées : appartenance et fiche `workspaceMember` en suppression douce (une fiche seule ferme l'espace à tous), rejoué il répare, `attach-member` restaure la fiche (VER-203) | §5.19.2, §5.20 |
 | `POST /api/hub/users/sync`, `GET /api/hub/users` | copie nom, email et suppression ; liste pour l'audit | §3.8 |
