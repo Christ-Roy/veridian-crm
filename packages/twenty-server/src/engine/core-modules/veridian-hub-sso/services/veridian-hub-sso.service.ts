@@ -214,6 +214,8 @@ export class VeridianHubSsoService {
       this.twentyConfigService.get('SERVER_URL'),
     );
 
+    const requestedSubdomain = ownNext?.subdomain ?? null;
+
     // CONTRAT-HUB §5.21 : 423 seulement si l'espace demandé est suspendu, ou si tous les espaces du membre le sont.
     // Un membre qui a un espace actif entre toujours, dans celui-là.
     const memberships: { subdomain: string; activationStatus: string }[] =
@@ -224,9 +226,8 @@ export class VeridianHubSsoService {
           WHERE uw."userId" = $1 AND uw."deletedAt" IS NULL AND w."deletedAt" IS NULL`,
         [user.id],
       );
-    if (
-      isMagicLinkRefusedForSuspension(memberships, ownNext?.subdomain ?? null)
-    ) {
+
+    if (isMagicLinkRefusedForSuspension(memberships, requestedSubdomain)) {
       return WORKSPACE_SUSPENDED_LINK;
     }
 
@@ -245,7 +246,7 @@ export class VeridianHubSsoService {
                  MAX(s."lastActiveAt") DESC NULLS LAST,
                  uw."createdAt" DESC
         LIMIT 1`,
-      [user.id, WorkspaceActivationStatus.ACTIVE, ownNext?.subdomain ?? null],
+      [user.id, WorkspaceActivationStatus.ACTIVE, requestedSubdomain],
     );
 
     return lastActiveMembership

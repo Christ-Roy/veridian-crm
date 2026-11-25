@@ -49,6 +49,7 @@ saboter "4. requête non navigation acceptée" "$C" "fetchMode !== 'navigate'" "
 saboter "4. route ouverte au POST" "$C" "@Get('welcome')" "@Post('welcome')"
 saboter "5. origine non contrôlée" "packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util.ts" "if (!isSameHost && !isSubdomain) {" "if (false as boolean) {"
 saboter "5. espace demandé ignoré" "$S" 'ownNext?.subdomain ?? null' 'null'
+saboter "5. espace demandé suspendu ouvert" "$S" "if (isMagicLinkRefusedForSuspension(memberships, requestedSubdomain)) {" "if (false as boolean) {"
 saboter "6. revoke_sessions sans effet" "$S" 'if (revokeSessions === true) {' 'if (false as boolean) {'
 saboter "retrait : fiche laissée" "$S" "this.updateMemberRecord(workspace, userId, 'softDelete');" 'undefined;'
 saboter "retrait : appartenance laissée" "$S" 'if (userWorkspaceId) {' 'if (false as boolean) {'
