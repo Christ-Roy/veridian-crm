@@ -150,6 +150,7 @@ const welcome = async ({
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
 
   await controller.welcome(

@@ -16,6 +16,8 @@ import { type CookieOptions, type Request, type Response } from 'express';
 
 import { ThrottlerException } from 'src/engine/core-modules/throttler/throttler.exception';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { VeridianGrantService } from 'src/engine/core-modules/veridian-delegation/services/veridian-grant.service';
+import { parseHubGrants } from 'src/engine/core-modules/veridian-delegation/utils/parse-hub-grants.util';
 import { VeridianHubOrganisationService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-organisation.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import {
@@ -89,6 +91,7 @@ export class VeridianHubSsoController {
     private readonly veridianHubRoleService: VeridianHubRoleService,
     private readonly veridianHubOrganisationService: VeridianHubOrganisationService,
     private readonly veridianHubSuspensionService: VeridianHubSuspensionService,
+    private readonly veridianGrantService: VeridianGrantService,
   ) {}
 
   // Returns false once it has answered: the caller stops there.
@@ -169,6 +172,11 @@ export class VeridianHubSsoController {
           hint: 'no workspace for this hub_user_id',
         });
       }
+
+      await this.veridianGrantService.storeAtSignIn(
+        hubUserId,
+        parseHubGrants(request.body?.delegations),
+      );
 
       return response.status(200).json({ magic_link_url: magicLinkUrl });
     } catch (error) {

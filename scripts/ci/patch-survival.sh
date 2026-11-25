@@ -27,6 +27,8 @@ exige "$SERVEUR/engine/core-modules/veridian/veridian.module.ts" "    VeridianHu
 exige "$SERVEUR/engine/core-modules/veridian/veridian.module.ts" "    VeridianHubMcpModule,"
 exige "$SERVEUR/engine/core-modules/veridian/veridian.module.ts" "    VeridianPgModule,"
 exige "$SERVEUR/engine/core-modules/veridian/veridian.module.ts" "    VeridianIaModule,"
+exige "$SERVEUR/engine/core-modules/veridian/veridian.module.ts" "    VeridianDelegationModule,"
+exige "$SERVEUR/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller.ts" "veridianGrantService.storeAtSignIn("
 exige packages/twenty-shared/src/types/SettingsPath.ts "VeridianIa = 'connect-ai'"
 exige packages/twenty-front/src/modules/app/components/SettingsRoutes.tsx "path={SettingsPath.VeridianIa}"
 exige packages/twenty-front/src/modules/settings/hooks/useSettingsNavigationItems.tsx "path: SettingsPath.VeridianIa"

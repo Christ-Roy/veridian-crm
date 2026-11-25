@@ -17,6 +17,7 @@ import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user
 import { UserWorkspaceModule } from 'src/engine/core-modules/user-workspace/user-workspace.module';
 import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { UserModule } from 'src/engine/core-modules/user/user.module';
+import { VeridianDelegationModule } from 'src/engine/core-modules/veridian-delegation/veridian-delegation.module';
 import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller';
 import { ClosedWhenSuspendedGuard } from 'src/engine/core-modules/veridian-hub-sso/guards/closed-when-suspended.guard';
 import { HubOnlyIdentityGuard } from 'src/engine/core-modules/veridian-hub-sso/guards/hub-only-identity.guard';
@@ -58,6 +59,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
     CoreEntityCacheModule,
     WorkspaceCacheModule,
     SubscriptionsModule,
+    VeridianDelegationModule,
   ],
   controllers: [VeridianHubSsoController],
   providers: [
