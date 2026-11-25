@@ -758,11 +758,23 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
     userId: string,
     fields: Partial<Pick<WorkspaceMemberWorkspaceEntity, 'name' | 'userEmail'>>,
   ) {
+    // The record of someone who left follows too: natively it still holds its email against the next comer.
     const memberships = await this.userWorkspaceRepository.find({
       where: { userId },
+      withDeleted: true,
     });
 
-    for (const { workspaceId } of memberships) {
+    for (const workspaceId of new Set(
+      memberships.map((membership) => membership.workspaceId),
+    )) {
+      const workspace = await this.workspaceRepository.findOne({
+        where: { id: workspaceId },
+      });
+
+      if (!workspace || !isWorkspaceProvisioned(workspace)) {
+        continue;
+      }
+
       await this.workspaceOrmManager.executeInWorkspaceContext(async () => {
         const repository =
           this.workspaceOrmManager.getRepositoryWithoutPermissionChecks<WorkspaceMemberWorkspaceEntity>(

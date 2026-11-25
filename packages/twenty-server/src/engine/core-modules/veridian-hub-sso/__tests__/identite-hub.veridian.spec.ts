@@ -93,6 +93,7 @@ const ANCIENNE = 'jean@ancienne.fr';
 const monter = ({
   proprietaire = JEAN as string | null | undefined,
   sansLien = false,
+  espacesQuittes = false,
 } = {}) => {
   const comptes = [
     { id: 'jean', email: 'jean@nouvelle.fr', disabled: false },
@@ -132,15 +133,39 @@ const monter = ({
       findOne: jest.fn(async ({ where }: { where: { userId: string } }) => ({
         id: `uw-${where.userId}`,
       })),
-      find: jest.fn(async ({ where }: { where: { userId: string } }) =>
-        [{ workspaceId: `ws-${where.userId}`, deletedAt: null }],
+      // Parti d'un espace (deux fois), présent dans un autre.
+      find: jest.fn(
+        async ({
+          where,
+          withDeleted,
+        }: {
+          where: { userId: string };
+          withDeleted?: boolean;
+        }) => [
+          { workspaceId: `ws-${where.userId}`, deletedAt: null },
+          ...(withDeleted && espacesQuittes
+            ? [
+                { workspaceId: 'quitte', deletedAt: new Date() },
+                { workspaceId: 'quitte', deletedAt: new Date() },
+                { workspaceId: 'disparu', deletedAt: new Date() },
+                { workspaceId: 'sans-schema', deletedAt: new Date() },
+              ]
+            : []),
+        ],
       ),
     },
     {
-      findOne: jest.fn(async () => ({
-        id: 'ws',
-        activationStatus: WorkspaceActivationStatus.ACTIVE,
-      })),
+      findOne: jest.fn(async ({ where }: { where: { id: string } }) =>
+        where.id === 'disparu'
+          ? null
+          : {
+              id: where.id,
+              activationStatus:
+                where.id === 'sans-schema'
+                  ? WorkspaceActivationStatus.PENDING_CREATION
+                  : WorkspaceActivationStatus.ACTIVE,
+            },
+      ),
     },
     {
       query: conversion,
@@ -336,6 +361,16 @@ describe('identité par hub_user_id (CONTRAT-HUB §5.19.7)', () => {
     ).toBe('email_conflict');
     expect(m.maj).not.toHaveBeenCalled();
     expect(m.fil).toEqual([]);
+  });
+
+  it('la fiche d un espace quitté suit l adresse aussi, une fois, les espaces morts sont sautés', async () => {
+    const m = monter({ espacesQuittes: true });
+
+    await m.service.syncUser({ hubUserId: JEAN, email: 'libre@x.fr' });
+    expect(m.fil).toEqual([
+      'fiche jean {"userEmail":"libre@x.fr"}',
+      'fiche jean {"userEmail":"libre@x.fr"}',
+    ]);
   });
 
   it('adresse prise entre la lecture et l écriture : même refus', async () => {

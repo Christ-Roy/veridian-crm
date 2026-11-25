@@ -54,6 +54,17 @@ saboter "adresse prise en route : 500" "$S" "error?.code === POSTGRES_UNIQUE_VIO
 saboter "panne maquillée en conflit" "$S" "error?.code === POSTGRES_UNIQUE_VIOLATION" "true"
 saboter "fiche laissée à l'ancienne adresse" "$S" "await this.writeMemberRecords(userId, { userEmail: email });" ""
 saboter "fiche restaurée à l'ancienne adresse" "$S" "await repository.update({ userId }, { userEmail: email });" ""
+saboter "fiche d'un parti laissée à l'ancienne adresse" "$S" "      where: { userId },
+      withDeleted: true,
+    });
+
+    for" "      where: { userId },
+    });
+
+    for"
+saboter "espace mort écrit" "$S" "      if (!workspace || !isWorkspaceProvisioned(workspace)) {
+        continue;" "      if (false as boolean) {
+        continue;"
 saboter "conflit après les sessions" "$S" "    if (
       email &&
       email.toLowerCase() !== user.email &&" "    if (revokeSessions) { await this.userSessionService.revokeAllSessionsForUser({ userId: user.id, reason: UserSessionRevokedReason.UserRevoked }); }
