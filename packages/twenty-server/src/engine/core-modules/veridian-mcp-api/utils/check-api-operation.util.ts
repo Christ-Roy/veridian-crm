@@ -143,6 +143,15 @@ const checkShape = (operation: OperationDefinitionNode): string | undefined => {
 };
 
 const CONNECTION_FIELDS = new Set(['edges', 'node', 'pageInfo']);
+const CONNECTION_LEAVES = new Set([
+  'totalCount',
+  'cursor',
+  'hasNextPage',
+  'hasPreviousPage',
+  'startCursor',
+  'endCursor',
+  '__typename',
+]);
 
 // Every relation followed must lead to a readable object: the root object is not the only one the answer shows.
 const checkSelection = (
@@ -154,6 +163,16 @@ const checkSelection = (
     const field = selection as FieldNode;
     const name = field.name.value;
 
+    const object = objects.get(objectUniversalIdentifier);
+
+    if (
+      !CONNECTION_FIELDS.has(name) &&
+      !CONNECTION_LEAVES.has(name) &&
+      (object?.hidden.has(name) || object?.only?.has(name) === false)
+    ) {
+      return `${name} is not readable here.`;
+    }
+
     if (!field.selectionSet) {
       continue;
     }
@@ -161,7 +180,7 @@ const checkSelection = (
     let next = objectUniversalIdentifier;
 
     if (!CONNECTION_FIELDS.has(name)) {
-      const target = objects.get(objectUniversalIdentifier)?.fields.get(name);
+      const target = object?.fields.get(name);
 
       if (target === null) {
         continue;
@@ -255,6 +274,10 @@ export const checkApiOperation = ({
 
     if (!(kind === 'lire' ? object?.readable : object?.writable)) {
       return no(`The object behind ${name} is not allowed here.`);
+    }
+
+    if (object?.only && entry.method === 'groupBy') {
+      return no(`${name} is not allowed here.`);
     }
 
     const refusal =

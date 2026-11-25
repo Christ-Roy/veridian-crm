@@ -66,6 +66,12 @@ saboter "membres inscriptibles" "$O" "  'noteTarget',
 ]);"
 saboter "objets système des apps inscriptibles" "$O" ': flatObject.isSystem === false' ': true'
 saboter "objets des apps fermés" "$O" ': flatObject.isSystem === false' ': false'
+saboter "champ caché lisible" "$C" 'object?.hidden.has(name) ||' ''
+saboter "membre entier lisible" "$C" '|| object?.only?.has(name) === false' ''
+saboter "membres regroupables" "$C" "object?.only && entry.method === 'groupBy'" 'false'
+saboter "liens de fichiers lisibles" "$O" 'field.type === FieldMetadataType.FILES ||' ''
+saboter "adresses de fichiers lisibles" "$O" "'fullPath', 'avatarUrl'" "'fullPath'"
+saboter "membre sans borne" "$O" '? READABLE_FIELDS[flatObject.nameSingular]' '? undefined'
 saboter "hors du contexte du membre" "$R" 'withWorkspaceAuthContext(authContext, () =>' 'withWorkspaceAuthContext({ ...authContext, type: "system" } as never, () =>'
 saboter "introspection ouverte" "$R" '          false,
           true,' '          true,

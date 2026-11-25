@@ -50,6 +50,7 @@ const CARTE = {
   restorePeople: entree('restoreMany'),
   mergePeople: entree('mergeMany'),
   workspaceMembers: entree('findMany', 'membre'),
+  membresGroupBy: entree('groupBy', 'membre'),
   updateWorkspaceMember: entree('updateOne', 'membre'),
   deleteWorkspaceMember: entree('deleteOne', 'membre'),
   workflows: entree('findMany', 'workflow'),
@@ -59,16 +60,30 @@ const apiObjet = (
   readable: boolean,
   writable: boolean,
   fields: [string, string | null][] = [],
-) => ({ readable, writable, fields: new Map(fields) });
+  hidden: string[] = [],
+  only?: string[],
+) => ({
+  readable,
+  writable,
+  fields: new Map(fields),
+  hidden: new Set(hidden),
+  only: only && new Set(only),
+});
 const OBJETS = new Map([
   [
     'personne',
-    apiObjet(true, true, [
-      ['name', null],
-      ['company', 'societe'],
-      ['messageParticipants', 'message'],
-      ['owner', 'membre'],
-    ]),
+    apiObjet(
+      true,
+      true,
+      [
+        ['name', null],
+        ['company', 'societe'],
+        ['messageParticipants', 'message'],
+        ['owner', 'membre'],
+        ['photo', null],
+      ],
+      ['photo', 'lien'],
+    ),
   ],
   [
     'societe',
@@ -78,7 +93,20 @@ const OBJETS = new Map([
       ['messages', 'message'],
     ]),
   ],
-  ['membre', apiObjet(true, false, [['comptes', 'compte']])],
+  [
+    'membre',
+    apiObjet(
+      true,
+      false,
+      [
+        ['comptes', 'compte'],
+        ['name', null],
+        ['taches', 'personne'],
+      ],
+      [],
+      ['id', 'name', 'userEmail'],
+    ),
+  ],
   ['message', apiObjet(false, false)],
 ]);
 
@@ -101,7 +129,10 @@ describe('tri des opérations : la méthode réelle décide, jamais le nom', () 
     ['lire', '{ people(first: 5) { edges { node { id } } } }'],
     ['lire', '{ person(filter: {id: {eq: "a"}}) { id company { name } } }'],
     ['lire', '{ a: peopleGroupBy { x } b: personDuplicates { x } }'],
-    ['lire', '{ workspaceMembers { edges { node { id } } } }'],
+    [
+      'lire',
+      '{ workspaceMembers { totalCount pageInfo { endCursor } edges { cursor node { id userEmail name { firstName } __typename } } } }',
+    ],
     [
       'lire',
       '{ people { edges { node { name { firstName } company { people { edges { node { id owner { id } } } } } } } } }',
@@ -156,6 +187,21 @@ describe('tri des opérations : la méthode réelle décide, jamais le nom', () 
       'une mutation derrière la requête',
       'query a { people { id } } mutation b { deletePerson(id: "a") { id } }',
     ],
+    ['un fichier', '{ people { photo { url } } }'],
+    ['un lien de fichier sous un alias', '{ people { x: lien } }'],
+    [
+      'les réglages d’un membre',
+      '{ workspaceMembers { edges { node { locale } } } }',
+    ],
+    [
+      'les réglages d’un membre par une fiche',
+      '{ people { owner { x: timeZone } } }',
+    ],
+    [
+      'les fiches d’un membre par lui',
+      '{ workspaceMembers { taches { id } } }',
+    ],
+    ['les membres regroupés', '{ membresGroupBy { totalCount } }'],
     ['les mails par relation', '{ people { messageParticipants { id } } }'],
     [
       'les mails par relation profonde',
@@ -360,6 +406,20 @@ const monter = (resultat: unknown = { data: { people: [] } }) => {
                   name: 'name',
                   objectMetadataUniversalIdentifier: 'u-person',
                 },
+                d: {
+                  name: 'piece',
+                  type: 'FILES',
+                  objectMetadataUniversalIdentifier: 'u-person',
+                },
+                f: {
+                  name: 'name',
+                  objectMetadataUniversalIdentifier: 'u-workspaceMember',
+                },
+                e: {
+                  name: 'avatarUrl',
+                  type: 'TEXT',
+                  objectMetadataUniversalIdentifier: 'u-person',
+                },
               },
             },
           };
@@ -420,6 +480,10 @@ describe('exécution : sous l’identité du membre, par le service natif', () =
     ['lire', '{ messages { id } }'],
     ['lire', '{ nouveaux { id } }'],
     ['lire', '{ people { messages { id } } }'],
+    ['lire', '{ people { piece { url } } }'],
+    ['lire', '{ people { avatarUrl } }'],
+    ['lire', '{ workspaceMembers { locale } }'],
+    ['ecrire', 'mutation { createPerson(data: {}) { piece } }'],
     ['ecrire', 'mutation { createNouveau(data: {}) { id } }'],
     ['ecrire', 'mutation { updateCache(id: "a", data: {}) { id } }'],
     ['supprimer', 'mutation { deleteWorkspaceMember(id: "a") { id } }'],
@@ -433,7 +497,7 @@ describe('exécution : sous l’identité du membre, par le service natif', () =
   });
 
   it.each<[ApiToolKind, string]>([
-    ['lire', '{ workspaceMembers { id } }'],
+    ['lire', '{ workspaceMembers { id name { firstName } userEmail } }'],
     ['lire', '{ people { name { firstName } appels { id } } }'],
     ['ecrire', 'mutation { updateAppel(id: "a", data: {}) { id } }'],
   ])(
