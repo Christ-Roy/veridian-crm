@@ -18,8 +18,8 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 - **Staging d'abord, puis prod.** Staging : `crm.staging.veridian.site`, privé au tailnet. Prod depuis le 08/11/2026 : `crm.app.veridian.site` sur `ovh-prod`, job `crm` sur la grappe `pg-saas` depuis le 09/11/2026, branchée au Hub de prod. `main` = `staging` à chaque mise en prod.
 
 **Décisions (07/11/2026) :** pas de migration, archive `~/veridian/archives/crm-decommission-2026-09-23/` intacte, base neuve ;
-marque « Veridian CRM » sur les seules chaînes visibles, au chargement du catalogue (pas de renommage interne, `.po` intacts), logo du Hub,
-mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`.
+marque « Veridian CRM » sur les chaînes visibles (calque au build, `.po` intacts), logo du Hub,
+mention « Basé sur Twenty, AGPL ».
 
 **Décisions (08/11/2026) :** le plan vient du Hub par `POST /api/tenants/update-plan` (CONTRAT-BILLING v2 §3), stocké
 sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` ; rien n'est limité ni mis en lecture seule
@@ -28,6 +28,7 @@ Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA, MC
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
 `metadata.crm` pour reconcile, nom du Hub poussé).
+**Dépôt public** : ni adresse, ni liste de failles (rapports : `~/.claude/releves/crm-*.md`).
 **Impersonate natif (25/11) :** refusé entre espaces (2FA locale fermée) et muet (ClickHouse absent) : passer par `hub open`.
 **Accès agent, espaces jetables, plugins :** skill `twenty-cli` (`twenty-admin`), clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
@@ -42,7 +43,7 @@ code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LO
 | API | REST `/rest/*`, GraphQL `/graphql` et `/metadata`, sur l'hôte du workspace ou le domaine nu avec une clé | AGPL | |
 | MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous ; la porte MCP du Hub y entre avec son JWT (`veridian-hub-mcp/`, CONTRAT-MCP) |
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
-| CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` ; ne crée pas de clé | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
+| CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
 | SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front ; publiées au registre privé puis installées par espace | MIT | plugins Veridian : dépôt privé `Veridian-site/veridian-crm-apps` (Dossiers, Google Meet, Téléphonie, `twenty-admin app:install`) ; ici seule l'app Android `packages/twenty-apps/veridian/telephonie/android` |
 | IA | chat, agents, compétences, actions IA des workflows, derrière le drapeau `AI` ; fournisseurs d'instance (`AI_PROVIDERS`) | AGPL | seul fournisseur « veridian » (Hub), identité signée par appel (VER-203) |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
@@ -67,8 +68,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 ## 3. Travailler dans ce dépôt
 
 - Trunk sur `staging`, pas de PR.
-- Tickets : `todo/AAAA-MM-JJ-<sujet>.md`.
-- `docs/spec/` : notes de mai 2026 (base légale : `AUDIT-LIMITE-EE-TWENTY.md`).
+- `docs/spec/` : base légale `AUDIT-LIMITE-EE-TWENTY.md`.
 - Base de données : pas de table Veridian, les liens Hub vivent dans `core.keyValuePair`.
 
 ## 4. Tests : ce qui prouve
@@ -87,6 +87,8 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables) | document du Hub (VER-252), suspension dans tous les processus (VER-254, réponse en 2 s), personne = `hub_user_id` | sabotages CI |
 | `scripts/ci/preuve-redemarrage-redis.py` (jetable) | Redis redémarré sans perte | `--sabotage` (25/11) |
 | `scripts/ci/admins-instance.py <env>`, `preuve-admins.py` (staging) | administrateurs d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS`, jamais l'adresse | 25/11, codes 1 et 2 |
+| `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit, ne fabrique ni clé, ni jeton, ni code OAuth | 7d4af31, code 1 (26/11) |
+| `scripts/ci/adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas posés, code 1 |
 | `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
@@ -94,7 +96,7 @@ Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-no
 
 Avec `lourd`, `dist` est effacé à chaque copie : `nx run twenty-shared:build` avant toute spec.
 
-Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'`, `x-twenty-session-cookie: 1`.
+Session : `POST /metadata`, `credentials: 'include'`, `x-twenty-session-cookie: 1`.
 
 ## 5. Construire et déployer
 
@@ -106,8 +108,7 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
   push sur `staging`, puis `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl`. Le garde anti-recul refuse
   tant que le commit n'est pas sur la branche distante.
-- **Piège :** `nomad-v` attend une confirmation et garde le verrou global pendant ce temps. Toujours `echo oui |` et un
-  `timeout`.
+- **Piège :** `nomad-v` attend une confirmation en gardant le verrou global : `echo oui |` et `timeout`.
 - **Job prod `crm` : seule source vivante `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv` ; `nomad-veridian` n'en a qu'une
   archive). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
 - **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe) ; Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis) en canari
