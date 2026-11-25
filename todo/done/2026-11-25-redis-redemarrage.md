@@ -11,3 +11,5 @@ Retour arrière, écrit avant :
 Staging : REDIS_URL peut revenir à `redis://127.0.0.1:6379` (l'ancienne tâche tourne encore dans `stack`).
 
 Condition de la parente : coupure de 10 s ou moins et 0 perte en staging, sinon pas de prod.
+
+Fait le 25/11/2026 : staging deux fois (coupure vue 7,7 s et 9,0 s, 0 perte), prod 10:44:33Z (Redis muet 1,4 s, 0 requête ratée, 0 perte).
