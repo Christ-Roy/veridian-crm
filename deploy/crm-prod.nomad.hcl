@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-3345605" # 25/11/2026 : administrateurs d'instance par identité
+  default = "staging-db0b220" # 25/11/2026 : retrait immédiat, session ouverte comprise
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
