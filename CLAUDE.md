@@ -28,6 +28,7 @@ Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA, MC
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
 `metadata.crm` pour reconcile, nom du Hub poussé).
+**Impersonate natif (25/11) :** refusé entre espaces (2FA locale fermée) et muet (ClickHouse absent) : passer par `hub open`.
 **Accès agent, espaces jetables, plugins :** skill `twenty-cli` (`twenty-admin`), clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
 code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173, jetable refusé), réglages en base.
@@ -50,8 +51,7 @@ code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LO
 | Workspaces | multi-workspace par sous-domaine, provisioning par nos routes Hub | AGPL | |
 
 **Plans :** référence `veridian-hub/docs/PRICING-VERIDIAN.md` : générosité maximale, aucune limite, aucun écran de
-facturation. Plan et source dans `core.keyValuePair` (lien tenant) ; `update-plan` n'accepte que l'enum canonique,
-le provisioning garde aussi les anciens noms.
+facturation.
 
 ## 2. Licence : ligne rouge
 
@@ -69,7 +69,6 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 - Trunk sur `staging`, pas de PR.
 - Tickets : `todo/AAAA-MM-JJ-<sujet>.md`.
 - `docs/spec/` : notes de mai 2026 (base légale : `AUDIT-LIMITE-EE-TWENTY.md`).
-- Paquets modifiés : `twenty-server`, `twenty-front`, `twenty-shared`.
 - Base de données : pas de table Veridian, les liens Hub vivent dans `core.keyValuePair`.
 
 ## 4. Tests : ce qui prouve

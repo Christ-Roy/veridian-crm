@@ -75,6 +75,11 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
   done
 
+  # 1 bis. Un auteur « .local » est une identité d'épreuve laissée dans .git/config.
+  if git log --format='%ae%n%ce' "$local_sha" --not --remotes="$remote" | grep -q '\.local$\|@local$'; then
+    fail "auteur d'épreuve dans les commits poussés : git config --local --remove-section user, puis git commit --amend --reset-author"
+  fi
+
   # 2. Secrets évidents dans le diff
   if git diff $range -- . ':(exclude)*.lock' 2>/dev/null \
     | grep -E "^\+" \
