@@ -38,11 +38,12 @@ export const VERIDIAN_MCP_READ_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   'get_workspace_settings',
   'list_api_keys',
   'get_record_sharing',
+  'api_lire',
   ...VERIDIAN_MCP_NATIVE_READ_ONLY_TOOL_NAMES,
 ]);
 
 export const VERIDIAN_MCP_DESTRUCTIVE_TOOL_NAMES: ReadonlySet<string> = new Set(
-  ['run_workflow'],
+  ['run_workflow', 'api_supprimer'],
 );
 
 const DESTRUCTIVE_TOOL_ANNOTATIONS: McpToolAnnotations = {

@@ -1,7 +1,7 @@
 # Outils MCP `api_lire`, `api_ecrire`, `api_supprimer`
 
 Demande de Robert relayée par le Hub (25/11/2026, « il faut sans doute du cli un peu partout […] une limitation du mcp »),
-découpage de la parente. À faire après Liaisons à la demande pour toutes les organisations (clic « Listed » de Robert).
+découpage de la parente. VER-253, codé le 25/11/2026 (`veridian-mcp-api/`).
 
 | Outil | Fait | Annotation |
 |---|---|---|
