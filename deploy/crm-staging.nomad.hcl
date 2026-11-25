@@ -19,12 +19,22 @@
 # Secrets (Nomad var nomad/jobs/crm-staging) : APP_SECRET, POSTGRES_PASSWORD,
 # HUB_API_SECRET. Volumes à créer une fois :
 #   sudo install -d -o 70 -g 70 /opt/veridian-staging/crm/db
-#   sudo install -d -o 999 -g 999 /opt/veridian-staging/crm/redis
+#   sudo install -d -o 999 -g 999 /opt/veridian-staging/crm/redis-groupe
 #   sudo install -d -o 1000 -g 1000 /opt/veridian-staging/crm/storage
 
 variable "image_tag" {
   type    = string
   default = "staging-3345605" # 24/11/2026 : jeton d'action à act borné, couples liaisons (VER-246)
+}
+
+variable "redis_hote" {
+  type    = string
+  default = "100.108.136.89" # adresse tailnet du bastion
+}
+
+variable "redis_port" {
+  type    = number
+  default = 16382
 }
 
 job "crm-staging" {
@@ -143,6 +153,7 @@ EOH
       }
     }
 
+    # Remplacé par le groupe `redis` (25/11/2026). Gardé à vide : retour arrière immédiat, aucune tâche supprimée.
     task "crm-redis" {
       driver = "docker"
       lifecycle {
@@ -192,7 +203,7 @@ EOH
         command      = "/bin/sh"
         args = [
           "-ec",
-          "for i in $(seq 1 120); do pg_isready -h 127.0.0.1 -p 5432 -U twenty && exit 0; sleep 1; done; exit 1",
+          "for i in $(seq 1 120); do pg_isready -h 127.0.0.1 -p 5432 -U twenty && nc -z -w 3 ${var.redis_hote} ${var.redis_port} && exit 0; sleep 1; done; exit 1",
         ]
       }
       resources {
@@ -270,7 +281,6 @@ AUTH_GOOGLE_ENABLED=false
 MESSAGING_PROVIDER_GMAIL_ENABLED=false
 CALENDAR_PROVIDER_GOOGLE_ENABLED=false
 EMAIL_DRIVER=logger
-REDIS_URL=redis://127.0.0.1:6379
 STORAGE_TYPE=local
 PGHOST=127.0.0.1
 PGUSER=twenty
@@ -280,6 +290,7 @@ APP_SECRET={{ .APP_SECRET }}
 HUB_API_SECRET={{ .HUB_API_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
+REDIS_URL=redis://:{{ sha256Hex (printf "crm-redis-%s" .POSTGRES_PASSWORD) }}@${var.redis_hote}:${var.redis_port}
 {{ end }}
 {{ with nomadVar "veridian/ia-identite" }}
 VERIDIAN_IA_IDENTITE_SECRET={{ .secret }}
@@ -345,7 +356,6 @@ MARKETPLACE_CATALOG_SYNC_CRON_ENABLED=false
 # Grâce avant destruction d'un espace supprimé : 104 - 14 = 90 jours, comme le Hub (25/11/2026).
 WORKSPACE_INACTIVE_DAYS_BEFORE_DELETION=104
 EMAIL_DRIVER=logger
-REDIS_URL=redis://127.0.0.1:6379
 STORAGE_TYPE=local
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
@@ -356,6 +366,7 @@ PGDATABASE=twenty
 APP_SECRET={{ .APP_SECRET }}
 PGPASSWORD={{ .POSTGRES_PASSWORD }}
 PG_DATABASE_URL=postgres://twenty:{{ .POSTGRES_PASSWORD }}@127.0.0.1:5432/twenty
+REDIS_URL=redis://:{{ sha256Hex (printf "crm-redis-%s" .POSTGRES_PASSWORD) }}@${var.redis_hote}:${var.redis_port}
 {{ end }}
 {{ with nomadVar "veridian/ia-identite" }}
 VERIDIAN_IA_IDENTITE_SECRET={{ .secret }}
@@ -367,6 +378,81 @@ EOH
         cpu        = 200
         memory     = 750
         memory_max = 1792
+      }
+    }
+  }
+
+  # Redis à la forme exacte de la prod (groupe à part, sans canari) : une répétition en staging mesure ce que la prod vivra.
+  group "redis" {
+    count = 1
+
+    constraint {
+      attribute = "${meta.provider}"
+      value     = "contabo"
+    }
+
+    reschedule {
+      attempts  = 0
+      unlimited = false
+    }
+
+    restart {
+      attempts = 10
+      interval = "10m"
+      delay    = "2s"
+      mode     = "delay"
+    }
+
+    network {
+      mode = "bridge"
+      port "redis" {
+        static       = var.redis_port
+        to           = 6379
+        host_network = "tailscale"
+      }
+    }
+
+    task "crm-redis" {
+      driver         = "docker"
+      shutdown_delay = "5s"
+      config {
+        security_opt = ["no-new-privileges:true"]
+        labels = {
+          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
+          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
+          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
+          "site.veridian.node"  = "${node.unique.name}"
+          "site.veridian.tier"  = "saas-staging"
+          "site.veridian.app"   = "crm"
+        }
+        image   = "redis:7-alpine"
+        ports   = ["redis"]
+        command = "redis-server"
+        args    = ["--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes", "--maxmemory-policy", "noeviction", "--loglevel", "warning"]
+        volumes = ["/opt/veridian-staging/crm/redis-groupe:/data"]
+      }
+      template {
+        destination = "secrets/redis.env"
+        perms       = "600"
+        env         = true
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/crm-staging" }}REDIS_PASSWORD={{ sha256Hex (printf "crm-redis-%s" .POSTGRES_PASSWORD) }}{{ end }}
+EOH
+      }
+      service {
+        name     = "crm-staging-redis"
+        provider = "nomad"
+        port     = "redis"
+        check {
+          type     = "tcp"
+          interval = "20s"
+          timeout  = "5s"
+        }
+      }
+      resources {
+        cpu        = 100
+        memory     = 64
+        memory_max = 256
       }
     }
   }
