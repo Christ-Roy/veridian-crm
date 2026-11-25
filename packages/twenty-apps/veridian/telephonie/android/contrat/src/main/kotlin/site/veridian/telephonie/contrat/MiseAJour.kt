@@ -22,6 +22,9 @@ object MiseAJour {
         companion object {
             /** Toute valeur inconnue suit le canal stable. */
             fun de(valeur: String?) = entries.firstOrNull { it.valeur == valeur } ?: STABLE
+
+            /** Pour une commande : une faute de frappe n'est jamais un canal. */
+            fun exact(valeur: String?) = entries.firstOrNull { it.valeur == valeur }
         }
     }
 

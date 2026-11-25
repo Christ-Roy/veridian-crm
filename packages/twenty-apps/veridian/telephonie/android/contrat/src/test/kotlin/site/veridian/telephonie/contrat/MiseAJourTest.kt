@@ -243,4 +243,11 @@ class MiseAJourTest {
     }
 
     private companion object { const val NOW = 1_800_000_000_000L }
+
+    @Test fun `la commande canal n'accepte que les deux canaux`() {
+        assertEquals(Canal.ESSAI, Canal.exact("essai")); assertEquals(Canal.STABLE, Canal.exact("stable"))
+        for (faute in listOf(null, "", "Essai", "essais", "beta", " stable")) assertNull("« $faute » n'est pas un canal", Canal.exact(faute))
+        // `de` reste tolérant : une valeur illisible dans les réglages suit le canal stable, jamais l'essai.
+        assertEquals(Canal.STABLE, Canal.de("essais")); assertEquals(Canal.STABLE, Canal.de(null))
+    }
 }

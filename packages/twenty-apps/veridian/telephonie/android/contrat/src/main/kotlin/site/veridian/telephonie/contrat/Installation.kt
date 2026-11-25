@@ -237,6 +237,14 @@ enum class Suite {
 object Adresse {
     const val DOMAINE_VERIDIAN = "crm.app.veridian.site"
 
+    /**
+     * Le téléphone parle-t-il à un autre CRM que la dernière fois ? `avant` : l'adresse notée à l'envoi précédent, null si
+     * elle ne l'a jamais été. Une version qui n'écrivait pas cette adresse (celle du 14/11/2026) est « jamais notée » : elle
+     * n'est pas un autre CRM, et rien ne doit être oublié ni remis en mode essai.
+     */
+    fun autreCrm(avant: String?, url: String): Boolean =
+        avant != null && !avant.trimEnd('/').equals(url.trimEnd('/'), ignoreCase = true)
+
     /** « monentreprise » → l'espace Veridian ; « monespace.twenty.com/… » → son origine https. */
     fun normaliser(saisie: String): String {
         val s = saisie.trim()

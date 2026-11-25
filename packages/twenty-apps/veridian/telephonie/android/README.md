@@ -246,6 +246,19 @@ une fois l'autorisation donnée, la version en attente s'installe seule, le jour
 clé du Keystore, autorisations. `MiseAJourTest` garde que le code ne renomme ni ne vide rien ; un changement de schéma ne fait
 qu'**ajouter** (`onDowngrade` garde une base plus récente). Android relance le service par `MY_PACKAGE_REPLACED`.
 
+**Poser l'essai sur un téléphone (Robert, 25/11/2026).** Écran d'accueil : version, code et canal suivi (« canal d'essai » ou « canal stable »).
+Par adb, `canal` seul dit le canal, `canal --es valeur essai|stable` le change (autre valeur refusée). Le geste en un coup :
+
+```bash
+outils/pilote.sh --serial <adresse adb> --apk telephonie-crm-<code>.apk   # 0 prouvé, 1 écart, 2 non abouti
+```
+
+Il vérifie version plus ancienne et même certificat, sha256 contre `manifeste.json` du canal d'essai, sauvegarde `etat.json`, `install -r`,
+canal essai, `REQUEST_INSTALL_PACKAGES allow`, puis compare mode, accès, schéma, clé, synchro et préparation du CRM après la mise à jour.
+`outils/epreuve_mise_a_jour.py` rejoue la mise à jour d'une version à l'autre sur émulateur contre `outils/faux_crm.py` (jamais un vrai
+téléphone ni un vrai CRM) : envois en panne gardés en file, aucun doublon, aucune perte, deux sabotages qui doivent échouer.
+`noterCrm` : une version qui n'a jamais noté l'adresse du CRM (celle du 14/11) n'est pas « sur un autre CRM » (`Adresse.autreCrm`).
+
 **Vie privée.** Une lecture publique, sans jeton, cookie ni paramètre ; agent fixe (celui d'Android nomme le modèle). GitHub voit
 une adresse IP, comme pour toute page.
 

@@ -85,13 +85,13 @@ class AccueilActivity : Activity() {
 
     private fun texteEtat(): String {
         val s = Synchro.de(this)
-        return "Version installée : ${MiseAJourApp.version(this)}\n" +
+        return "Version installée : ${MiseAJourApp.version(this)}, canal ${reglages.canalMaj.libelle}\n" +
             "Enregistrement des appels : ${Enregistreur.instance?.resume() ?: "non vérifié"}\n" +
             "Transcription : ${s.transcriptions.resume()}\n" +
             "Appareil : ${Build.MODEL} (enregistré comme ${reglages.appareil})\nEn file : ${s.base.taille()} · fichiers : ${s.base.taille("televersements")}"
     }
 
-    private fun texteMaj() = "Version ${MiseAJourApp.version(this)} : ${Synchro.de(this).misesAJour.etat}"
+    private fun texteMaj() = "Version ${MiseAJourApp.version(this)}, canal ${reglages.canalMaj.libelle} : ${Synchro.de(this).misesAJour.etat}"
 
     private fun texteJournal(): String {
         val delais = File(filesDir, "delais.tsv").takeIf { it.exists() }?.readLines()?.takeLast(5)?.joinToString("\n") ?: "aucun"

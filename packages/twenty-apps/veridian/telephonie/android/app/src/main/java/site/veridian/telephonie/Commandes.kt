@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import org.json.JSONObject
+import site.veridian.telephonie.contrat.MiseAJour
 import java.io.File
 
 /**
@@ -11,6 +12,7 @@ import java.io.File
  *
  *   am broadcast -a site.veridian.telephonie.COMMANDE -n site.veridian.telephonie/.Commandes --es c <commande> [...]
  *
+ *  - `canal` [--es valeur essai|stable] : canal de mise à jour suivi (sans valeur : le dit) ; une autre valeur est refusée ;
  *  - `demarrer` : démarre le service (il n'est pas exporté) ;
  *  - `configurer` : importe acces.json et reglages.json déposés dans /sdcard/Android/data/<paquet>/files/ (puis effacés) ;
  *  - `mode` --es valeur miroir|ecriture : passer en écriture oublie les empreintes (tout est replanifié une fois) ;
@@ -49,6 +51,16 @@ class Commandes : BroadcastReceiver() {
             ServiceSynchro.demarrer(ctx, origine = "mode")
             "mode $avant → $v"
         }
+        "canal" -> {
+            val voulu = i.getStringExtra("valeur")
+            if (voulu == null) "canal ${s.reglages.canalMaj.valeur}" else {
+                val canal = MiseAJour.Canal.exact(voulu) ?: error("essai ou stable")
+                val avant = s.reglages.canalMaj
+                s.reglages.poserTexte("canal_maj", canal.valeur)
+                s.misesAJour.evenement("canal changé")
+                "canal ${avant.valeur} → ${canal.valeur}"
+            }
+        }
         "demarrer" -> { ServiceSynchro.demarrer(ctx, origine = "commande"); "service démarré" }
         "relire" -> { s.signalerTout(complet = i.getBooleanExtra("complet", false)); "relecture demandée" }
         "etat" -> etat(ctx, s).also { if (i.getBooleanExtra("synchro", false)) s.base.exporterSynchro(File(s.reglages.dossierExterne, "synchro.tsv")) }
@@ -65,7 +77,7 @@ class Commandes : BroadcastReceiver() {
             ctx.startService(Intent(ctx, ServiceTranscription::class.java).setAction(ServiceTranscription.ESSAI).putExtra("fichier", f.path))
             "essai lancé sur ${f.name}"
         }
-        else -> "commandes : configurer, mode, relire, etat, retranscrire, rattraper, essai-transcription"
+        else -> "commandes : configurer, mode, canal, relire, etat, retranscrire, rattraper, essai-transcription"
     }
 
     private fun etat(ctx: Context, s: Synchro): String {

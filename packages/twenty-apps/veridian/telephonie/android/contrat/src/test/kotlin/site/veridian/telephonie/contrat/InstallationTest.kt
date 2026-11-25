@@ -255,4 +255,14 @@ class InstallationTest {
         assertEquals("http://localhost:3000", Adresse.normaliser("http://localhost:3000/"))
         assertEquals("http://10.0.2.2:3000", Adresse.normaliser("http://10.0.2.2:3000"))
     }
+
+    @Test fun `une version qui n'a jamais noté l'adresse du CRM n'est pas sur un autre CRM`() {
+        val url = "https://veridian-4.crm.app.veridian.site"
+        assertFalse("14/11 : rien n'était noté, rien ne s'oublie", Adresse.autreCrm(null, url))
+        assertFalse(Adresse.autreCrm(url, url))
+        assertFalse(Adresse.autreCrm("$url/", url))
+        assertFalse(Adresse.autreCrm(url.uppercase(), url))
+        assertTrue(Adresse.autreCrm("https://essai.crm.app.veridian.site", url))
+        assertTrue(Adresse.autreCrm("http://10.0.2.2:3000", url))
+    }
 }

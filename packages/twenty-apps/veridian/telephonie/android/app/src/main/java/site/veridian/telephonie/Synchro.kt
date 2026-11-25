@@ -7,6 +7,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import site.veridian.telephonie.contrat.Adresse
 import site.veridian.telephonie.contrat.Contrat
 import site.veridian.telephonie.contrat.Enregistrement
 import site.veridian.telephonie.contrat.Installation
@@ -65,14 +66,15 @@ class Synchro private constructor(val ctx: Context) {
         val url = reglages.url ?: return@synchronized
         val avant = base.lire("crm.url")
         if (avant == url) return@synchronized
-        if (avant != null) {
+        val autre = Adresse.autreCrm(avant, url)
+        if (autre) {
             Journal.log("CRM : adresse changée, empreintes et personnes de l'ancien oubliées, retour en mode essai")
             reglages.mode = "miroir"
             base.oublierAncienCrm()
             index = emptyMap(); indexLe = 0
         }
         base.ecrire("crm.url", url)
-        if (avant != null) signalerTout(complet = true)
+        if (autre) signalerTout(complet = true)
     }
     private val verrouCrm = Any()
 
