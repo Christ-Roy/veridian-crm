@@ -70,7 +70,8 @@ saboter "panne qui bloque la connexion" "$POIGNEE" "    } catch (error) {
       this.logger.warn("
 saboter "poignée périmée rangée" "$LECTURE" "new Date(delegation?.expire_le).getTime() > now" "true"
 saboter "organisation mal formée rangée" "$LECTURE" "isUuid(delegation?.hub_tenant_id) &&" "delegation &&"
-saboter "toute app peut agir" "$ENTREE" "application.universalIdentifier !== DELEGATING_APP" "false"
+saboter "toute app peut agir" "$ENTREE" "findTargetsOfApp(application.universalIdentifier).length === 0" "false"
+saboter "une app atteint les cibles d'une autre" "$ENTREE" "isDelegatedTarget(target) && actor.targets.includes(target)" "isDelegatedTarget(target)"
 saboter "app sans personne" "$ENTREE" "      !user ||
 " "      false ||
 "
@@ -78,7 +79,7 @@ saboter "un agent peut agir" "$ENTREE" "      agentId !== undefined ||
 " ""
 saboter "session d'emprunt acceptée" "$ENTREE" "      impersonationContext !== undefined ||
 " ""
-saboter "app locale au même identifiant acceptée" "$ENTREE" "return isOurs ?" "return true ?"
+saboter "app locale au même identifiant acceptée" "$ENTREE" "return isOurs" "return (true as boolean)"
 saboter "écriture sans clé de geste" "$ENTREE" "        idempotencyKey === undefined)" "        false)"
 saboter "corps sans limite" "$ENTREE" "JSON.stringify(payload).length > PAYLOAD_MAX_BYTES ||" ""
 saboter "action hors registre" "$REGISTRE" "Object.keys(actions).includes(action) ? actions[action] : null" "({ isIdempotent: false })"

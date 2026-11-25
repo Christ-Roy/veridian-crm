@@ -12,8 +12,9 @@ import {
   isLogicFunctionAllowedByVeridian,
 } from 'src/engine/core-modules/veridian-coupures/is-logic-function-allowed-by-veridian.util';
 import {
-  DELEGATING_APP,
+  type DelegatedTarget,
   findDelegatedAction,
+  findTargetsOfApp,
   isDelegatedTarget,
 } from 'src/engine/core-modules/veridian-delegation/constants/delegated-targets.constant';
 import { VeridianDelegationService } from 'src/engine/core-modules/veridian-delegation/services/veridian-delegation.service';
@@ -23,7 +24,7 @@ import { JwtAuthGuard } from 'src/engine/guards/jwt-auth.guard';
 const PAYLOAD_MAX_BYTES = 256_000;
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9-]{8,128}$/;
 
-// The screens of the Liaisons app act here, for the person who clicked: never an API key, an agent or another app.
+// The screens of our own apps act here, for the person who clicked: never an API key, an agent or another app.
 @Controller(`${ApiPath.Apps}/veridian/actions`)
 @UseGuards(
   JwtAuthGuard,
@@ -61,9 +62,10 @@ export class VeridianDelegationController {
       return response.status(403).json({ error: 'not_a_person' });
     }
 
-    const delegated = isDelegatedTarget(target)
-      ? findDelegatedAction(target, action)
-      : null;
+    const delegated =
+      isDelegatedTarget(target) && actor.targets.includes(target)
+        ? findDelegatedAction(target, action)
+        : null;
 
     if (!isDelegatedTarget(target) || !delegated) {
       return response.status(404).json({ error: 'unknown_action' });
@@ -85,7 +87,8 @@ export class VeridianDelegationController {
     }
 
     const { status, body } = await this.veridianDelegationService.act({
-      ...actor,
+      userId: actor.userId,
+      workspaceId: actor.workspaceId,
       target,
       action,
       scope: delegated.scope,
@@ -97,9 +100,11 @@ export class VeridianDelegationController {
   }
 
   // The identifier is written in a manifest anyone can deploy: the app must also be one of ours in this workspace.
-  private async findActor(
-    request: Request,
-  ): Promise<{ userId: string; workspaceId: string } | null> {
+  private async findActor(request: Request): Promise<{
+    userId: string;
+    workspaceId: string;
+    targets: readonly DelegatedTarget[];
+  } | null> {
     const {
       application,
       workspace,
@@ -116,7 +121,7 @@ export class VeridianDelegationController {
       !userWorkspaceId ||
       agentId !== undefined ||
       impersonationContext !== undefined ||
-      application.universalIdentifier !== DELEGATING_APP
+      findTargetsOfApp(application.universalIdentifier).length === 0
     ) {
       return null;
     }
@@ -131,6 +136,12 @@ export class VeridianDelegationController {
         application,
       ));
 
-    return isOurs ? { userId: user.id, workspaceId: workspace.id } : null;
+    return isOurs
+      ? {
+          userId: user.id,
+          workspaceId: workspace.id,
+          targets: findTargetsOfApp(application.universalIdentifier),
+        }
+      : null;
   }
 }

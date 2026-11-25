@@ -1,16 +1,18 @@
 import {
   DELEGATED_TARGETS,
-  DELEGATING_APP,
+  DELEGATING_APPS,
+  isDelegatedTarget,
 } from 'src/engine/core-modules/veridian-delegation/constants/delegated-targets.constant';
 import { VeridianDelegationController } from 'src/engine/core-modules/veridian-delegation/controllers/veridian-delegation.controller';
 
 // Allowed to run here, and still not the app whose screens act.
 const OTHER_APP = 'f7baf702-cc85-4d4a-a3f2-0ceb42516d68';
+const [LIAISONS, FORMATION] = Object.keys(DELEGATING_APPS);
 const WORKSPACE = '38627be0-428f-4924-aa67-4a35884ba7b4';
 
 const request = (over: Record<string, unknown> = {}) => ({
   application: {
-    universalIdentifier: DELEGATING_APP,
+    universalIdentifier: LIAISONS,
     applicationRegistrationId: 'r',
     sourceType: 'tarball',
   },
@@ -58,7 +60,9 @@ const post = async (
 
 describe('entrée de l appel entre apps : une personne, par l écran de Liaisons', () => {
   beforeEach(() => {
-    process.env.VERIDIAN_LOGIC_FUNCTION_ALLOW = `${WORKSPACE}:${DELEGATING_APP},${WORKSPACE}:${OTHER_APP}`;
+    process.env.VERIDIAN_LOGIC_FUNCTION_ALLOW = [LIAISONS, FORMATION, OTHER_APP]
+      .map((app) => `${WORKSPACE}:${app}`)
+      .join(',');
   });
 
   it('laisse passer un clic (témoin positif)', async () => {
@@ -90,12 +94,36 @@ describe('entrée de l appel entre apps : une personne, par l écran de Liaisons
     expect(act).not.toHaveBeenCalled();
   });
 
+  it('une cible hors registre n est jamais une cible', () => {
+    expect(
+      ['crm', '__proto__', 'constructor', ''].some(isDelegatedTarget),
+    ).toBe(false);
+    expect(isDelegatedTarget('notifuse')).toBe(true);
+  });
+
+  it('chaque app n atteint que ses cibles', async () => {
+    const asFormation = (body: unknown) =>
+      request({ application: { universalIdentifier: FORMATION }, body });
+    const read = { payload: { emails: ['a@b.fr'] } };
+
+    expect(
+      (await post(asFormation(read), 'academy', 'avancement.lire')).code,
+    ).toBe(200);
+    expect(
+      (await post(asFormation({ payload: {} }), 'notifuse', 'listes.lister'))
+        .code,
+    ).toBe(404);
+    expect(
+      (await post(request({ body: read }), 'academy', 'avancement.lire')).code,
+    ).toBe(404);
+  });
+
   it('refuse une app locale qui porte notre identifiant', async () => {
     process.env.VERIDIAN_LOGIC_FUNCTION_ALLOW = '';
     const { code, act } = await post(
       request({
         application: {
-          universalIdentifier: DELEGATING_APP,
+          universalIdentifier: LIAISONS,
           applicationRegistrationId: null,
           sourceType: 'local',
         },
@@ -109,7 +137,7 @@ describe('entrée de l appel entre apps : une personne, par l écran de Liaisons
   it('laisse passer l app du catalogue d instance', async () => {
     process.env.VERIDIAN_LOGIC_FUNCTION_ALLOW = '';
     const { code } = await post(request(), 'notifuse', 'contacts.importer', {
-      universalIdentifier: DELEGATING_APP,
+      universalIdentifier: LIAISONS,
       sourceType: 'tarball',
       isListed: true,
       isPreInstalled: false,

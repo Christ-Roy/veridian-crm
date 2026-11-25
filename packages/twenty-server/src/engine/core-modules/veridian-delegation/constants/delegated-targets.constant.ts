@@ -55,5 +55,17 @@ export const findDelegatedAction = (
   return Object.keys(actions).includes(action) ? actions[action] : null;
 };
 
-// The only app whose screens may act: its code is ours, published from the instance catalog.
-export const DELEGATING_APP = '1a1ab23e-60e5-4eca-be1f-718c96055c79';
+// The only apps whose screens may act, each on its own targets: their code is ours, published from the instance catalog.
+export const DELEGATING_APPS: Record<string, readonly DelegatedTarget[]> = {
+  // Liaisons
+  '1a1ab23e-60e5-4eca-be1f-718c96055c79': ['notifuse', 'prospection'],
+  // Formation
+  '58a58b5a-8a63-441b-b314-996221f309dd': ['academy'],
+};
+
+export const findTargetsOfApp = (
+  universalIdentifier: string,
+): readonly DelegatedTarget[] =>
+  Object.keys(DELEGATING_APPS).includes(universalIdentifier)
+    ? DELEGATING_APPS[universalIdentifier]
+    : [];
