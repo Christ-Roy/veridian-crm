@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-a474be2" # 25/11/2026 : suspension VER-254
+  default = "staging-6b0c3f8" # 25/11/2026 : identité par hub_user_id
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
