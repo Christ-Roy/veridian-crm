@@ -29,6 +29,8 @@ sys.path.insert(0, str(Path.home() / ".claude/skills/twenty-cli/bin"))
 import twenty_admin as ta  # noqa: E402
 
 FICHES = "{ people { totalCount } companies { totalCount } }"
+CANAUX = "{myMessageChannels{id}}"
+MOI = "{currentUser{id}}"
 
 
 class Epreuve:
@@ -104,6 +106,23 @@ class Epreuve:
         except ValueError:
             return code, None
         return code, (d.get("data") if not d.get("errors") else None)
+
+    def meta(self, requete):
+        """Session sur /metadata : le garde natif y laisse passer ce qui est décoré, seul notre garde ferme les canaux de mail."""
+        code, texte, _ = self.c.http(self.origine + "/metadata", json.dumps({"query": requete}).encode(),
+                                     {"Authorization": f"Bearer {self.session_a}", "Content-Type": "application/json", "Origin": self.origine})
+        try:
+            d = json.loads(texte)
+        except ValueError:
+            return False, f"HTTP {code}"
+        return bool(d.get("data")) and not d.get("errors"), (d.get("errors") or [{}])[0].get("message", "")[:80]
+
+    def portes_metadata(self, quand, canaux_ouverts):
+        ok, detail = self.meta(CANAUX)
+        self.controle(f"{quand} : canaux de mail {'ouverts' if canaux_ouverts else 'fermés (notre garde)'}",
+                      ok == canaux_ouverts and (ok or "suspended" in detail.lower()), detail)
+        ok, detail = self.meta(MOI)
+        self.controle(f"{quand} : la session sait qui elle est (témoin, garde natif)", ok, detail)
 
     def mcp(self, origine, jeton):
         code, texte, _ = self.c.http(origine + "/mcp", json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).encode(),
@@ -228,6 +247,7 @@ class Epreuve:
         self.suppression_refusee("actif, session du propriétaire", self.session_a)
         avant_a, avant_b = self.fiches(self.origine, self.session_a), self.fiches(self.origine_b, self.session_b)
         self.controle("avant : fiches comptées", bool(avant_a) and bool(avant_b), f"A={avant_a} B={avant_b}")
+        self.portes_metadata("avant", True)
         page = self.ouvrir_ecran()
         recus_avant, partis_avant = len(self.recus()), len(self.recus("workspaceMember.deleted"))
 
@@ -237,6 +257,7 @@ class Epreuve:
         self.coupure("clé API (REST)", lambda: self.rest(self.origine, self.cle)[0] == 200, debut)
         self.coupure("session ouverte (GraphQL)", lambda: self.gql(self.origine, self.session_a)[1] is not None, debut)
         self.coupure("MCP", lambda: self.mcp(self.origine, self.cle)[1] > 0, debut)
+        self.portes_metadata("pendant", False)
         st2, _, _ = self.suspendre(self.tenant)
         self.controle("suspension rejouée : idempotente", st2 == 200, f"HTTP {st2}")
         self.controle("by-email rend suspended pour A", self.statut_hub(self.email, a.espace) == "suspended")
@@ -284,6 +305,7 @@ class Epreuve:
         code, _ = self.rest(self.origine, self.cle)
         self.controle("REST par clé API rendu", code == 200, f"HTTP {code}")
         apres = self.fiches(self.origine, self.session_a)
+        self.portes_metadata("après", True)
         self.controle("session rendue, fiches identiques", apres == avant_a, f"{apres}")
         code, outils = self.mcp(self.origine, self.session_a)
         self.controle("MCP rendu, mêmes outils", code == 200 and outils == self.outils, f"HTTP {code} {outils} outils")
