@@ -2,7 +2,7 @@
 # garde-runners.sh : un dépôt PRIVÉ ne doit utiliser aucun runner GitHub hébergé (loi 7).
 # Un runner hébergé est gratuit sur un dépôt public, mais sur un dépôt privé un dépassement de
 # facturation bloque tout le compte (14/09/2026). Plus personne ne doit avoir à s'en souvenir.
-# Usage : garde-runners.sh [--prive oui|non]   (sans argument : lit la visibilité via gh api)
+# Usage : garde-runners.sh [--prive oui|non]   (sans argument : DEPOT_PRIVE de l'événement GitHub, sinon gh api)
 # Sortie : 0 ok (public, ou privé sans runner hébergé) · 1 privé avec runner hébergé · 2 visibilité illisible
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -12,9 +12,12 @@ if [ "${1:-}" = "--prive" ]; then
   prive="${2:-}"
   case "$prive" in oui|non) ;; *) echo "NON ABOUTI : --prive attend oui|non"; exit 2 ;; esac
 else
-  [ -n "${GITHUB_REPOSITORY:-}" ] || { echo "NON ABOUTI : GITHUB_REPOSITORY absent"; exit 2; }
-  val="$(gh api "repos/$GITHUB_REPOSITORY" -q .private 2>/dev/null)" || val=""
-  case "$val" in true) prive=oui ;; false) prive=non ;; *) echo "NON ABOUTI : visibilité de $GITHUB_REPOSITORY illisible (gh api)"; exit 2 ;; esac
+  val="${DEPOT_PRIVE:-}"
+  if [ -z "$val" ]; then
+    [ -n "${GITHUB_REPOSITORY:-}" ] || { echo "NON ABOUTI : GITHUB_REPOSITORY absent"; exit 2; }
+    val="$(gh api "repos/$GITHUB_REPOSITORY" -q .private 2>/dev/null)" || val=""
+  fi
+  case "$val" in true) prive=oui ;; false) prive=non ;; *) echo "NON ABOUTI : visibilité de ${GITHUB_REPOSITORY:-ce dépôt} illisible"; exit 2 ;; esac
 fi
 
 if [ "$prive" = "non" ]; then
