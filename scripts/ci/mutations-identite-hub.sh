@@ -6,7 +6,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 V=packages/twenty-server/src/engine/core-modules/veridian-hub-sso
 jouer() {
-  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'identite-hub|retrait-membre' >/tmp/mutation-identite-hub.log 2>&1)
+  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'identite-hub|retrait-membre|admins-instance' >/tmp/mutation-identite-hub.log 2>&1)
 }
 jouer || { tail -40 /tmp/mutation-identite-hub.log; echo "NON ABOUTI : spec rouge sans sabotage"; exit 2; }
 echo "base verte"
@@ -112,6 +112,18 @@ saboter "adresse prouvée supposée à la synchro" "$C" "      hubUserId,
 
     if (result.status !== 'ok')"
 saboter "preuve d'adresse lue en texte" "$C" "emailProven: request.body?.email_proven === true," "emailProven: Boolean(request.body?.email_proven),"
+
+L=$V/utils/parse-server-admins.util.ts
+saboter "administrateur par l'adresse" "$S" "const isAdmin = admins.has(hubUserId.toLowerCase());" "const isAdmin = (process.env.HUB_SERVER_ADMIN_EMAILS ?? '').includes(user.email);"
+saboter "liste illisible déchoit" "$S" "      this.logger.error('HUB_SERVER_ADMIN_HUB_USER_IDS unreadable');
+
+      return;" "      await this.userRepository.update(user.id, { canAccessFullAdminPanel: false, canImpersonate: false });
+
+      return;"
+saboter "liste à moitié lisible acceptée" "$L" "ids.every(isUuid)" "ids.some(isUuid)"
+saboter "liste vide acceptée" "$L" "ids.length > 0 && " ""
+saboter "casse de l'identité" "$L" ".trim().toLowerCase()" ".trim()"
+saboter "administrateur non dit dans la liste" "$S" "server_admin: serverAdmin," ""
 
 [ "$rate" -eq 0 ] && { echo "CONFORME"; exit 0; }
 exit 1

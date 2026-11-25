@@ -214,7 +214,10 @@ IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
 AUTH_PASSWORD_ENABLED=false
 AUTH_MICROSOFT_ENABLED=false
 HUB_URL=https://app.veridian.site
+# Administrateurs d'instance par identité du Hub (25/11/2026). Les adresses ne servent plus qu'à un retour à une image antérieure.
+# Avant de changer l'une des deux listes : scripts/ci/admins-instance.py prod
 HUB_SERVER_ADMIN_EMAILS=robert.brunon@veridian.site
+HUB_SERVER_ADMIN_HUB_USER_IDS=53245ae1-6bf8-4ec6-870f-32d75b7c0281
 TELEMETRY_ENABLED=false
 # IA (VER-203, 23/11/2026) : seul fournisseur « veridian » = le Hub (https://app.veridian.site/api/ia/v1), routé vers
 # le moteur de chaque utilisateur ; chaque appel au modèle porte une identité signée (Variable partagée

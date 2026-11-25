@@ -26,6 +26,7 @@ import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decora
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
 import { isMagicLinkRefusedForSuspension } from 'src/engine/core-modules/veridian-hub-sso/utils/is-magic-link-refused-for-suspension.util';
+import { parseServerAdmins } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-server-admins.util';
 import { parseOwnUrl } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util';
 import { WorkspaceDomainsService } from 'src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service';
 import {
@@ -336,11 +337,17 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
 
   // Twenty offers server admin to the first account ever created. Here admins come
   // from the Hub side, by configuration, never from the order of provisioning.
-  private async applyServerAdminFlag(user: UserEntity) {
-    const isAdmin = (process.env.HUB_SERVER_ADMIN_EMAILS ?? '')
-      .split(',')
-      .map((email) => email.trim().toLowerCase())
-      .includes(user.email.toLowerCase());
+  // They are named by their hub_user_id: an email changes hands, the right must not.
+  private async applyServerAdminFlag(user: UserEntity, hubUserId: string) {
+    const admins = parseServerAdmins(process.env.HUB_SERVER_ADMIN_HUB_USER_IDS);
+
+    if (!admins) {
+      this.logger.error('HUB_SERVER_ADMIN_HUB_USER_IDS unreadable');
+
+      return;
+    }
+
+    const isAdmin = admins.has(hubUserId.toLowerCase());
 
     if (
       user.canAccessFullAdminPanel === isAdmin &&
@@ -480,7 +487,7 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
         await this.bindHubUser(user.id, hubUserId);
       }
 
-      await this.applyServerAdminFlag(user);
+      await this.applyServerAdminFlag(user, hubUserId);
 
       const activated = await this.workspaceService.activateWorkspace(
         fromUserEntityToFlat(user),
@@ -591,7 +598,7 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
 
     if (!known) {
       await this.bindHubUser(user.id, hubUserId);
-      await this.applyServerAdminFlag(user);
+      await this.applyServerAdminFlag(user, hubUserId);
     }
 
     if (!alreadyMember) {
@@ -885,18 +892,21 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
       email: string;
       firstName: string;
       lastName: string;
+      serverAdmin: boolean;
     }[] = await this.userRepository.query(
-      `SELECT k.key, u.email, u."firstName", u."lastName"
+      `SELECT k.key, u.email, u."firstName", u."lastName",
+              (u."canAccessFullAdminPanel" OR u."canImpersonate") AS "serverAdmin"
          FROM core."user" u
          LEFT JOIN core."keyValuePair" k
            ON k."userId" = u.id AND k."workspaceId" IS NULL AND k.key LIKE 'veridian.hub_user:%'
         WHERE u."deletedAt" IS NULL AND u.disabled = false`,
     );
 
-    return rows.map(({ key, email, firstName, lastName }) => ({
+    return rows.map(({ key, email, firstName, lastName, serverAdmin }) => ({
       hub_user_id: key ? key.slice('veridian.hub_user:'.length) : null,
       email,
       name: `${firstName} ${lastName}`.trim(),
+      server_admin: serverAdmin,
     }));
   }
 
