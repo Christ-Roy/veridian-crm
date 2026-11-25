@@ -52,6 +52,7 @@ exige "$SERVEUR/engine/core-modules/application/application-registration/applica
 exige "$SERVEUR/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service.ts" "suspendedAt: null,"
 exige "$SERVEUR/engine/core-modules/user/user.resolver.ts" "async currentUser("
 exige "$SERVEUR/engine/guards/workspace-not-suspended.guard.ts" "!isClosedWhenSuspended("
+exige "$SERVEUR/engine/core-entity-cache/services/core-entity-cache.service.ts" "MEMOIZER_TTL_MS = 500;"
 exige "$SERVEUR/engine/core-modules/message-queue/message-queue.explorer.ts" "await postponeSuspendedWorkspaceJob("
 exige "$SERVEUR/engine/core-modules/auth/token/services/renew-token.service.ts" "Veridian (CONTRAT-HUB §5.4)"
 exige "$SERVEUR/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service.ts" "if (SUSPENSION_NEVER_ERASES) {"

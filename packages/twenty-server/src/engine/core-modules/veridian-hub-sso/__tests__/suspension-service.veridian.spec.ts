@@ -1,3 +1,5 @@
+jest.mock('node:timers/promises', () => ({ setTimeout: jest.fn() }));
+
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
 import { VeridianHubSuspensionService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service';
@@ -14,7 +16,7 @@ jest.mock(
 );
 jest.mock(
   'src/engine/core-entity-cache/services/core-entity-cache.service',
-  () => ({ CoreEntityCacheService: class {} }),
+  () => ({ CoreEntityCacheService: class {}, MEMOIZER_TTL_MS: 500 }),
 );
 jest.mock('src/engine/core-modules/cache-lock/cache-lock.service', () => ({
   CacheLockService: class {},
@@ -113,7 +115,13 @@ describe('suspension Veridian (service)', () => {
     const m = monter();
 
     expect(await m.suspendre()).toMatchObject({ status: 'ok' });
-    expect(m.fil).toEqual(['marque', 'statut', 'cache', 'workspace.suspended']);
+    expect(m.fil).toEqual([
+      'marque',
+      'statut',
+      'cache',
+      'workspace.suspended',
+      'cache',
+    ]);
     expect(m.espace).toMatchObject({
       activationStatus: SUSPENDED,
       suspendedAt: null,

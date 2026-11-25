@@ -22,7 +22,8 @@ import { PromiseMemoizer } from 'src/engine/twenty-orm/storage/promise-memoizer.
 const LOCAL_TTL_MS = 100; // 100ms
 const LOCAL_ENTRY_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const LOCAL_CACHE_EXPIRATION_SWEEP_INTERVAL_MS = 60 * 1000;
-const MEMOIZER_TTL_MS = 10_000; // 10 seconds
+// Veridian (25/11/2026): natively 10 s, during which another process kept serving a suspended workspace, a disabled user.
+export const MEMOIZER_TTL_MS = 500;
 const STALE_VERSION_TTL_MS = 5_000; // 5 seconds
 const MAX_LOCAL_STALE_VERSIONS = 5;
 const MAX_LOCAL_CACHE_ENTRIES = 5_000;

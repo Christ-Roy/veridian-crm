@@ -18,7 +18,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 jouer() {
-  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'suspension-.*veridian|organisation-hub' >"$TMP/jest.log" 2>&1)
+  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'suspension-(classement|donnees|file|garde|jeton|magic|mcp|service|workflow).*veridian|organisation-hub' >"$TMP/jest.log" 2>&1)
 }
 jouer || { tail -40 "$TMP/jest.log"; echo "NON ABOUTI : spec rouge sans sabotage"; exit 2; }
 echo "base verte"
@@ -60,6 +60,9 @@ saboter "sans verrou par espace" "$SERVICE" '`veridian-hub-suspension:${workspac
 saboter "espace supprimé suspendu" "$SERVICE" "workspace && !workspace.deletedAt" "workspace"
 saboter "statut avant la marque" "$SERVICE" "      const known = await this.findMark(workspace.id);" "      await this.workspaceRepository.update({ id: workspace.id }, { activationStatus: WorkspaceActivationStatus.SUSPENDED, suspendedAt: null });
       const known = await this.findMark(workspace.id);"
+saboter "suspension : caches non attendus" "$SERVICE" "      await this.settleCaches(workspace.id);
+
+      return" "      return"
 saboter "nettoyage natif rebranché" "$CLEANER" "if (SUSPENSION_NEVER_ERASES) {" "if (false as boolean) {"
 saboter "nettoyage natif rebranché par sa constante" "$CLEANER" "SUSPENSION_NEVER_ERASES: boolean = true;" "SUSPENSION_NEVER_ERASES: boolean = false;"
 saboter "espace en création suspendu" "$SERVICE" "return { status: 'not_active' };" ""
