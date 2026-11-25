@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-677f515" # 25/11/2026 : marque en calque, appel entre apps
+  default = "staging-7d4af31" # 25/11/2026 : chaque app sur ses cibles
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
