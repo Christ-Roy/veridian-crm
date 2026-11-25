@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-f4f307b" # 25/11/2026 : organisations VER-252
+  default = "staging-a474be2" # 25/11/2026 : suspension VER-254
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
