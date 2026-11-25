@@ -23,7 +23,7 @@ mention « Basé sur Twenty, AGPL » ; domaine `crm.app.veridian.site`.
 
 **Décisions (08/11/2026) :** le plan vient du Hub par `POST /api/tenants/update-plan` (CONTRAT-BILLING v2 §3), stocké
 sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` ; rien n'est limité ni mis en lecture seule
-(PRICING-VERIDIAN, décision de Robert pour lever un drapeau). Pas de marque blanche dans Twenty : rien à réserver à Business.
+(PRICING-VERIDIAN, décision de Robert pour lever un drapeau).
 Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA à tout rôle, MCP reste.
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
 ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
@@ -67,9 +67,9 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 ## 3. Travailler dans ce dépôt
 
 - Trunk sur `staging`, pas de PR.
-- Tu touches ce dépôt seul. Un correctif ailleurs : ticket dans le `todo/` du dépôt cible, et signale-le.
+- Un correctif ailleurs : ticket dans le `todo/` du dépôt cible, et signale-le.
 - Tickets : `todo/AAAA-MM-JJ-<sujet>.md`.
-- `docs/spec/` : notes de mai 2026, base légale incluse (`AUDIT-LIMITE-EE-TWENTY.md`). Ce fichier prime sur elles.
+- `docs/spec/` : notes de mai 2026 (base légale : `AUDIT-LIMITE-EE-TWENTY.md`). Ce fichier prime.
 - Paquets modifiés : `twenty-server`, `twenty-front`, `twenty-shared`.
 - Base de données : pas de table Veridian, les liens Hub vivent dans `core.keyValuePair`.
 
@@ -86,6 +86,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version, code 1 (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
 | `scripts/ci/preuve-app-deleguee.py`, `preuve-reponse-mail.py` (jetable) | app posée au premier jeton d'action, réponse Mail sans membre | 25/11, clés du Hub injoignables |
+| `scripts/ci/preuve-organisation.py` (jetable) | document d'organisation du Hub (VER-252) | 38 sabotages |
 | `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
@@ -99,8 +100,8 @@ Lire la session (hôte du workspace) : `POST /metadata`, `credentials: 'include'
 ## 5. Construire et déployer
 
 - **Image : par la CI**, `.github/workflows/veridian-crm-ci.yaml`, sur nos runners : garde légale, patch-survival, image
-  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Pas de
-  `docker build` direct sur un nœud (règle de la plateforme, 07/11/2026) : hors CI, `lourd.sh` en `nice -n 19` sur un nœud libre.
+  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Hors CI : règle
+  Machines de la plateforme.
 - **Ne déployer qu'un run vert EN ENTIER** : depuis le 24/11 l'image se construit en parallèle des tests, sa présence au registre ne prouve rien.
 - `[skip ci]` dans un commit qui ne touche pas le produit. Un push normal annule la CI en cours sur la branche.
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
