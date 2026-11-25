@@ -3,12 +3,15 @@
 local (radicale) exposé par un tunnel éphémère, branché au CRM par la route native. Un événement posé pendant la suspension
 n'entre qu'après la reprise, sans reconnexion.
 
-  preuve-reprise-agenda.py <espace jetable> --radicale <python d'un venv avec radicale> [--env staging]
+  preuve-reprise-agenda.py <espace jetable> --radicale <python d'un venv avec radicale> [--env staging] [--cli]
+
+--cli : l'agenda est branché par `twenty-admin compte:mail --caldav --demarrer`, et l'épreuve s'arrête quand l'événement entre.
 
 Codes : 0 vrai, 1 faux, 2 mesure non aboutie.
 """
 import argparse
 import base64
+import os
 import secrets
 import socket
 import subprocess
@@ -35,7 +38,8 @@ class Epreuve:
         self.tenant = acces.get(f"{p}_JETABLE_TENANT_ID")
         if not self.tenant:
             raise ta.Echec(f"{a.espace} n'est pas un espace jetable", 2)
-        self.origine, self.session, _ = self.c.session(acces[f"{p}_EMAIL"], a.espace)
+        self.email = acces[f"{p}_EMAIL"]
+        self.origine, self.session, _ = self.c.session(self.email, a.espace)
 
     def controle(self, nom, ok, detail=""):
         print(f"{'OK   ' if ok else 'ECHEC'} {nom} : {detail}"[:230], flush=True)
@@ -74,10 +78,23 @@ class Epreuve:
             time.sleep(10)
         return None
 
+    def par_la_commande(self, titre):
+        self.controle("témoin : aucun événement de ce nom avant", self.vu(titre) == 0)
+        p = subprocess.run(["twenty-admin", "--env", self.a.env, "compte:mail", self.a.espace, "--email", self.email,
+                            "--adresse", f"{COMPTE}@epreuve.example", "--mot-de-passe-var", "EPREUVE_CALDAV", "--caldav", self.url,
+                            "--caldav-utilisateur", COMPTE, *([] if self.a.sans_demarrer else ["--demarrer"])],
+                           capture_output=True, text=True, timeout=180, env={**os.environ, "EPREUVE_CALDAV": self.passe})
+        self.controle("la commande sort en 0", p.returncode == 0, (p.stdout + p.stderr).strip()[-120:])
+        self.controle("le mot de passe n'est jamais affiché", self.passe not in p.stdout + p.stderr)
+        t = self.attendre(titre, self.a.attente)
+        self.controle("l'événement de l'agenda entre dans le CRM", t is not None, f"{t and round(t)} s")
+
     def jouer(self):
         self.dav("MKCALENDAR", f"/{COMPTE}/agenda/")
         avant, pendant = f"Avant {secrets.token_hex(3)}", f"Pendant {secrets.token_hex(3)}"
         self.poser(avant)
+        if self.a.cli:
+            return self.par_la_commande(avant)
         r = self.c.gql(self.origine, "mutation($h:String!,$p:EmailAccountConnectionParameters!){saveImapSmtpCaldavAccount(handle:$h,"
                        "connectionParameters:$p){success connectedAccountId}}",
                        {"h": f"{COMPTE}@epreuve.example", "p": {"name": "Épreuve", "CALDAV": {
@@ -113,6 +130,9 @@ def main():
     p.add_argument("--radicale", required=True)
     p.add_argument("--env", default="staging", choices=("staging", "prod"))
     p.add_argument("--suspendu", type=int, default=400, help="durée de suspension, plus longue que la cadence du cron (5 min)")
+    p.add_argument("--cli", action="store_true")
+    p.add_argument("--sans-demarrer", action="store_true", help="sabotage de --cli : la synchronisation n'est pas lancée, l'épreuve sort en 1")
+    p.add_argument("--attente", type=int, default=900)
     a = p.parse_args()
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
