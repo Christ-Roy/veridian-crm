@@ -20,7 +20,7 @@ const POLLS = 40;
 type Target = { applicationUniversalIdentifier: string; workspaceId: string };
 
 export type DelegatedAppCheck =
-  | { kind: 'ok' }
+  | { kind: 'ok'; applicationId: string }
   | { kind: 'refused'; status: 403 | 503; error: string; message: string };
 
 const refused = (
@@ -48,13 +48,15 @@ export class VeridianDelegatedAppService {
   async ensureInstalled(target: Target): Promise<DelegatedAppCheck> {
     const { applicationUniversalIdentifier, workspaceId } = target;
 
-    if (await this.isInstalled(target)) {
+    const application = await this.findApplication(target);
+
+    if (application && isNonEmptyString(application.version)) {
       await this.markSeen(target);
 
-      return { kind: 'ok' };
+      return { kind: 'ok', applicationId: application.id };
     }
 
-    const isInstalling = await this.isInstalling(target);
+    const isInstalling = application !== null;
 
     if (!isInstalling && (await this.wasSeen(target))) {
       return refused(
@@ -114,17 +116,19 @@ export class VeridianDelegatedAppService {
         );
 
       // A finished job may already be gone from the queue, or fail because another call installed the app first.
-      if (
-        status?.state === JobStateEnum.COMPLETED ||
-        ((!status || status.state === JobStateEnum.FAILED) &&
-          (await this.isInstalled(target)))
-      ) {
+      const isOver =
+        !status ||
+        status.state === JobStateEnum.COMPLETED ||
+        status.state === JobStateEnum.FAILED;
+      const installed = isOver ? await this.findApplication(target) : null;
+
+      if (installed && isNonEmptyString(installed.version)) {
         await this.markSeen(target);
         this.logger.log(
           `App ${target.applicationUniversalIdentifier} installed on first action in ${target.workspaceId}`,
         );
 
-        return { kind: 'ok' };
+        return { kind: 'ok', applicationId: installed.id };
       }
 
       if (status?.state === JobStateEnum.FAILED) {
@@ -154,14 +158,6 @@ export class VeridianDelegatedAppService {
   }
 
   // While it installs, the row exists without a version.
-  private async isInstalled(target: Target): Promise<boolean> {
-    return isNonEmptyString((await this.findApplication(target))?.version);
-  }
-
-  private async isInstalling(target: Target): Promise<boolean> {
-    return (await this.findApplication(target)) !== null;
-  }
-
   private findApplication({
     applicationUniversalIdentifier,
     workspaceId,

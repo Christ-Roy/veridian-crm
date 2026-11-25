@@ -155,9 +155,9 @@ class Epreuve:
 
         # Rien de plus qu'un find_many : la société n'est vue ni par la recherche, ni par les doublons, ni par le partage.
         ok_t, texte_t, _ = self.outil(self.admin, "search_records", query=sonde)
-        self.controle("témoin Admin : la recherche voit la société", ok_t and sonde in texte_t, texte_t[:120])
+        self.controle("témoin Admin : la recherche voit la société", ok_t and societe in texte_t, texte_t[:120])
         ok_m, texte_m, _ = self.outil(membre, "search_records", query=sonde)
-        self.controle("membre : la recherche ne rend pas la société", sonde not in texte_m, texte_m[:140])
+        self.controle("membre : la recherche ne rend pas la société", ok_m and societe not in texte_m, texte_m[-160:])
         if personne:
             ok_p, texte_p, _ = self.outil(membre, "search_records", query=sonde)
             self.controle("membre : la recherche voit encore la personne (témoin de méthode)", ok_p and "Preuve" in texte_p, texte_p[:120])

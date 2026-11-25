@@ -21,7 +21,10 @@ const SCOPE = 'crm:societe.ecrire crm:tache.ecrire';
 const keys = generateKeyPairSync('ec', { namedCurve: 'P-256' });
 
 const jeton = (
-  claims: Record<string, unknown> = {},
+  {
+    subject = SUB,
+    ...claims
+  }: Record<string, unknown> & { subject?: string } = {},
   { jti = 'j1', duree = 120, sansIat = false } = {},
 ) => {
   const iat = Math.floor(Date.now() / 1000);
@@ -42,7 +45,7 @@ const jeton = (
       keyid: 'epreuve',
       issuer: ISSUER,
       audience: AUDIENCE,
-      subject: SUB,
+      subject,
       noTimestamp: sansIat,
     },
   );
@@ -59,9 +62,13 @@ const appel = (
 
 const monter = ({
   workspaceDuTenant = 'ws-1' as string | null,
-  app = { kind: 'ok' } as object,
+  app = { kind: 'ok', applicationId: 'app-1' } as object,
+  espaceActif = true,
 } = {}) => {
   const ensureInstalled = jest.fn(async () => app);
+  const generateApplicationAccessToken = jest.fn(async () => ({
+    token: 'jeton-app',
+  }));
   const vus = new Set<string>();
   const generateAccessToken = jest.fn(async () => ({ token: 'twenty' }));
   const service = new VeridianHubMcpAuthService(
@@ -79,7 +86,11 @@ const monter = ({
       find: jest.fn(async () => [
         {
           workspaceId: 'ws-1',
-          workspace: { activationStatus: WorkspaceActivationStatus.ACTIVE },
+          workspace: {
+            activationStatus: espaceActif
+              ? WorkspaceActivationStatus.ACTIVE
+              : WorkspaceActivationStatus.SUSPENDED,
+          },
         },
       ]),
     } as never,
@@ -89,6 +100,7 @@ const monter = ({
       ),
     } as never,
     { ensureInstalled } as never,
+    { generateApplicationAccessToken } as never,
   );
   const middleware = new VeridianHubMcpAuthMiddleware(service);
   const passer = async (token: string | undefined, body: unknown) => {
@@ -111,7 +123,12 @@ const monter = ({
     return { req, refus, passe: next.mock.calls.length === 1 };
   };
 
-  return { passer, generateAccessToken, ensureInstalled };
+  return {
+    passer,
+    generateAccessToken,
+    generateApplicationAccessToken,
+    ensureInstalled,
+  };
 };
 
 describe('jeton d’action du Hub (act)', () => {
@@ -297,5 +314,120 @@ describe('jeton d’action du Hub (act)', () => {
       expect(passe).toBe(true);
       expect(JSON.stringify(req.body)).not.toContain('_veridian');
     }
+  });
+
+  describe('événement relayé sans membre (integration:<espace>)', () => {
+    const MAIL = {
+      subject: 'integration:t-1',
+      act: { sub: 'app:notifuse' },
+      scope: 'crm:tache.ecrire',
+    };
+    const reponse = () =>
+      appel('app_reponse_humaine', { email: 'a@b.fr', thread_id: 't' });
+
+    it('agit avec le jeton court de l’app, jamais celui d’un membre', async () => {
+      const e = monter();
+      const { req, passe } = await e.passer(jeton(MAIL), reponse());
+
+      expect(passe).toBe(true);
+      expect(req.headers.authorization).toBe('Bearer jeton-app');
+      expect(req.body.params.arguments._veridian).toEqual({
+        app: 'app:notifuse',
+        jti: 'j1',
+      });
+      expect(e.generateAccessToken).not.toHaveBeenCalled();
+      expect(e.generateApplicationAccessToken).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        applicationId: 'app-1',
+        expiresIn: '3m',
+      });
+      expect(e.ensureInstalled).toHaveBeenCalledWith(
+        expect.objectContaining({ workspaceId: 'ws-1' }),
+      );
+    });
+
+    it('un seul usage', async () => {
+      const { passer } = monter();
+
+      expect((await passer(jeton(MAIL), reponse())).passe).toBe(true);
+      expect((await passer(jeton(MAIL), reponse())).refus?.error).toBe(
+        'token_replayed',
+      );
+    });
+
+    it.each([
+      ['un autre outil que le sien', {}, appel(), 'delegation_forbidden'],
+      [
+        'une autre app',
+        { act: { sub: 'app:prospection' } },
+        reponse(),
+        'delegation_forbidden',
+      ],
+      [
+        'sans sa portée',
+        { scope: 'crm:societe.ecrire' },
+        reponse(),
+        'delegation_forbidden',
+      ],
+      [
+        'un autre espace que le sien',
+        { subject: 'integration:t-2' },
+        reponse(),
+        'tenant_forbidden',
+      ],
+      [
+        'un membre sur l’outil sans membre',
+        { subject: SUB },
+        reponse(),
+        'delegation_forbidden',
+      ],
+    ])('refuse : %s', async (_nom, claims, corps, erreur) => {
+      const e = monter();
+
+      expect(
+        (await e.passer(jeton({ ...MAIL, ...claims }), corps)).refus?.error,
+      ).toBe(erreur);
+      expect(e.generateApplicationAccessToken).not.toHaveBeenCalled();
+      expect(e.ensureInstalled).not.toHaveBeenCalled();
+    });
+
+    it('jamais sur l’envoi d’un membre', async () => {
+      expect(
+        (await monter().passer(jeton({ subject: 'integration:t-1' }), appel()))
+          .refus?.error,
+      ).toBe('delegation_forbidden');
+    });
+
+    it('espace non lié, espace suspendu, app fermée : rien n’est émis', async () => {
+      for (const [options, erreur] of [
+        [{ workspaceDuTenant: null }, 'tenant_not_linked'],
+        [{ espaceActif: false }, 'workspace_inactive'],
+        [
+          {
+            app: {
+              kind: 'refused',
+              status: 403,
+              error: 'app_not_available',
+              message: 'x',
+            },
+          },
+          'app_not_available',
+        ],
+      ] as const) {
+        const e = monter(options as never);
+
+        expect((await e.passer(jeton(MAIL), reponse())).refus?.error).toBe(
+          erreur,
+        );
+        expect(e.generateApplicationAccessToken).not.toHaveBeenCalled();
+      }
+    });
+
+    it('sans act, un sujet d’intégration n’est personne', async () => {
+      const e = monter();
+
+      await e.passer(jeton({ ...MAIL, act: undefined }), reponse());
+      expect(e.generateApplicationAccessToken).not.toHaveBeenCalled();
+    });
   });
 });

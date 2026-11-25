@@ -18,6 +18,7 @@ const APP = '1a1ab23e-60e5-4eca-be1f-718c96055c79';
 const ESPACE = '0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b';
 const CIBLE = { applicationUniversalIdentifier: APP, workspaceId: ESPACE };
 const LISTEE = { sourceType: 'tarball', isListed: true, isPreInstalled: false };
+const POSEE = { kind: 'ok', applicationId: 'app-1' };
 const FERMEE = { ...LISTEE, isListed: false };
 
 class SansAttente extends VeridianDelegatedAppService {
@@ -38,9 +39,11 @@ const monter = ({
     marque ? [`veridian.delegated_app:${APP}|${ESPACE}`] : [],
   );
   let lecture = 0;
-  const findOneApplication = jest.fn(
-    async (_: object) => apps[Math.min(lecture++, apps.length - 1)],
-  );
+  const findOneApplication = jest.fn(async (_: object) => {
+    const app = apps[Math.min(lecture++, apps.length - 1)];
+
+    return app && { id: 'app-1', ...app };
+  });
   const findInstallApplicationJobStatus = jest.fn();
 
   for (const etat of etats) {
@@ -100,8 +103,8 @@ describe('l’app de l’outil se pose au premier appel d’action valide', () =
   it('déjà installée : rien à faire, l’espace est marqué une fois', async () => {
     const e = monter({ apps: [{ version: '0.4.1' }] });
 
-    expect(await e.service.ensureInstalled(CIBLE)).toEqual({ kind: 'ok' });
-    expect(await e.service.ensureInstalled(CIBLE)).toEqual({ kind: 'ok' });
+    expect(await e.service.ensureInstalled(CIBLE)).toEqual(POSEE);
+    expect(await e.service.ensureInstalled(CIBLE)).toEqual(POSEE);
     expect(e.triggerInstallApplication).not.toHaveBeenCalled();
     expect(e.insertions).toEqual([
       expect.objectContaining({
@@ -118,13 +121,14 @@ describe('l’app de l’outil se pose au premier appel d’action valide', () =
 
   it('absente et ouverte : le travail natif l’installe, dans l’espace du jeton seulement', async () => {
     const e = monter({
+      apps: [null, { version: '0.4.2' }],
       etats: [
         { state: JobStateEnum.ACTIVE },
         { state: JobStateEnum.COMPLETED },
       ],
     });
 
-    expect(await e.service.ensureInstalled(CIBLE)).toEqual({ kind: 'ok' });
+    expect(await e.service.ensureInstalled(CIBLE)).toEqual(POSEE);
     expect(e.triggerInstallApplication).toHaveBeenCalledTimes(1);
     expect(e.triggerInstallApplication).toHaveBeenCalledWith({
       universalIdentifier: APP,
@@ -148,11 +152,12 @@ describe('l’app de l’outil se pose au premier appel d’action valide', () =
   it('le couple (espace, app) ouvre cet espace et lui seul', async () => {
     process.env.VERIDIAN_APP_INSTALL_ALLOW = `${ESPACE}:${APP}`;
     const e = monter({
+      apps: [null, { version: '0.4.2' }],
       registre: FERMEE,
       etats: [{ state: JobStateEnum.COMPLETED }],
     });
 
-    expect(await e.service.ensureInstalled(CIBLE)).toEqual({ kind: 'ok' });
+    expect(await e.service.ensureInstalled(CIBLE)).toEqual(POSEE);
     expect(
       await monter({ registre: FERMEE }).service.ensureInstalled({
         ...CIBLE,
@@ -174,33 +179,33 @@ describe('l’app de l’outil se pose au premier appel d’action valide', () =
 
   it('en cours d’installation (ligne sans version) : attend le même travail', async () => {
     const e = monter({
-      apps: [{ version: null }],
+      apps: [{ version: null }, { version: '0.4.2' }],
       marque: true,
       etats: [{ state: JobStateEnum.COMPLETED }],
     });
 
-    expect(await e.service.ensureInstalled(CIBLE)).toEqual({ kind: 'ok' });
+    expect(await e.service.ensureInstalled(CIBLE)).toEqual(POSEE);
     expect(e.triggerInstallApplication).toHaveBeenCalledTimes(1);
   });
 
   it('un autre appel l’a installée d’abord : le travail en échec ne refuse pas', async () => {
     const e = monter({
-      apps: [null, null, { version: '0.4.1' }],
+      apps: [null, { version: '0.4.1' }],
       etats: [
         { state: JobStateEnum.FAILED, failedReason: 'already installed' },
       ],
     });
 
-    expect(await e.service.ensureInstalled(CIBLE)).toEqual({ kind: 'ok' });
+    expect(await e.service.ensureInstalled(CIBLE)).toEqual(POSEE);
   });
 
   it('le travail a quitté la file : l’app installée fait foi', async () => {
     const e = monter({
-      apps: [null, null, { version: '0.4.1' }],
+      apps: [null, { version: '0.4.1' }],
       etats: [null],
     });
 
-    expect(await e.service.ensureInstalled(CIBLE)).toEqual({ kind: 'ok' });
+    expect(await e.service.ensureInstalled(CIBLE)).toEqual(POSEE);
   });
 
   it.each([

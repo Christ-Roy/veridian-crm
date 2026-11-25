@@ -73,6 +73,7 @@ const setup = ({
     userWorkspaceRepository as never,
     { setIfAbsent: jest.fn(async () => true) } as never,
     { ensureInstalled: jest.fn() } as never,
+    { generateApplicationAccessToken: jest.fn() } as never,
   );
 
   return { service, accessTokenService };

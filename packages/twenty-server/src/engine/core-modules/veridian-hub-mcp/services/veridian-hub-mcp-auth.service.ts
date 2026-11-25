@@ -5,6 +5,7 @@ import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { IsNull, Repository } from 'typeorm';
 
 import { AccessTokenService } from 'src/engine/core-modules/auth/token/services/access-token.service';
+import { ApplicationTokenService } from 'src/engine/core-modules/auth/token/services/application-token.service';
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
@@ -30,6 +31,8 @@ const JWKS_MIN_REFRESH_MS = 60 * 1000;
 const JWKS_FETCH_TIMEOUT_MS = 5000;
 const MAX_CACHED_TOKENS = 1000;
 const USED_JTI_TTL_MS = 5 * 60 * 1000;
+// Longer than the 120 s a function may run, no more.
+const INTEGRATION_TOKEN_EXPIRES_IN = '3m';
 
 export type HubMcpAuthResult =
   | { kind: 'not_hub' }
@@ -67,6 +70,7 @@ export class VeridianHubMcpAuthService {
     @InjectCacheStorage(CacheStorageNamespace.EngineAuthSession)
     private readonly cacheStorage: CacheStorageService,
     private readonly delegatedAppService: VeridianDelegatedAppService,
+    private readonly applicationTokenService: ApplicationTokenService,
   ) {}
 
   private get issuer() {
@@ -173,7 +177,10 @@ export class VeridianHubMcpAuthService {
       };
     }
 
-    const result = await this.mintAccessToken(claims);
+    const result =
+      delegation.subject === 'integration'
+        ? await this.resolveIntegrationWorkspace(claims)
+        : await this.mintAccessToken(claims);
 
     this.logger.log(`Hub action ${result.kind} ${trace}`);
 
@@ -195,6 +202,17 @@ export class VeridianHubMcpAuthService {
         this.logger.warn(`Hub action refused: ${app.error} ${trace}`);
 
         return app;
+      }
+
+      if (delegation.subject === 'integration') {
+        const { token } =
+          await this.applicationTokenService.generateApplicationAccessToken({
+            workspaceId: result.workspaceId,
+            applicationId: app.applicationId,
+            expiresIn: INTEGRATION_TOKEN_EXPIRES_IN,
+          });
+
+        return { ...result, accessToken: token, delegation };
       }
     }
 
@@ -320,6 +338,48 @@ export class VeridianHubMcpAuthService {
         message: 'This Hub user is not a member of the Veridian CRM workspace.',
       };
     }
+  }
+
+  // An integration has no member: its workspace is the one the Hub space is linked to, and it must be active. The token is
+  // only minted once the app is there, see authenticateAction.
+  private async resolveIntegrationWorkspace(
+    claims: HubMcpClaims,
+  ): Promise<HubMcpAuthResult> {
+    const tenant = await this.keyValuePairRepository.findOne({
+      where: {
+        key: `veridian.hub_tenant:${claims.tenant_id}`,
+        userId: IsNull(),
+      },
+    });
+
+    if (!tenant?.workspaceId) {
+      return {
+        kind: 'refused',
+        status: 403,
+        error: 'tenant_not_linked',
+        message: 'This Hub space has no Veridian CRM workspace.',
+      };
+    }
+
+    const [membership] = await this.userWorkspaceRepository.find({
+      where: { workspaceId: tenant.workspaceId },
+      relations: { workspace: true },
+      take: 1,
+    });
+
+    if (
+      membership?.workspace?.activationStatus !==
+      WorkspaceActivationStatus.ACTIVE
+    ) {
+      return {
+        kind: 'refused',
+        status: 403,
+        error: 'workspace_inactive',
+        message: 'This Veridian CRM workspace is not active.',
+      };
+    }
+
+    return { kind: 'ok', accessToken: '', workspaceId: tenant.workspaceId };
   }
 
   // Rule shared by every app (parente, 09/11/2026): no tenant_id, the user's default workspace;
