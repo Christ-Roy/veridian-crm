@@ -85,6 +85,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage`, code 1 (23/11) |
 | `scripts/ci/preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version, code 1 (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
+| `scripts/ci/preuve-app-deleguee.py`, `preuve-reponse-mail.py` (jetable) | app posée au premier jeton d'action, réponse Mail sans membre | 25/11, clés du Hub injoignables |
 | `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
 | `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
 
