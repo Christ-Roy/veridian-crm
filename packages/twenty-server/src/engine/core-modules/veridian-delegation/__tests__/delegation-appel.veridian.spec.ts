@@ -200,6 +200,47 @@ describe('appel du CRM vers une autre app (CONTRAT-HUB §5.19.5)', () => {
     expect(result.body.error).toBe('refus_de_l_app');
   });
 
+  it.each([
+    ['éteinte en dernier', ['allumee', 'eteinte']],
+    ['éteinte en premier', ['eteinte', 'allumee']],
+  ])(
+    'état : deux interrupteurs vers la même app, séquences %s',
+    async (_nom, ordre) => {
+      const contacts = {
+        audience: 'notifuse',
+        etat: 'allumee',
+        portees: ['notifuse:contacts.ecrire', 'notifuse:contacts.lire'],
+      };
+      const sequences = {
+        audience: 'notifuse',
+        etat: 'eteinte',
+        portees: ['notifuse:sequences.inscrire', 'academy:avancement.lire'],
+      };
+
+      global.fetch = jest.fn().mockResolvedValue(
+        answer(200, {
+          paires:
+            ordre[0] === 'allumee'
+              ? [contacts, sequences]
+              : [sequences, contacts],
+        }),
+      ) as never;
+
+      expect(
+        await new VeridianDelegationService(grantService() as never).describe(
+          ACTOR,
+        ),
+      ).toEqual({
+        notifuse: 'allumee',
+        prospection: 'unknown',
+        academy: 'unknown',
+        'notifuse:contacts.ecrire': 'allumee',
+        'notifuse:contacts.lire': 'allumee',
+        'notifuse:sequences.inscrire': 'eteinte',
+      });
+    },
+  );
+
   it('état : ne dit que les liaisons du registre', async () => {
     global.fetch = jest.fn().mockResolvedValue(
       answer(200, {

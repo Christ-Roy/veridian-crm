@@ -55,6 +55,11 @@ export const findDelegatedAction = (
   return Object.keys(actions).includes(action) ? actions[action] : null;
 };
 
+export const findScopes = (target: DelegatedTarget): string[] =>
+  Object.values<DelegatedAction>(DELEGATED_TARGETS[target]).map(
+    ({ scope }) => scope,
+  );
+
 // The only apps whose screens may act, each on its own targets: their code is ours, published from the instance catalog.
 export const DELEGATING_APPS: Record<string, readonly DelegatedTarget[]> = {
   // Liaisons

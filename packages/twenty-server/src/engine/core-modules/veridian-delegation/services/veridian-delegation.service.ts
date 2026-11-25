@@ -5,6 +5,8 @@ import { createHmac, randomBytes } from 'crypto';
 import {
   DELEGATED_TARGETS,
   type DelegatedTarget,
+  findScopes,
+  isDelegatedTarget,
 } from 'src/engine/core-modules/veridian-delegation/constants/delegated-targets.constant';
 import { VeridianGrantService } from 'src/engine/core-modules/veridian-delegation/services/veridian-grant.service';
 import { parseActionUrl } from 'src/engine/core-modules/veridian-delegation/utils/parse-action-url.util';
@@ -123,10 +125,21 @@ export class VeridianDelegationService {
 
     for (const pair of Array.isArray(body.paires) ? body.paires : []) {
       if (
-        Object.keys(states).includes(pair?.audience) &&
-        typeof pair?.etat === 'string'
+        !isDelegatedTarget(String(pair?.audience)) ||
+        typeof pair?.etat !== 'string'
       ) {
+        continue;
+      }
+
+      // A target may have several switches (contacts, sequences): one that is off never turns the others off.
+      if (states[pair.audience] !== 'allumee') {
         states[pair.audience] = pair.etat;
+      }
+
+      for (const scope of Array.isArray(pair.portees) ? pair.portees : []) {
+        if (findScopes(pair.audience).includes(scope)) {
+          states[scope] = pair.etat;
+        }
       }
     }
 
