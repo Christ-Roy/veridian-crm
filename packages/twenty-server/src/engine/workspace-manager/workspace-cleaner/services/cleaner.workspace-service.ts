@@ -55,6 +55,8 @@ export type CleanSuspendedWorkspacesOptions = {
   onlyOperation?: CleanSuspendedWorkspacesOperation;
 };
 
+const SUSPENSION_NEVER_ERASES: boolean = true;
+
 @Injectable()
 export class CleanerWorkspaceService {
   private readonly logger = new Logger(CleanerWorkspaceService.name);
@@ -404,6 +406,11 @@ export class CleanerWorkspaceService {
         }
 
         if (isSoftDeletedWorkspace) {
+          continue;
+        }
+
+        // Veridian (CONTRAT-HUB §5.4): a suspension never writes to anyone and never erases anything, whatever its date.
+        if (SUSPENSION_NEVER_ERASES) {
           continue;
         }
 

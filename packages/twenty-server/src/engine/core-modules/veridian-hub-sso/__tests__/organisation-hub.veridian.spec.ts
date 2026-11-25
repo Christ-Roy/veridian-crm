@@ -208,6 +208,23 @@ describe("document d'organisation du Hub : effet", () => {
     }
   });
 
+  it('espace suspendu : rien ne bouge, la version non plus', async () => {
+    const m = monter({
+      espace: {
+        id: 'ws',
+        displayName: 'Avant',
+        logoFileId: null,
+        activationStatus: 'SUSPENDED',
+        deletedAt: null,
+      } as never,
+    });
+
+    expect(
+      await m.appliquer({ membres: [membre()] }, { nom_affiche: 'Nouveau' }),
+    ).toEqual({ status: 'workspace_suspended' });
+    expect(m.fil).toEqual([]);
+  });
+
   it.each([
     [10, 'unchanged'],
     [11, 'stale'],

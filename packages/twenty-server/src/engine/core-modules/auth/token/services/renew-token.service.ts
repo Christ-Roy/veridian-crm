@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { isDefined } from 'twenty-shared/utils';
 import { IsNull, Repository } from 'typeorm';
 
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import { AppTokenEntity } from 'src/engine/core-modules/app-token/app-token.entity';
 import {
   AuthException,
@@ -15,6 +16,7 @@ import { RefreshTokenService } from 'src/engine/core-modules/auth/token/services
 import { WorkspaceAgnosticTokenService } from 'src/engine/core-modules/auth/token/services/workspace-agnostic-token.service';
 import { JwtTokenTypeEnum } from 'src/engine/core-modules/auth/types/jwt-token-type.enum';
 import { acquireUserAuthenticationLock } from 'src/engine/core-modules/auth/utils/acquire-user-authentication-lock.util';
+import { isWorkspaceSuspended } from 'src/engine/core-modules/workspace/utils/is-workspace-suspended.util';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
 
 @Injectable()
@@ -25,6 +27,7 @@ export class RenewTokenService {
     private readonly accessTokenService: AccessTokenService,
     private readonly workspaceAgnosticTokenService: WorkspaceAgnosticTokenService,
     private readonly refreshTokenService: RefreshTokenService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   async generateTokensFromRefreshToken(token: string): Promise<{
@@ -47,6 +50,19 @@ export class RenewTokenService {
       impersonatorUserWorkspaceId,
       impersonatedUserWorkspaceId,
     } = await this.refreshTokenService.verifyRefreshToken(token);
+
+    // Veridian (CONTRAT-HUB §5.4): refused before anything is consumed, the token works again once resumed.
+    if (
+      workspaceId &&
+      isWorkspaceSuspended(
+        await this.coreEntityCacheService.get('workspaceEntity', workspaceId),
+      )
+    ) {
+      throw new AuthException(
+        'Workspace is suspended',
+        AuthExceptionCode.WORKSPACE_SUSPENDED,
+      );
+    }
 
     // Support legacy token when targetedTokenType is undefined.
     const targetedTokenType =

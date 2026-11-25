@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { IsNull, type Repository } from 'typeorm';
 
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
@@ -27,7 +28,13 @@ type StoredOrganisation = {
 };
 
 export type HubOrganisationResult =
-  | { status: 'tenant_not_linked' | 'logo_unreachable' | 'members_failed' }
+  | {
+      status:
+        | 'tenant_not_linked'
+        | 'workspace_suspended'
+        | 'logo_unreachable'
+        | 'members_failed';
+    }
   | { status: 'ok'; applied: false; reason: 'unchanged' | 'stale' }
   | { status: 'ok'; applied: true; attached: number; refused: number };
 
@@ -86,6 +93,11 @@ export class VeridianHubOrganisationService {
 
     if (!workspace) {
       return { status: 'tenant_not_linked' };
+    }
+
+    // Replayed by the Hub once resumed: nothing is applied, the version does not move.
+    if (workspace.activationStatus === WorkspaceActivationStatus.SUSPENDED) {
+      return { status: 'workspace_suspended' };
     }
 
     const stored = await this.findStored(workspaceId);

@@ -21,6 +21,7 @@ import { LoginTokenService } from 'src/engine/core-modules/auth/token/services/l
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
+import { isMagicLinkRefusedForSuspension } from 'src/engine/core-modules/veridian-hub-sso/utils/is-magic-link-refused-for-suspension.util';
 import { parseOwnUrl } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-own-url.util';
 import { WorkspaceDomainsService } from 'src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service';
 import {
@@ -55,8 +56,11 @@ const PROVISION_LOCK_MS = 5 * 60 * 1000;
 
 // The Hub is the only source of identity. These links live in core.keyValuePair so
 // the fork carries no schema of its own: one key per Hub user, one key per tenant.
+export const WORKSPACE_SUSPENDED_LINK = 'workspace_suspended' as const;
+
 const hubUserKey = (hubUserId: string) => `veridian.hub_user:${hubUserId}`;
-const hubTenantKey = (tenantId: string) => `veridian.hub_tenant:${tenantId}`;
+export const hubTenantKey = (tenantId: string) =>
+  `veridian.hub_tenant:${tenantId}`;
 
 type TenantLink = { ownerEmail: string } & StoredPlan;
 
@@ -191,7 +195,7 @@ export class VeridianHubSsoService {
     hubUserId: string,
     rawEmail: string,
     next?: unknown,
-  ): Promise<string | null> {
+  ): Promise<string | null | typeof WORKSPACE_SUSPENDED_LINK> {
     await this.throttlerService.tokenBucketThrottleOrThrow(
       `veridian-hub-sso:issue-magic-link:${hubUserId}`,
       1,
@@ -209,6 +213,22 @@ export class VeridianHubSsoService {
       next,
       this.twentyConfigService.get('SERVER_URL'),
     );
+
+    // CONTRAT-HUB §5.21 : 423 seulement si l'espace demandé est suspendu, ou si tous les espaces du membre le sont.
+    // Un membre qui a un espace actif entre toujours, dans celui-là.
+    const memberships: { subdomain: string; activationStatus: string }[] =
+      await this.userWorkspaceRepository.query(
+        `SELECT w.subdomain, w."activationStatus"
+           FROM core."userWorkspace" uw
+           JOIN core.workspace w ON w.id = uw."workspaceId"
+          WHERE uw."userId" = $1 AND uw."deletedAt" IS NULL AND w."deletedAt" IS NULL`,
+        [user.id],
+      );
+    if (
+      isMagicLinkRefusedForSuspension(memberships, ownNext?.subdomain ?? null)
+    ) {
+      return WORKSPACE_SUSPENDED_LINK;
+    }
 
     // The workspace the user asked for wins, if he belongs to it. Otherwise the last active one.
     const [lastActiveMembership] = await this.userWorkspaceRepository.query(
@@ -471,7 +491,12 @@ export class VeridianHubSsoService {
     hubUserId: string;
     email: string;
   }): Promise<
-    | { status: 'workspace_not_found' | 'identity_conflict' }
+    | {
+        status:
+          | 'workspace_not_found'
+          | 'workspace_suspended'
+          | 'identity_conflict';
+      }
     | {
         status: 'ok';
         userId: string;
@@ -485,6 +510,10 @@ export class VeridianHubSsoService {
 
     if (!workspace) {
       return { status: 'workspace_not_found' };
+    }
+
+    if (workspace.activationStatus === WorkspaceActivationStatus.SUSPENDED) {
+      return { status: 'workspace_suspended' };
     }
 
     const known = await this.resolveUser(hubUserId, email);

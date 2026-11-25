@@ -5,7 +5,7 @@ set -uo pipefail
 RACINE=$(git rev-parse --show-toplevel) || exit 2
 TMP=$(mktemp -d) || exit 2
 trap 'rm -rf "$TMP"' EXIT
-git -C "$RACINE" archive HEAD scripts/ci packages/twenty-server/src/engine packages/twenty-front/src packages/twenty-shared/src 2>/dev/null | tar -x -C "$TMP" || { echo "MOTIFS_NON_ABOUTI copie impossible"; exit 2; }
+git -C "$RACINE" archive HEAD scripts/ci packages/twenty-server/src/engine packages/twenty-server/src/modules packages/twenty-front/src packages/twenty-shared/src 2>/dev/null | tar -x -C "$TMP" || { echo "MOTIFS_NON_ABOUTI copie impossible"; exit 2; }
 cd "$TMP" || exit 2
 rate=0 vus=0
 for f in scripts/ci/mutations-*.sh; do

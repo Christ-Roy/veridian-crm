@@ -47,6 +47,19 @@ exige "$SERVEUR/engine/core-modules/application/application-install/application-
 exige "$SERVEUR/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service.ts" "!(await isCatalogApplicationAllowedByVeridian("
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "// Veridian : le catalogue montre nos apps"
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-tarball.service.ts" "isListed: existingRegistration?.isListed ?? false,"
+# Suspension Veridian (CONTRAT-HUB §5.4, 24/11/2026) : suspendedAt reste NULL (le cron natif efface à 14 j),
+# le nettoyeur natif est coupé, la file reporte, le rafraîchissement et les résolveurs de données refusent.
+exige "$SERVEUR/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service.ts" "suspendedAt: null,"
+exige "$SERVEUR/engine/core-modules/user/user.resolver.ts" "async currentUser("
+exige "$SERVEUR/engine/guards/workspace-not-suspended.guard.ts" "!isClosedWhenSuspended("
+exige "$SERVEUR/engine/core-modules/message-queue/message-queue.explorer.ts" "await postponeSuspendedWorkspaceJob("
+exige "$SERVEUR/engine/core-modules/auth/token/services/renew-token.service.ts" "Veridian (CONTRAT-HUB §5.4)"
+exige "$SERVEUR/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service.ts" "if (SUSPENSION_NEVER_ERASES) {"
+exige "$SERVEUR/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant.ts" "'AuthResolver.signIn',"
+FRONT=packages/twenty-front/src
+exige "$FRONT/modules/app/components/DefaultLayout.tsx" "<VeridianSuspendedGate>"
+exige "$FRONT/modules/veridian-suspension/components/VeridianSuspendedGate.tsx" "Cet espace est suspendu."
+exige "$FRONT/modules/app/hooks/usePageChangeEffectNavigateLocation.ts" "jamais de redirection vers Billing"
 # Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "await this.applyUpdate({ id, update });"
 exige "$SERVEUR/engine/metadata-modules/ai/ai-models/utils/build-ai-telemetry.util.ts" "headers: encoderContexteIa(identifiers),"

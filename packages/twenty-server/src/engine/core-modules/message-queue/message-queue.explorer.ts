@@ -15,6 +15,7 @@ import {
 } from 'src/engine/core-modules/message-queue/interfaces/message-queue-job.interface';
 import { type MessageQueueWorkerOptions } from 'src/engine/core-modules/message-queue/interfaces/message-queue-worker-options.interface';
 
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { MessageQueueMetadataAccessor } from 'src/engine/core-modules/message-queue/message-queue-metadata.accessor';
 import { type MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
@@ -24,6 +25,7 @@ import { EventLoopStallMonitorService } from 'src/engine/core-modules/message-qu
 import { getQueueToken } from 'src/engine/core-modules/message-queue/utils/get-queue-token.util';
 import { shouldCreateWorkerForQueue } from 'src/engine/core-modules/message-queue/utils/should-create-worker-for-queue.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import { postponeSuspendedWorkspaceJob } from 'src/engine/core-modules/veridian-hub-sso/utils/postpone-suspended-workspace-job.util';
 import { shouldCaptureException } from 'src/engine/utils/global-exception-handler.util';
 
 interface ProcessorGroup {
@@ -46,6 +48,7 @@ export class MessageQueueExplorer implements OnModuleInit {
     private readonly exceptionHandlerService: ExceptionHandlerService,
     private readonly twentyConfigService: TwentyConfigService,
     private readonly eventLoopStallMonitorService: EventLoopStallMonitorService,
+    private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
 
   onModuleInit() {
@@ -186,6 +189,16 @@ export class MessageQueueExplorer implements OnModuleInit {
     queueName: MessageQueue,
   ) {
     queue.work(async (job) => {
+      if (
+        await postponeSuspendedWorkspaceJob(
+          job,
+          queue,
+          this.coreEntityCacheService,
+        )
+      ) {
+        return;
+      }
+
       const stallMonitorToken =
         this.eventLoopStallMonitorService.registerJobStart({
           queueName,

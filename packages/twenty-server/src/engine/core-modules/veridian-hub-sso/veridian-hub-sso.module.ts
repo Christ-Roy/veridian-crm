@@ -22,6 +22,7 @@ import { WorkspaceMemberIdentityPreQueryHook } from 'src/engine/core-modules/ver
 import { VeridianHubOrganisationService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-organisation.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
+import { VeridianHubSuspensionService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
 import { UserRoleModule } from 'src/engine/permissions/role-assignment/user-role.module';
@@ -57,6 +58,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
     VeridianHubSsoService,
     VeridianHubRoleService,
     VeridianHubOrganisationService,
+    VeridianHubSuspensionService,
     WorkspaceMemberIdentityPreQueryHook,
     { provide: APP_GUARD, useClass: HubOnlyIdentityGuard },
   ],

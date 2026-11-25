@@ -1,6 +1,7 @@
 import { DiscoveryModule } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { Process } from 'src/engine/core-modules/message-queue/decorators/process.decorator';
 import { Processor } from 'src/engine/core-modules/message-queue/decorators/processor.decorator';
@@ -42,6 +43,7 @@ describe('MessageQueueExplorer progress context', () => {
           useValue: queue,
         },
         { provide: TwentyConfigService, useValue: { get: () => [] } },
+        { provide: CoreEntityCacheService, useValue: { get: jest.fn() } },
         {
           provide: ExceptionHandlerService,
           useValue: { captureExceptions: jest.fn() },

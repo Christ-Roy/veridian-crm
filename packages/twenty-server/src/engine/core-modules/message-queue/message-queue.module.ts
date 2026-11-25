@@ -1,6 +1,7 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
 
+import { CoreEntityCacheModule } from 'src/engine/core-entity-cache/core-entity-cache.module';
 import { MessageQueueCoreModule } from 'src/engine/core-modules/message-queue/message-queue-core.module';
 import { MessageQueueMetadataAccessor } from 'src/engine/core-modules/message-queue/message-queue-metadata.accessor';
 import { MessageQueueExplorer } from 'src/engine/core-modules/message-queue/message-queue.explorer';
@@ -23,7 +24,7 @@ export class MessageQueueModule {
   static registerExplorer(): DynamicModule {
     return {
       module: MessageQueueModule,
-      imports: [DiscoveryModule],
+      imports: [DiscoveryModule, CoreEntityCacheModule],
       providers: [
         MessageQueueExplorer,
         MessageQueueMetadataAccessor,
