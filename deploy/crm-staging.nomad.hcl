@@ -446,8 +446,8 @@ EOH
       }
       resources {
         cpu        = 100
-        memory     = 192
-        memory_max = 384
+        memory     = 64
+        memory_max = 256
       }
     }
   }

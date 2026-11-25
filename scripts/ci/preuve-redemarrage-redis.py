@@ -31,6 +31,7 @@ base = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(base)
 
 PAGE = 60
+ERREURS = ("Unable to", "went wrong", "back-end", "Reload", "Erreur", "Error")
 
 
 class Recepteur(ta._Recepteur):
@@ -116,13 +117,23 @@ class Redemarrage(base.Epreuve):
         return d is not None or f"HTTP {code}"
 
     def recharger(self, page):
-        t = time.time()
+        """Un rechargement ; échoue dès que l'écran affiche une erreur, ou reste sans contenu 45 s : l'utilisateur recharge alors."""
+        t, ok, vu = time.time(), None, ""
         try:
-            page.reload(wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_selector("text=Companies", timeout=60000)
-            ok = True
+            page.reload(wait_until="commit", timeout=45000)
         except Exception as e:  # noqa: BLE001
             ok = type(e).__name__
+        while ok is None:
+            try:
+                vu = page.inner_text("body", timeout=2000)
+            except Exception:  # noqa: BLE001
+                vu = ""
+            if "Companies" in vu and "All" in vu:
+                ok = True
+            elif any(m in vu for m in ERREURS) or time.time() - t > 45:
+                ok = f"écran : {' '.join(vu.split())[:90]!r} après {time.time() - t:.1f} s"
+            else:
+                time.sleep(0.3)
         self.mesures["écran"].append((t, time.time(), ok))
 
     def bilan(self, nom, debut, fin):
@@ -136,7 +147,7 @@ class Redemarrage(base.Epreuve):
         print(f"{nom:<14} {len(m)} essais, {len(ratees)} ratés {[(datetime.fromtimestamp(a, timezone.utc).strftime('%T'), ok) for a, _, ok in ratees][:4]}, "
               f"réponse normale {normal:.2f} s, la plus lente {lent:.2f} s, plus long trou entre deux succès {trou:.2f} s", flush=True)
         # Coupure = ce que le redémarrage ajoute à la normale de ce poste (un bastion chargé rend déjà l'écran en 20 s).
-        return len(ratees), max(0.0, (lent if nom == "écran" else trou) - (normal if nom == "écran" else max(0.5, normal)))
+        return len(ratees), max(0.0, trou - max(0.5, normal))
 
     def jouer(self):
         a = self.a
