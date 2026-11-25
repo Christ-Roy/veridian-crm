@@ -1,5 +1,3 @@
-import { setTimeout } from 'node:timers/promises';
-
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -7,25 +5,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { In, IsNull, type Repository } from 'typeorm';
 
-import {
-  CoreEntityCacheService,
-  MEMOIZER_TTL_MS,
-} from 'src/engine/core-entity-cache/services/core-entity-cache.service';
+import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import { CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
 import {
   KeyValuePairEntity,
   KeyValuePairType,
 } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
 import { hubTenantKey } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
+import { settleCoreEntityCache } from 'src/engine/core-modules/veridian-hub-sso/utils/settle-core-entity-cache.util';
 import { WORKSPACE_REACTIVATED_EVENT } from 'src/engine/core-modules/workspace/constants/workspace-reactivated-event.constant';
 import { WORKSPACE_SUSPENDED_EVENT } from 'src/engine/core-modules/workspace/constants/workspace-suspended-event.constant';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { type WorkspaceReactivatedEvent } from 'src/engine/core-modules/workspace/types/workspace-reactivated-event.type';
 import { type WorkspaceSuspendedEvent } from 'src/engine/core-modules/workspace/types/workspace-suspended-event.type';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-
-// A read in flight when the status changes writes the old one back after the invalidation.
-export const IN_FLIGHT_READ_MS = 1500;
 
 export const HUB_SUSPENSION_KEY = 'veridian.hub_suspension';
 
@@ -156,14 +149,12 @@ export class VeridianHubSuspensionService {
     });
   }
 
-  // The answer means it is done in every process: the stale write is gone, then every memory of it has expired.
   private async settleCaches(workspaceId: string): Promise<void> {
-    await setTimeout(IN_FLIGHT_READ_MS);
-    await this.coreEntityCacheService.invalidate(
+    await settleCoreEntityCache(
+      this.coreEntityCacheService,
       'workspaceEntity',
-      workspaceId,
+      [workspaceId],
     );
-    await setTimeout(MEMOIZER_TTL_MS);
   }
 
   private async withWorkspace(

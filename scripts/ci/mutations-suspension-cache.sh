@@ -4,7 +4,7 @@
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
-SERVICE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service.ts
+SERVICE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/settle-core-entity-cache.util.ts
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -36,12 +36,9 @@ saboter() {
   cp "$TMP/sauve" "$fichier"
 }
 
-saboter "lecture en vol : cache vidé une seule fois" "$SERVICE" "    await setTimeout(IN_FLIGHT_READ_MS);
-    await this.coreEntityCacheService.invalidate(
-      'workspaceEntity',
-      workspaceId,
-    );" ""
-saboter "réponse avant l'oubli des mémoires" "$SERVICE" "    await setTimeout(MEMOIZER_TTL_MS);" ""
+saboter "lecture en vol : cache vidé une seule fois" "$SERVICE" "    await coreEntityCacheService.invalidate(cacheKeyName, entityId);" ""
+saboter "lecture en vol : second vidage trop tôt" "$SERVICE" "  await setTimeout(IN_FLIGHT_READ_MS);" ""
+saboter "réponse avant l'oubli des mémoires" "$SERVICE" "  await setTimeout(MEMOIZER_TTL_MS);" ""
 
 [ "$rate" -eq 0 ] && echo "CONFORME"
 exit "$rate"

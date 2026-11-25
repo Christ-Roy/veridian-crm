@@ -9,6 +9,10 @@ import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/
 
 // Les voisins sont des bouchons, pour un test rapide : contrôleur, service et règles restent réels.
 jest.mock(
+  'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-member-access.service',
+  () => ({ VeridianHubMemberAccessService: class {} }),
+);
+jest.mock(
   'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service',
   () => ({ VeridianHubRoleService: class VeridianHubRoleService {} }),
 );

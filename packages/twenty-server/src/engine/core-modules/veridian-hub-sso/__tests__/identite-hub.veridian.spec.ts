@@ -4,6 +4,10 @@ import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-s
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 
 jest.mock(
+  'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-member-access.service',
+  () => ({ VeridianHubMemberAccessService: class {} }),
+);
+jest.mock(
   'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service',
   () => ({ VeridianHubRoleService: class VeridianHubRoleService {} }),
 );
@@ -240,6 +244,11 @@ const monter = ({
     },
     { invalidateAndRecompute: jest.fn() },
     { forgetRole: jest.fn() },
+    {
+      close: jest.fn(async (userId: string) => {
+        fil.push(`accès ${userId}`);
+      }),
+    },
   );
 
   return { service, fil, requetes, conversion, maj };
@@ -259,7 +268,7 @@ describe('identité par hub_user_id (CONTRAT-HUB §5.19.7)', () => {
     const m = monter();
 
     expect(await m.service.removeMember('ws', JEAN)).toBe(true);
-    expect(m.fil).toEqual(['fiche jean', 'retrait uw-jean']);
+    expect(m.fil).toEqual(['fiche jean', 'retrait uw-jean', 'accès jean']);
   });
 
   it('retrait d un inconnu : faux, rien n est touché', async () => {

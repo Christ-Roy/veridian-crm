@@ -6,6 +6,10 @@ jest.mock(
   'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service',
   () => ({ VeridianHubRoleService: class VeridianHubRoleService {} }),
 );
+jest.mock(
+  'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-member-access.service',
+  () => ({ VeridianHubMemberAccessService: class {} }),
+);
 jest.mock('src/engine/core-modules/auth/services/sign-in-up.service', () => ({
   SignInUpService: class SignInUpService {},
 }));
@@ -74,7 +78,7 @@ jest.mock('src/engine/guards/public-endpoint.guard', () => ({
 // CONTRAT-HUB §5.19.2 et §3.8 : une fiche vivante sans appartenance vivante ferme l'espace à tous les autres (VER-203).
 const fauxService = ({
   membership = { id: 'uw', userId: 'u', workspaceId: 'ws' } as unknown,
-  memberships = [membership],
+  memberships = [membership] as unknown[],
   activationStatus = WorkspaceActivationStatus.ACTIVE,
   disparu = false,
 } = {}) => {
@@ -131,6 +135,7 @@ const fauxService = ({
     { revokeAllSessionsForUser: ecrire('sessions') },
     { invalidateAndRecompute: ecrire('cache') },
     { forgetRole: ecrire('role.oublie') },
+    { close: ecrire('acces.ferme') },
   );
 
   (service as unknown as { clearOnboarding: unknown }).clearOnboarding =
@@ -142,6 +147,7 @@ const fauxService = ({
 const FICHE = 'fiche.softDelete [{"userId":"u"}]';
 const APPARTENANCE =
   'appartenance.delete [{"userWorkspaceId":"uw","workspaceId":"ws","softDelete":true}]';
+const ACCES = 'acces.ferme ["u",[{"id":"uw","userId":"u","workspaceId":"ws"}]]';
 const CACHE = 'cache ["ws",["flatWorkspaceMemberMaps"]]';
 
 describe('retrait et retour d’un membre par le Hub', () => {
@@ -149,7 +155,7 @@ describe('retrait et retour d’un membre par le Hub', () => {
     const { service, journal } = fauxService();
 
     expect(await service.removeMember('ws', 'h')).toBe(true);
-    expect(journal).toEqual([FICHE, CACHE, APPARTENANCE]);
+    expect(journal).toEqual([FICHE, CACHE, APPARTENANCE, ACCES]);
   });
 
   it('remove-member dit combien de clés API ouvrent encore l’espace, et où les couper', async () => {
@@ -177,11 +183,14 @@ describe('retrait et retour d’un membre par le Hub', () => {
     expect(query.mock.calls[0][1]).toEqual(['ws']);
   });
 
-  it('remove-member rejoué répare une fiche orpheline', async () => {
-    const { service, journal } = fauxService({ membership: null });
+  it('remove-member rejoué répare une fiche orpheline et finit de fermer l’accès', async () => {
+    const { service, journal } = fauxService({
+      membership: null,
+      memberships: [{ id: 'uw', userId: 'u', workspaceId: 'ws' }],
+    });
 
     expect(await service.removeMember('ws', 'h')).toBe(false);
-    expect(journal).toEqual([FICHE, CACHE]);
+    expect(journal).toEqual([FICHE, CACHE, ACCES]);
   });
 
   it('users/sync deleted coupe l’accès avant de retirer les fiches', async () => {
@@ -191,7 +200,7 @@ describe('retrait et retour d’un membre par le Hub', () => {
 
     expect(journal[0]).toContain('user.update');
     expect(journal[1]).toContain('sessions');
-    expect(journal.slice(2)).toEqual([FICHE, CACHE, APPARTENANCE]);
+    expect(journal.slice(2)).toEqual([FICHE, CACHE, APPARTENANCE, ACCES]);
   });
 
   it('un espace sans schéma ou supprimé n’empêche pas la coupure', async () => {

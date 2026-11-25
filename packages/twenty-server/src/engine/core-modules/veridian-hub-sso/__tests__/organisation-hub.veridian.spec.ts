@@ -24,6 +24,10 @@ jest.mock(
   () => ({ VeridianHubSsoService: class {} }),
 );
 jest.mock(
+  'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-member-access.service',
+  () => ({ VeridianHubMemberAccessService: class {} }),
+);
+jest.mock(
   'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service',
   () => ({ VeridianHubRoleService: class {} }),
 );

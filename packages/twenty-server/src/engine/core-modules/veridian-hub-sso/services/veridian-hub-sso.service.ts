@@ -45,6 +45,7 @@ import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 import { fromUserEntityToFlat } from 'src/engine/core-modules/user/utils/from-user-entity-to-flat.util';
 import { WorkspaceService } from 'src/engine/core-modules/workspace/services/workspace.service';
 import { AuthProviderEnum } from 'src/engine/core-modules/workspace/types/workspace.type';
+import { VeridianHubMemberAccessService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-member-access.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
 import { HUB_ROLE_CARRIED_KEY } from 'src/engine/core-modules/veridian-hub-sso/utils/assert-role-not-carried-by-hub.util';
 import { HUB_ROLE_KEY } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
@@ -117,6 +118,7 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
     private readonly userSessionService: UserSessionService,
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly veridianHubRoleService: VeridianHubRoleService,
+    private readonly veridianHubMemberAccessService: VeridianHubMemberAccessService,
   ) {}
 
   // CONTRAT-HUB §5.19.7: an owner recorded by email is converted once, by the linked local copy. A row with no match is
@@ -678,6 +680,14 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
 
     if (user) {
       await this.detachMember(user.id, workspaceId, membership?.id);
+      // Past memberships too: replayed after a cut, it finishes closing what the first call left open.
+      await this.veridianHubMemberAccessService.close(
+        user.id,
+        await this.userWorkspaceRepository.find({
+          where: { userId: user.id, workspaceId },
+          withDeleted: true,
+        }),
+      );
     }
 
     return Boolean(membership);
@@ -825,11 +835,16 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
 
     const memberships = await this.userWorkspaceRepository.find({
       where: { userId },
+      withDeleted: true,
     });
 
-    for (const membership of memberships) {
-      await this.detachMember(userId, membership.workspaceId, membership.id);
+    for (const { id, workspaceId, deletedAt } of memberships) {
+      if (!deletedAt) {
+        await this.detachMember(userId, workspaceId, id);
+      }
     }
+
+    await this.veridianHubMemberAccessService.close(userId, memberships);
   }
 
   // A live workspaceMember with no live userWorkspace breaks GetCurrentUser for the whole workspace: both go

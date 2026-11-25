@@ -51,6 +51,7 @@ import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache
   ],
   exports: [
     SubscriptionService,
+    EventStreamService,
     ObjectRecordEventPublisher,
     MetadataEventEmitter,
     WorkspaceEventBroadcaster,
