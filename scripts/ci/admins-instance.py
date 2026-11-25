@@ -11,6 +11,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / ".claude/skills/twenty-cli/bin"))
@@ -25,9 +26,18 @@ def liste(texte, nom):
 
 
 def identite(env, adresse):
-    r = subprocess.run(["hub", "--env", env, "user", adresse], capture_output=True, text=True, timeout=60)
-    trouve = re.search(r'"supabase_user_id":\s*"([0-9a-f-]{36})"', r.stdout)
-    return trouve.group(1) if r.returncode == 0 and trouve else None
+    for essai in range(3):
+        try:
+            r = subprocess.run(["hub", "--env", env, "user", adresse], capture_output=True, text=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            continue
+        if r.returncode == 3 and '"not_found"' in r.stdout + r.stderr:
+            return None
+        if r.returncode == 0 and '"user"' in r.stdout:
+            trouve = re.search(r'"supabase_user_id":\s*"([0-9a-f-]{36})"', r.stdout)
+            return trouve.group(1) if trouve else None
+        time.sleep(5 * (essai + 1))
+    raise ta.Echec("le Hub ne répond pas", 2)
 
 
 def main():
@@ -40,7 +50,11 @@ def main():
     if not adresses or not ids:
         print("ADMINS_NON_ABOUTI liste absente du job")
         return 2
-    trouves = [identite(a.env, x) for x in adresses]
+    try:
+        trouves = [identite(a.env, x) for x in adresses]
+    except ta.Echec as e:
+        print(f"ADMINS_NON_ABOUTI {e}")
+        return 2
     sans = trouves.count(None)
     if sans:
         print(f"ADMINS_REFUS {sans} adresse(s) sur {len(adresses)} sans identité reliée au Hub : pas de bascule")

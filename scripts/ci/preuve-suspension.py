@@ -206,8 +206,8 @@ class Epreuve:
 
     def jouer(self):
         a = self.a
-        code, outils = self.mcp(self.origine, self.session_a)
-        self.controle("avant : MCP de A répond (témoin positif)", code == 200 and outils > 0, f"{code} {outils} outils")
+        code, self.outils = self.mcp(self.origine, self.session_a)
+        self.controle("avant : MCP de A répond (témoin positif)", code == 200 and self.outils > 0, f"{code} {self.outils} outils")
         self.installer_acces()
         code, ident = self.societe(f"Preuve suspension avant {int(time.time())}")
         self.controle("avant : REST crée une fiche", code == 201 and ident, f"HTTP {code}")
@@ -285,8 +285,8 @@ class Epreuve:
         self.controle("REST par clé API rendu", code == 200, f"HTTP {code}")
         apres = self.fiches(self.origine, self.session_a)
         self.controle("session rendue, fiches identiques", apres == avant_a, f"{apres}")
-        code, outils = self.mcp(self.origine, self.cle)
-        self.controle("MCP rendu", code == 200 and outils > 0, f"HTTP {code} {outils} outils")
+        code, outils = self.mcp(self.origine, self.session_a)
+        self.controle("MCP rendu, mêmes outils", code == 200 and outils == self.outils, f"HTTP {code} {outils} outils")
         ok, detail = self.renouveler(self.origine, self.rafraichir_a)
         self.controle("le même jeton de rafraîchissement sert encore", ok, detail)
         st, _, _ = self.rebond(self.email, self.hub_a, self.origine)
