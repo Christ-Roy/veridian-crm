@@ -1,5 +1,6 @@
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 
+import { ClosedWhenSuspendedGuard } from 'src/engine/core-modules/veridian-hub-sso/guards/closed-when-suspended.guard';
 import { WorkspaceNotSuspendedGuard } from 'src/engine/guards/workspace-not-suspended.guard';
 
 jest.mock('src/utils/extract-request', () => ({
@@ -69,7 +70,15 @@ const buildGuard = () => {
     ),
   };
 
-  return new WorkspaceNotSuspendedGuard(reflector as never);
+  const nativeGuard = new WorkspaceNotSuspendedGuard(reflector as never);
+  const closedGuard = new ClosedWhenSuspendedGuard();
+
+  return {
+    nativeGuard,
+    canActivate: (executionContext: never) =>
+      nativeGuard.canActivate(executionContext) &&
+      closedGuard.canActivate(executionContext),
+  };
 };
 
 describe('garde d espace suspendu (Veridian, CONTRAT-HUB §5.4)', () => {
@@ -92,6 +101,16 @@ describe('garde d espace suspendu (Veridian, CONTRAT-HUB §5.4)', () => {
         context(WorkspaceResolver, 'deleteCurrentWorkspace', SUSPENDED),
       ),
     ).toThrow();
+  });
+
+  it('c est bien notre garde qui ferme : la garde amont seule laisse passer', () => {
+    const { nativeGuard } = buildGuard();
+
+    expect(
+      nativeGuard.canActivate(
+        context(MessageChannelResolver, 'myMessageChannels', SUSPENDED),
+      ),
+    ).toBe(true);
   });
 
   it('laisse passer une méthode décorée et non fermée (écran : métadonnées, session)', () => {

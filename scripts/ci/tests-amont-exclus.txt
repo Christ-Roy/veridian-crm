@@ -3,7 +3,6 @@
 # Un chemin qui n'existe plus fait échouer la CI (liste périmée). Une raison vague est une dette.
 # Mesuré le 25/11/2026 sur rise (jest amont sur notre code). Causes confirmées ou non, dites telles quelles.
 packages/twenty-server/src/engine/core-modules/record-crud/utils/__tests__/get-record-image-identifier.util.spec.ts | notre patch coupe twenty-icons (TWENTY_ICONS_BASE_URL absent donne null), l'amont attend l'URL
-packages/twenty-server/src/engine/guards/__tests__/workspace-not-suspended.guard.spec.ts | notre patch suspension (isClosedWhenSuspended lit context.getClass().name), le mock de l'amont n'a pas getClass
 packages/twenty-server/src/modules/workflow/workflow-builder/workflow-version-step/__tests__/workflow-version-step-operations.workspace-service.spec.ts | notre patch isWorkflowActionDisabledByVeridian refuse les étapes CODE
 packages/twenty-server/src/engine/core-modules/file-storage/drivers/__tests__/local.driver.spec.ts | 2 tests « résolu au lieu de rejeté », ni spec ni source touchés par nous : cause amont/environnement NON CONFIRMÉE (rise), à réessayer sur le runner
 packages/twenty-front/src/modules/object-metadata/utils/__tests__/getImageIdentifierFieldValue.test.ts | notre patch coupe twenty-icons (null au lieu de l'URL)

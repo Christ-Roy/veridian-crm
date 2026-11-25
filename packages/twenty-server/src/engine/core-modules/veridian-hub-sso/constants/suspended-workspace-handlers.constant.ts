@@ -1,6 +1,6 @@
 // Veridian, suspension d'un espace (CONTRAT-HUB §5.4, 24/11/2026).
-// Les gestionnaires amont marqués @AllowSuspendedWorkspace restent ceux de l'amont. La garde natives
-// (WorkspaceNotSuspendedGuard) lit cette liste : un gestionnaire fermé est refusé même décoré.
+// Les gestionnaires amont marqués @AllowSuspendedWorkspace restent ceux de l'amont. Notre garde
+// (ClosedWhenSuspendedGuard) lit cette liste : un gestionnaire fermé est refusé même décoré.
 // Clé : NomDeClasse.methode, ou NomDeClasse.* pour un contrôleur ou un résolveur entier.
 // La spec suspension-classement.veridian.spec.ts échoue si un décorateur amont n'est classé ni ici ni là.
 

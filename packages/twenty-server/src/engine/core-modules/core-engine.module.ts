@@ -20,10 +20,7 @@ import { ApplicationModule } from 'src/engine/core-modules/application/applicati
 import { PreInstalledAppsModule } from 'src/engine/core-modules/application/pre-installed-apps/pre-installed-apps.module';
 import { ApprovedAccessDomainModule } from 'src/engine/core-modules/approved-access-domain/approved-access-domain.module';
 import { AuthModule } from 'src/engine/core-modules/auth/auth.module';
-import { VeridianHubMcpModule } from 'src/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module';
-import { VeridianIaModule } from 'src/engine/core-modules/veridian-ia/veridian-ia.module';
-import { VeridianPgModule } from 'src/engine/core-modules/veridian-pg/veridian-pg.module';
-import { VeridianHubSsoModule } from 'src/engine/core-modules/veridian-hub-sso/veridian-hub-sso.module';
+import { VeridianModule } from 'src/engine/core-modules/veridian/veridian.module';
 import { BillingWebhookModule } from 'src/engine/core-modules/billing-webhook/billing-webhook.module';
 import { AppBillingModule } from 'src/engine/core-modules/billing/app-billing/app-billing.module';
 import { BillingModule } from 'src/engine/core-modules/billing/billing.module';
@@ -96,10 +93,7 @@ import { FileApiModule } from './file/file-api.module';
     TwentyConfigModule.forRoot(),
     HealthModule,
     AuthModule,
-    VeridianHubSsoModule,
-    VeridianHubMcpModule,
-    VeridianPgModule,
-    VeridianIaModule,
+    VeridianModule,
     BillingModule,
     BillingWebhookModule,
     UsageModule,

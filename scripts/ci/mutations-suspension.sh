@@ -6,7 +6,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 SERVICE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service.ts
 CLEANER=packages/twenty-server/src/engine/workspace-manager/workspace-cleaner/services/cleaner.workspace-service.ts
-GARDE=packages/twenty-server/src/engine/guards/workspace-not-suspended.guard.ts
+GARDE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/guards/closed-when-suspended.guard.ts
 CLASSE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/constants/suspended-workspace-handlers.constant.ts
 UTIL=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/is-magic-link-refused-for-suspension.util.ts
 FILE=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/utils/postpone-suspended-workspace-job.util.ts
