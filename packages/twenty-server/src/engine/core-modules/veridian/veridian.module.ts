@@ -4,6 +4,7 @@ import { VeridianDelegationModule } from 'src/engine/core-modules/veridian-deleg
 import { VeridianHubMcpModule } from 'src/engine/core-modules/veridian-hub-mcp/veridian-hub-mcp.module';
 import { VeridianHubSsoModule } from 'src/engine/core-modules/veridian-hub-sso/veridian-hub-sso.module';
 import { VeridianIaModule } from 'src/engine/core-modules/veridian-ia/veridian-ia.module';
+import { VeridianOauthModule } from 'src/engine/core-modules/veridian-oauth/veridian-oauth.module';
 import { VeridianPgModule } from 'src/engine/core-modules/veridian-pg/veridian-pg.module';
 
 @Module({
@@ -13,6 +14,7 @@ import { VeridianPgModule } from 'src/engine/core-modules/veridian-pg/veridian-p
     VeridianPgModule,
     VeridianIaModule,
     VeridianDelegationModule,
+    VeridianOauthModule,
   ],
 })
 export class VeridianModule {}
