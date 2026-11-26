@@ -66,6 +66,15 @@ class Epreuve(reponse.Epreuve):
         rfc = f"<{uuid.uuid4()}@{self.dom}>"
         lot_id = str(uuid.uuid4())
 
+        # Liaisons posée à la naissance (VERIDIAN_BASE_APPS, job d'installation d'environ 30 s) : l'objet Mail existe sans aucun appel.
+        fin, pose = time.monotonic() + 90, False
+        while time.monotonic() < fin and not pose:
+            try:
+                self.gql("{echangeMails(first:1){edges{node{id}}}}")
+                pose = True
+            except ta.Echec:
+                time.sleep(5)
+        self.controle("Liaisons posée à la naissance de l'espace, avant tout appel", pose)
         debut = time.monotonic()
         c, r = self.lot([self.ev("message.sent", self.marie, rfc)], lot_id)
         duree = time.monotonic() - debut
@@ -73,7 +82,9 @@ class Epreuve(reponse.Epreuve):
         self.controle("premier appel sous 2 s (rien à installer)", duree < 2, f"{duree:.1f} s")
         self.controle("envoi à une personne de l'espace : une ligne créée", (r.get("lignes") or {}).get("creees") == 1,
                       f"{c} {json.dumps(r, ensure_ascii=False)[:180]}")
+        debut = time.monotonic()
         c, r = self.lot([self.ev("message.sent", self.marie, rfc)], lot_id)
+        print(f"mesure : premier appel {duree:.1f} s, deuxième {time.monotonic() - debut:.1f} s")
         self.controle("le même lot rejoué : ok, rien de plus (le Hub ne réessaie pas)", r.get("ok") is True and len(self.lignes(rfc)) == 1 and
                       (r.get("lignes") or {}).get("creees", 0) == 0,
                       json.dumps(r, ensure_ascii=False)[:160])
