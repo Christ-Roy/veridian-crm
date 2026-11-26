@@ -26,11 +26,11 @@ sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` 
 Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA, MCP reste.
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub, ou par `hub app-access … --app twenty`,
 tous deux par `ensureCrmWorkspace` du Hub (provisioning signé). Une signature du Hub ne sert qu'une fois.
-**Dépôt public** : ni adresse, ni liste de failles (rapports : `~/.claude/releves/crm-*.md`).
+**Dépôt public** : ni adresse, ni liste de failles (rapports : `~/.claude/releves/`).
 **Impersonate natif :** refusé entre espaces et muet (pas de ClickHouse) : passer par `hub open` ; sous emprunt, rien qui survive (26/11).
 **Accès agent, jetables, plugins :** skill `twenty-cli`, clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
-code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) hors apps de base `VERIDIAN_BASE_APPS` (Liaisons, clients existants exclus), réglages en base.
+code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) ou catalogue `VERIDIAN_CATALOGUE` (listé, éditeur vérifié, rien d'imposé : Robert 26/11), réglages en base. CSP : `VERIDIAN_CSP` (VER-265).
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
