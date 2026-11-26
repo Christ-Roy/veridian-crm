@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-fb535a7" # 25/11/2026 : inscription OAuth filtrée
+  default = "staging-6f5dd8f" # 25/11/2026 : emprunt sans jeton, Node 26.13.1 (fb535a7 refusé par la garde CVE : redis:7-alpine, openssl)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
