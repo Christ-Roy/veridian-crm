@@ -9,6 +9,7 @@ import { type Response } from 'express';
 
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { shouldCaptureException } from 'src/engine/utils/global-exception-handler.util';
+import { isVeridianStrictCors } from 'src/engine/core-modules/veridian-coupures/is-veridian-strict-cors.util';
 
 // Exceptions thrown before the CORS middleware (e.g. JSON body parsing) would otherwise lack CORS headers
 @Catch()
@@ -28,7 +29,11 @@ export class UnhandledExceptionFilter implements ExceptionFilter {
 
     // TODO: Check if needed, remove otherwise.
     // Only when the CORS middleware never ran: overwriting a reflected origin with * would make the browser reject a credentialed request
-    if (!response.getHeader('Access-Control-Allow-Origin')) {
+    // Veridian (26/11/2026) : sous VERIDIAN_CORS_STRICT, une erreur ne rouvre pas « * ».
+    if (
+      !isVeridianStrictCors() &&
+      !response.getHeader('Access-Control-Allow-Origin')
+    ) {
       response.header('Access-Control-Allow-Origin', '*');
       response.header(
         'Access-Control-Allow-Methods',

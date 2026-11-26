@@ -73,6 +73,8 @@ export const metadataModuleFactory = async (
       }),
     ],
     path: `/${ApiPath.Metadata}`,
+    // Veridian (26/11/2026) : Yoga reflétait toute origine avec credentials ; seul le CORS d'Express décide.
+    cors: false,
     context: () => ({
       loaders: dataloaderService.createLoaders(),
     }),

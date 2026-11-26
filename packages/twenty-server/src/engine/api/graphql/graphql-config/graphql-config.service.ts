@@ -88,6 +88,8 @@ export class GraphQLConfigService implements GqlOptionsFactory<
       resolvers: { JSON: GraphQLJSON },
       plugins: plugins,
       path: `/${ApiPath.GraphQL}`,
+      // Veridian (26/11/2026) : Yoga reflétait toute origine avec credentials ; seul le CORS d'Express décide.
+      cors: false,
       context: () => ({
         loaders: this.dataloaderService.createLoaders(),
       }),

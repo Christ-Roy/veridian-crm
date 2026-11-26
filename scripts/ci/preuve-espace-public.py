@@ -8,13 +8,11 @@ répond bien). Lecture seule, aucune donnée affichée hors du nom. Codes : 0 vr
 """
 import argparse
 import json
-import re
 import sys
 import urllib.error
 import urllib.request
 
 DOMAINES = {"prod": "crm.app.veridian.site", "staging": "crm.staging.veridian.site"}
-UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 
 
 def main():
@@ -39,7 +37,7 @@ def main():
         return 2
     echecs = []
     for nom, ok in (("témoin : le nom revient", bool(w["displayName"])),
-                    ("aucun identifiant interne", not UUID.match(str(w.get("id") or ""))),
+                    ("aucun identifiant interne (UUID nul)", str(w.get("id")) == "00000000-0000-0000-0000-000000000000"),
                     ("aucun lien de logo", not w.get("logo"))):
         print(("OK    " if ok else "ECHEC ") + nom)
         if not ok:

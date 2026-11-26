@@ -3,7 +3,7 @@
 
   preuve-cors.py [--env staging|prod]
 
-Pré-vol (OPTIONS) depuis une origine étrangère sur /, /graphql, /metadata, /rest/companies et /mcp : aucun
+Pré-vol (OPTIONS) et requêtes simples (GET, GraphQL et route en erreur) depuis une origine étrangère sur /, /graphql, /metadata, /rest/companies et /mcp : aucun
 Access-Control-Allow-Origin attendu. Témoins : l'origine du CRM est reflétée avec ses cookies, et une requête du
 front d'un espace vers son propre hôte (même origine) répond. Lecture seule. Codes : 0 vrai, 1 faux, 2 non abouti.
 """
@@ -49,6 +49,10 @@ def main():
         code, h = entetes(base + chemin, "https://evil.example")
         controle(f"origine étrangère sans en-tête CORS sur {chemin}", "access-control-allow-origin" not in h,
                  f"HTTP {code} ACAO={h.get('access-control-allow-origin')}")
+    for chemin in ("/graphql?query=%7B__typename%7D", "/metadata?query=%7B__typename%7D", "/route-inexistante-preuve-cors"):
+        code, h = entetes(base + chemin, "https://evil.example", "GET")
+        controle(f"requête simple depuis une origine étrangère, sans en-tête CORS : {chemin.split('?')[0]}",
+                 "access-control-allow-origin" not in h, f"HTTP {code} ACAO={h.get('access-control-allow-origin')}")
     code, h = entetes(base + "/graphql", base)
     controle("témoin : l'origine du CRM est reflétée avec ses cookies",
              h.get("access-control-allow-origin") == base and h.get("access-control-allow-credentials") == "true",
