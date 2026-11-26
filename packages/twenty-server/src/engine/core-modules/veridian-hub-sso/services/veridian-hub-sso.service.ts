@@ -14,12 +14,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { AppPath, SettingsPath } from 'twenty-shared/types';
-import { getSettingsPath } from 'twenty-shared/utils';
+import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 import {
   isWorkspaceProvisioned,
   WorkspaceActivationStatus,
 } from 'twenty-shared/workspace';
-import { IsNull, Like, Repository } from 'typeorm';
+import { In, IsNull, Like, Repository } from 'typeorm';
 
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
@@ -59,6 +59,11 @@ import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
+import {
+  hubWorkspaceSubdomainBase,
+  hubWorkspaceSubdomainCandidates,
+  firstFreeHubWorkspaceSubdomain,
+} from 'src/engine/core-modules/veridian-hub-sso/utils/hub-workspace-subdomain.util';
 
 const RATE_LIMIT_PER_MINUTE = 10;
 const ONE_MINUTE_MS = 60 * 1000;
@@ -460,6 +465,34 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
   }
 
   // CONTRAT-HUB §5.1.
+  // Undefined leaves Twenty's own generation (random when nothing fits).
+  private async freeHubWorkspaceSubdomain(
+    workspaceName: string,
+    ownerEmail: string,
+  ): Promise<string | undefined> {
+    const base = hubWorkspaceSubdomainBase(workspaceName, ownerEmail);
+
+    if (!isDefined(base)) {
+      return undefined;
+    }
+
+    const candidates = hubWorkspaceSubdomainCandidates(base);
+    const taken = new Set(
+      (
+        await this.workspaceRepository.find({
+          where: { subdomain: In(candidates) },
+          withDeleted: true,
+          select: { subdomain: true },
+        })
+      ).map((workspace) => workspace.subdomain),
+    );
+    return firstFreeHubWorkspaceSubdomain(
+      candidates,
+      taken,
+      this.twentyConfigService.get('DEFAULT_SUBDOMAIN'),
+    );
+  }
+
   async provisionTenant({
     tenantId,
     ownerEmail,
@@ -516,7 +549,13 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
           known
             ? { type: 'existingUser', existingUser: known }
             : this.newUserPayload(ownerEmail),
-          { displayName: workspaceName },
+          {
+            displayName: workspaceName,
+            subdomain: await this.freeHubWorkspaceSubdomain(
+              workspaceName,
+              ownerEmail,
+            ),
+          },
         );
 
       if (!known) {
