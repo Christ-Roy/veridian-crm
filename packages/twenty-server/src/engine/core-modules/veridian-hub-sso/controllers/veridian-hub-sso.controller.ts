@@ -95,11 +95,11 @@ export class VeridianHubSsoController {
   ) {}
 
   // Returns false once it has answered: the caller stops there.
-  private isAuthenticHubCall(
+  private async isAuthenticHubCall(
     request: RawBodyRequest<Request>,
     response: Response,
     signedPayload: Buffer | undefined = request.rawBody,
-  ): boolean {
+  ): Promise<boolean> {
     const secrets = [
       process.env.HUB_API_SECRET,
       process.env.HUB_API_SECRET_NEXT,
@@ -111,18 +111,39 @@ export class VeridianHubSsoController {
       return false;
     }
 
+    const signature = readHeader(request, 'x-veridian-hub-signature');
+    const version =
+      readHeader(request, 'x-veridian-sig-version')?.trim() === '2' ? 'v2' : 'v1';
+
+    // Veridian (26/11/2026): once the Hub signs v2 for the CRM (HMAC_V2_APPS), v1 is refused, as in Notifuse.
+    if (version === 'v1' && process.env.VERIDIAN_HMAC_REQUIRE_V2 === 'true') {
+      response.status(401).json({ error: 'signature_v2_required' });
+
+      return false;
+    }
+
     const isSigned = isHubSignatureValid({
       rawBody: signedPayload,
       timestamp: readHeader(request, 'x-veridian-timestamp'),
-      signature: readHeader(request, 'x-veridian-hub-signature'),
+      signature,
       secrets,
+      version,
+      route: { method: request.method, originalUrl: request.originalUrl },
     });
 
-    if (!isSigned) {
+    if (!isSigned || !isNonEmptyString(signature)) {
       response.status(401).json({ error: 'invalid_signature' });
+
+      return false;
     }
 
-    return isSigned;
+    if (!(await this.veridianHubSsoService.consumeHubSignature(signature))) {
+      response.status(401).json({ error: 'signature_already_used' });
+
+      return false;
+    }
+
+    return true;
   }
 
   private rejectInvalidBody(response: Response) {
@@ -139,7 +160,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -294,7 +315,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -354,7 +375,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -388,7 +409,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -417,7 +438,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -444,7 +465,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -490,7 +511,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -545,7 +566,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -595,7 +616,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -632,7 +653,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
+    if (!(await this.isAuthenticHubCall(request, response, Buffer.alloc(0)))) {
       return;
     }
 
@@ -648,7 +669,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -689,7 +710,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response)) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
       return;
     }
 
@@ -730,7 +751,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
+    if (!(await this.isAuthenticHubCall(request, response, Buffer.alloc(0)))) {
       return;
     }
 
@@ -752,7 +773,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
+    if (!(await this.isAuthenticHubCall(request, response, Buffer.alloc(0)))) {
       return;
     }
 
@@ -768,7 +789,7 @@ export class VeridianHubSsoController {
     @Req() request: RawBodyRequest<Request>,
     @Res() response: Response,
   ) {
-    if (!this.isAuthenticHubCall(request, response, Buffer.alloc(0))) {
+    if (!(await this.isAuthenticHubCall(request, response, Buffer.alloc(0)))) {
       return;
     }
 

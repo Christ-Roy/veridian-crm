@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import {
   decidePlanUpdate,
   type PlanUpdateDecision,
@@ -60,6 +62,8 @@ const RATE_LIMIT_PER_MINUTE = 10;
 const ONE_MINUTE_MS = 60 * 1000;
 const POSTGRES_UNIQUE_VIOLATION = '23505';
 const PROVISION_LOCK_MS = 5 * 60 * 1000;
+// Twice the signature freshness window (5 min either way): a used signature stays known as long as it is fresh.
+const USED_SIGNATURE_TTL_MS = 10 * 60 * 1000;
 
 // The Hub is the only source of identity. These links live in core.keyValuePair so
 // the fork carries no schema of its own: one key per Hub user, one key per tenant.
@@ -235,6 +239,16 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
   }
 
   // CONTRAT-HUB §6bis.8.3: never creates anything, null lets the Hub run its signup flow.
+  // Veridian (26/11/2026): the Hub signs "ts.body" only, so a captured signed request could be replayed while fresh,
+  // even on another route. Every signature is accepted once; the Hub signs each call anew.
+  async consumeHubSignature(signature: string): Promise<boolean> {
+    return this.cacheStorage.setIfAbsent(
+      `veridian-hub-sso:used-signature:${createHash('sha256').update(signature).digest('hex')}`,
+      true,
+      USED_SIGNATURE_TTL_MS,
+    );
+  }
+
   async issueMagicLinkUrl(
     hubUserId: string,
     rawEmail: string,

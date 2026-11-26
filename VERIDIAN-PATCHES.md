@@ -55,6 +55,8 @@ n'y figure ; `scripts/ci/check-ee-integrity.sh` le prouve à chaque push.
 
 `core-modules/veridian-hub-sso/`, le Hub seule source d'identité (décision Robert, 06/11/2026) :
 
+Signature des routes du Hub (§6.1, 26/11/2026) : v1 `ts.corps` ou v2 (`X-Veridian-Sig-Version: 2`, `ts`, méthode, chemin, requête, empreinte du corps, comme le Hub `lib/hmac/signature-hub.ts` et Notifuse) ; toute signature ne sert qu'une fois (Redis, 10 min) ; `VERIDIAN_HMAC_REQUIRE_V2=true` refuse la v1 quand le Hub signe le CRM en v2. Preuves : `signature-usage-unique.veridian.spec.ts`, `mutations-signature-unique.sh`, `preuve-rejeu-signature.py`.
+
 | Route | Rôle | Contrat |
 |---|---|---|
 | `POST /api/sso/issue-magic-link`, `GET /auth/token?t=` | rebond ; `hub_user_id` d'abord, email pour rattacher un compte sans lien | §6bis.8 |

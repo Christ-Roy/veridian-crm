@@ -17,20 +17,18 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
   prouvés par capture réseau et navigateur (`VERIDIAN-PATCHES.md`). Un nouveau canal amont est une anomalie.
 - **Staging d'abord, puis prod.** Staging : `crm.staging.veridian.site`, privé au tailnet. Prod depuis le 08/11/2026 : `crm.app.veridian.site` sur `ovh-prod`, job `crm` sur la grappe `pg-saas` depuis le 09/11/2026, branchée au Hub de prod. `main` = `staging` à chaque mise en prod.
 
-**Décisions (07/11/2026) :** pas de migration, archive `~/veridian/archives/crm-decommission-2026-09-23/` intacte, base neuve ;
-marque « Veridian CRM » sur les chaînes visibles (calque au build, `.po` intacts), logo du Hub,
-mention « Basé sur Twenty, AGPL ».
+**Décisions (07/11/2026) :** base neuve (archive `~/veridian/archives/crm-decommission-2026-09-23/`) ; marque « Veridian CRM »
+(calque au build, `.po` intacts), logo du Hub, mention « Basé sur Twenty, AGPL ».
 
 **Décisions (08/11/2026) :** le plan vient du Hub par `POST /api/tenants/update-plan` (CONTRAT-BILLING v2 §3), stocké
 sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` ; rien n'est limité ni mis en lecture seule
 (PRICING-VERIDIAN, décision de Robert pour lever un drapeau).
 Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA, MCP reste.
-L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub (Robert : « ça ne crée pas de compte »),
-ou par `hub app-access … --app twenty` : les deux passent par `ensureCrmWorkspace` du Hub (provisioning signé,
-`metadata.crm` pour reconcile, nom du Hub poussé).
+L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub, ou par `hub app-access … --app twenty`,
+tous deux par `ensureCrmWorkspace` du Hub (provisioning signé). Une signature du Hub ne sert qu'une fois.
 **Dépôt public** : ni adresse, ni liste de failles (rapports : `~/.claude/releves/crm-*.md`).
-**Impersonate natif (25/11) :** refusé entre espaces (2FA locale fermée) et muet (ClickHouse absent) : passer par `hub open`.
-**Accès agent, espaces jetables, plugins :** skill `twenty-cli` (`twenty-admin`), clés jamais affichées.
+**Impersonate natif :** refusé entre espaces et muet (pas de ClickHouse) : passer par `hub open` ; sous emprunt, rien qui survive (26/11).
+**Accès agent, jetables, plugins :** skill `twenty-cli`, clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
 code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173, jetable refusé), réglages en base.
 
@@ -44,7 +42,7 @@ code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LO
 | MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous ; la porte MCP du Hub y entre avec son JWT (`veridian-hub-mcp/`, CONTRAT-MCP) |
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
 | CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
-| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front ; publiées au registre privé puis installées par espace | MIT | plugins Veridian : dépôt privé `Veridian-site/veridian-crm-apps` (Dossiers, Google Meet, Téléphonie, `twenty-admin app:install`) ; ici seule l'app Android `packages/twenty-apps/veridian/telephonie/android` |
+| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, registre privé puis installation par espace | MIT | plugins : dépôt privé `Veridian-site/veridian-crm-apps` (`twenty-admin app:install`) ; ici seule l'app Android de Téléphonie |
 | IA | chat, agents, compétences, actions IA des workflows, derrière le drapeau `AI` ; fournisseurs d'instance (`AI_PROVIDERS`) | AGPL | seul fournisseur « veridian » (Hub), identité signée par appel (VER-203) |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
 | Facturation | Stripe, plans, crédits, `usage-limit` : 211 fichiers Enterprise | EE | inutilisable : `IS_BILLING_ENABLED=false`, aucune limite appliquée sans elle |
@@ -77,20 +75,22 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 |---|---|---|
 | `scripts/ci/check-ee-integrity.sh` | aucun fichier Enterprise touché | fichier modifié, code 1 |
 | `scripts/ci/patch-survival.sh` (`--statique` au pre-push) | chaque patch présent, `*.veridian.spec.ts` | limite remise à 5, code 1 |
-| `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, boucle du domaine nu, garde d'identité, marque : chaque comportement retiré casse la spec | à chaque CI |
-| `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, connexion, déconnexion, navigateur sans hôte tiers, écrans sans action réservée au Hub ni nom amont | oui, plusieurs fois |
+| `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, domaine nu, garde d'identité, marque | à chaque CI |
+| `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, déconnexion, aucun hôte tiers, ni action réservée au Hub ni nom amont | oui |
 | `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier | mesure |
 | `scripts/ci/preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage`, code 1 (23/11) |
 | `scripts/ci/preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version, code 1 (23/11) |
-| `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` (skill `twenty-cli`) | accès agent natif : clé Admin, appel REST, webhook `company.created` signé reçu par tunnel public, révocation | secret faussé, code 1 (08/11/2026) |
+| `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` | accès agent : clé Admin, REST, webhook signé reçu, révocation | secret faussé (08/11) |
+| `scripts/ci/preuve-webhook-role.py <jetable>` | un webhook ne reçoit que ce que son rôle lit | `--sabotage`, code 1 (26/11) |
 | `scripts/ci/preuve-app-deleguee.py`, `preuve-reponse-mail.py` (jetable) | app posée au premier jeton d'action, réponse Mail sans membre | 25/11, clés du Hub injoignables |
-| `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables) | document du Hub (VER-252), suspension dans tous les processus (VER-254, réponse en 2 s), personne = `hub_user_id` | sabotages CI |
+| `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables) | organisation du Hub (VER-252), suspension partout (VER-254), personne = `hub_user_id` | sabotages CI |
 | `scripts/ci/preuve-redemarrage-redis.py` (jetable) | Redis redémarré sans perte | `--sabotage` (25/11) |
 | `scripts/ci/admins-instance.py <env>`, `preuve-admins.py` (staging) | administrateurs d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS`, jamais l'adresse | 25/11, codes 1 et 2 |
-| `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit, ne fabrique ni clé, ni jeton, ni code OAuth | 7d4af31, code 1 (26/11) |
+| `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit ; ni clé, jeton, code OAuth, webhook, ni app OAuth | 7d4af31, 0a0f5cf : code 1 (26/11) |
+| `mutations-signature-unique.sh` (CI) | une signature du Hub ne sert qu'une fois (rejeu, autre route) | sabotages CI (26/11) |
 | `scripts/ci/adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas posés, code 1 |
 | `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
-| `scripts/ci/capture-sortante.sh <conteneur crm-postgres> <secondes>` (sur le nœud) | silence réseau, témoin compris | image officielle ; IP directe, code 1 |
+| `scripts/ci/capture-sortante.sh <conteneur> <s>` (sur le nœud) | silence réseau, témoin compris | IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
 

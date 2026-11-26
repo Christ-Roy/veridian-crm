@@ -73,6 +73,9 @@ class Epreuve:
             self.controle("témoin : le propriétaire crée un webhook", bool(fait), d)
             if fait:
                 self.tenter(self.jeton, "mutation($i:UUID!){deleteWebhook(id:$i){id}}", {"i": fait["createWebhook"]["id"]})
+            crochets = lambda: len([w for w in (self.tenter(self.jeton, "{webhooks{id targetUrl}}")[0] or {"webhooks": []})["webhooks"]  # noqa: E731
+                                    if "crochet" in w["targetUrl"]])
+            crochets_avant = crochets()
             app_oauth = "mutation($i:CreateApplicationRegistrationInput!){createApplicationRegistration(input:$i){applicationRegistration{id}}}"
             fait, d = self.tenter(self.jeton, app_oauth, {"i": {"name": "epreuve-emprunt"}})
             self.controle("témoin : le propriétaire enregistre une app OAuth", bool(fait), d)
@@ -104,8 +107,7 @@ class Epreuve:
             ):
                 fait, d = self.tenter(emprunt, requete, variables)
                 self.controle(f"emprunt refusé : {nom}", fait is None and "not available to this caller" in d, d)
-            if fait := self.tenter(self.jeton, "{webhooks{id targetUrl}}")[0]:
-                self.controle("aucun webhook laissé par l'emprunt", not [w for w in fait["webhooks"] if "crochet" in w["targetUrl"]])
+            self.controle("aucun webhook laissé par l'emprunt", crochets() == crochets_avant, f"{crochets_avant} avant, {crochets()} après")
             self.tenter(self.jeton, "mutation($i:String!){deleteApplicationRegistration(id:$i)}", {"i": app_id})
             fini, d = self.tenter(emprunt, "mutation{stopImpersonation{canRestoreImpersonatorSession}}")
             self.controle("sortie acceptée", bool(fini), d)
