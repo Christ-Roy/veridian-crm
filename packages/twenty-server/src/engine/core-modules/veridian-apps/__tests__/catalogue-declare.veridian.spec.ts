@@ -1,3 +1,4 @@
+import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
 import {
   desiredCatalogueState,
   excludedFromVeridianDefaults,
@@ -17,7 +18,7 @@ const CHANTIER = '26679b6d-2464-436e-81f8-ae68059bb8d3';
 const app = (uid: string, owner = EDITEUR, plus: Record<string, unknown> = {}) => ({
   universalIdentifier: uid,
   ownerWorkspaceId: owner,
-  sourceType: 'TARBALL',
+  sourceType: ApplicationRegistrationSourceType.TARBALL,
   isListed: false,
   isPreInstalled: false,
   author: 'Robert',
@@ -51,9 +52,14 @@ describe('catalogue Veridian déclaré', () => {
     });
   });
 
+  it('reconnaît la valeur réelle du type de source (« tarball »)', () => {
+    expect(ApplicationRegistrationSourceType.TARBALL).toBe('tarball');
+    expect(desiredCatalogueState(app(LIAISONS, EDITEUR, { sourceType: 'tarball' }), catalogue, editeurs)?.isListed).toBe(true);
+  });
+
   it('ne touche jamais une app d’un autre espace ni une app npm, même au catalogue', () => {
     expect(desiredCatalogueState(app(LIAISONS, AUTRE), catalogue, editeurs)).toBeNull();
-    expect(desiredCatalogueState(app(LIAISONS, EDITEUR, { sourceType: 'NPM' }), catalogue, editeurs)).toBeNull();
+    expect(desiredCatalogueState(app(LIAISONS, EDITEUR, { sourceType: ApplicationRegistrationSourceType.NPM }), catalogue, editeurs)).toBeNull();
     expect(desiredCatalogueState(app(LIAISONS, null as unknown as string), catalogue, editeurs)).toBeNull();
   });
 

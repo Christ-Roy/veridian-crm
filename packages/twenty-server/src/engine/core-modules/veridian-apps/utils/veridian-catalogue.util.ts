@@ -1,6 +1,8 @@
-// Veridian (26/11/2026, Robert) : les apps Veridian sont dans la marketplace, publiées par l'éditeur vérifié, et les
-// intégrations sont posées d'office dans chaque espace. Le catalogue se déclare dans le job (aucun clic au panneau
-// admin) : VERIDIAN_CATALOGUE = "<app>:liste,<app>:installe,…" (installe = listée et posée partout).
+import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
+
+// Veridian (26/11/2026, Robert) : les apps Veridian sont dans la marketplace, publiées par l'éditeur vérifié ; rien n'est
+// imposé, chaque espace installe ce qu'il veut. Le catalogue se déclare dans le job (aucun clic au panneau admin) :
+// VERIDIAN_CATALOGUE = "<app>:liste,<app>:installe,…" (installe = listée et posée partout, non utilisé à ce jour).
 // L'éditeur est l'espace qui publie : VERIDIAN_EDITOR_WORKSPACE_IDS, sinon les éditeurs de VERIDIAN_BASE_APPS.
 export const VERIDIAN_VERIFIED_AUTHOR = 'Veridian, éditeur vérifié';
 
@@ -70,7 +72,7 @@ export const desiredCatalogueState = (
   editors: Set<string>,
 ): Pick<Registration, 'isListed' | 'isPreInstalled' | 'author'> | null => {
   if (
-    registration.sourceType !== 'TARBALL' ||
+    registration.sourceType !== ApplicationRegistrationSourceType.TARBALL ||
     !editors.has((registration.ownerWorkspaceId ?? '').toLowerCase())
   ) {
     return null;

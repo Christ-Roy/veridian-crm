@@ -100,12 +100,26 @@ export class VeridianCatalogueService implements OnApplicationBootstrap {
       }
     }
 
+    const editorApps = registrations.filter(
+      (registration) => desiredCatalogueState(registration, catalogue, editors) !== null,
+    ).length;
+
+    // Toujours une ligne : un catalogue déclaré qui ne trouve aucune app de l'éditeur est une erreur, pas un succès muet.
+    if (catalogue.size > 0 && editorApps === 0) {
+      this.logger.error(
+        `veridian_catalogue_sans_app ${JSON.stringify({ catalogue: catalogue.size, editeurs: [...editors] })}`,
+      );
+    } else {
+      this.logger.log(
+        `veridian_catalogue ${JSON.stringify({ catalogue: catalogue.size, appsEditeur: editorApps, changees: changed })}`,
+      );
+    }
+
     if (changed.length > 0) {
       await this.coreEntityCacheService.invalidate(
         'marketplaceCatalog',
         MARKETPLACE_CATALOG_CACHE_ENTITY_ID,
       );
-      this.logger.log(`veridian_catalogue ${JSON.stringify({ changed })}`);
     }
 
     const installedOn = await this.installEverywhere(newlyPreInstalled);
