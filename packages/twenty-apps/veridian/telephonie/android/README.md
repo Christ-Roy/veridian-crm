@@ -209,6 +209,11 @@ compte comme inconnu : rien n'est rattaché au hasard. Le côté privé est donc
 (`record-share`, `private-record`, `rls`) est sous licence Enterprise, interdit ici. Limite : un SMS effacé du téléphone avant que la
 personne entre au CRM est perdu ; un expéditeur sans numéro (« BNP ») ne part jamais, sauf en « tout ».
 
+**Transcription de l'enregistreur natif (Pixel, 24/11/2026).** Possible : tout ce que l'app transcrit elle-même, à partir de l'audio
+qu'elle a (Parakeet sur le téléphone, JemRec pour les appels). Pas possible : lire la transcription que l'enregistreur natif
+de Google produit, faute d'API publique pour une app tierce ; l'app ne la lit donc pas et ne la remonte pas. Non vérifié sur
+un téléphone, aucun test n'a été joué sur ce point.
+
 ## Mise à jour à distance (Robert, 24/11/2026)
 
 L'app lit un manifeste public (`manifeste.json` de la release du canal) au démarrage, au retour du réseau et après un appel,
