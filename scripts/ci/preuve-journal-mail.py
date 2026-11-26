@@ -69,7 +69,8 @@ class Epreuve(reponse.Epreuve):
         self.controle("envoi à une personne de l'espace : une ligne créée", (r.get("lignes") or {}).get("creees") == 1,
                       f"{c} {json.dumps(r, ensure_ascii=False)[:180]}")
         c, r = self.lot([self.ev("message.sent", self.marie, rfc)], lot_id)
-        self.controle("le même lot rejoué : rien de plus", len(self.lignes(rfc)) == 1 and (r.get("lignes") or {}).get("creees", 0) == 0,
+        self.controle("le même lot rejoué : ok, rien de plus (le Hub ne réessaie pas)", r.get("ok") is True and len(self.lignes(rfc)) == 1 and
+                      (r.get("lignes") or {}).get("creees", 0) == 0,
                       json.dumps(r, ensure_ascii=False)[:160])
         c, r = self.lot([self.ev("message.opened", self.marie, rfc)])
         self.controle("ouvert : le statut avance", (r.get("lignes") or {}).get("avancees") == 1 and self.lignes(rfc)[0]["statut"] == "OUVERT",
@@ -102,11 +103,11 @@ class Epreuve(reponse.Epreuve):
         script = ICI / "capture-onglet.py"
         subprocess.run(["scp", "-q", str(script), "node02:/tmp/capture-onglet.py"], check=False)
         r = subprocess.run(["ssh", "node02", "rm -rf /tmp/capture-onglet-out; nice -n 10 $HOME/.cache/veridian-parcours-venv/bin/python "
-                            f"/tmp/capture-onglet.py {self.origine} /object/person/{self.personne} Mail /tmp/capture-onglet-out"],
+                            f"/tmp/capture-onglet.py {self.origine} /object/person/{self.personne} Mail /tmp/capture-onglet-out Ouvert"],
                            input=lien + "\n", capture_output=True, text=True, timeout=600)
         Path(dossier).mkdir(parents=True, exist_ok=True)
         subprocess.run(["scp", "-q", "node02:/tmp/capture-onglet-out/*.png", dossier], check=False)
-        vu = "VU" in r.stdout
+        vu = r.stdout.strip().startswith("VU")
         self.controle("onglet Mail de la fiche, la ligne visible à l'écran", vu, (r.stdout + r.stderr)[-200:])
         return vu
 
