@@ -4,9 +4,14 @@ import { VeridianSuspendedGate } from '@/veridian-suspension/components/Veridian
 
 const mockSignOut = jest.fn();
 let mockSuspended = false;
+let mockRefused = false;
 
 jest.mock('@/auth/hooks/useAuth', () => ({
   useAuth: () => ({ signOut: mockSignOut }),
+}));
+
+jest.mock('@/veridian-suspension/hooks/useIsWorkspaceSuspendedRefusal', () => ({
+  useIsWorkspaceSuspendedRefusal: () => mockRefused,
 }));
 
 jest.mock('@/workspace/hooks/useIsWorkspaceActivationStatusEqualsTo', () => ({
@@ -24,6 +29,17 @@ const renderGate = () =>
 describe('VeridianSuspendedGate', () => {
   beforeEach(() => {
     mockSignOut.mockClear();
+    mockRefused = false;
+  });
+
+  it("affiche l'écran quand le serveur refuse l'identité pour suspension (sans état de l'espace)", () => {
+    mockSuspended = false;
+    mockRefused = true;
+    renderGate();
+
+    expect(screen.getByText('Cet espace est suspendu.')).toBeTruthy();
+    expect(screen.queryByText('Contenu du CRM')).toBeNull();
+    expect(screen.getByRole('button').textContent).toBe('Se déconnecter');
   });
 
   it('remplace le contenu par le message et un seul bouton quand l espace est suspendu', () => {

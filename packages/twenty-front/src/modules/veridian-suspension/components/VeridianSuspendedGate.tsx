@@ -5,6 +5,7 @@ import { Button } from 'twenty-ui/primitives/input';
 import { themeCssVariables } from 'twenty-ui/theme';
 
 import { useAuth } from '@/auth/hooks/useAuth';
+import { useIsWorkspaceSuspendedRefusal } from '@/veridian-suspension/hooks/useIsWorkspaceSuspendedRefusal';
 import { useIsWorkspaceActivationStatusEqualsTo } from '@/workspace/hooks/useIsWorkspaceActivationStatusEqualsTo';
 
 const StyledPage = styled.div`
@@ -34,15 +35,18 @@ const StyledText = styled.p`
   max-width: 420px;
 `;
 
-// Veridian (CONTRAT-HUB §5.4) : un espace suspendu n'affiche que ce message, jamais de facturation.
+// Veridian (CONTRAT-HUB §5.4) : un espace suspendu n'affiche que ce message, jamais de facturation. Placé avant le
+// chargement des métadonnées : le serveur refuse identité et définitions d'écran (WORKSPACE_SUSPENDED).
 export const VeridianSuspendedGate = ({
   children,
 }: {
   children: ReactNode;
 }) => {
-  const isSuspended = useIsWorkspaceActivationStatusEqualsTo(
+  const isSuspendedStatus = useIsWorkspaceActivationStatusEqualsTo(
     WorkspaceActivationStatus.SUSPENDED,
   );
+  const isSuspendedRefusal = useIsWorkspaceSuspendedRefusal();
+  const isSuspended = isSuspendedStatus || isSuspendedRefusal;
   const { signOut } = useAuth();
 
   if (!isSuspended) {

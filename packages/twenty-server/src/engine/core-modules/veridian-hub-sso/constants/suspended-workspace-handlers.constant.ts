@@ -45,18 +45,21 @@ export const SUSPENDED_WORKSPACE_CLOSED_HANDLERS: ReadonlySet<string> = new Set(
     'AuthResolver.completeNewWorkspaceLogoUpload',
     'AuthResolver.emailPasswordResetLink',
     'AuthResolver.updatePasswordViaResetToken',
+    // Veridian (26/11/2026, parente) : comme Mail, un espace suspendu ne livre plus rien d'autre que l'écran « suspendu ».
+    // Identité et définitions d'écran répondent WORKSPACE_SUSPENDED ; le front affiche l'écran sur ce refus.
+    'UserResolver.currentUser',
+    'MinimalMetadataResolver.minimalMetadata',
+    'ObjectMetadataResolver.objects',
+    'ViewResolver.getViews',
+    'PageLayoutResolver.getPageLayouts',
+    'NavigationMenuItemResolver.navigationMenuItems',
+    'CommandMenuItemResolver.commandMenuItems',
   ],
 );
 
-// Restent ouverts pour un espace suspendu : définitions d'écran, session, sortie, contenu statique.
+// Restent ouverts pour un espace suspendu : ce que demande l'écran « suspendu » (sortie, jetons), le domaine public,
+// le contenu statique, et ses propres sessions (les voir, les révoquer).
 export const SUSPENDED_WORKSPACE_OPEN_HANDLERS: ReadonlySet<string> = new Set([
-  'MinimalMetadataResolver.minimalMetadata',
-  'UserResolver.currentUser',
-  'ObjectMetadataResolver.objects',
-  'ViewResolver.getViews',
-  'PageLayoutResolver.getPageLayouts',
-  'NavigationMenuItemResolver.navigationMenuItems',
-  'CommandMenuItemResolver.commandMenuItems',
   'WorkspaceResolver.getPublicWorkspaceDataByDomain',
   'UserSessionResolver.*',
   'SdkClientController.*',

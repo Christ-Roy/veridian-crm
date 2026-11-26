@@ -65,6 +65,10 @@ exige "$SERVEUR/engine/core-modules/veridian-hub-sso/constants/suspended-workspa
 FRONT=packages/twenty-front/src
 exige "$FRONT/modules/app/hooks/useCreateWorkspaceAppRouter.tsx" "<VeridianSuspendedGate>"
 exige "$FRONT/modules/veridian-suspension/components/VeridianSuspendedGate.tsx" "Cet espace est suspendu."
+exige "$SERVEUR/engine/core-modules/workspace/workspace.resolver.ts" "return maskPublicWorkspaceData({"
+exige "$SERVEUR/engine/core-modules/user-session/utils/apply-credentialed-cors.util.ts" "isVeridianStrictCors() ? false : '*'"
+exige "$FRONT/modules/veridian-suspension/components/VeridianSuspendedGate.tsx" "useIsWorkspaceSuspendedRefusal()"
+exige "$FRONT/modules/app/hooks/useCreateWorkspaceAppRouter.tsx" "                  <MinimalMetadataGate />"
 exige "$FRONT/modules/app/hooks/usePageChangeEffectNavigateLocation.ts" "jamais de redirection vers Billing"
 # Ce qui rend ces drapeaux sûrs, à l'amont : l'administrateur d'instance seul les pose.
 exige "$SERVEUR/engine/core-modules/application/application-registration/application-registration.service.ts" "await this.applyUpdate({ id, update });"

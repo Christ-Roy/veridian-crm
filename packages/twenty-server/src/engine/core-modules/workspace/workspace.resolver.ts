@@ -77,6 +77,7 @@ import { ViewDTO } from 'src/engine/metadata-modules/view/dtos/view.dto';
 import { ViewService } from 'src/engine/metadata-modules/view/services/view.service';
 import { getRequest } from 'src/utils/extract-request';
 import { AccessPolicyGuard } from 'src/engine/guards/access-policy.guard';
+import { maskPublicWorkspaceData } from 'src/engine/core-modules/veridian-coupures/mask-public-workspace-data.util';
 
 const OriginHeader = createParamDecorator(
   (_: unknown, ctx: ExecutionContext) => {
@@ -546,7 +547,8 @@ export class WorkspaceResolver {
         });
       }
 
-      return {
+      // Veridian (26/11/2026) : sans session, rien de plus que le nom (veridian-coupures).
+      return maskPublicWorkspaceData({
         id: workspace.id,
         logo: workspaceLogoWithToken,
         displayName: workspace.displayName,
@@ -559,7 +561,7 @@ export class WorkspaceResolver {
           workspace,
           systemEnabledProviders,
         }),
-      };
+      });
     } catch (err) {
       workspaceGraphqlApiExceptionHandler(err);
     }

@@ -132,7 +132,11 @@ class Epreuve:
         self.controle(f"{quand} : canaux de mail {'ouverts' if canaux_ouverts else 'fermés (notre garde)'}",
                       ok == canaux_ouverts and (ok or "suspended" in detail.lower()), detail)
         ok, detail = self.meta(MOI)
-        self.controle(f"{quand} : la session sait qui elle est (témoin, garde natif)", ok, detail)
+        self.controle(f"{quand} : identité {'lue (témoin)' if canaux_ouverts else 'refusée, écran seul (26/11)'}",
+                      ok == canaux_ouverts and (ok or "suspended" in detail.lower()), detail)
+        ok, detail = self.meta("{minimalMetadata{objectMetadataItems{id}}}")
+        self.controle(f"{quand} : définitions d'écran {'lues' if canaux_ouverts else 'refusées'}",
+                      ok == canaux_ouverts and (ok or "suspended" in detail.lower()), detail)
 
     def mcp(self, origine, jeton):
         code, texte, _ = self.c.http(origine + "/mcp", json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).encode(),

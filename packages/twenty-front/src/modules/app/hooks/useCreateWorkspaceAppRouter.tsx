@@ -118,14 +118,14 @@ const createWorkspaceAppRouter = ({
           loader: async () => Promise.resolve(null),
           children: [
             {
-              element: <MinimalMetadataGate />,
+              element: (
+                <VeridianSuspendedGate>
+                  <MinimalMetadataGate />
+                </VeridianSuspendedGate>
+              ),
               children: [
                 {
-                  element: (
-                    <VeridianSuspendedGate>
-                      <DefaultLayout />
-                    </VeridianSuspendedGate>
-                  ),
+                  element: <DefaultLayout />,
                   children: [
                     {
                       element: <MainAppLayoutWithSidePanel />,

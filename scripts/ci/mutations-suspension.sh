@@ -18,7 +18,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 jouer() {
-  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'suspension-(classement|donnees|file|garde|jeton|magic|mcp|service|workflow).*veridian|organisation-hub' >"$TMP/jest.log" 2>&1)
+  (cd packages/twenty-server && npx jest --config jest.config.mjs --testPathPattern 'suspension-(classement|donnees|ecran|file|garde|jeton|magic|mcp|service|workflow).*veridian|organisation-hub' >"$TMP/jest.log" 2>&1)
 }
 jouer || { tail -40 "$TMP/jest.log"; echo "NON ABOUTI : spec rouge sans sabotage"; exit 2; }
 echo "base verte"
@@ -99,6 +99,14 @@ saboter "jeton du Hub : espace suspendu accepté" "$HUBMCP" "          membershi
           WorkspaceActivationStatus.ACTIVE," "          membership.workspace !== undefined,"
 saboter "423 : espace demandé suspendu ignoré" "$UTIL" "requestedSuspended || allSuspended;" "allSuspended;"
 saboter "423 : tous suspendus ignoré" "$UTIL" "requestedSuspended || allSuspended;" "requestedSuspended;"
+saboter "écran seul : identité rouverte" "$CLASSE" "    'UserResolver.currentUser',
+    'MinimalMetadataResolver.minimalMetadata'," "    'MinimalMetadataResolver.minimalMetadata',"
+saboter "écran seul : définitions d'écran rouvertes" "$CLASSE" "    'ObjectMetadataResolver.objects',
+    'ViewResolver.getViews'," ""
+saboter "écran seul : porte ouverte en plus" "$CLASSE" "  'WorkspaceResolver.getPublicWorkspaceDataByDomain',
+  'UserSessionResolver.*'," "  'WorkspaceResolver.getPublicWorkspaceDataByDomain',
+  'UserResolver.currentUser',
+  'UserSessionResolver.*',"
 
 [ "$rate" -eq 0 ] && echo "CONFORME"
 exit "$rate"

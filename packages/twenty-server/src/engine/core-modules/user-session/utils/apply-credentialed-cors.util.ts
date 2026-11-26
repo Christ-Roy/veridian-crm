@@ -5,6 +5,7 @@ import { type NextFunction, type Request, type Response } from 'express';
 
 import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { resolveAllowedCredentialedOrigins } from 'src/engine/core-modules/user-session/utils/resolve-allowed-credentialed-origins.util';
+import { isVeridianStrictCors } from 'src/engine/core-modules/veridian-coupures/is-veridian-strict-cors.util';
 import { getRequestBaseUrl } from 'src/utils/get-request-base-url.util';
 
 const logger = new Logger('CredentialedCors');
@@ -107,7 +108,7 @@ export const applyCredentialedCors = (
         return callback(null, true);
       }
 
-      return callback(null, '*');
+      return callback(null, isVeridianStrictCors() ? false : '*');
     },
     credentials: true,
     // Browser-based MCP clients must read the resource_metadata pointer on 401 (MCP authorization spec).

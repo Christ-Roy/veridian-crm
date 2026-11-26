@@ -65,6 +65,11 @@ def main():
         controle("v2 : témoin, la signature passe sur sa route", code == 200, f"HTTP {code}")
         code, _, _ = c.http(c.base + "/api/hub/users", None, h2, "GET")
         controle("v2 : rejeu refusé", code == 401, f"HTTP {code}")
+        h3 = v2("GET", c.base + "/api/users/by-email?email=a%40example.invalid")
+        code, _, _ = c.http(c.base + "/api/users/by-email?email=b%40example.invalid", None, h3, "GET")
+        controle("v2 : une autre query refusée", code == 401, f"HTTP {code}")
+        code, _, _ = c.http(c.base + "/api/users/by-email?email=a%40example.invalid", None, h3, "GET")
+        controle("v2 : témoin, la même query passe", code == 200, f"HTTP {code}")
     except ta.Echec as e:
         print(f"{'NON ABOUTI' if e.code == 2 else 'ECHEC'} {e}")
         return e.code

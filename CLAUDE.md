@@ -73,21 +73,22 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 
 | Commande | Prouve | Vue échouer |
 |---|---|---|
-| `scripts/ci/check-ee-integrity.sh` | aucun fichier Enterprise touché | fichier modifié, code 1 |
-| `scripts/ci/patch-survival.sh` (`--statique` au pre-push) | chaque patch présent, `*.veridian.spec.ts` | limite remise à 5, code 1 |
+| `check-ee-integrity.sh` | aucun fichier Enterprise touché | fichier modifié, code 1 |
+| `patch-survival.sh` (`--statique` au pre-push) | chaque patch présent, `*.veridian.spec.ts` | limite remise à 5, code 1 |
 | `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, domaine nu, garde d'identité, marque | à chaque CI |
 | `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, déconnexion, aucun hôte tiers, ni action réservée au Hub ni nom amont | oui |
-| `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier | mesure |
+| `charge-staging.py <url> [n] [s]` (secret par env.) | latence et débit par palier | mesure |
 | `preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage` (23/11) |
-| `scripts/ci/preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version, code 1 (23/11) |
+| `preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` | accès agent : clé Admin, REST, webhook signé reçu, révocation | secret faussé (08/11) |
 | `scripts/ci/preuve-webhook-role.py <jetable>` | un webhook ne reçoit que ce que son rôle lit | `--sabotage`, code 1 (26/11) |
-| `scripts/ci/preuve-app-deleguee.py`, `preuve-reponse-mail.py` (jetable) | app posée au premier jeton d'action, réponse Mail sans membre | 25/11, clés du Hub injoignables |
+| `preuve-app-deleguee.py`, `preuve-reponse-mail.py` | app posée au premier jeton, réponse Mail sans membre | staging (26/11) |
 | `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables) | organisation du Hub (VER-252), suspension partout (VER-254), personne = `hub_user_id` | sabotages CI |
 | `preuve-redemarrage-redis.py` | Redis redémarré sans perte | `--sabotage` |
-| `scripts/ci/admins-instance.py <env>`, `preuve-admins.py` (staging) | administrateurs d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS`, jamais l'adresse | 25/11, codes 1 et 2 |
+| `admins-instance.py <env>`, `preuve-admins.py` | admins d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS` | codes 1 et 2 (25/11) |
 | `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit ; ni clé, jeton, code OAuth, webhook, ni app OAuth | 7d4af31, 0a0f5cf : code 1 (26/11) |
-| `mutations-signature-unique.sh` (CI) | une signature du Hub ne sert qu'une fois (rejeu, autre route) | sabotages CI (26/11) |
+| `mutations-signature-unique.sh`, `preuve-rejeu-signature.py` | signature du Hub à usage unique, v2 liée à la route | sabotages, prod (26/11) |
+| `preuve-cors.py`, `preuve-espace-public.py` | aucune origine étrangère en CORS ; sans session, le nom seul | prod (26/11) |
 | `adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas, code 1 |
 | `preuve-installation-app.py`, `preuve-apps-de-base.py` | garde d'installation (VER-173), Liaisons posée à la création | jetable, prod (26/11) |
 | `scripts/ci/capture-sortante.sh <conteneur> <s>` (sur le nœud) | silence réseau, témoin compris | IP directe, code 1 |
