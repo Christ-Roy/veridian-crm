@@ -36,6 +36,8 @@
       };
     </script>
     <!-- END: Twenty Config -->
+    <!-- Veridian VER-265 : zod sans JIT avant tout module (la CSP interdit eval) -->
+    <script id="veridian-zod-config">globalThis.__zod_globalConfig = Object.assign(globalThis.__zod_globalConfig || {}, { jitless: true });</script>
 
     <meta
       name="viewport"
