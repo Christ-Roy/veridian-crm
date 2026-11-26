@@ -102,7 +102,7 @@ rel="${arbre#"$repo_root"/}"
 journal=$(mktemp)
 rc=0
 (cd "$repo_root" && lourd-si-bastion bash "$rel/scripts/ci/motifs-sabotages.sh" --arbre "$rel") >"$journal" 2>&1 || rc=$?
-if [ "$rc" = 2 ] && grep -q "NON ABOUTI" "$journal"; then
+if [ "$rc" = 2 ] && grep -q "^\[lourd-si-bastion\] NON ABOUTI" "$journal"; then
   echo "pre-push : lourd non abouti, motifs rejoués sur place (nice 19)"
   rc=0
   nice -n 19 bash "$arbre/scripts/ci/motifs-sabotages.sh" --arbre "$arbre" >"$journal" 2>&1 || rc=$?
