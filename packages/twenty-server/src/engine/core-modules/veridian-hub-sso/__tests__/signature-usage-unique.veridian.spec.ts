@@ -4,6 +4,11 @@ import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-s
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 
 jest.mock(
+  'src/engine/core-modules/application/application-install/services/application-lifecycle-job.service',
+  () => ({ ApplicationLifecycleJobService: class ApplicationLifecycleJobService {} }),
+);
+
+jest.mock(
   'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-member-access.service',
   () => ({ VeridianHubMemberAccessService: class {} }),
 );
@@ -316,5 +321,28 @@ describe('Veridian : signature du Hub à usage unique, v2 liée à la route', ()
     await expect(service.consumeHubSignature('b'.repeat(64))).resolves.toBe(true);
     expect([...poses.values()].every((ttl) => ttl >= 10 * 60 * 1000)).toBe(true);
     expect([...poses.keys()].every((cle) => !cle.includes('a'.repeat(64)))).toBe(true);
+  });
+
+  it("pose les apps de base dans l'espace créé, sans jamais bloquer la création", async () => {
+    const avantBase = process.env.VERIDIAN_BASE_APPS;
+
+    process.env.VERIDIAN_BASE_APPS =
+      '38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79';
+    const posees: unknown[] = [];
+    const service = Object.assign(Object.create(VeridianHubSsoService.prototype), {
+      logger: { error: () => undefined },
+      applicationLifecycleJobService: {
+        triggerInstallApplication: async (cible: unknown) => {
+          posees.push(cible);
+          throw new Error('file indisponible');
+        },
+      },
+    }) as unknown as { installBaseApps: (workspaceId: string) => Promise<void> };
+
+    await expect(service.installBaseApps('ws-neuf')).resolves.toBeUndefined();
+    expect(posees).toEqual([
+      { universalIdentifier: '1a1ab23e-60e5-4eca-be1f-718c96055c79', workspaceId: 'ws-neuf' },
+    ]);
+    process.env.VERIDIAN_BASE_APPS = avantBase;
   });
 });

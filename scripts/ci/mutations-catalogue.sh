@@ -52,11 +52,11 @@ saboter "installation : couples cassés" "$U" '`${workspaceId}:${applicationUniv
   ) ||'
 saboter "exécution : garde retirée" "$X" "!(await isCatalogApplicationAllowedByVeridian(
         this.workspaceRepository.manager,
-        flatApplication,
+        { ...flatApplication, workspaceId },
       ))" "true"
 saboter "exécution : tout passe" "$X" "!(await isCatalogApplicationAllowedByVeridian(
         this.workspaceRepository.manager,
-        flatApplication,
+        { ...flatApplication, workspaceId },
       ))" "false"
 saboter "exécution : couples cassés" "$X" "!isLogicFunctionAllowedByVeridian({" "true || !isLogicFunctionAllowedByVeridian({"
 saboter "exécution : code local accepté" "$L" "sourceType !== ApplicationRegistrationSourceType.TARBALL" "false"

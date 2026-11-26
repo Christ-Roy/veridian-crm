@@ -3,6 +3,11 @@ import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 
 jest.mock(
+  'src/engine/core-modules/application/application-install/services/application-lifecycle-job.service',
+  () => ({ ApplicationLifecycleJobService: class ApplicationLifecycleJobService {} }),
+);
+
+jest.mock(
   'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service',
   () => ({ VeridianHubRoleService: class VeridianHubRoleService {} }),
 );

@@ -133,7 +133,7 @@ export class VeridianDelegationController {
       }) ||
       (await isCatalogApplicationAllowedByVeridian(
         this.keyValuePairRepository.manager,
-        application,
+        { ...application, workspaceId: workspace.id },
       ));
 
     return isOurs

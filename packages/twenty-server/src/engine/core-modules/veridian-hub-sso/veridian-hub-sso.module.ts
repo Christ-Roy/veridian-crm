@@ -7,6 +7,7 @@ import { CoreEntityCacheModule } from 'src/engine/core-entity-cache/core-entity-
 import { AuthModule } from 'src/engine/core-modules/auth/auth.module';
 import { TokenModule } from 'src/engine/core-modules/auth/token/token.module';
 import { WorkspaceDomainsModule } from 'src/engine/core-modules/domain/workspace-domains/workspace-domains.module';
+import { ApplicationInstallModule } from 'src/engine/core-modules/application/application-install/application-install.module';
 import { CacheLockModule } from 'src/engine/core-modules/cache-lock/cache-lock.module';
 import { FileCorePictureModule } from 'src/engine/core-modules/file/file-core-picture/file-core-picture.module';
 import { KeyValuePairEntity } from 'src/engine/core-modules/key-value-pair/key-value-pair.entity';
@@ -60,6 +61,7 @@ import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.mod
     WorkspaceCacheModule,
     SubscriptionsModule,
     VeridianDelegationModule,
+    ApplicationInstallModule,
   ],
   controllers: [VeridianHubSsoController],
   providers: [

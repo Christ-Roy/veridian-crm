@@ -24,6 +24,8 @@ import { IsNull, Like, Repository } from 'typeorm';
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import { SignInUpService } from 'src/engine/core-modules/auth/services/sign-in-up.service';
 import { LoginTokenService } from 'src/engine/core-modules/auth/token/services/login-token.service';
+import { ApplicationLifecycleJobService } from 'src/engine/core-modules/application/application-install/services/application-lifecycle-job.service';
+import { veridianBaseApplicationIdentifiers } from 'src/engine/core-modules/veridian-coupures/is-application-install-allowed-by-veridian.util';
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
@@ -123,6 +125,7 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly veridianHubRoleService: VeridianHubRoleService,
     private readonly veridianHubMemberAccessService: VeridianHubMemberAccessService,
+    private readonly applicationLifecycleJobService: ApplicationLifecycleJobService,
   ) {}
 
   // CONTRAT-HUB §5.19.7: an owner recorded by email is converted once, by the linked local copy. A row with no match is
@@ -247,6 +250,23 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
       true,
       USED_SIGNATURE_TTL_MS,
     );
+  }
+
+  // Veridian (26/11/2026, parente) : un espace neuf reçoit les apps de base (Liaisons) à sa création, par le job natif
+  // d'installation. Jamais bloquant : un échec est journalisé, le premier clic d'une action la reposera.
+  private async installBaseApps(workspaceId: string): Promise<void> {
+    for (const universalIdentifier of veridianBaseApplicationIdentifiers()) {
+      try {
+        await this.applicationLifecycleJobService.triggerInstallApplication({
+          universalIdentifier,
+          workspaceId,
+        });
+      } catch (error) {
+        this.logger.error(
+          `Base app ${universalIdentifier} not queued for ${workspaceId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
   }
 
   async issueMagicLinkUrl(
@@ -524,6 +544,7 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
         workspace.id,
       );
       await this.clearOnboarding(user.id, workspace.id);
+      await this.installBaseApps(workspace.id);
 
       await this.keyValuePairRepository.save({
         key: hubTenantKey(tenantId),

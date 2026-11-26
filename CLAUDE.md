@@ -30,7 +30,7 @@ tous deux par `ensureCrmWorkspace` du Hub (provisioning signé). Une signature d
 **Impersonate natif :** refusé entre espaces et muet (pas de ClickHouse) : passer par `hub open` ; sous emprunt, rien qui survive (26/11).
 **Accès agent, jetables, plugins :** skill `twenty-cli`, clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
-code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173, jetable refusé), réglages en base.
+code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) hors apps de base `VERIDIAN_BASE_APPS` (Liaisons, clients existants exclus), réglages en base.
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
@@ -78,25 +78,24 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, domaine nu, garde d'identité, marque | à chaque CI |
 | `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, déconnexion, aucun hôte tiers, ni action réservée au Hub ni nom amont | oui |
 | `HUB_API_SECRET=… scripts/ci/charge-staging.py <url> [n] [s]` | latence et débit par palier | mesure |
-| `scripts/ci/preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage`, code 1 (23/11) |
+| `preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage` (23/11) |
 | `scripts/ci/preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version, code 1 (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` | accès agent : clé Admin, REST, webhook signé reçu, révocation | secret faussé (08/11) |
 | `scripts/ci/preuve-webhook-role.py <jetable>` | un webhook ne reçoit que ce que son rôle lit | `--sabotage`, code 1 (26/11) |
 | `scripts/ci/preuve-app-deleguee.py`, `preuve-reponse-mail.py` (jetable) | app posée au premier jeton d'action, réponse Mail sans membre | 25/11, clés du Hub injoignables |
 | `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables) | organisation du Hub (VER-252), suspension partout (VER-254), personne = `hub_user_id` | sabotages CI |
-| `scripts/ci/preuve-redemarrage-redis.py` (jetable) | Redis redémarré sans perte | `--sabotage` (25/11) |
+| `preuve-redemarrage-redis.py` | Redis redémarré sans perte | `--sabotage` |
 | `scripts/ci/admins-instance.py <env>`, `preuve-admins.py` (staging) | administrateurs d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS`, jamais l'adresse | 25/11, codes 1 et 2 |
 | `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit ; ni clé, jeton, code OAuth, webhook, ni app OAuth | 7d4af31, 0a0f5cf : code 1 (26/11) |
 | `mutations-signature-unique.sh` (CI) | une signature du Hub ne sert qu'une fois (rejeu, autre route) | sabotages CI (26/11) |
-| `scripts/ci/adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas posés, code 1 |
-| `scripts/ci/preuve-installation-app.py` | garde d'installation (VER-173) | jetable (22/11) |
+| `adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas, code 1 |
+| `preuve-installation-app.py`, `preuve-apps-de-base.py` | garde d'installation (VER-173), Liaisons posée à la création | jetable, prod (26/11) |
 | `scripts/ci/capture-sortante.sh <conteneur> <s>` (sur le nœud) | silence réseau, témoin compris | IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
 
-Avec `lourd`, `dist` est effacé à chaque copie : `nx run twenty-shared:build` avant toute spec.
-
-Session : `POST /metadata`, `credentials: 'include'`, `x-twenty-session-cookie: 1`.
+Avec `lourd` : `nx run twenty-shared:build` avant toute spec. Session : `POST /metadata`, `credentials: 'include'`,
+`x-twenty-session-cookie: 1`.
 
 ## 5. Construire et déployer
 

@@ -16,7 +16,44 @@ const parseAllowList = (raw: string | undefined): Set<string> =>
 type CatalogFlags = Pick<
   ApplicationRegistrationEntity,
   'sourceType' | 'isListed' | 'isPreInstalled'
->;
+> &
+  Partial<
+    Pick<ApplicationRegistrationEntity, 'ownerWorkspaceId' | 'universalIdentifier'>
+  >;
+
+const parseIds = (raw: string | undefined): Set<string> =>
+  new Set(
+    (raw ?? '')
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter((entry) => /^[0-9a-f-]{36}$/.test(entry)),
+  );
+
+// Veridian (26/11/2026, parente) : les apps de base (Liaisons) s'ouvrent à chaque espace, posées à sa création.
+// VERIDIAN_BASE_APPS = "<espace éditeur>:<app>,…" : l'enregistrement publié doit appartenir à l'espace éditeur, un
+// manifeste qui reprend l'identifiant ne suffit pas. VERIDIAN_BASE_APPS_EXCLUDE = "<workspaceId>,…" : les espaces clients
+// existants qui attendent la décision de Robert. Variables absentes : rien de plus qu'avant.
+export const isVeridianBaseApplication = ({
+  workspaceId,
+  applicationRegistration,
+}: {
+  workspaceId: string;
+  applicationRegistration?: CatalogFlags;
+}): boolean =>
+  applicationRegistration?.sourceType ===
+    ApplicationRegistrationSourceType.TARBALL &&
+  parseAllowList(process.env.VERIDIAN_BASE_APPS).has(
+    `${applicationRegistration.ownerWorkspaceId ?? ''}:${applicationRegistration.universalIdentifier ?? ''}`.toLowerCase(),
+  ) &&
+  !parseIds(process.env.VERIDIAN_BASE_APPS_EXCLUDE).has(workspaceId.toLowerCase());
+
+export const veridianBaseApplicationIdentifiers = (): string[] => [
+  ...new Set(
+    [...parseAllowList(process.env.VERIDIAN_BASE_APPS)].map(
+      (entry) => entry.split(':')[1],
+    ),
+  ),
+];
 
 // Veridian (24/11/2026) : une app publiée par tarball que l'administrateur d'INSTANCE a listée ou préinstallée passe en
 // tout espace. Aucun propriétaire ne pose ces drapeaux (updateGlobal seul, derrière AdminPanelGuard).
@@ -41,4 +78,5 @@ export const isApplicationInstallAllowedByVeridian = ({
     `${workspaceId}:${applicationUniversalIdentifier}`.toLowerCase(),
   ) ||
   (applicationRegistration !== undefined &&
-    isInstanceCatalogApplication(applicationRegistration));
+    isInstanceCatalogApplication(applicationRegistration)) ||
+  isVeridianBaseApplication({ workspaceId, applicationRegistration });

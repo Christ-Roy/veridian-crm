@@ -245,6 +245,10 @@ VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
 # Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie, Assistant (VER-203), Liaisons (VER-246) ; espace de test Hub e2e-sso-…-int1 + Liaisons, à retirer après l'épreuve.
 VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
+# Apps de base (26/11/2026, Liaisons) : posées à la création de chaque espace, ouvertes partout sauf aux espaces
+# clients existants listés en exclusion (décision de Robert attendue).
+VERIDIAN_BASE_APPS=38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_BASE_APPS_EXCLUDE=53fcfb68-6107-48b6-b692-4196c077a9aa,67844853-3724-44fe-9083-87a7f0a8bfdf,30d16cc9-62ac-479c-b7e9-026990f5773a,c6d955fd-4300-47d5-86f5-c503bb3a93cc,91f24fc3-1d57-4b31-a6dd-f706f59ca4de
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -407,6 +411,10 @@ VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
 # Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie, Assistant (VER-203), Liaisons (VER-246) ; espace de test Hub e2e-sso-…-int1 + Liaisons, à retirer après l'épreuve.
 VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
+# Apps de base (26/11/2026, Liaisons) : posées à la création de chaque espace, ouvertes partout sauf aux espaces
+# clients existants listés en exclusion (décision de Robert attendue).
+VERIDIAN_BASE_APPS=38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_BASE_APPS_EXCLUDE=53fcfb68-6107-48b6-b692-4196c077a9aa,67844853-3724-44fe-9083-87a7f0a8bfdf,30d16cc9-62ac-479c-b7e9-026990f5773a,c6d955fd-4300-47d5-86f5-c503bb3a93cc,91f24fc3-1d57-4b31-a6dd-f706f59ca4de
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty

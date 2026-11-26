@@ -282,7 +282,7 @@ export class LogicFunctionExecutorService {
       }) &&
       !(await isCatalogApplicationAllowedByVeridian(
         this.workspaceRepository.manager,
-        flatApplication,
+        { ...flatApplication, workspaceId },
       ))
     ) {
       throw new LogicFunctionException(

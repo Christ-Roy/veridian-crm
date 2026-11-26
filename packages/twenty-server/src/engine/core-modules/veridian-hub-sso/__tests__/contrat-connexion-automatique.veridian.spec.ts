@@ -7,6 +7,11 @@ import { createSingleNavigation } from '../../../../../../twenty-shared/src/util
 import { VeridianHubSsoController } from 'src/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller';
 import { VeridianHubSsoService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-sso.service';
 
+jest.mock(
+  'src/engine/core-modules/application/application-install/services/application-lifecycle-job.service',
+  () => ({ ApplicationLifecycleJobService: class ApplicationLifecycleJobService {} }),
+);
+
 // Les voisins sont des bouchons, pour un test rapide : contrôleur, service et règles restent réels.
 jest.mock(
   'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-member-access.service',

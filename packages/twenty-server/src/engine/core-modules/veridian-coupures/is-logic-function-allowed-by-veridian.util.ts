@@ -3,7 +3,10 @@ import { type EntityManager } from 'typeorm';
 import { ApplicationRegistrationEntity } from 'src/engine/core-modules/application/application-registration/application-registration.entity';
 import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/application/application-registration/enums/application-registration-source-type.enum';
 import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
-import { isInstanceCatalogApplication } from 'src/engine/core-modules/veridian-coupures/is-application-install-allowed-by-veridian.util';
+import {
+  isInstanceCatalogApplication,
+  isVeridianBaseApplication,
+} from 'src/engine/core-modules/veridian-coupures/is-application-install-allowed-by-veridian.util';
 
 // Veridian (18/11/2026, ROB-235) : en LOCAL, le code d'une app tourne sur le serveur CRM, réseau interne compris.
 // N'importe quel propriétaire d'espace peut déposer une app : on n'exécute que les couples (espace, app) listés dans
@@ -36,10 +39,11 @@ export const isCatalogApplicationAllowedByVeridian = async (
     applicationRegistrationId,
     universalIdentifier,
     sourceType,
+    workspaceId,
   }: Pick<
     FlatApplication,
     'applicationRegistrationId' | 'universalIdentifier' | 'sourceType'
-  >,
+  > & { workspaceId?: string },
 ): Promise<boolean> => {
   if (
     !applicationRegistrationId ||
@@ -57,6 +61,7 @@ export const isCatalogApplicationAllowedByVeridian = async (
         'sourceType',
         'isListed',
         'isPreInstalled',
+        'ownerWorkspaceId',
       ],
       where: { id: applicationRegistrationId },
     });
@@ -64,7 +69,12 @@ export const isCatalogApplicationAllowedByVeridian = async (
   return (
     registration !== null &&
     registration.universalIdentifier === universalIdentifier &&
-    isInstanceCatalogApplication(registration)
+    (isInstanceCatalogApplication(registration) ||
+      (workspaceId !== undefined &&
+        isVeridianBaseApplication({
+          workspaceId,
+          applicationRegistration: registration,
+        })))
   );
 };
 
