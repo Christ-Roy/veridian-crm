@@ -14,6 +14,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -65,7 +66,11 @@ class Epreuve(reponse.Epreuve):
         rfc = f"<{uuid.uuid4()}@{self.dom}>"
         lot_id = str(uuid.uuid4())
 
+        debut = time.monotonic()
         c, r = self.lot([self.ev("message.sent", self.marie, rfc)], lot_id)
+        duree = time.monotonic() - debut
+        # Parente, 26/11 : Liaisons est posée à la naissance de l'espace ; un premier appel qui l'installe (16 s) fait un 503 chez Mail.
+        self.controle("premier appel sous 2 s (rien à installer)", duree < 2, f"{duree:.1f} s")
         self.controle("envoi à une personne de l'espace : une ligne créée", (r.get("lignes") or {}).get("creees") == 1,
                       f"{c} {json.dumps(r, ensure_ascii=False)[:180]}")
         c, r = self.lot([self.ev("message.sent", self.marie, rfc)], lot_id)
