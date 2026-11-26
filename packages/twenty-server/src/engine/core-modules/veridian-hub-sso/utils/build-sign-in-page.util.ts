@@ -6,6 +6,10 @@ const escapeHtml = (value: string) =>
     .replace(/>/g, '&gt;');
 
 // CONTRAT-HUB §6bis.8.0 points 2 to 4: shown instead of a silent sign-in.
+// VER-265: no script on this page, so its own policy forbids every script and every embedding.
+export const SIGN_IN_PAGE_CONTENT_SECURITY_POLICY =
+  "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
 export const buildSignInPage = (bounceUrl: string) => `<!doctype html>
 <html lang="fr">
 <head>

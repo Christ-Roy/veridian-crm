@@ -268,6 +268,7 @@ VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-
 VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
+VERIDIAN_CSP=report
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 8 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=8
@@ -355,6 +356,7 @@ VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-
 VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
+VERIDIAN_CSP=report
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 4 par pool, 2 pools (cœur, workspace).
 PG_POOL_MAX_CONNECTIONS=4

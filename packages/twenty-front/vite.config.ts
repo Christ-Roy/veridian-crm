@@ -14,6 +14,7 @@ import {
   searchForWorkspaceRoot,
 } from 'vite';
 import svgr from 'vite-plugin-svgr';
+import { veridianCspPlugin } from './veridian-csp.vite-plugin';
 
 import { createWywProfilingPlugin } from 'twenty-shared/vite';
 
@@ -130,6 +131,7 @@ export default defineConfig(({ mode }) => {
         plugins: [['@lingui/swc-plugin', {}]],
       }),
       svgr(),
+      veridianCspPlugin(),
       emojibaseDataPlugin(),
       lingui({
         configPath: path.resolve(__dirname, './lingui.config.ts'),

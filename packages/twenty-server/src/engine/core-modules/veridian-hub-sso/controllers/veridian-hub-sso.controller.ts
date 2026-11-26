@@ -28,7 +28,10 @@ import {
   isSuspensionReason,
   VeridianHubSuspensionService,
 } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-suspension.service';
-import { buildSignInPage } from 'src/engine/core-modules/veridian-hub-sso/utils/build-sign-in-page.util';
+import {
+  buildSignInPage,
+  SIGN_IN_PAGE_CONTENT_SECURITY_POLICY,
+} from 'src/engine/core-modules/veridian-hub-sso/utils/build-sign-in-page.util';
 import {
   isHubRole,
   isHubRoleVersion,
@@ -301,6 +304,7 @@ export class VeridianHubSsoController {
     if (isBlocked) {
       return response
         .status(200)
+        .setHeader('Content-Security-Policy', SIGN_IN_PAGE_CONTENT_SECURITY_POLICY)
         .type('html')
         .send(buildSignInPage(bounce));
     }

@@ -98,6 +98,12 @@ const fauxResponse = () => {
     html: undefined as string | undefined,
     body: undefined as unknown,
     cookies: {} as Record<string, unknown>,
+    headers: {} as Record<string, string>,
+    setHeader(name: string, value: string) {
+      r.headers[name] = value;
+
+      return r;
+    },
     status(code: number) {
       r.code = code;
 
@@ -237,6 +243,8 @@ describe('CONTRAT-HUB §6bis.8.0', () => {
     expect(r.location).toBeUndefined();
     expect(r.html).toContain('Continuer');
     expect(r.cookies.veridian_hub_try).toBeUndefined();
+    // VER-265 : la page de connexion n'exécute aucun script et ne s'encadre nulle part.
+    expect(r.headers['Content-Security-Policy']).toContain("default-src 'none'");
   });
 
   describe('4. jamais de rebond automatique', () => {

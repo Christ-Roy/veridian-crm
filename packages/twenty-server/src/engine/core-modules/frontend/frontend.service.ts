@@ -25,6 +25,7 @@ import { WorkspaceNotFoundDefaultError } from 'src/engine/core-modules/workspace
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { getRequestBaseUrl } from 'src/utils/get-request-base-url.util';
 import { streamToBuffer } from 'src/utils/stream-to-buffer';
+import { applyVeridianCsp } from 'src/engine/core-modules/veridian-csp/utils/veridian-csp.util';
 
 const MAX_FRONTEND_HTML_SIZE_BYTES = 1024 * 1024;
 
@@ -214,13 +215,14 @@ export class FrontendService {
         response.removeHeader('X-Frame-Options');
       }
 
-      response.type('html').end(
-        renderFrontendHtml({
-          template,
-          clientConfig,
-          iframeMediaPermissions,
-        }),
-      );
+      const html = renderFrontendHtml({
+        template,
+        clientConfig,
+        iframeMediaPermissions,
+      });
+
+      applyVeridianCsp(response, html, this.frontPath);
+      response.type('html').end(html);
     } catch (error) {
       this.logger.error('Unable to serve frontend document', error);
       response
