@@ -60,7 +60,7 @@ class Epreuve(envoi.Epreuve):
     def taches(self):
         d = self.gql("query($t:TaskFilterInput,$p:PersonFilterInput){tasks(filter:$t){edges{node{id title origineVeridian bodyV2{markdown} "
                      "assigneeId taskTargets{edges{node{id}}} createdBy{source name}}}} "
-                     "people(filter:$p){edges{node{id companyId origineVeridian}}}}",
+                     "people(filter:$p){edges{node{id companyId origineVeridian name{firstName lastName}}}}}",
                      t={"hubExtId": {"startsWith": f"notifuse:reponse:{self.fil}"}}, p={"emails": {"primaryEmail": {"eq": self.mail}}})
         return [e["node"] for e in d["tasks"]["edges"]], [e["node"] for e in d["people"]["edges"]]
 
@@ -71,7 +71,7 @@ class Epreuve(envoi.Epreuve):
         soc = self.gql("mutation($d:CompanyCreateInput!){createCompany(data:$d){id}}",
                        d={"name": f"EPREUVE {self.dom}", "domainName": {"primaryLinkUrl": f"https://{self.dom}"}})["createCompany"]["id"]
         self.societe = soc
-        a = self.args()
+        a = self.args(nom="Jeanne Épreuve")
         for nom, jeton, code, erreur, outil in (
                 ("un membre", self.jeton_mail(sub=self.sub), 403, "delegation_forbidden", OUTIL),
                 ("un autre espace que le sien", self.jeton_mail(sub=f"integration:{uuid.uuid4()}"), 403, "tenant_forbidden", OUTIL),
@@ -91,6 +91,8 @@ class Epreuve(envoi.Epreuve):
         self.controle("une réponse : une tâche, une personne, deux liens", r.get("ok") is True and len(t) == 1 and len(p) == 1 and
                       len(t[0]["taskTargets"]["edges"]) == 2, json.dumps(r, ensure_ascii=False)[:180])
         self.controle("personne reliée à la société de son domaine", p and p[0]["companyId"] == soc, str(p))
+        self.controle("personne nommée depuis le nom affiché (VER-247)", bool(p) and p[0].get("name") == {"firstName": "Jeanne", "lastName": "Épreuve"},
+                      str(p and p[0].get("name")))
         if t:
             self.controle("titre, origine, lien de la conversation", t[0]["title"] == f"Répondre à {self.mail}" and
                           t[0]["origineVeridian"] == "Mail" and f"inbox?message={a['message_id']}" in (t[0]["bodyV2"] or {}).get("markdown", ""),
