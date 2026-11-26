@@ -264,11 +264,11 @@ VERIDIAN_LOGIC_FUNCTION_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464
 VERIDIAN_APP_INSTALL_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:e3df4b02-559e-4624-b985-3fd49cfd1725,4e8c64ad-e4bd-4633-89cb-746957ef2a81:e3df4b02-559e-4624-b985-3fd49cfd1725,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:79be0014-d023-4aa5-b28b-ef3362692d69
 # Apps de base (26/11/2026, Liaisons) : posées à la création de chaque espace, ouvertes partout sauf aux espaces
 # clients existants listés en exclusion (décision de Robert attendue).
-VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_EDITOR_WORKSPACE_IDS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b
 VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
-VERIDIAN_CATALOGUE=1a1ab23e-60e5-4eca-be1f-718c96055c79:installe,58a58b5a-8a63-441b-b314-996221f309dd:installe,65f44458-3dde-49de-9b19-c52b60b5d1e8:liste,dccc9944-ddb7-4019-a95d-ec27679f70ba:liste,e3df4b02-559e-4624-b985-3fd49cfd1725:liste
+VERIDIAN_CATALOGUE=1a1ab23e-60e5-4eca-be1f-718c96055c79:liste,58a58b5a-8a63-441b-b314-996221f309dd:liste,65f44458-3dde-49de-9b19-c52b60b5d1e8:liste,dccc9944-ddb7-4019-a95d-ec27679f70ba:liste,e3df4b02-559e-4624-b985-3fd49cfd1725:liste
 VERIDIAN_CSP=report
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 8 par pool, 2 pools (cœur, workspace).
@@ -353,11 +353,11 @@ VERIDIAN_LOGIC_FUNCTION_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464
 VERIDIAN_APP_INSTALL_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-436e-81f8-ae68059bb8d3,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:e3df4b02-559e-4624-b985-3fd49cfd1725,4e8c64ad-e4bd-4633-89cb-746957ef2a81:e3df4b02-559e-4624-b985-3fd49cfd1725,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:79be0014-d023-4aa5-b28b-ef3362692d69
 # Apps de base (26/11/2026, Liaisons) : posées à la création de chaque espace, ouvertes partout sauf aux espaces
 # clients existants listés en exclusion (décision de Robert attendue).
-VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_EDITOR_WORKSPACE_IDS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b
 VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
-VERIDIAN_CATALOGUE=1a1ab23e-60e5-4eca-be1f-718c96055c79:installe,58a58b5a-8a63-441b-b314-996221f309dd:installe,65f44458-3dde-49de-9b19-c52b60b5d1e8:liste,dccc9944-ddb7-4019-a95d-ec27679f70ba:liste,e3df4b02-559e-4624-b985-3fd49cfd1725:liste
+VERIDIAN_CATALOGUE=1a1ab23e-60e5-4eca-be1f-718c96055c79:liste,58a58b5a-8a63-441b-b314-996221f309dd:liste,65f44458-3dde-49de-9b19-c52b60b5d1e8:liste,dccc9944-ddb7-4019-a95d-ec27679f70ba:liste,e3df4b02-559e-4624-b985-3fd49cfd1725:liste
 VERIDIAN_CSP=report
 IS_CONFIG_VARIABLES_IN_DB_ENABLED=false
 # Budget de connexions pg-saas (parente, 09/11/2026) : 4 par pool, 2 pools (cœur, workspace).
