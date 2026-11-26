@@ -480,7 +480,7 @@ EOH
           "site.veridian.tier"  = "saas-prod"
           "site.veridian.app"   = "crm"
         }
-        image   = "redis:7-alpine"
+        image   = "ghcr.io/veridian-site/redis:7-20261126-cc2a313@sha256:f93473b0a94e5a62fe4988050e92984396381c69246b6c827a157d54788ab726"
         ports   = ["redis"]
         command = "redis-server"
         args    = ["--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes", "--maxmemory-policy", "noeviction", "--loglevel", "warning"]
