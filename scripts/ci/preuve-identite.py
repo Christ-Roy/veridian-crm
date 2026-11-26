@@ -66,6 +66,26 @@ class Epreuve:
         d = self.c.gql(self.origine, "{currentUser{workspaceMembers{userEmail}}}", None, self.session)
         return sorted(m["userEmail"] for m in d["currentUser"]["workspaceMembers"])
 
+    def ids_membres(self):
+        d = self.c.gql(self.origine, "{currentUser{workspaceMembers{id userEmail}}}", None, self.session)
+        return {m["userEmail"]: m["id"] for m in d["currentUser"]["workspaceMembers"]}
+
+    def sans_hub_user_id(self, mail):
+        # VER-255 : une adresse seule ne désigne personne, sur chaque route signée qui en reçoit une.
+        ws = self.ws["id"]
+        envois = (
+            ("lien magique", "/api/sso/issue-magic-link", {"email": mail, "email_proven": True}, "invalid_body"),
+            ("création d'espace", "/api/tenants/provision", {"tenant_id": self.tenant, "owner_email": mail, "email_proven": True,
+                                                             "workspace_name": "rejeu", "plan": "free"}, "invalid_body"),
+            ("rattachement", f"/api/veridian/workspaces/{ws}/attach-member", {"email": mail, "hub_user_email": mail,
+                                                                             "email_proven": True, "role": "member"}, "invalid_payload"),
+            ("synchro", "/api/hub/users/sync", {"email": mail, "name": "Sans Identifiant"}, "invalid_payload"),
+            ("retrait", f"/api/tenants/{self.tenant}/remove-member", {"email": mail}, "invalid_payload"),
+        )
+        for nom, chemin, corps, erreur in envois:
+            r = self.poster(chemin, corps)
+            self.controle(f"{nom} sans hub_user_id : 400 {erreur}", r == (400, {"error": erreur}), str(r)[:100])
+
     def attendre_membres(self, *attendus):
         fin = time.time() + 30
         while time.time() < fin and not set(attendus) <= set(self.membres()):
@@ -78,9 +98,21 @@ class Epreuve:
         ancienne, nouvelle = f"e2e-identite-{t}@veridian.site", f"e2e-identite-{t}-bis@veridian.site"
         proprio = self.mail.replace("@", f"-{t}@")
         try:
-            self.controle("Jean entre par l'ancienne adresse", self.rattacher(jean, ancienne)[0] == 201)
+            self.sans_hub_user_id(ancienne)
+            self.controle("rien créé par ces refus", ancienne not in self.membres(), str(self.membres()))
+            self.controle("Jean entre par l'ancienne adresse (témoin positif)", self.rattacher(jean, ancienne)[0] == 201)
+            self.attendre_membres(ancienne)
+            avant = self.ids_membres().get(ancienne)
             r = self.sync(jean, email=nouvelle)
             self.controle("Jean change d'adresse au Hub", r[0] == 200, str(r))
+            fin = time.time() + 30
+            while time.time() < fin and nouvelle not in self.ids_membres():
+                time.sleep(2)
+            apres = self.ids_membres()
+            self.controle("même hub_user_id, adresse changée : la même personne", avant is not None and apres.get(nouvelle) == avant
+                          and ancienne not in apres, f"{avant} -> {apres.get(nouvelle)}")
+            self.controle("Jean reste membre sous son hub_user_id", self.liste(hub_user_id=jean).get(self.ws["id"]) == "member",
+                          str(self.liste(hub_user_id=jean)))
             r = self.rattacher(neuf, ancienne)
             self.controle("un compte neuf reprend l'ancienne adresse", r[0] == 201, str(r)[:80])
             self.controle("les deux sont membres (témoin positif)", self.attendre_membres(nouvelle, ancienne), str(self.membres()))
