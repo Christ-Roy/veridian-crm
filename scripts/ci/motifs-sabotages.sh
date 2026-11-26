@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # motifs-sabotages.sh : vérifie sans jest que chaque sabotage s'applique encore au code commité (pre-push, quelques secondes).
 # Le 25/11/2026 un motif périmé a rougi la CI 20 min après le push. Sortie : 0 tous applicables · 1 motif périmé · 2 non abouti
+# --arbre <dossier> : le code commité déjà extrait (pre-push sur le bastion : extrait ici, vérifié ailleurs par lourd, sans .git).
 set -uo pipefail
-RACINE=$(git rev-parse --show-toplevel) || exit 2
 TMP=$(mktemp -d) || exit 2
 trap 'rm -rf "$TMP"' EXIT
-git -C "$RACINE" archive HEAD scripts/ci packages/twenty-server/src/engine packages/twenty-server/src/modules packages/twenty-front/src packages/twenty-shared/src 2>/dev/null | tar -x -C "$TMP" || { echo "MOTIFS_NON_ABOUTI copie impossible"; exit 2; }
+if [ "${1:-}" = --arbre ]; then
+  [ -d "${2:-}/scripts/ci" ] || { echo "MOTIFS_NON_ABOUTI arbre absent : ${2:-}"; exit 2; }
+  cp -a "$2/." "$TMP/" || { echo "MOTIFS_NON_ABOUTI copie impossible"; exit 2; }
+else
+  RACINE=$(git rev-parse --show-toplevel) || exit 2
+  git -C "$RACINE" archive HEAD scripts/ci packages/twenty-server/src/engine packages/twenty-server/src/modules packages/twenty-front/src packages/twenty-shared/src 2>/dev/null | tar -x -C "$TMP" || { echo "MOTIFS_NON_ABOUTI copie impossible"; exit 2; }
+fi
 cd "$TMP" || exit 2
 rate=0 vus=0
 for f in scripts/ci/mutations-*.sh; do

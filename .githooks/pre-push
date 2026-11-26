@@ -24,10 +24,10 @@ fail() { echo "❌ pre-push: $1" >&2; exit 1; }
 # la CI. Le script tolère un marker absent (clone shallow) en exit 2 → on ne
 # bloque pas le push local là-dessus, seule une vraie violation (exit 1) bloque.
 if [ -x "$repo_root/scripts/ci/check-ee-integrity.sh" ]; then
-  if ! bash "$repo_root/scripts/ci/check-ee-integrity.sh"; then
-    rc=$?
-    [ "$rc" -eq 1 ] && fail "check-ee-integrity : un fichier Enterprise a été modifié (contrefaçon) ou dépendance toxique"
-  fi
+  # Veridian (26/11/2026) : « if ! cmd; then rc=$? » lisait le code de la négation (0) : la garde ne bloquait jamais.
+  rc=0
+  bash "$repo_root/scripts/ci/check-ee-integrity.sh" || rc=$?
+  [ "$rc" -eq 1 ] && fail "check-ee-integrity : un fichier Enterprise a été modifié (contrefaçon) ou dépendance toxique"
 fi
 
 # Étage 0 bis : un patch Veridian disparu (limite, canaux sortants, rebond Hub) bloque le push.
@@ -91,7 +91,24 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 done
 
-# 3. Un sabotage qui ne s'applique plus rougit la CI bien après le push (25/11/2026).
-"$repo_root/scripts/ci/motifs-sabotages.sh" || fail "motif de sabotage périmé ou vérification non aboutie (scripts/ci/motifs-sabotages.sh)"
+# 3. Un sabotage qui ne s'applique plus rougit la CI bien après le push (25/11/2026). Étape lourde (465 node, 88 s de CPU) :
+# sur le bastion, lourd la joue ailleurs (rise, node02, nice 19) sur le code commité extrait ici ; « NON ABOUTI » (lourd n'a
+# rien fait tourner) ne laisse pas passer : la même étape est rejouée sur place en nice 19 (règle commune, parente 26/11).
+arbre=$(mktemp -d "$repo_root/.motifs-arbre.XXXXXX")
+trap 'rm -rf "$arbre"' EXIT
+git -C "$repo_root" archive HEAD scripts/ci packages/twenty-server/src/engine packages/twenty-server/src/modules \
+  packages/twenty-front/src packages/twenty-shared/src | tar -x -C "$arbre" || fail "motifs : extraction du code commité impossible"
+rel="${arbre#"$repo_root"/}"
+journal=$(mktemp)
+rc=0
+(cd "$repo_root" && lourd-si-bastion bash "$rel/scripts/ci/motifs-sabotages.sh" --arbre "$rel") >"$journal" 2>&1 || rc=$?
+if [ "$rc" = 2 ] && grep -q "NON ABOUTI" "$journal"; then
+  echo "pre-push : lourd non abouti, motifs rejoués sur place (nice 19)"
+  rc=0
+  nice -n 19 bash "$arbre/scripts/ci/motifs-sabotages.sh" --arbre "$arbre" >"$journal" 2>&1 || rc=$?
+fi
+grep -E "MOTIF|NON ABOUTI" "$journal" | tail -5 || true
+rm -f "$journal"
+[ "$rc" = 0 ] || fail "motif de sabotage périmé ou vérification non aboutie (scripts/ci/motifs-sabotages.sh)"
 
 echo "✅ pre-push: garde-fous EE/trunk/secrets OK"
