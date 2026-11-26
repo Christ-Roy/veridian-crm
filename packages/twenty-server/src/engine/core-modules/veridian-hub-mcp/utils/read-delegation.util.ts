@@ -49,6 +49,16 @@ const DELEGATED_TOOLS = new Map<string, DelegatedTool>([
       applicationUniversalIdentifier: LIAISONS_APPLICATION,
     },
   ],
+  // Veridian (26/11/2026, Robert) : le dossier Mail d'une fiche (envois, statuts, réponses), une ligne par message.
+  [
+    'app_evenements_mail',
+    {
+      app: 'app:notifuse',
+      scopes: ['crm:mail.ecrire'],
+      subject: 'integration',
+      applicationUniversalIdentifier: LIAISONS_APPLICATION,
+    },
+  ],
 ]);
 
 export const findDelegatedApplication = (

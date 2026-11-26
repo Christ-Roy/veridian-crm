@@ -316,6 +316,44 @@ describe('jeton d’action du Hub (act)', () => {
     }
   });
 
+  describe('dossier Mail relayé sans membre (app_evenements_mail)', () => {
+    const MAIL = {
+      subject: 'integration:t-1',
+      act: { sub: 'app:notifuse' },
+      scope: 'crm:mail.ecrire',
+    };
+    const evenements = () =>
+      appel('app_evenements_mail', { evenements: [{ type: 'sent', email: 'a@b.fr', rfc_message_id: '<m@b.fr>' }] });
+
+    it('agit avec le jeton court de l’app, sous son rôle', async () => {
+      const e = monter();
+      const { req, passe } = await e.passer(jeton(MAIL), evenements());
+
+      expect(passe).toBe(true);
+      expect(req.headers.authorization).toBe('Bearer jeton-app');
+      expect(e.generateAccessToken).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['la portée des tâches seule', { scope: 'crm:tache.ecrire' }],
+      ['une autre app', { act: { sub: 'app:prospection' } }],
+      ['un membre', { subject: SUB }],
+    ])('refuse : %s', async (_nom, claims) => {
+      const e = monter();
+
+      expect((await e.passer(jeton({ ...MAIL, ...claims }), evenements())).refus?.error).toBe(
+        'delegation_forbidden',
+      );
+      expect(e.generateApplicationAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('sa portée n’ouvre pas les réponses humaines', async () => {
+      expect(
+        (await monter().passer(jeton(MAIL), appel('app_reponse_humaine', { email: 'a@b.fr', thread_id: 't' }))).refus?.error,
+      ).toBe('delegation_forbidden');
+    });
+  });
+
   describe('événement relayé sans membre (integration:<espace>)', () => {
     const MAIL = {
       subject: 'integration:t-1',
