@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-735815f" # 26/11/2026 : emprunt sans webhook ni app OAuth, signature du Hub à usage unique et v2
+  default = "staging-c8e67ad" # 26/11/2026 : Liaisons posée à la création de chaque espace (apps de base)
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
