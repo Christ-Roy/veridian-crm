@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-fb535a7" # 25/11/2026 : inscription OAuth filtrée
+  default = "staging-0a0f5cf" # 25/11/2026 : webhooks filtrés par le rôle
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
