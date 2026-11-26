@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-0a0f5cf" # 25/11/2026 : webhooks filtrés par le rôle
+  default = "staging-735815f" # 26/11/2026 : emprunt sans webhook ni app OAuth, signature du Hub à usage unique et v2
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
@@ -240,11 +240,11 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Aujourd'hui : veridian-4 + Google Meet, Chantier (22/11), Assistant (VER-203 : routes des fils de l'IA), Liaisons (VER-246, 24/11) ; espace de test Hub e2e-sso-…-int1 + Liaisons, à retirer après l'épreuve. Exécuteur isolé pour les clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
-VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79,76f6ff84-d0b4-448a-94c7-e03f0256cf61:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
 # Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
 # Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie, Assistant (VER-203), Liaisons (VER-246) ; espace de test Hub e2e-sso-…-int1 + Liaisons, à retirer après l'épreuve.
-VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79,76f6ff84-d0b4-448a-94c7-e03f0256cf61:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
 PGUSER=twenty
@@ -402,11 +402,11 @@ CALENDAR_PROVIDER_GOOGLE_ENABLED=true
 # <workspaceId>:<appUniversalId> listés (garde du fork, veridian-coupures). Vide = rien ne s'exécute.
 # Aujourd'hui : veridian-4 + Google Meet, Chantier (22/11), Assistant (VER-203 : routes des fils de l'IA), Liaisons (VER-246, 24/11) ; espace de test Hub e2e-sso-…-int1 + Liaisons, à retirer après l'épreuve. Exécuteur isolé pour les clients : ROB-237.
 LOGIC_FUNCTION_TYPE=LOCAL
-VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79,76f6ff84-d0b4-448a-94c7-e03f0256cf61:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_LOGIC_FUNCTION_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
 # Installation des apps publiées (VER-173, 22/11/2026) : seuls les couples <workspaceId>:<appUniversalId> listés
 # installent ou mettent à jour (garde du fork, veridian-coupures). Vide = tout refusé ; un espace jetable y compris.
 # Aujourd'hui : veridian-4 + Chantier, Dossiers, Google Meet, Infra, Prospection, Téléphonie, Assistant (VER-203), Liaisons (VER-246) ; espace de test Hub e2e-sso-…-int1 + Liaisons, à retirer après l'épreuve.
-VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79,76f6ff84-d0b4-448a-94c7-e03f0256cf61:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-436e-81f8-ae68059bb8d3,38627be0-428f-4924-aa67-4a35884ba7b4:dccc9944-ddb7-4019-a95d-ec27679f70ba,38627be0-428f-4924-aa67-4a35884ba7b4:65f44458-3dde-49de-9b19-c52b60b5d1e8,38627be0-428f-4924-aa67-4a35884ba7b4:14a0c2a0-aed9-44bf-9dfc-037dc5369c73,38627be0-428f-4924-aa67-4a35884ba7b4:b6f0d2e4-8a51-4c3e-9f27-1d6a4b8c0e52,38627be0-428f-4924-aa67-4a35884ba7b4:e3df4b02-559e-4624-b985-3fd49cfd1725,38627be0-428f-4924-aa67-4a35884ba7b4:f7baf702-cc85-4d4a-a3f2-0ceb42516d68,38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
 PGUSER=twenty
