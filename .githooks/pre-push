@@ -30,6 +30,12 @@ if [ -x "$repo_root/scripts/ci/check-ee-integrity.sh" ]; then
   [ "$rc" -eq 1 ] && fail "check-ee-integrity : un fichier Enterprise a été modifié (contrefaçon) ou dépendance toxique"
 fi
 
+# Étage 0 ter (26/11/2026) : un fichier que la marque remplace au build (index.html, icônes) a changé : la CI le refusait
+# 25 min plus tard (garde-legale). Contrôle par empreintes, une seconde.
+rc=0
+bash "$repo_root/scripts/ci/poser-marque.sh" --verifier >/dev/null || rc=$?
+[ "$rc" -eq 1 ] && fail "poser-marque : un fichier remplacé par la marque a changé, l'éditer dans deploy/marque (ou rejouer scripts/ci/marque.sh)"
+
 # Étage 0 bis : un patch Veridian disparu (limite, canaux sortants, rebond Hub) bloque le push.
 if [ -x "$repo_root/scripts/ci/patch-survival.sh" ]; then
   bash "$repo_root/scripts/ci/patch-survival.sh" --statique || fail "patch-survival : un patch Veridian a disparu"
