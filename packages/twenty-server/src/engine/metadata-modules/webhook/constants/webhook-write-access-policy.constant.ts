@@ -6,7 +6,7 @@ export const WEBHOOK_WRITE_ACCESS_POLICY: AccessPolicy = {
   authPrincipals: {
     userSession: {
       standard: true,
-      impersonated: true,
+      impersonated: false,
       playground: true,
       workspaceAgnostic: false,
     },

@@ -92,7 +92,7 @@ const APPLICATION_REGISTRATION_WRITE_ACCESS_POLICY: AccessPolicy = {
   authPrincipals: {
     userSession: {
       standard: true,
-      impersonated: true,
+      impersonated: false,
       playground: true,
       workspaceAgnostic: false,
     },
@@ -331,7 +331,7 @@ export class ApplicationRegistrationResolver {
       authPrincipals: {
         userSession: {
           standard: true,
-          impersonated: true,
+          impersonated: false,
           playground: true,
           workspaceAgnostic: false,
         },

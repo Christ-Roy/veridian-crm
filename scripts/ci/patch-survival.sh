@@ -130,6 +130,10 @@ exige packages/twenty-front/src/modules/settings/mcp/utils/buildMcpSetupCategori
 exige packages/twenty-server/src/engine/core-modules/api-key/constants/api-key-role-write-access-policy.constant.ts "impersonated: false"
 exige packages/twenty-server/src/engine/core-modules/impersonation/impersonation.resolver.ts "playground: false"
 [ "$(grep -cF "impersonated: false" packages/twenty-server/src/engine/core-modules/auth/auth.resolver.ts)" -ge 3 ] || { echo "PATCH ABSENT : auth.resolver.ts laisse une session d'emprunt fabriquer un jeton"; echec=1; }
+# Veridian (26/11/2026) : ni webhook, ni clé ranimée ou prolongée, ni app OAuth ou secret pendant un emprunt.
+exige packages/twenty-server/src/engine/metadata-modules/webhook/constants/webhook-write-access-policy.constant.ts "impersonated: false"
+exige packages/twenty-server/src/engine/core-modules/api-key/constants/api-key-write-access-policy.constant.ts "impersonated: false"
+[ "$(grep -cF "impersonated: false" packages/twenty-server/src/engine/core-modules/application/application-registration/application-registration.resolver.ts)" -ge 2 ] || { echo "PATCH ABSENT : une session d'emprunt écrit une app OAuth ou son secret"; echec=1; }
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do
   if ! grep -q "^VERIDIAN_AI_DISABLED=true$" "$job"; then
     # entre apostrophes : le format d'environnement de Nomad mange les guillemets d'un JSON nu (staging, 23/11)

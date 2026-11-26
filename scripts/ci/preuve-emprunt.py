@@ -63,6 +63,20 @@ class Epreuve:
             jeton_cle = "mutation($a:UUID!,$e:String!){generateApiKeyToken(apiKeyId:$a,expiresAt:$e){token}}"
             fait, d = self.tenter(self.jeton, jeton_cle, {"a": ident, "e": expire})
             self.controle("témoin : le propriétaire fabrique un jeton de clé", bool(fait), d)
+            revoquer = "mutation($i:RevokeApiKeyInput!){revokeApiKey(input:$i){id}}"
+            fait, d = self.tenter(self.jeton, revoquer, {"i": {"id": ident}})
+            self.controle("témoin : le propriétaire révoque sa clé", bool(fait), d)
+            ranimer = "mutation($i:UpdateApiKeyInput!){updateApiKey(input:$i){id}}"
+            webhook = "mutation($i:CreateWebhookInput!){createWebhook(input:$i){id}}"
+            crochet = {"i": {"targetUrl": "https://e2e.veridian.site/crochet", "operations": ["*.*"], "roleId": role}}
+            fait, d = self.tenter(self.jeton, webhook, crochet)
+            self.controle("témoin : le propriétaire crée un webhook", bool(fait), d)
+            if fait:
+                self.tenter(self.jeton, "mutation($i:UUID!){deleteWebhook(id:$i){id}}", {"i": fait["createWebhook"]["id"]})
+            app_oauth = "mutation($i:CreateApplicationRegistrationInput!){createApplicationRegistration(input:$i){applicationRegistration{id}}}"
+            fait, d = self.tenter(self.jeton, app_oauth, {"i": {"name": "epreuve-emprunt"}})
+            self.controle("témoin : le propriétaire enregistre une app OAuth", bool(fait), d)
+            app_id = fait["createApplicationRegistration"]["applicationRegistration"]["id"] if fait else str(uuid.uuid4())
 
             donnees, d = self.tenter(self.jeton, "mutation($u:UUID!,$w:UUID!){impersonate(userId:$u,workspaceId:$w){loginToken{token}}}",
                                      {"u": cible, "w": self.ws["id"]})
@@ -80,11 +94,19 @@ class Epreuve:
                 ("fabrique un jeton de terrain de jeu", "mutation{generatePlaygroundToken{token}}", {}),
                 ("obtient un code OAuth", "mutation($c:String!,$r:String!){authorizeApp(clientId:$c,redirectUrl:$r){redirectUrl}}",
                  {"c": str(uuid.uuid4()), "r": "https://e2e.veridian.site/retour"}),
+                ("ranime une clé révoquée", ranimer, {"i": {"id": ident, "revokedAt": None}}),
+                ("prolonge une clé", ranimer, {"i": {"id": ident, "expiresAt": "2099-01-01T00:00:00.000Z"}}),
+                ("crée un webhook", webhook, crochet),
+                ("enregistre une app OAuth", app_oauth, {"i": {"name": "epreuve-emprunt-2"}}),
+                ("tourne le secret d'une app OAuth", "mutation($i:String!){rotateApplicationRegistrationClientSecret(id:$i){clientSecret}}", {"i": app_id}),
                 ("emprunte à son tour", "mutation($u:UUID!,$w:UUID!){impersonate(userId:$u,workspaceId:$w){loginToken{token}}}",
                  {"u": cible, "w": self.ws["id"]}),
             ):
                 fait, d = self.tenter(emprunt, requete, variables)
                 self.controle(f"emprunt refusé : {nom}", fait is None and "not available to this caller" in d, d)
+            if fait := self.tenter(self.jeton, "{webhooks{id targetUrl}}")[0]:
+                self.controle("aucun webhook laissé par l'emprunt", not [w for w in fait["webhooks"] if "crochet" in w["targetUrl"]])
+            self.tenter(self.jeton, "mutation($i:String!){deleteApplicationRegistration(id:$i)}", {"i": app_id})
             fini, d = self.tenter(emprunt, "mutation{stopImpersonation{canRestoreImpersonatorSession}}")
             self.controle("sortie acceptée", bool(fini), d)
             lu, d = self.tenter(self.jeton, "{currentUser{id}}")

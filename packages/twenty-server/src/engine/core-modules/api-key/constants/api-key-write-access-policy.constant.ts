@@ -6,7 +6,7 @@ export const API_KEY_WRITE_ACCESS_POLICY: AccessPolicy = {
   authPrincipals: {
     userSession: {
       standard: true,
-      impersonated: true,
+      impersonated: false,
       playground: false,
       workspaceAgnostic: false,
     },
