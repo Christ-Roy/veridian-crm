@@ -73,3 +73,6 @@ screenshots/
 /.narrow*.mjs
 # pre-push : code commité extrait pour lourd (retiré à la fin du crochet)
 .motifs-arbre.*/
+
+# caches Python des scripts de preuve
+__pycache__/
