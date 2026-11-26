@@ -2,7 +2,10 @@
 """Preuve qu'une personne se désigne par hub_user_id (CONTRAT-HUB §5.19.7), sur un espace jetable : une personne change
 d'adresse au Hub, un compte NEUF reprend l'ancienne ; aucun geste visant l'une ne touche l'autre.
 
-  preuve-identite.py <espace jetable (twenty-admin jetable:creer)> [--env staging]
+  preuve-identite.py <espace jetable (twenty-admin jetable:creer)> [--env staging] [--sabotage sans-id|personne]
+
+--sabotage sans-id glisse un hub_user_id dans les envois « sans hub_user_id » ; --sabotage personne fait changer Jean
+d'adresse sous un autre hub_user_id. Le serveur répond juste : la preuve doit alors sortir en 1.
 
 Comptes de test seulement, tous coupés à la fin. Le propriétaire jetable change lui aussi d'adresse, puis la reprend.
 Codes : 0 vrai, 1 faux, 2 mesure non aboutie.
@@ -27,7 +30,10 @@ class Epreuve:
         if not self.tenant:
             raise ta.Echec(f"{a.espace} n'est pas un espace jetable", 2)
         self.mail, self.hub = acces[f"{p}_EMAIL"], acces[f"{p}_JETABLE_HUB_USER_ID"]
-        self.origine, self.session, self.ws = self.c.session(self.mail, a.espace)
+        try:
+            self.origine, self.session, self.ws = self.c.session(self.mail, a.espace)
+        except ta.Echec as err:
+            raise ta.Echec(f"session du propriétaire impossible (un jetable ne sert qu'une fois) : {err}", 2)
 
     def controle(self, nom, ok, detail=""):
         print(f"{'OK   ' if ok else 'ECHEC'} {nom} : {detail}"[:240], flush=True)
@@ -70,9 +76,10 @@ class Epreuve:
         d = self.c.gql(self.origine, "{currentUser{workspaceMembers{id userEmail}}}", None, self.session)
         return {m["userEmail"]: m["id"] for m in d["currentUser"]["workspaceMembers"]}
 
-    def sans_hub_user_id(self, mail):
+    def sans_hub_user_id(self, mail, fantome):
         # VER-255 : une adresse seule ne désigne personne, sur chaque route signée qui en reçoit une.
         ws = self.ws["id"]
+        glisse = {"hub_user_id": fantome, "owner_hub_user_id": fantome} if self.a.sabotage == "sans-id" else {}
         envois = (
             ("lien magique", "/api/sso/issue-magic-link", {"email": mail, "email_proven": True}, "invalid_body"),
             ("création d'espace", "/api/tenants/provision", {"tenant_id": self.tenant, "owner_email": mail, "email_proven": True,
@@ -83,7 +90,7 @@ class Epreuve:
             ("retrait", f"/api/tenants/{self.tenant}/remove-member", {"email": mail}, "invalid_payload"),
         )
         for nom, chemin, corps, erreur in envois:
-            r = self.poster(chemin, corps)
+            r = self.poster(chemin, {**corps, **glisse})
             self.controle(f"{nom} sans hub_user_id : 400 {erreur}", r == (400, {"error": erreur}), str(r)[:100])
 
     def attendre_membres(self, *attendus):
@@ -94,16 +101,20 @@ class Epreuve:
 
     def jouer(self):
         t = int(time.time())
-        jean, neuf, tiers, quatre = (str(uuid.uuid4()) for _ in range(4))
+        jean, neuf, tiers, quatre, fantome = (str(uuid.uuid4()) for _ in range(5))
         ancienne, nouvelle = f"e2e-identite-{t}@veridian.site", f"e2e-identite-{t}-bis@veridian.site"
         proprio = self.mail.replace("@", f"-{t}@")
         try:
-            self.sans_hub_user_id(ancienne)
+            self.sans_hub_user_id(ancienne, fantome)
             self.controle("rien créé par ces refus", ancienne not in self.membres(), str(self.membres()))
             self.controle("Jean entre par l'ancienne adresse (témoin positif)", self.rattacher(jean, ancienne)[0] == 201)
             self.attendre_membres(ancienne)
             avant = self.ids_membres().get(ancienne)
-            r = self.sync(jean, email=nouvelle)
+            if self.a.sabotage == "personne":
+                self.retirer(hub_user_id=jean, email=ancienne)
+                r = (200, {}) if self.rattacher(fantome, nouvelle)[0] == 201 else (0, {})
+            else:
+                r = self.sync(jean, email=nouvelle)
             self.controle("Jean change d'adresse au Hub", r[0] == 200, str(r))
             fin = time.time() + 30
             while time.time() < fin and nouvelle not in self.ids_membres():
@@ -158,7 +169,8 @@ class Epreuve:
             r = self.creer(tiers, self.mail)
             self.controle("création rejouée par un autre : 409 owner_mismatch", r == (409, {"error": "owner_mismatch"}), str(r)[:90])
         finally:
-            for hub, mail in ((jean, nouvelle), (neuf, ancienne), (tiers, self.mail), (quatre, nouvelle)):
+            for hub, mail in ((jean, nouvelle), (neuf, ancienne), (tiers, self.mail), (quatre, nouvelle), (fantome, ancienne),
+                              (fantome, nouvelle)):
                 self.retirer(hub_user_id=hub, email=mail)
                 self.sync(hub, deleted=True)
             # L'adresse d'un compte coupé reste prise : le propriétaire jetable garde la sienne, son espace est retiré juste après.
@@ -168,6 +180,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("espace")
     p.add_argument("--env", default="staging", choices=("staging", "prod"))
+    p.add_argument("--sabotage", choices=("sans-id", "personne"))
     try:
         e = Epreuve(p.parse_args())
         e.jouer()

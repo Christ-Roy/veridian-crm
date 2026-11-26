@@ -83,7 +83,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` | accès agent : clé Admin, REST, webhook signé reçu, révocation | secret faussé (08/11) |
 | `scripts/ci/preuve-webhook-role.py <jetable>` | un webhook ne reçoit que ce que son rôle lit | `--sabotage`, code 1 (26/11) |
 | `preuve-app-deleguee.py`, `preuve-reponse-mail.py` | app posée au premier jeton, réponse Mail sans membre | staging (26/11) |
-| `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables) | organisation du Hub (VER-252), suspension partout (VER-254), personne = `hub_user_id` | sabotages CI |
+| `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables, un par passage) | organisation du Hub (VER-252), suspension partout (VER-254), personne = `hub_user_id`, adresse seule refusée (VER-255) | sabotages CI, `--sabotage sans-id\|personne` (26/11) |
 | `preuve-redemarrage-redis.py` | Redis redémarré sans perte | `--sabotage` |
 | `admins-instance.py <env>`, `preuve-admins.py` | admins d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS` | codes 1 et 2 (25/11) |
 | `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit ; ni clé, jeton, code OAuth, webhook, ni app OAuth | 7d4af31, 0a0f5cf : code 1 (26/11) |
