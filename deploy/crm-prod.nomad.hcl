@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-63fc7a4" # 26/11/2026 : suspension réduite à l'écran, CORS strict (GraphQL compris), espace public réduit au nom
+  default = "staging-0d381f9" # 26/11/2026 : CSP en Report-Only (VER-265), catalogue Veridian listé, sous-domaine du nom du Hub, dossier Mail, trace v1
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
@@ -251,6 +251,7 @@ VERIDIAN_EDITOR_WORKSPACE_IDS=38627be0-428f-4924-aa67-4a35884ba7b4
 VERIDIAN_BASE_APPS_EXCLUDE=53fcfb68-6107-48b6-b692-4196c077a9aa,67844853-3724-44fe-9083-87a7f0a8bfdf,30d16cc9-62ac-479c-b7e9-026990f5773a,c6d955fd-4300-47d5-86f5-c503bb3a93cc
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
+VERIDIAN_CSP=report
 VERIDIAN_CATALOGUE=1a1ab23e-60e5-4eca-be1f-718c96055c79:liste,58a58b5a-8a63-441b-b314-996221f309dd:liste,65f44458-3dde-49de-9b19-c52b60b5d1e8:liste,dccc9944-ddb7-4019-a95d-ec27679f70ba:liste,e3df4b02-559e-4624-b985-3fd49cfd1725:liste
 EMAIL_DRIVER=logger
 STORAGE_TYPE=local
@@ -420,6 +421,7 @@ VERIDIAN_EDITOR_WORKSPACE_IDS=38627be0-428f-4924-aa67-4a35884ba7b4
 VERIDIAN_BASE_APPS_EXCLUDE=53fcfb68-6107-48b6-b692-4196c077a9aa,67844853-3724-44fe-9083-87a7f0a8bfdf,30d16cc9-62ac-479c-b7e9-026990f5773a,c6d955fd-4300-47d5-86f5-c503bb3a93cc
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
+VERIDIAN_CSP=report
 VERIDIAN_CATALOGUE=1a1ab23e-60e5-4eca-be1f-718c96055c79:liste,58a58b5a-8a63-441b-b314-996221f309dd:liste,65f44458-3dde-49de-9b19-c52b60b5d1e8:liste,dccc9944-ddb7-4019-a95d-ec27679f70ba:liste,e3df4b02-559e-4624-b985-3fd49cfd1725:liste
 DISABLE_DB_MIGRATIONS=true
 DISABLE_CRON_JOBS_REGISTRATION=true
