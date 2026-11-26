@@ -2,7 +2,7 @@
 """Preuve de la CSP du front (VER-265) sur un espace jetable : connexion par le Hub (lien magique signé), liste des
 sociétés, panneau Liaisons « Chercher dans Prospection » (composant front dans son bac à sable), personnes, tâches,
 réglages, puis contrôle positif (un `onerror` injecté). Chromium sur node02 ; les rapports reçus par le serveur sont
-relus dans Loki (`csp_violation`).
+relus dans les journaux de l'allocation (`csp_violation`).
 
   preuve-csp.py <espace jetable> [--env staging|prod] [--attendu report|enforce] [--captures <dossier>]
 
@@ -45,21 +45,43 @@ def navigateur(origine, lien, captures):
         raise ta.Echec(f"navigateur sans résultat : {(r.stderr or r.stdout)[-300:]}", 2)
 
 
-def rapports_serveur(env, depuis):
+def journaux_serveur(env):
+    """Lignes csp_violation des allocations « stack » en cours (le staging n'est pas dans Loki : lues dans Nomad)."""
+    job = "crm-staging" if env == "staging" else "crm"
+    st = subprocess.run(["nomad-v", "raw", "job", "status", job], capture_output=True, text=True, timeout=60,
+                        stdin=subprocess.DEVNULL)
+    allocs, dans = [], False
+    for ligne in st.stdout.splitlines():
+        if ligne.startswith("Allocations"):
+            dans = True
+            continue
+        c = ligne.split()
+        if dans and len(c) >= 6 and c[2] == "stack" and c[5] == "running":
+            allocs.append(c[0])
+    if not allocs:
+        raise ta.Echec(f"aucune allocation stack en cours pour {job}", 2)
+    lignes = []
+    for alloc in allocs:
+        r = subprocess.run(["nomad-v", "raw", "alloc", "logs", "-tail", "-n", "5000", alloc, "crm-server"],
+                           capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
+        if r.returncode != 0:
+            raise ta.Echec(f"journaux de {alloc} illisibles", 2)
+        lignes += [l for l in r.stdout.splitlines() if "csp_violation {" in l]
+    return lignes
+
+
+def rapports_serveur(avant, env):
     time.sleep(20)
-    r = subprocess.run(["obs", "search", "csp_violation", "--since", "15m", "--env", env, "-n", "300", "-f", "ndjson"],
-                       capture_output=True, text=True, timeout=120)
-    if r.returncode != 0:
-        raise ta.Echec(f"Loki illisible : {r.stderr[-200:]}", 2)
+    deja = set(avant)
     vus = []
-    for ligne in r.stdout.splitlines():
+    for ligne in journaux_serveur(env):
+        if ligne in deja:
+            continue
+        brut = ligne[ligne.index("csp_violation {") + len("csp_violation "):]
         try:
-            d = json.loads(ligne)
+            vus.append(json.loads(brut.split("\x1b")[0]))
         except ValueError:
             continue
-        texte = str(d.get("line", ""))
-        if "csp_violation {" in texte and "crm-server" in str(d.get("container", "")):
-            vus.append(json.loads(texte[texte.index("csp_violation {") + len("csp_violation "):].split("\x1b")[0]))
     return vus
 
 
@@ -88,9 +110,9 @@ def main():
         lien = json.loads(texte).get("magic_link_url") if code == 200 else None
         if not lien:
             raise ta.Echec(f"lien magique refusé : {code}", 2)
-        debut = time.time()
+        avant = journaux_serveur(a.env)
         n = navigateur(origine, lien, Path(a.captures))
-        serveur = rapports_serveur(a.env, debut)
+        serveur = rapports_serveur(avant, a.env)
     except ta.Echec as err:
         print(f"{'NON ABOUTI' if err.code == 2 else 'ECHEC'} {err}")
         return err.code
@@ -107,8 +129,8 @@ def main():
         controle("contrôle positif BLOQUÉ", n["controle"].get("execute") is False)
     else:
         controle("contrôle positif exécuté (Report-Only n'applique rien)", n["controle"].get("execute") is True)
-    controle("contrôle positif reçu par le serveur (Loki)", any(v.get("directive") == "script-src-attr" for v in serveur),
-             f"{len(serveur)} rapport(s) en 15 min")
+    controle("contrôle positif reçu par le serveur (journaux)", any(v.get("directive") == "script-src-attr" for v in serveur),
+             f"{len(serveur)} rapport(s) pendant le parcours")
     autres = Counter((v["page"], v["cadre"], v["directive"], v["bloque"], v["source"]) for v in n["violations"])
     autres_serveur = Counter((v.get("page"), v.get("directive"), v.get("blocked"), v.get("source")) for v in serveur
                              if v.get("directive") != "script-src-attr")

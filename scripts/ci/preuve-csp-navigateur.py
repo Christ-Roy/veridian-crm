@@ -61,10 +61,10 @@ with sync_playwright() as p:
     page.goto(f"{ORIGINE}/objects/companies", wait_until="domcontentloaded")
     page.wait_for_timeout(6000)
     sortie["pages"].append("/objects/companies")
-    bouton = page.get_by_text("Prospection", exact=True).first
+    bouton = page.get_by_role("button", name="Prospection").first
     try:
         bouton.click(timeout=15000)
-        page.get_by_placeholder("SIREN, nom ou site").wait_for(timeout=30000)
+        page.get_by_placeholder("SIREN, nom ou site").or_(page.get_by_text("Reconnectez-vous une fois")).first.wait_for(timeout=30000)
         sortie["panneau"] = True
     except Exception as e:
         sortie["panneau_erreur"] = str(e)[:200]
@@ -80,7 +80,7 @@ with sync_playwright() as p:
 
     principal = "window.__violations || []"
     avant = len(page.evaluate(principal))
-    page.evaluate("""document.body.insertAdjacentHTML('beforeend', '<img src="x:" onerror="window.__controle = 1">')""")
+    page.evaluate("""document.body.insertAdjacentHTML('beforeend', '<img src="data:," onerror="window.__controle = 1">')""")
     page.wait_for_timeout(3000)
     neuves = page.evaluate(principal)[avant:]
     controles = [v for v in neuves if v["directive"] == "script-src-attr"]

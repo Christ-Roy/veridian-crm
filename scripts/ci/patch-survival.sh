@@ -166,6 +166,8 @@ exige "$SERVEUR/modules/workflow/workflow-builder/workflow-version-step/workflow
 exige "$SERVEUR/engine/metadata-modules/webhook/jobs/call-webhook-jobs.job.ts" "this.permissionsService.findReadableEvents({"
 exige "$SERVEUR/engine/core-modules/frontend/frontend.service.ts" "applyVeridianCsp(response, html, this.frontPath)"
 exige packages/twenty-front/vite.config.ts "veridianCspPlugin(),"
+exige packages/twenty-front/src/index.tsx "import '@/veridian-csp/zodJitless';"
+exige packages/twenty-front-component-renderer/src/remote/worker/remote-worker.ts "import '@/remote/worker/veridianZodJitless';"
 exige "$SERVEUR/engine/core-modules/veridian/veridian.module.ts" "VeridianCspModule,"
 exige "$SERVEUR/engine/core-modules/veridian-hub-sso/controllers/veridian-hub-sso.controller.ts" "SIGN_IN_PAGE_CONTENT_SECURITY_POLICY)"
 for job in deploy/crm-staging.nomad.hcl deploy/crm-prod.nomad.hcl; do exige "$job" "IS_CONFIG_VARIABLES_IN_DB_ENABLED=false"; done

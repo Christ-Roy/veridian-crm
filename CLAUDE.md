@@ -76,21 +76,22 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `check-ee-integrity.sh` | aucun fichier Enterprise touché | fichier modifié, code 1 |
 | `patch-survival.sh` (`--statique` au pre-push) | chaque patch présent, `*.veridian.spec.ts` | limite remise à 5, code 1 |
 | `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, domaine nu, garde d'identité, marque | à chaque CI |
-| `HUB_API_SECRET=… scripts/ci/parcours-staging.py <url> <dossier> <n>` | identité, rebond, déconnexion, aucun hôte tiers, ni action réservée au Hub ni nom amont | oui |
+| `HUB_API_SECRET=… parcours-staging.py <url> <dossier> <n>` | identité, rebond, déconnexion, aucun hôte tiers ni nom amont | oui |
 | `charge-staging.py <url> [n] [s]` (secret par env.) | latence et débit par palier | mesure |
 | `preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage` (23/11) |
 | `preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` | accès agent : clé Admin, REST, webhook signé reçu, révocation | secret faussé (08/11) |
 | `scripts/ci/preuve-webhook-role.py <jetable>` | un webhook ne reçoit que ce que son rôle lit | `--sabotage`, code 1 (26/11) |
 | `preuve-app-deleguee.py`, `preuve-reponse-mail.py` | app posée au premier jeton, réponse Mail sans membre | staging (26/11) |
-| `scripts/ci/preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (jetables, un par passage) | organisation du Hub (VER-252), suspension partout (VER-254), personne = `hub_user_id`, adresse seule refusée (VER-255) | sabotages CI, `--sabotage sans-id\|personne` (26/11) |
-| `preuve-redemarrage-redis.py` | Redis redémarré sans perte | `--sabotage` |
+| `preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (un jetable par passage) | VER-252, VER-254, personne = `hub_user_id`, adresse seule refusée (VER-255) | sabotages, `--sabotage` |
 | `admins-instance.py <env>`, `preuve-admins.py` | admins d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS` | codes 1 et 2 (25/11) |
 | `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit ; ni clé, jeton, code OAuth, webhook, ni app OAuth | 7d4af31, 0a0f5cf : code 1 (26/11) |
 | `mutations-signature-unique.sh`, `preuve-rejeu-signature.py` | signature du Hub à usage unique, v2 liée à la route | sabotages, prod (26/11) |
-| `preuve-cors.py`, `preuve-espace-public.py` | aucune origine étrangère en CORS ; sans session, le nom seul | prod (26/11) |
+| `preuve-redemarrage-redis.py`, `preuve-cors.py`, `preuve-espace-public.py` | Redis sans perte ; aucune origine étrangère en CORS ; sans session, le nom seul | prod (26/11) |
 | `adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas, code 1 |
 | `preuve-installation-app.py`, `preuve-apps-de-base.py` | garde d'installation (VER-173), Liaisons posée à la création | jetable, prod (26/11) |
+| `preuve-csp.py <jetable> --attendu report\|enforce` | CSP (VER-265) : connexion Hub, panneau Liaisons, contrôle `onerror`, rien d'autre | spec avec `'unsafe-inline'` |
+| `sous-domaine-hub.veridian.spec.ts` | sous-domaine = nom du Hub, `e2e-` en test | sabotage |
 | `scripts/ci/capture-sortante.sh <conteneur> <s>` (sur le nœud) | silence réseau, témoin compris | IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
@@ -103,7 +104,7 @@ Avec `lourd` : `nx run twenty-shared:build` avant toute spec. Session : `POST /m
 - **Image : par la CI**, `.github/workflows/veridian-crm-ci.yaml`, sur nos runners : garde légale, patch-survival, image
   `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Hors CI : règle
   Machines de la plateforme.
-- **Ne déployer qu'un run vert EN ENTIER** : depuis le 24/11 l'image se construit en parallèle des tests, sa présence au registre ne prouve rien.
+- **Ne déployer qu'un run vert EN ENTIER** : l'image se construit en parallèle des tests (24/11).
 - `[skip ci]` si le produit ne bouge pas : un push normal annule la CI en cours.
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
   push sur `staging`, puis `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl`. Le garde anti-recul refuse
