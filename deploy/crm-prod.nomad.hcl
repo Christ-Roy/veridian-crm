@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-c8e67ad" # 26/11/2026 : Liaisons posée à la création de chaque espace (apps de base)
+  default = "staging-63fc7a4" # 26/11/2026 : suspension réduite à l'écran, CORS strict (GraphQL compris), espace public réduit au nom
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
