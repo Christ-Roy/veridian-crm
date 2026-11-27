@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-0d381f9" # 26/11/2026 : CSP en Report-Only (VER-265), catalogue Veridian listé, sous-domaine du nom du Hub, dossier Mail, trace v1
+  default = "staging-e065196" # 27/11/2026 : administrateur de plateforme (VER-263, §5.23), CSP appliquée
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
