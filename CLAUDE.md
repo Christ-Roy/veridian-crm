@@ -15,7 +15,7 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
   est `veridian-hub/docs/CONTRAT-HUB.md` (§3.8, §5, §6bis.8.0) : c'est lui qui fait foi. Pas de base commune, pas d'OIDC.
 - **Rien ne sort sans décision.** Télémétrie, enrichissement, logos, iframes tierces, marketplace : coupés, et
   prouvés par capture réseau et navigateur (`VERIDIAN-PATCHES.md`). Un nouveau canal amont est une anomalie.
-- **Staging d'abord, puis prod.** Staging : `crm.staging.veridian.site`, privé au tailnet. Prod depuis le 08/11/2026 : `crm.app.veridian.site` sur `ovh-prod`, job `crm` sur la grappe `pg-saas` depuis le 09/11/2026, branchée au Hub de prod. `main` = `staging` à chaque mise en prod.
+- **Staging d'abord, puis prod.** Staging : `crm.staging.veridian.site`, privé au tailnet. Prod : `crm.app.veridian.site` sur `ovh-prod`, base sur `pg-saas`, Hub de prod. `main` = `staging` à chaque mise en prod.
 
 **Décisions (07/11/2026) :** base neuve (archive `~/veridian/archives/crm-decommission-2026-09-23/`) ; marque « Veridian CRM »
 (calque au build, `.po` intacts), logo du Hub, mention « Basé sur Twenty, AGPL ».
@@ -30,18 +30,18 @@ tous deux par `ensureCrmWorkspace` du Hub (provisioning signé). Une signature d
 **Impersonate natif :** refusé entre espaces et muet (pas de ClickHouse) : passer par `hub open` ; sous emprunt, rien qui survive (26/11).
 **Accès agent, jetables, plugins :** skill `twenty-cli`, clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
-code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) ou catalogue `VERIDIAN_CATALOGUE` (listé, vérifié, rien d'imposé, Robert 26/11), réglages en base. CSP : `VERIDIAN_CSP`.
+code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) ou catalogue `VERIDIAN_CATALOGUE` (listé, vérifié, rien d'imposé, Robert 26/11), réglages en base. CSP appliquée en prod (27/11, `VERIDIAN_CSP=enforce`) ; la prouver une fois la bascule canari finie (pendant : front blanc vu une fois).
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
 | Brique | Natif | Licence | Usage Veridian |
 |---|---|---|---|
-| Clés API | `createApiKey(name, expiresAt, roleId)` + `generateApiKeyToken` (`/metadata`), REST `rest/metadata/apiKeys` ; une clé porte un rôle, `getApiKeyRoles` liste les assignables (rôle standard `Admin`) | AGPL | accès agent : rôle Admin. La commande `workspace:generate-api-key` refuse hors dev/test |
+| Clés API | `createApiKey(name, expiresAt, roleId)` + `generateApiKeyToken` (`/metadata`) ; une clé porte un rôle (`getApiKeyRoles`) | AGPL | accès agent : rôle Admin. La commande `workspace:generate-api-key` refuse hors dev/test |
 | Webhooks | `createWebhook(targetUrl, operations, secret, roleId)`, signature HMAC SHA-256 du corps, filtrés par rôle ; sortie par `SecureHttpClient` (SSRF : privé bloqué sauf `OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS`) | AGPL | accès agent |
 | API | REST `/rest/*`, GraphQL `/graphql` et `/metadata`, sur l'hôte du workspace ou le domaine nu avec une clé | AGPL | |
 | MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous ; la porte MCP du Hub y entre avec son JWT (`veridian-hub-mcp/`, CONTRAT-MCP) |
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
-| CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` par stdin, `TWENTY_API_URL` + `TWENTY_API_KEY`, `api rest|graphql`, `metadata`, `data`, `app *` | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
+| CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` (stdin), `TWENTY_API_URL` + `TWENTY_API_KEY`, `api`, `metadata`, `data`, `app` | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
 | SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, registre privé puis installation par espace | MIT | plugins : dépôt privé `Veridian-site/veridian-crm-apps` (`twenty-admin app:install`) ; ici seule l'app Android de Téléphonie |
 | IA | chat, agents, compétences, actions IA des workflows, derrière le drapeau `AI` ; fournisseurs d'instance (`AI_PROVIDERS`) | AGPL | seul fournisseur « veridian » (Hub), identité signée par appel (VER-203) |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
