@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-d9199b0" # 27/11/2026 : relecture signée du logo (VER-252), administrateur de plateforme (VER-263)
+  default = "staging-953b588" # 27/11/2026 : 2FA des admins d instance, naissance native, visites (VER-273)
 }
 
 variable "redis_port" {
