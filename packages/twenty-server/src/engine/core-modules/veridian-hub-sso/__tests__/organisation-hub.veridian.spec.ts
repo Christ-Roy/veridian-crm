@@ -451,4 +451,20 @@ describe("document d'organisation du Hub : effet", () => {
     expect(await monter().service.readVersion(TENANT)).toBe(0);
     expect(await monter({ stocke }).service.readVersion(AUTRE)).toBeNull();
   });
+
+  it('relecture signée du logo (VER-252) : appliqué seulement si l’espace montre le fichier posé par le Hub', async () => {
+    const stocke = { version: 7, logoUrl: LOGO, logoFileId: 'f1' };
+    const montre = { id: 'ws', displayName: 'X', logoFileId: 'f1' };
+
+    expect(await monter({ stocke, espace: montre }).service.readState(TENANT)).toEqual({
+      version: 7,
+      logoUrl: LOGO,
+      logoApplied: true,
+    });
+    expect(
+      (await monter({ stocke, espace: { ...montre, logoFileId: 'remplace' } }).service.readState(TENANT))?.logoApplied,
+    ).toBe(false);
+    expect((await monter().service.readState(TENANT))).toEqual({ version: 0, logoUrl: null, logoApplied: false });
+    expect(await monter({ stocke }).service.readState(AUTRE)).toBeNull();
+  });
 });

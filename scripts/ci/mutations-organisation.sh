@@ -80,6 +80,7 @@ saboter "logo non servi dit posé" "$O" "if (!logo) {" "if (false as boolean) {"
 saboter "ancien fichier gardé" "$O" "if (replacedLogoFileId) {" "if (false as boolean) {"
 saboter "appartenance retirée comptée présente" "$S" "isMember: memberships.some(({ deletedAt }) => !deletedAt)," "isMember: memberships.length > 0,"
 saboter "premier retrait au lieu du dernier" "$S" "new Date(Math.max(...removals))" "new Date(Math.min(...removals))"
+saboter "logo dit appliqué sans le fichier de l'espace (VER-252)" "$O" "        workspace?.logoFileId === stored?.logoFileId," "        true,"
 
 [ "$rate" -eq 0 ] && { echo "CONFORME"; exit 0; }
 exit 1

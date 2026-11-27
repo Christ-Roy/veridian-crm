@@ -67,6 +67,34 @@ export class VeridianHubOrganisationService {
       : null;
   }
 
+  // VER-252 (27/11/2026): the public workspace data hides the logo (no session, no signed link); the Hub reads here
+  // whether the logo it sent is the one the workspace shows.
+  async readState(hubTenantId: string): Promise<{
+    version: number;
+    logoUrl: string | null;
+    logoApplied: boolean;
+  } | null> {
+    const workspaceId =
+      await this.veridianHubSsoService.findWorkspaceIdByTenant(hubTenantId);
+
+    if (!workspaceId) {
+      return null;
+    }
+
+    const stored = (await this.findStored(workspaceId))?.value;
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    return {
+      version: stored?.version ?? 0,
+      logoUrl: stored?.logoUrl ?? null,
+      logoApplied:
+        Boolean(stored?.logoFileId) &&
+        workspace?.logoFileId === stored?.logoFileId,
+    };
+  }
+
   async apply(organisation: HubOrganisation): Promise<HubOrganisationResult> {
     const workspaceId =
       await this.veridianHubSsoService.findWorkspaceIdByTenant(

@@ -845,12 +845,16 @@ export class VeridianHubSsoController {
       return this.rejectInvalidBody(response);
     }
 
-    const version =
-      await this.veridianHubOrganisationService.readVersion(hubTenantId);
+    const state =
+      await this.veridianHubOrganisationService.readState(hubTenantId);
 
-    return version === null
+    return state === null
       ? response.status(404).json({ error: 'tenant_not_linked' })
-      : response.status(200).json({ version });
+      : response.status(200).json({
+          version: state.version,
+          logo_url: state.logoUrl,
+          logo_applied: state.logoApplied,
+        });
   }
 
   // No body on these two: the signature covers `${ts}.` (§3.8, §6.1).
