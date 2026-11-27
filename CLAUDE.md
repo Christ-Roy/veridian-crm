@@ -77,18 +77,18 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `patch-survival.sh` (`--statique` au pre-push) | chaque patch présent, `*.veridian.spec.ts` | limite remise à 5, code 1 |
 | `scripts/ci/mutations-connexion.sh` (CI) | connexion automatique §6bis.8.0, domaine nu, garde d'identité, marque | à chaque CI |
 | `HUB_API_SECRET=… parcours-staging.py <url> <dossier> <n>` | identité, rebond, déconnexion, aucun hôte tiers ni nom amont | oui |
-| `charge-staging.py <url> [n] [s]` (secret par env.) | latence et débit par palier | mesure |
+| `charge-staging.py <url> [n] [s]` | latence et débit par palier | mesure |
 | `preuve-mcp-role.py` | rôle restreint tenu sur `/mcp` | `--sabotage` (23/11) |
 | `preuve-retrait-membre.py`, `membres-orphelins.sh [job]` | un membre retiré n'enferme pas les autres | ancienne version (23/11) |
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` | accès agent : clé Admin, REST, webhook signé reçu, révocation | secret faussé (08/11) |
 | `scripts/ci/preuve-webhook-role.py <jetable>` | un webhook ne reçoit que ce que son rôle lit | `--sabotage`, code 1 (26/11) |
-| `preuve-app-deleguee.py`, `preuve-reponse-mail.py` | app posée au premier jeton, réponse Mail sans membre | staging (26/11) |
+| `preuve-app-deleguee.py`, `preuve-reponse-mail.py` | app au premier jeton, réponse Mail sans membre | staging (26/11) |
 | `preuve-admin-plateforme.py` | §5.23 : jamais owner, retrait du client gardé | 7 sabotages (27/11) |
 | `preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (un jetable par passage) | VER-252, VER-254, personne = `hub_user_id`, adresse seule refusée (VER-255) | sabotages, `--sabotage` |
 | `admins-instance.py <env>`, `preuve-admins.py` | admins d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS` | codes 1 et 2 (25/11) |
 | `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit ; ni clé, jeton, code OAuth, webhook, ni app OAuth | 7d4af31, 0a0f5cf : code 1 (26/11) |
 | `mutations-signature-unique.sh`, `preuve-rejeu-signature.py` | signature du Hub à usage unique, v2 liée à la route | sabotages, prod (26/11) |
-| `preuve-redemarrage-redis.py`, `preuve-cors.py`, `preuve-espace-public.py` | Redis sans perte ; aucune origine étrangère en CORS ; sans session, le nom seul | prod (26/11) |
+| `preuve-redemarrage-redis.py`, `preuve-cors.py`, `preuve-espace-public.py` | Redis sans perte ; CORS fermé ; sans session, le nom seul | prod (26/11) |
 | `adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas, code 1 |
 | `preuve-installation-app.py`, `preuve-apps-de-base.py` | garde d'installation (VER-173), Liaisons posée à la création | jetable, prod (26/11) |
 | `preuve-csp.py <jetable> --attendu report\|enforce` | CSP (VER-265) : connexion Hub, panneau Liaisons, contrôle `onerror`, rien d'autre | spec avec `'unsafe-inline'` |
@@ -103,26 +103,22 @@ Avec `lourd` : `nx run twenty-shared:build` avant toute spec. Session : `POST /m
 
 ## 5. Construire et déployer
 
-- **Image : par la CI**, `.github/workflows/veridian-crm-ci.yaml`, sur nos runners : garde légale, patch-survival, image
-  `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Hors CI : règle
-  Machines de la plateforme.
+- **Image : par la CI** (`veridian-crm-ci.yaml`, nos runners) : `ghcr.io/christ-roy/veridian-crm:<branche>-<sha7>`. Head `[skip ci]` : `gh workflow run veridian-crm-ci.yaml --ref staging`.
 - **Ne déployer qu'un run vert EN ENTIER** : l'image se construit en parallèle des tests (24/11).
 - `[skip ci]` si le produit ne bouge pas : un push normal annule la CI en cours.
 - **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source : `~/nomad-veridian/jobs/SOURCES.tsv`), commit, push, puis
-  `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl` (garde anti-recul : commit distant requis).
-- **Piège :** `nomad-v` attend une confirmation en gardant le verrou global : `echo oui |` et `timeout`.
-- **Job prod `crm` : seule source vivante `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv` ; `nomad-veridian` n'en a qu'une
-  archive). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
-- **Prod :** base sur la grappe `pg-saas` (Patroni, entrée `172.26.64.1:15432`, base `twenty`, sauvegarde de la grappe) ; Job `crm` : groupe `redis`, groupe `stack` (serveur, prestart qui attend base et Redis) en canari
-  sans `canary_tags`, santé active Traefik, `shutdown_delay` 30 s ; groupe `worker` hors canari. Réservations
-  données par `infra` (non reprenable mesuré + 30 à 50 %, plafond = pointe × 1,5). Jamais de base sur `rise`.
+  `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl` (garde anti-recul : commit distant requis ; sans `echo oui`, le verrou global reste pris).
+- **Job prod `crm` : seule source `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv`). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
+- **Prod :** base `twenty` sur la grappe `pg-saas` (Patroni, `172.26.64.1:15432`) ; job `crm` : `redis`, `stack` (serveur, prestart qui attend base et Redis) en canari
+  sans `canary_tags`, santé active Traefik, `shutdown_delay` 30 s ; `worker` hors canari. Réservations
+  par `infra` (non reprenable + 30 à 50 %, plafond = pointe × 1,5). Jamais de base sur `rise`.
 - **pg-saas :** budget 24 connexions (pool 8 serveur, 4 worker) ; check Nomad `base` sans redémarrage ; santé Traefik 3 s.
 - **Piège (08/11/2026) :** derrière Traefik par le tailnet, `TRUST_PROXY` doit inclure `100.64.0.0/10`, sinon Twenty se croit en
   http et refuse le cookie de session : le rebond du Hub finit sur la page de connexion. Le parcours le vérifie.
 - **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).
 - **Piège IA (23/11) :** changer `VERIDIAN_AI_DISABLED` exige `scripts/ci/invalider-cache-roles.sh <job>` (cache Redis des rôles figé).
 - Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
-- **Prod en 2 exemplaires (27/11/2026, VER-270 lot C) :** `stack` count=2 sur ovh-prod (volume local, dérogation LINT-JOB-EXCEPTIONS), worker=1.
+- **Une instance (parente, 27/11) :** `stack` count=1 jusqu'au lot D (Garage), seconde copie alors sur app-01.
 
 ## 6. Sync amont
 
