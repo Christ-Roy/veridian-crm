@@ -77,7 +77,8 @@ class Epreuve(reponse.Epreuve):
         session = f"sess-{uuid.uuid4().hex[:12]}"
         self.session_visite = session
         lot_id = str(uuid.uuid4())
-        c, r = self.lot([self.visite(session, self.marie)], lot_id)
+        premiere = self.visite(session, self.marie)
+        c, r = self.lot([premiere], lot_id)
         self.controle("visite d'une personne de l'espace : une ligne", (r.get("lignes") or {}).get("creees") == 1 and r.get("ok") is True,
                       f"{c} {json.dumps(r, ensure_ascii=False)[:200]}")
         l = self.fiches(session)
@@ -85,7 +86,7 @@ class Epreuve(reponse.Epreuve):
                       and l[0]["premierChemin"] == "/tarifs" and l[0]["dureeS"] == 540 and l[0]["pagesVues"] == 2 and l[0]["origineVeridian"] == "Analytics",
                       str(l)[:220])
 
-        c, r = self.lot([self.visite(session, self.marie)], lot_id)
+        c, r = self.lot([premiere], lot_id)
         self.controle("le même lot rejoué n'ajoute rien", r.get("ok") is True and len(self.fiches(session)) == 1 and
                       (r.get("lignes") or {}).get("creees", 0) == 0 and r.get("ignorees") == [{"session_id": session, "raison": "inchangee"}],
                       json.dumps(r, ensure_ascii=False)[:200])
@@ -157,6 +158,7 @@ class Epreuve(reponse.Epreuve):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("espace")
+    p.add_argument("--chemin", default="nomad/jobs/hub-staging/stack/hub-staging")
     p.add_argument("--captures", default="/tmp/preuve-visites")
     a = p.parse_args()
     a.autre_tenant = None
