@@ -18,7 +18,7 @@ variable "noeud_provider" {
 
 variable "image_tag" {
   type    = string
-  default = "staging-e065196" # 27/11/2026 : administrateur de plateforme (VER-263, §5.23), CSP appliquée
+  default = "staging-d9199b0" # 27/11/2026 : relecture signée du logo (VER-252), administrateur de plateforme (VER-263), CSP appliquée
 }
 
 # Adresses fixes. Aucune ne vient d'un nomadService : le gabarit se rend sans attendre l'enregistrement.
