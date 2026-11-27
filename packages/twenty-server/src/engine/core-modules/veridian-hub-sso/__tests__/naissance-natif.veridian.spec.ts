@@ -102,7 +102,15 @@ const creer = ({ flagsEchouent = false } = {}) => {
     }
   });
   const activateWorkspace = jest.fn(async () => true);
-  const user = { id: 'u1', email: 'proprio@exemple.fr', canAccessFullAdminPanel: false, canImpersonate: false };
+  const user = {
+    id: 'u1',
+    email: 'proprio@exemple.fr',
+    canAccessFullAdminPanel: false,
+    canImpersonate: false,
+    createdAt: new Date('2026-11-27T00:00:00Z'),
+    updatedAt: new Date('2026-11-27T00:00:00Z'),
+    deletedAt: null,
+  };
   const featureFlagService = { enableFeatureFlags };
   const service = new (VeridianHubSsoService as never as new (
     ...args: unknown[]
