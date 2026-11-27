@@ -5,7 +5,8 @@ sans membre ni email, signé avec la clé du Hub de staging, vers l'outil MCP ap
   preuve-reponse-mail.py <espace jetable> [--chemin nomad/jobs/hub-staging/stack/hub-staging]
 
 Épreuves : refus (membre, autre espace, autre outil, portée, rejeu), une réponse, le même message, dix livraisons simultanées,
-personne inconnue créée une fois et reliée à la société de son domaine, espace étranger intact. Fiches d'épreuve détruites.
+personne inconnue créée une fois et reliée à la société de son domaine, ligne « Reçu » du dossier Mail, un autre expéditeur
+qui rejoint la tâche ouverte, espace étranger intact. Fiches d'épreuve détruites.
 Codes : 0 vrai, 1 faux, 2 mesure non aboutie.
 """
 import argparse
@@ -64,6 +65,11 @@ class Epreuve(envoi.Epreuve):
                      t={"hubExtId": {"startsWith": f"notifuse:reponse:{self.fil}"}}, p={"emails": {"primaryEmail": {"eq": self.mail}}})
         return [e["node"] for e in d["tasks"]["edges"]], [e["node"] for e in d["people"]["edges"]]
 
+    def lignes(self, rfc):
+        d = self.gql("query($f:EchangeMailFilterInput){echangeMails(filter:$f){edges{node{id sens nature personId objet threadId}}}}",
+                     f={"hubExtId": {"eq": f"notifuse:mail:{rfc}"}})
+        return [e["node"] for e in d["echangeMails"]["edges"]]
+
     def jouer(self):
         # Le premier appel valide pose Liaisons si elle manque : il sert ici de mise en place, sur un fil à part.
         c, r = self.repondre(self.args(thread_id="t_mise_en_place", email=f"mise@{self.dom}"))
@@ -97,10 +103,24 @@ class Epreuve(envoi.Epreuve):
             self.controle("titre, origine, lien de la conversation", t[0]["title"] == f"Répondre à {self.mail}" and
                           t[0]["origineVeridian"] == "Mail" and f"inbox?message={a['message_id']}" in (t[0]["bodyV2"] or {}).get("markdown", ""),
                           json.dumps(t[0], ensure_ascii=False)[:220])
+        l = self.lignes(a["rfc_message_id"])
+        self.controle("ligne « Reçu » du dossier Mail sur la fiche, sans attendre le lot", len(l) == 1 and p and l[0]["personId"] == p[0]["id"] and
+                      l[0]["sens"] == "RECU" and l[0]["nature"] == "REPONSE_HUMAINE" and l[0]["threadId"] == self.fil, str(l)[:200])
         c, r = self.repondre(a, j)
         self.controle("le même jeton : refus", "token_replayed" in json.dumps(r), f"{c} {json.dumps(r)[:100]}")
         c, r = self.repondre(a)
         self.controle("le même message : rejoué, rien de plus", r.get("rejoue") is True and len(self.taches()[0]) == 1, json.dumps(r, ensure_ascii=False)[:140])
+        self.controle("le même message : toujours une seule ligne Mail", len(self.lignes(a["rfc_message_id"])) == 1, "")
+        jeanne, camille = self.mail, f"camille@{self.dom}"
+        c, r = self.repondre(self.args(email=camille, nom="Camille Épreuve-Deux"))
+        self.mail = camille
+        t, p = self.taches()
+        self.mail = jeanne
+        cibles = len(t[0]["taskTargets"]["edges"]) if t else 0
+        self.controle("un autre expéditeur dans le fil ouvert : sa fiche, aucune seconde tâche, la tâche lui est liée",
+                      r.get("raison") == "tache_deja_ouverte" and len(t) == 1 and len(p) == 1 and
+                      p[0].get("name") == {"firstName": "Camille", "lastName": "Épreuve-Deux"} and cibles == 3,
+                      f"{json.dumps(r, ensure_ascii=False)[:120]} cibles={cibles} {p}")
         self.fil = f"t_{uuid.uuid4().hex[:10]}"
         b = self.args(email=f"paul@{self.dom}")
         self.mail = b["email"]
@@ -109,11 +129,13 @@ class Epreuve(envoi.Epreuve):
         t, p = self.taches()
         self.controle("dix livraisons simultanées : une tâche, une personne", all(x.get("ok") for x in rs) and len(t) == 1 and len(p) == 1,
                       f"{len(t)} {len(p)} {[x.get('erreur') for x in rs if not x.get('ok')]}")
+        self.controle("dix livraisons simultanées : une seule ligne Mail", len(self.lignes(b["rfc_message_id"])) == 1, "")
         c, r = self.repondre(self.args(email="pas une adresse"))
         self.controle("échec lisible par le Hub (success false)", r.get("success") is False, json.dumps(r, ensure_ascii=False)[:140])
 
     def ranger(self):
         for mut, ty, f in (("Tasks", "TaskFilterInput", {"hubExtId": {"startsWith": "notifuse:reponse:t_"}}),
+                           ("EchangeMails", "EchangeMailFilterInput", {"hubExtId": {"startsWith": "notifuse:mail:<"}}),
                            ("People", "PersonFilterInput", {"hubExtId": {"startsWith": "notifuse:contact:"}}),
                            ("Companies", "CompanyFilterInput", {"name": {"eq": f"EPREUVE {self.dom}"}})):
             for q, g in (("delete", f), ("destroy", {"and": [f, {"deletedAt": {"is": "NOT_NULL"}}]})):
