@@ -74,6 +74,7 @@ jobs:
           - mutations-webhook-champs
           - mutations-signature-unique
           - mutations-apps-de-base
+          - mutations-naissance
           - mutations-admin-plateforme
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

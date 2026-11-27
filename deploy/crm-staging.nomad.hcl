@@ -265,7 +265,7 @@ VERIDIAN_APP_INSTALL_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-43
 # Apps de base (26/11/2026, Liaisons) : posées à la création de chaque espace, ouvertes partout sauf aux espaces
 # clients existants listés en exclusion (décision de Robert attendue).
 VERIDIAN_EDITOR_WORKSPACE_IDS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b
-VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:dccc9944-ddb7-4019-a95d-ec27679f70ba,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:e3df4b02-559e-4624-b985-3fd49cfd1725
 VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
@@ -355,7 +355,7 @@ VERIDIAN_APP_INSTALL_ALLOW=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:26679b6d-2464-43
 # Apps de base (26/11/2026, Liaisons) : posées à la création de chaque espace, ouvertes partout sauf aux espaces
 # clients existants listés en exclusion (décision de Robert attendue).
 VERIDIAN_EDITOR_WORKSPACE_IDS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b
-VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79
+VERIDIAN_BASE_APPS=0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:1a1ab23e-60e5-4eca-be1f-718c96055c79,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:dccc9944-ddb7-4019-a95d-ec27679f70ba,0e1e92ed-c8e4-4a7e-bcdd-e75f5dc0ce6b:e3df4b02-559e-4624-b985-3fd49cfd1725
 VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true

@@ -28,6 +28,9 @@ jest.mock('src/engine/core-modules/domain/workspace-domains/services/workspace-d
 jest.mock('src/engine/core-modules/onboarding/onboarding.service', () => ({
   OnboardingService: class OnboardingService {},
 }));
+jest.mock('src/engine/core-modules/feature-flag/services/feature-flag.service', () => ({
+  FeatureFlagService: class FeatureFlagService {},
+}));
 jest.mock('src/engine/core-modules/throttler/throttler.service', () => ({
   ThrottlerService: class ThrottlerService {},
 }));

@@ -58,6 +58,8 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
+import { VERIDIAN_NATIVE_FEATURE_FLAGS } from 'src/engine/core-modules/veridian-hub-sso/constants/veridian-native-feature-flags.constant';
 import { type WorkspaceMemberWorkspaceEntity } from 'src/modules/workspace-member/standard-objects/workspace-member.workspace-entity';
 import {
   hubWorkspaceSubdomainBase,
@@ -131,6 +133,7 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
     private readonly veridianHubRoleService: VeridianHubRoleService,
     private readonly veridianHubMemberAccessService: VeridianHubMemberAccessService,
     private readonly applicationLifecycleJobService: ApplicationLifecycleJobService,
+    private readonly featureFlagService: FeatureFlagService,
   ) {}
 
   // CONTRAT-HUB §5.19.7: an owner recorded by email is converted once, by the linked local copy. A row with no match is
@@ -271,6 +274,21 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
           `Base app ${universalIdentifier} not queued for ${workspaceId}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+    }
+  }
+
+  // Veridian (27/11/2026, Robert) : un espace neuf naît avec toutes les fonctions natives (liste dans
+  // constants/veridian-native-feature-flags.constant.ts). Idempotent (upsert) ; un échec est journalisé, jamais bloquant.
+  private async enableNativeFeatureFlags(workspaceId: string): Promise<void> {
+    try {
+      await this.featureFlagService.enableFeatureFlags(
+        [...VERIDIAN_NATIVE_FEATURE_FLAGS],
+        workspaceId,
+      );
+    } catch (error) {
+      this.logger.error(
+        `veridian_drapeaux_naissance_non_abouti ${workspaceId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -584,6 +602,7 @@ export class VeridianHubSsoService implements OnApplicationBootstrap {
       );
       await this.clearOnboarding(user.id, workspace.id);
       await this.installBaseApps(workspace.id);
+      await this.enableNativeFeatureFlags(workspace.id);
 
       await this.keyValuePairRepository.save({
         key: hubTenantKey(tenantId),

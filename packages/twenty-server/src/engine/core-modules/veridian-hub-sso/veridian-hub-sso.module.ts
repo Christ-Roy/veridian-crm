@@ -35,9 +35,11 @@ import { SubscriptionsModule } from 'src/engine/subscriptions/subscriptions.modu
 import { UserRoleModule } from 'src/engine/permissions/role-assignment/user-role.module';
 import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 import { WorkspaceModule } from 'src/engine/core-modules/workspace/workspace.module';
+import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-flag.module';
 
 @Module({
   imports: [
+    FeatureFlagModule,
     TypeOrmModule.forFeature([
       UserEntity,
       UserWorkspaceEntity,

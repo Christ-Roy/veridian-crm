@@ -21,8 +21,7 @@ Fork de `twentyhq/twenty`, base `twenty/v2.56.1`. Directives techniques de l'amo
 (calque au build, `.po` intacts), logo du Hub, mention « Basé sur Twenty, AGPL ».
 
 **Décisions (08/11/2026) :** le plan vient du Hub par `POST /api/tenants/update-plan` (CONTRAT-BILLING v2 §3), stocké
-sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` ; rien n'est limité ni mis en lecture seule
-(PRICING-VERIDIAN, décision de Robert pour lever un drapeau).
+sur le lien tenant avec `trial_status` et `trial_ends_at`, relus par `by-email` ; rien n'est limité ni mis en lecture seule.
 Aucun fournisseur IA tiers (Robert) : `VERIDIAN_AI_DISABLED=true` coupe l'IA, MCP reste.
 L'espace d'un compte prouvé se crée à la **première ouverture** depuis le Hub, ou par `hub app-access … --app twenty`,
 tous deux par `ensureCrmWorkspace` du Hub (provisioning signé). Une signature du Hub ne sert qu'une fois.
@@ -30,19 +29,19 @@ tous deux par `ensureCrmWorkspace` du Hub (provisioning signé). Une signature d
 **Impersonate natif :** refusé entre espaces et muet (pas de ClickHouse) : passer par `hub open` ; sous emprunt, rien qui survive (26/11).
 **Accès agent, jetables, plugins :** skill `twenty-cli`, clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
-code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) ou catalogue `VERIDIAN_CATALOGUE` (listé, vérifié, rien d'imposé, Robert 26/11), réglages en base. CSP appliquée (27/11, `VERIDIAN_CSP=enforce`), prouvée aussi pendant une bascule canari.
+code client hors liste blanche (`VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) ou catalogue `VERIDIAN_CATALOGUE` (listé, vérifié, rien d'imposé, Robert 26/11), réglages en base.
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
 | Brique | Natif | Licence | Usage Veridian |
 |---|---|---|---|
-| Clés API | `createApiKey(name, expiresAt, roleId)` + `generateApiKeyToken` (`/metadata`) ; une clé porte un rôle (`getApiKeyRoles`) | AGPL | accès agent : rôle Admin. La commande `workspace:generate-api-key` refuse hors dev/test |
+| Clés API | `createApiKey(name, expiresAt, roleId)` + `generateApiKeyToken` (`/metadata`) ; une clé porte un rôle (`getApiKeyRoles`) | AGPL | accès agent : rôle Admin. La commande `workspace:generate-api-key` refuse hors dev |
 | Webhooks | `createWebhook(targetUrl, operations, secret, roleId)`, signature HMAC SHA-256 du corps, filtrés par rôle ; sortie par `SecureHttpClient` (SSRF : privé bloqué sauf `OUTBOUND_HTTP_ALLOWED_INTERNAL_HOSTS`) | AGPL | accès agent |
 | API | REST `/rest/*`, GraphQL `/graphql` et `/metadata`, sur l'hôte du workspace ou le domaine nu avec une clé | AGPL | |
 | MCP | `POST /mcp` (JSON-RPC, clé API ou OAuth), outils CRM ; page Paramètres > AI > MCP | AGPL | agent externe sans fournisseur IA chez nous ; la porte MCP du Hub y entre avec son JWT (`veridian-hub-mcp/`, CONTRAT-MCP) |
 | Serveur OAuth | `/.well-known/oauth-authorization-server`, `/oauth/register` (enregistrement dynamique), `/oauth/token` | AGPL | piste du Hub registre OAuth (Academy) |
-| CLI `twenty` (npm `twenty@2.56.0`, MIT) | `auth login --with-token` (stdin), `TWENTY_API_URL` + `TWENTY_API_KEY`, `api`, `metadata`, `data`, `app` | MIT | installé dans `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
-| SDK (`twenty-sdk`, `twenty-client-sdk`) | apps : objets, fonctions, composants front, registre privé puis installation par espace | MIT | plugins : dépôt privé `Veridian-site/veridian-crm-apps` (`twenty-admin app:install`) ; ici seule l'app Android de Téléphonie |
+| CLI `twenty` (npm, MIT) | `api`, `metadata`, `data`, `app` | MIT | `~/.local/twenty-cli`, lancé par `~/bin/twenty` |
+| SDK (`twenty-sdk`) | apps : objets, fonctions, composants front | MIT | plugins : `Veridian-site/veridian-crm-apps` (`twenty-admin app:install`) |
 | IA | chat, agents, compétences, actions IA des workflows, derrière le drapeau `AI` ; fournisseurs d'instance (`AI_PROVIDERS`) | AGPL | seul fournisseur « veridian » (Hub), identité signée par appel (VER-203) |
 | Workflows | déclencheurs, actions données, HTTP, email (driver), code | AGPL | email inerte (`EMAIL_DRIVER=logger`) |
 | Facturation | Stripe, plans, crédits, `usage-limit` : 211 fichiers Enterprise | EE | inutilisable : `IS_BILLING_ENABLED=false`, aucune limite appliquée sans elle |
@@ -68,6 +67,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 - Trunk sur `staging`, pas de PR.
 - `docs/spec/` : base légale `AUDIT-LIMITE-EE-TWENTY.md`.
 - Base : pas de table Veridian, liens Hub dans `core.keyValuePair`.
+- **Naissance d'un espace (Robert, 27/11) :** fonctions natives allumées et apps de base posées par le Hub à la création ; liste et raisons des éteints dans `constants/veridian-native-feature-flags.constant.ts`. Espaces existants : jamais touchés. Apps : `VERIDIAN_BASE_APPS` (pas `installe`, qui poserait chez tous).
 
 ## 4. Tests : ce qui prouve
 
@@ -93,6 +93,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `preuve-installation-app.py`, `preuve-apps-de-base.py` | garde d'installation (VER-173), Liaisons posée à la création | jetable, prod (26/11) |
 | `preuve-csp.py <jetable> --attendu report\|enforce` | CSP (VER-265) : connexion Hub, panneau Liaisons, contrôle `onerror`, rien d'autre | spec avec `'unsafe-inline'` |
 | `sous-domaine-hub.veridian.spec.ts` | sous-domaine = nom du Hub, `e2e-` en test | sabotage |
+| `naissance-natif.veridian.spec.ts`, `mutations-naissance.sh` | drapeaux natifs posés à la création, IA/MCP/Enterprise éteints | 4 sabotages (27/11) |
 | `scripts/ci/capture-sortante.sh <conteneur> <s>` (sur le nœud) | silence réseau, témoin compris | IP directe, code 1 |
 
 Codes : 0 vrai, 1 faux, 2 non abouti. Parcours de prod : `scripts/ci/parcours-node02.sh <dossier>` (Chromium sur node02, secret par stdin).
@@ -107,9 +108,8 @@ Avec `lourd` : `nx run twenty-shared:build` avant toute spec. Session : `POST /m
   Machines de la plateforme.
 - **Ne déployer qu'un run vert EN ENTIER** : l'image se construit en parallèle des tests (24/11).
 - `[skip ci]` si le produit ne bouge pas : un push normal annule la CI en cours.
-- **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source déclarée dans `~/nomad-veridian/jobs/SOURCES.tsv`), commit,
-  push sur `staging`, puis `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl`. Le garde anti-recul refuse
-  tant que le commit n'est pas sur la branche distante.
+- **Déployer :** tag dans `deploy/crm-staging.nomad.hcl` (source : `~/nomad-veridian/jobs/SOURCES.tsv`), commit, push, puis
+  `echo oui | timeout 280 nomad-v deploy deploy/crm-staging.nomad.hcl` (garde anti-recul : commit distant requis).
 - **Piège :** `nomad-v` attend une confirmation en gardant le verrou global : `echo oui |` et `timeout`.
 - **Job prod `crm` : seule source vivante `deploy/crm-prod.nomad.hcl`** (`SOURCES.tsv` ; `nomad-veridian` n'en a qu'une
   archive). Tronc `staging` ; le garde lit `origin/main` pour la prod : avancer `main` sur `staging` (ff) avant de déployer.
