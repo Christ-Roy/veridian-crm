@@ -90,7 +90,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `mutations-signature-unique.sh`, `preuve-rejeu-signature.py` | signature du Hub à usage unique, v2 liée à la route | sabotages, prod (26/11) |
 | `preuve-redemarrage-redis.py`, `preuve-cors.py`, `preuve-espace-public.py` | Redis sans perte ; CORS fermé ; sans session, le nom seul | prod (26/11) |
 | `adresses-personnes.sh` (pre-push, CI) | aucune adresse de personne dans ce dépôt PUBLIC | trois cas, code 1 |
-| `preuve-installation-app.py`, `preuve-apps-de-base.py` | garde d'installation (VER-173), Liaisons posée à la création | jetable, prod (26/11) |
+| `preuve-installation-app.py`, `preuve-apps-de-base.py` | garde d'installation (VER-173), 3 apps de base et drapeaux natifs à la naissance | jetable, prod (26/11) |
 | `preuve-csp.py <jetable> --attendu report\|enforce` | CSP (VER-265) : connexion Hub, panneau Liaisons, contrôle `onerror`, rien d'autre | spec avec `'unsafe-inline'` |
 | `sous-domaine-hub.veridian.spec.ts` | sous-domaine = nom du Hub, `e2e-` en test | sabotage |
 | `naissance-natif.veridian.spec.ts`, `mutations-naissance.sh` | drapeaux natifs posés à la création, IA/MCP/Enterprise éteints | 4 sabotages (27/11) |
