@@ -110,7 +110,8 @@ if [ -n "${MOTIFS_VERIFIES:-}" ] && [ "$MOTIFS_VERIFIES" = "$cible" ]; then
   echo "$(date -Is) $(git -C "$repo_root" rev-parse --short "$cible") motifs vérifiés hors hook : ${MOTIFS_RAISON:-sans raison}" >> "$HOME/.claude/releves/derogations-pre-push.log"
   echo "pre-push : motifs déjà vérifiés pour ce commit (dérogation journalisée)"
 else
-arbre=$(mktemp -d "$repo_root/.motifs-arbre.XXXXXX")
+# lourd exclut .motifs-arbre.* de sa copie (203ecbda) : l arbre vérifié porte un autre nom, sinon le nœud ne le voit pas (code 127).
+arbre=$(mktemp -d "$repo_root/motifs-pousse.XXXXXX")
 trap 'rm -rf "$arbre"' EXIT
 git -C "$repo_root" archive "$cible" scripts/ci packages/twenty-server/src/engine packages/twenty-server/src/modules \
   packages/twenty-front/src packages/twenty-shared/src | tar -x -C "$arbre" || fail "motifs : extraction du code commité impossible"
