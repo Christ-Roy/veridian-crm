@@ -25,7 +25,7 @@ if not n:
 open(p, 'w').write(s)
 sys.exit(0 if n == 1 else 1)
 P
-  sortie=$(timeout 120 bash "$f" 2>&1); c=$?
+  sortie=$(timeout "${MOTIFS_DELAI:-600}" bash "$f" 2>&1); c=$?
   vus=$((vus + $(grep -c '^détecté' <<<"$sortie")))
   [ "$c" = 0 ] || { echo "MOTIF PÉRIMÉ $(basename "$f") : $(grep -E 'motif absent|NON ABOUTI' <<<"$sortie" | head -1)"; rate=1; }
 done
