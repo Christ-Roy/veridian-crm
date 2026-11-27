@@ -145,7 +145,7 @@ EOH
       resources {
         cpu        = 150
         memory     = 128
-        memory_max = 1024
+        memory_max = 768
       }
     }
 
@@ -173,7 +173,7 @@ EOH
       resources {
         cpu        = 100
         memory     = 64
-        memory_max = 512
+        memory_max = 256
       }
     }
 
@@ -305,7 +305,7 @@ EOH
       resources {
         cpu        = 400
         memory     = 900
-        memory_max = 2560
+        memory_max = 2048
       }
     }
 
@@ -390,7 +390,7 @@ EOH
       resources {
         cpu        = 200
         memory     = 750
-        memory_max = 1792
+        memory_max = 1536
       }
     }
   }
