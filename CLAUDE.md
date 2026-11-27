@@ -30,7 +30,7 @@ tous deux par `ensureCrmWorkspace` du Hub (provisioning signé). Une signature d
 **Impersonate natif :** refusé entre espaces et muet (pas de ClickHouse) : passer par `hub open` ; sous emprunt, rien qui survive (26/11).
 **Accès agent, jetables, plugins :** skill `twenty-cli`, clés jamais affichées.
 **Coupé (parente, 08/11/2026) :** e-mailing de Twenty (Notifuse fait foi), console Logs (pas de ClickHouse, voulu),
-code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) ou catalogue `VERIDIAN_CATALOGUE` (listé, vérifié, rien d'imposé, Robert 26/11), réglages en base. CSP appliquée en prod (27/11, `VERIDIAN_CSP=enforce`) ; la prouver une fois la bascule canari finie (pendant : front blanc vu une fois).
+code client hors liste blanche (fonctions d'app : seuls les couples `VERIDIAN_LOGIC_FUNCTION_ALLOW`, ROB-235 ; exécuteur isolé ROB-237), installation d'app hors couples `VERIDIAN_APP_INSTALL_ALLOW` (VER-173) ou catalogue `VERIDIAN_CATALOGUE` (listé, vérifié, rien d'imposé, Robert 26/11), réglages en base. CSP appliquée (27/11, `VERIDIAN_CSP=enforce`), prouvée aussi pendant une bascule canari.
 
 ## 1bis. Le natif v2.56.1, à utiliser avant d'écrire (inventaire du 08/11/2026)
 
@@ -67,7 +67,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 
 - Trunk sur `staging`, pas de PR.
 - `docs/spec/` : base légale `AUDIT-LIMITE-EE-TWENTY.md`.
-- Base de données : pas de table Veridian, les liens Hub vivent dans `core.keyValuePair`.
+- Base : pas de table Veridian, liens Hub dans `core.keyValuePair`.
 
 ## 4. Tests : ce qui prouve
 
@@ -83,6 +83,7 @@ patche légalement. AGPL : le code du fork reste public, le copyright d'origine 
 | `twenty-admin [--env prod] agent:preuve <ws> --email <membre>` | accès agent : clé Admin, REST, webhook signé reçu, révocation | secret faussé (08/11) |
 | `scripts/ci/preuve-webhook-role.py <jetable>` | un webhook ne reçoit que ce que son rôle lit | `--sabotage`, code 1 (26/11) |
 | `preuve-app-deleguee.py`, `preuve-reponse-mail.py` | app posée au premier jeton, réponse Mail sans membre | staging (26/11) |
+| `preuve-admin-plateforme.py` | §5.23 : jamais owner, retrait du client gardé | 7 sabotages (27/11) |
 | `preuve-organisation.py`, `-suspension.py`, `-suspension-deploiement.py`, `-identite.py` (un jetable par passage) | VER-252, VER-254, personne = `hub_user_id`, adresse seule refusée (VER-255) | sabotages, `--sabotage` |
 | `admins-instance.py <env>`, `preuve-admins.py` | admins d'instance = `HUB_SERVER_ADMIN_HUB_USER_IDS` | codes 1 et 2 (25/11) |
 | `scripts/ci/preuve-emprunt.py <jetable>` | l'emprunt lit ; ni clé, jeton, code OAuth, webhook, ni app OAuth | 7d4af31, 0a0f5cf : code 1 (26/11) |
