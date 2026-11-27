@@ -99,6 +99,19 @@ class Epreuve(reponse.Epreuve):
         self.controle("la ligne est sur la fiche de Marie, envoyée, campagne", l and l[0]["personId"] == self.personne and
                       l[0]["sens"] == "ENVOYE" and l[0]["nature"] == "CAMPAGNE", str(l)[:200])
 
+        rfc3 = f"<{uuid.uuid4()}@{self.dom}>"
+        self.lot([self.ev("message.received", self.marie, rfc3, from_email=self.marie, nature="reply_human")])
+        c, r = self.lot([self.ev("message.sent", self.marie, rfc3)])
+        l = self.lignes(rfc3)
+        self.controle("une ligne reçue ne prend pas de statut d'envoi (message.sent au même Message-ID)",
+                      len(l) == 1 and l[0]["sens"] == "RECU" and l[0]["statut"] is None, str(l)[:160])
+        rfc4 = f"<{uuid.uuid4()}@{self.dom}>"
+        self.lot([self.ev("message.sent", self.marie, rfc4, subject=None)])
+        self.lot([self.ev("message.opened", self.marie, rfc4, subject="Objet arrivé après")])
+        l = self.lignes(rfc4)
+        self.controle("objet manquant complété par l'événement suivant", len(l) == 1 and l[0]["objet"] == "Objet arrivé après" and
+                      l[0]["statut"] == "OUVERT", str(l)[:160])
+
         inconnu, rfc2 = f"inconnu@{self.dom}", f"<{uuid.uuid4()}@{self.dom}>"
         c, r = self.lot([self.ev("message.sent", inconnu, rfc2)])
         self.controle("destinataire inconnu : ignoré, aucune personne, aucune ligne",

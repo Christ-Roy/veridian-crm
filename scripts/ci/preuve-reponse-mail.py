@@ -100,7 +100,7 @@ class Epreuve(envoi.Epreuve):
         self.controle("personne nommée depuis le nom affiché (VER-247)", bool(p) and p[0].get("name") == {"firstName": "Jeanne", "lastName": "Épreuve"},
                       str(p and p[0].get("name")))
         if t:
-            self.controle("titre, origine, lien de la conversation", t[0]["title"] == f"Répondre à {self.mail}" and
+            self.controle("titre, origine, lien de la conversation", t[0]["title"] == "Répondre à Jeanne Épreuve" and
                           t[0]["origineVeridian"] == "Mail" and f"inbox?message={a['message_id']}" in (t[0]["bodyV2"] or {}).get("markdown", ""),
                           json.dumps(t[0], ensure_ascii=False)[:220])
         l = self.lignes(a["rfc_message_id"])
