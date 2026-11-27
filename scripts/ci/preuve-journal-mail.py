@@ -94,13 +94,16 @@ class Epreuve(reponse.Epreuve):
         c, r = self.lot([self.ev("message.delivered", self.marie, rfc)])
         l = self.lignes(rfc)
         self.controle("« remis » arrivé en retard : le statut ne recule pas", len(l) == 1 and l[0]["statut"] == "OUVERT", str(l)[:160])
+        self.controle("le bilan dit pourquoi : « inchangee » pour ce message", r.get("ignorees") == [{"rfc_message_id": rfc, "raison": "inchangee"}],
+                      json.dumps(r, ensure_ascii=False)[:200])
         self.controle("la ligne est sur la fiche de Marie, envoyée, campagne", l and l[0]["personId"] == self.personne and
                       l[0]["sens"] == "ENVOYE" and l[0]["nature"] == "CAMPAGNE", str(l)[:200])
 
         inconnu, rfc2 = f"inconnu@{self.dom}", f"<{uuid.uuid4()}@{self.dom}>"
         c, r = self.lot([self.ev("message.sent", inconnu, rfc2)])
         self.controle("destinataire inconnu : ignoré, aucune personne, aucune ligne",
-                      (r.get("lignes") or {}).get("ignorees") == 1 and not self.personnes(inconnu) and not self.lignes(rfc2),
+                      (r.get("lignes") or {}).get("ignorees") == 1 and not self.personnes(inconnu) and not self.lignes(rfc2) and
+                      r.get("ignorees") == [{"rfc_message_id": rfc2, "raison": "destinataire_inconnu"}],
                       json.dumps(r, ensure_ascii=False)[:160])
 
         for nom, jeton in (("portée des tâches seule", self.jeton_mail()),
