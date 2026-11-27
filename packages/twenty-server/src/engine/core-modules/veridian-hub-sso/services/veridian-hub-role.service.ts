@@ -13,6 +13,7 @@ import {
   HUB_ROLE_KEY,
   type HubRole,
 } from 'src/engine/core-modules/veridian-hub-sso/utils/parse-hub-organisations.util';
+import { PLATFORM_ADMIN_KEY } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-platform-admin.service';
 import { HUB_ROLE_CARRIED_KEY } from 'src/engine/core-modules/veridian-hub-sso/utils/assert-role-not-carried-by-hub.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
@@ -35,6 +36,7 @@ export type HubRoleResult =
         | 'stale'
         | 'native_custom'
         | 'last_admin'
+        | 'admin_withdrawn'
         | 'released';
     };
 
@@ -192,6 +194,20 @@ export class VeridianHubRoleService {
       });
       await this.markCarried(workspaceId);
     };
+
+    // §5.23: a platform admin the client took back is never made Admin again by a push, only by a human `reinstate`.
+    if (role === 'admin' && !isAdmin) {
+      const platformAdmin = await this.keyValuePairRepository.findOne({
+        where: { key: PLATFORM_ADMIN_KEY, userId, workspaceId },
+      });
+
+      if (
+        (platformAdmin?.value as unknown as { withdrawn?: boolean } | undefined)
+          ?.withdrawn === true
+      ) {
+        return { status: 'ok', applied: false, reason: 'admin_withdrawn' };
+      }
+    }
 
     const target =
       role === 'member'

@@ -21,6 +21,7 @@ import { VeridianGrantService } from 'src/engine/core-modules/veridian-delegatio
 import { parseHubGrants } from 'src/engine/core-modules/veridian-delegation/utils/parse-hub-grants.util';
 import { VeridianHubOrganisationService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-organisation.service';
 import { VeridianHubRoleService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-role.service';
+import { VeridianHubPlatformAdminService } from 'src/engine/core-modules/veridian-hub-sso/services/veridian-hub-platform-admin.service';
 import {
   VeridianHubSsoService,
   WORKSPACE_SUSPENDED_LINK,
@@ -96,6 +97,7 @@ export class VeridianHubSsoController {
     private readonly veridianHubOrganisationService: VeridianHubOrganisationService,
     private readonly veridianHubSuspensionService: VeridianHubSuspensionService,
     private readonly veridianGrantService: VeridianGrantService,
+    private readonly veridianHubPlatformAdminService: VeridianHubPlatformAdminService,
   ) {}
 
   private readonly signatureLogger = new Logger('VeridianHubSignature');
@@ -565,6 +567,10 @@ export class VeridianHubSsoController {
       return response.status(404).json({ error: result.status });
     }
 
+    if (!result.applied && result.reason === 'admin_withdrawn') {
+      return response.status(409).json({ error: 'admin_withdrawn' });
+    }
+
     return response
       .status(200)
       .json(
@@ -572,6 +578,72 @@ export class VeridianHubSsoController {
           ? { applied: true, native_role: result.nativeRole }
           : { applied: false, reason: result.reason },
       );
+  }
+
+  // CONTRAT-HUB §5.23 (VER-263): platform admins are Admin in a client workspace, never owner; the client may take it back.
+  @Post('api/hub/workspace-admins')
+  async applyWorkspaceAdmin(
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!(await this.isAuthenticHubCall(request, response))) {
+      return;
+    }
+
+    const {
+      workspace_id: workspaceRef,
+      hub_user_id: hubUserId,
+      action,
+      actor_hub_user_id: actor,
+      reason,
+      reinstate,
+    } = request.body ?? {};
+
+    if (
+      !isUuid(workspaceRef) ||
+      !isUuid(hubUserId) ||
+      (action !== 'grant' && action !== 'revoke') ||
+      !isNonEmptyString(actor) ||
+      actor.length > 200 ||
+      (reason !== undefined && reason !== null && typeof reason !== 'string') ||
+      (reinstate !== undefined && typeof reinstate !== 'boolean')
+    ) {
+      return this.rejectInvalidBody(response);
+    }
+
+    const result = await this.veridianHubPlatformAdminService.apply({
+      workspaceRef,
+      hubUserId,
+      action,
+      actor,
+      reason: typeof reason === 'string' ? reason.slice(0, 500) : null,
+      reinstate: reinstate === true,
+    });
+
+    return result.status === 200
+      ? response.status(200).json({ applied: result.applied, role: result.role })
+      : response.status(result.status).json({ error: result.error });
+  }
+
+  @Get('api/hub/workspace-admins')
+  async readWorkspaceAdmins(
+    @Query('workspace_id') workspaceRef: string,
+    @Req() request: RawBodyRequest<Request>,
+    @Res() response: Response,
+  ) {
+    if (!(await this.isAuthenticHubCall(request, response, Buffer.alloc(0)))) {
+      return;
+    }
+
+    if (!isUuid(workspaceRef)) {
+      return this.rejectInvalidBody(response);
+    }
+
+    const members = await this.veridianHubPlatformAdminService.list(workspaceRef);
+
+    return members === null
+      ? response.status(404).json({ error: 'tenant_not_found' })
+      : response.status(200).json({ members });
   }
 
   @Post('api/veridian/workspaces/:workspaceId/attach-member')
