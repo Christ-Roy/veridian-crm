@@ -58,6 +58,11 @@ job "crm" {
   # Migrations : au démarrage du serveur, mais la mise à jour roulante ne démarre qu'un exemplaire à la fois.
   group "stack" {
     count          = 2
+    # Annonce du changement de tags Traefik (fiche 34, déploiement 1 sur 2), au groupe seul : une meta de job
+    # entrerait dans l'environnement de redis et du worker et les recréerait.
+    meta {
+      veridian_tags_canari_annonce = "50b69623bc3cd7dd"
+    }
     shutdown_delay = "30s" # plus haut que 5-10 s demandé par l'infra : Traefik doit retirer l'exemplaire avant qu'il tombe
 
     # Bleu-vert, comme hub : le canari démarre à côté (environ 2 min de démarrage Nest), Traefik ne le sert qu'une fois
@@ -284,7 +289,7 @@ EOH
       }
       resources {
         cpu        = 1000
-        memory     = 960
+        memory     = 1088
         memory_max = 1800
       }
     }
