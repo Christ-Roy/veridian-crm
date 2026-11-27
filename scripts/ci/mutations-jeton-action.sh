@@ -71,4 +71,7 @@ saboter "espace jamais marqué" "$A" '    if (await this.wasSeen(target)) {' '  
 saboter "marque commune à tous les espaces" "$A" '        workspaceId: target.workspaceId,
         userId: IsNull(),' '        userId: IsNull(),'
 
+saboter "visites : portée du journal Mail acceptée" "$U" "scopes: ['crm:visite.ecrire']," "scopes: ['crm:mail.ecrire'],"
+saboter "visites : l'app Mail relaie les visites" "$U" "app: 'app:analytics'," "app: 'app:notifuse',"
+
 exit "$rate"

@@ -59,6 +59,16 @@ const DELEGATED_TOOLS = new Map<string, DelegatedTool>([
       applicationUniversalIdentifier: LIAISONS_APPLICATION,
     },
   ],
+  // VER-273 (27/11/2026, contrat Hub §5.26) : le dossier Visites d'une fiche (sessions web d'un contact connu), une ligne par session.
+  [
+    'app_evenements_visite',
+    {
+      app: 'app:analytics',
+      scopes: ['crm:visite.ecrire'],
+      subject: 'integration',
+      applicationUniversalIdentifier: LIAISONS_APPLICATION,
+    },
+  ],
 ]);
 
 export const findDelegatedApplication = (
