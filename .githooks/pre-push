@@ -44,8 +44,10 @@ fi
 # Étage 0 ter : dépôt public, aucune adresse de personne (0 conforme, 1 trouvée, 2 non abouti : rouge aussi).
 bash "$repo_root/scripts/ci/adresses-personnes.sh" || fail "adresses-personnes : adresse de personne dans le dépôt ou contrôle non abouti"
 
+pousse=""
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$z40" ] && continue  # suppression de branche
+  pousse="$local_sha"
 
   branch="${remote_ref#refs/heads/}"
   case "$branch" in
@@ -102,13 +104,15 @@ done
 # rien fait tourner) ne laisse pas passer : la même étape est rejouée sur place en nice 19 (règle commune, parente 26/11).
 # Dérogation journalisée (27/11/2026, lourd en file sur rise) : MOTIFS_VERIFIES=<sha> ne vaut que pour CE commit, déjà vérifié
 # par motifs-sabotages.sh (MOTIFS_OK) ; la trace part dans ~/.claude/releves/derogations-pre-push.log.
-if [ -n "${MOTIFS_VERIFIES:-}" ] && [ "$MOTIFS_VERIFIES" = "$(git -C "$repo_root" rev-parse HEAD)" ]; then
-  echo "$(date -Is) $(git -C "$repo_root" rev-parse --short HEAD) motifs vérifiés hors hook : ${MOTIFS_RAISON:-sans raison}" >> "$HOME/.claude/releves/derogations-pre-push.log"
+# Le commit vérifié est celui qui part (27/11 : pousser main depuis un autre HEAD vérifiait le mauvais arbre).
+cible="${pousse:-$(git -C "$repo_root" rev-parse HEAD)}"
+if [ -n "${MOTIFS_VERIFIES:-}" ] && [ "$MOTIFS_VERIFIES" = "$cible" ]; then
+  echo "$(date -Is) $(git -C "$repo_root" rev-parse --short "$cible") motifs vérifiés hors hook : ${MOTIFS_RAISON:-sans raison}" >> "$HOME/.claude/releves/derogations-pre-push.log"
   echo "pre-push : motifs déjà vérifiés pour ce commit (dérogation journalisée)"
 else
 arbre=$(mktemp -d "$repo_root/.motifs-arbre.XXXXXX")
 trap 'rm -rf "$arbre"' EXIT
-git -C "$repo_root" archive HEAD scripts/ci packages/twenty-server/src/engine packages/twenty-server/src/modules \
+git -C "$repo_root" archive "$cible" scripts/ci packages/twenty-server/src/engine packages/twenty-server/src/modules \
   packages/twenty-front/src packages/twenty-shared/src | tar -x -C "$arbre" || fail "motifs : extraction du code commité impossible"
 rel="${arbre#"$repo_root"/}"
 journal=$(mktemp)
