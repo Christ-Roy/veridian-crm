@@ -58,12 +58,18 @@ saboter "retrait : espace sans schéma bloquant" "$S" 'if (!isWorkspaceProvision
 saboter "retour : fiche non restaurée" "$S" "await this.updateMemberRecord(workspace, known.id, 'restore', known.email);" ''
 saboter "boucle : garde retirée" "$N" 'if (url === navigatingToUrl) {' 'if (false as boolean) {'
 
-for mutation in signUp signUpInWorkspace signUpInNewWorkspace signIn getLoginTokenFromCredentials emailPasswordResetLink updatePasswordViaResetToken sendInvitations resendWorkspaceInvitation updateUserEmail verifyEmailAndGetLoginToken verifyEmailAndGetWorkspaceAgnosticToken resendEmailVerificationToken getAuthTokensFromSSOExchangeToken createApprovedAccessDomain validateApprovedAccessDomain createOIDCIdentityProvider createSAMLIdentityProvider editSSOIdentityProvider deleteUser deleteUserFromWorkspace deleteCurrentWorkspace initiateOTPProvisioning initiateOTPProvisioningForAuthenticatedUser verifyTwoFactorAuthenticationMethodForAuthenticatedUser deleteTwoFactorAuthenticationMethod generateTwoFactorAuthenticationRecoveryCode revokeTwoFactorAuthenticationRecoveryCode getAuthTokensFromOTP getAuthTokensFromTwoFactorAuthenticationRecoveryCode; do
+for mutation in signUp signUpInWorkspace signUpInNewWorkspace signIn getLoginTokenFromCredentials emailPasswordResetLink updatePasswordViaResetToken sendInvitations resendWorkspaceInvitation updateUserEmail verifyEmailAndGetLoginToken verifyEmailAndGetWorkspaceAgnosticToken resendEmailVerificationToken getAuthTokensFromSSOExchangeToken createApprovedAccessDomain validateApprovedAccessDomain createOIDCIdentityProvider createSAMLIdentityProvider editSSOIdentityProvider deleteUser deleteUserFromWorkspace deleteCurrentWorkspace initiateOTPProvisioning; do
   saboter "garde : $mutation permis" "$G" "  '$mutation',"$'\n' ""
 done
 for reglage in editableProfileFields isPasswordAuthEnabled isPasswordAuthBypassEnabled isPublicInviteLinkEnabled isTwoFactorAuthenticationEnforced; do
   saboter "garde : $reglage rouvrable" "$G" "  '$reglage',"$'\n' ""
 done
+# 2FA native des administrateurs d'instance (Robert, 27/11/2026) : à eux seuls.
+for mutation in initiateOTPProvisioningForAuthenticatedUser verifyTwoFactorAuthenticationMethodForAuthenticatedUser deleteTwoFactorAuthenticationMethod generateTwoFactorAuthenticationRecoveryCode revokeTwoFactorAuthenticationRecoveryCode; do
+  saboter "garde : 2FA $mutation ouverte à tous" "$G" "  '$mutation',"$'\n' ""
+done
+saboter "garde : 2FA ouverte à tous" "$G" "!isInstanceAdmin(gqlContext.getContext()?.req?.user);" "false;"
+saboter "garde : tout le monde administrateur" "$G" "return flags?.canImpersonate === true || flags?.canAccessFullAdminPanel === true;" "return true;"
 saboter "garde : réouverture ignorée" "$G" "isRenaming ||"$'\n'"      isReopening" "isRenaming"
 H=packages/twenty-server/src/engine/core-modules/veridian-hub-sso/query-hooks/workspace-member-identity.pre-query.hook.ts
 for champ in name userEmail userId; do

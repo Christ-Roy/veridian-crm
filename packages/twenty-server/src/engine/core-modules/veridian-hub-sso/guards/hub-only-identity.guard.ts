@@ -32,16 +32,27 @@ export const MUTATIONS_RESERVED_TO_HUB = new Set([
   'deleteUser',
   'deleteUserFromWorkspace',
   'deleteCurrentWorkspace',
-  // Two-factor authentication lives on the Hub alone.
+  // Two-factor authentication lives on the Hub, except for instance admins (below).
   'initiateOTPProvisioning',
+]);
+
+// Robert (27/11/2026): native impersonation across workspaces needs a verified 2FA on the impersonator. Instance admins,
+// and only them, set up their own native 2FA. Signing in with a code only concerns an account that already has one.
+export const TWO_FACTOR_MUTATIONS_FOR_INSTANCE_ADMINS = new Set([
   'initiateOTPProvisioningForAuthenticatedUser',
   'verifyTwoFactorAuthenticationMethodForAuthenticatedUser',
   'deleteTwoFactorAuthenticationMethod',
   'generateTwoFactorAuthenticationRecoveryCode',
   'revokeTwoFactorAuthenticationRecoveryCode',
-  'getAuthTokensFromOTP',
-  'getAuthTokensFromTwoFactorAuthenticationRecoveryCode',
 ]);
+
+const isInstanceAdmin = (user: unknown): boolean => {
+  const flags = user as
+    | { canImpersonate?: boolean; canAccessFullAdminPanel?: boolean }
+    | undefined;
+
+  return flags?.canImpersonate === true || flags?.canAccessFullAdminPanel === true;
+};
 
 // A workspace admin must not reopen what provisioning closed.
 export const WORKSPACE_SETTINGS_RESERVED_TO_HUB = [
@@ -76,8 +87,13 @@ export class HubOnlyIdentityGuard implements CanActivate {
         (setting) => gqlContext.getArgs()?.data?.[setting] !== undefined,
       );
 
+    const isTwoFactorForOthers =
+      TWO_FACTOR_MUTATIONS_FOR_INSTANCE_ADMINS.has(info.fieldName) &&
+      !isInstanceAdmin(gqlContext.getContext()?.req?.user);
+
     if (
       MUTATIONS_RESERVED_TO_HUB.has(info.fieldName) ||
+      isTwoFactorForOthers ||
       isRenaming ||
       isReopening
     ) {
