@@ -108,8 +108,8 @@ rel="${arbre#"$repo_root"/}"
 journal=$(mktemp)
 rc=0
 (cd "$repo_root" && lourd-si-bastion bash "$rel/scripts/ci/motifs-sabotages.sh" --arbre "$rel") >"$journal" 2>&1 || rc=$?
-# Code 2 = rien n'a abouti ailleurs (27/11 : installation yarn en échec sur le nœud, sans le libellé attendu).
-if [ "$rc" = 2 ]; then
+# Code 2 ou 255 = rien n'a abouti ailleurs (27/11 : installation yarn en échec sur le nœud).
+if [ "$rc" = 2 ] || [ "$rc" = 255 ]; then
   echo "pre-push : lourd non abouti, motifs rejoués sur place (nice 19)"
   rc=0
   nice -n 19 bash "$arbre/scripts/ci/motifs-sabotages.sh" --arbre "$arbre" >"$journal" 2>&1 || rc=$?
