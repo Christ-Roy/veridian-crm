@@ -122,6 +122,7 @@ Avec `lourd` : `nx run twenty-shared:build` avant toute spec. Session : `POST /m
 - **AGPL :** `scripts/agpl/publier-source.sh <commit>` avant chaque image de prod (`--essai` pour voir sans pousser).
 - **Piège IA (23/11) :** changer `VERIDIAN_AI_DISABLED` exige `scripts/ci/invalider-cache-roles.sh <job>` (cache Redis des rôles figé).
 - Après un sync amont, rejouer `scripts/ci/marque.sh <icon.svg du Hub>`.
+- **Prod en 2 exemplaires (27/11/2026, VER-270 lot C) :** `stack` count=2 sur ovh-prod (volume local, dérogation LINT-JOB-EXCEPTIONS), worker=1.
 
 ## 6. Sync amont
 
