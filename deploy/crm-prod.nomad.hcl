@@ -52,9 +52,13 @@ job "crm" {
   type        = "service"
   priority    = 80
 
+  # Deux exemplaires (27/11/2026, VER-270 lot C). Dérogation CIBLE-INSTANCE et répartition par zone : LINT-JOB-EXCEPTIONS.tsv.
+  # Les deux partagent le volume local /opt/veridian-prod/crm/storage, donc ovh-prod seul (pas de zone seconde possible).
+  # Sessions JWT, caches workspace et verrous en Redis : rien ne vit en mémoire d'un process. Crons : worker seul.
+  # Migrations : au démarrage du serveur, mais la mise à jour roulante ne démarre qu'un exemplaire à la fois.
   group "stack" {
-    count          = 1
-    shutdown_delay = "30s"
+    count          = 2
+    shutdown_delay = "30s" # plus haut que 5-10 s demandé par l'infra : Traefik doit retirer l'exemplaire avant qu'il tombe
 
     # Bleu-vert, comme hub : le canari démarre à côté (environ 2 min de démarrage Nest), Traefik ne le sert qu'une fois
     # /healthz vert, puis la promotion arrête l'ancienne après shutdown_delay. Pas de canary_tags : deux définitions du
@@ -208,6 +212,8 @@ TRUST_PROXY=loopback, linklocal, uniquelocal, 100.64.0.0/10
 SERVER_URL=https://crm.app.veridian.site
 FRONTEND_URL=https://crm.app.veridian.site
 IS_MULTIWORKSPACE_ENABLED=true
+# Crons : enregistrés par le worker (unique). Deux serveurs qui les enregistrent en parallèle se gêneraient.
+DISABLE_CRON_JOBS_REGISTRATION=true
 DEFAULT_SUBDOMAIN=app
 IS_BILLING_ENABLED=false
 IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
@@ -249,7 +255,7 @@ VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-43
 # clients existants listés en exclusion (décision de Robert attendue). Arnaud Capitaine (91f24fc3) sorti de l'exclusion le 26/11 (Robert).
 VERIDIAN_EDITOR_WORKSPACE_IDS=38627be0-428f-4924-aa67-4a35884ba7b4
 VERIDIAN_BASE_APPS=38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
-VERIDIAN_BASE_APPS_EXCLUDE=53fcfb68-6107-48b6-b692-4196c077a9aa,67844853-3724-44fe-9083-87a7f0a8bfdf,30d16cc9-62ac-479c-b7e9-026990f5773a,c6d955fd-4300-47d5-86f5-c503bb3a93cc
+VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
 VERIDIAN_CSP=enforce
@@ -420,7 +426,7 @@ VERIDIAN_APP_INSTALL_ALLOW=38627be0-428f-4924-aa67-4a35884ba7b4:26679b6d-2464-43
 # clients existants listés en exclusion (décision de Robert attendue). Arnaud Capitaine (91f24fc3) sorti de l'exclusion le 26/11 (Robert).
 VERIDIAN_EDITOR_WORKSPACE_IDS=38627be0-428f-4924-aa67-4a35884ba7b4
 VERIDIAN_BASE_APPS=38627be0-428f-4924-aa67-4a35884ba7b4:1a1ab23e-60e5-4eca-be1f-718c96055c79
-VERIDIAN_BASE_APPS_EXCLUDE=53fcfb68-6107-48b6-b692-4196c077a9aa,67844853-3724-44fe-9083-87a7f0a8bfdf,30d16cc9-62ac-479c-b7e9-026990f5773a,c6d955fd-4300-47d5-86f5-c503bb3a93cc
+VERIDIAN_BASE_APPS_EXCLUDE=
 # CORS (26/11/2026) : une origine hors liste ne reçoit plus « * » (rien de Veridian n'appelle d'ailleurs).
 VERIDIAN_CORS_STRICT=true
 VERIDIAN_CSP=enforce
