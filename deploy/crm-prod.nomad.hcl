@@ -52,12 +52,12 @@ job "crm" {
   type        = "service"
   priority    = 80
 
-  # Deux exemplaires (27/11/2026, VER-270 lot C). Dérogation CIBLE-INSTANCE et répartition par zone : LINT-JOB-EXCEPTIONS.tsv.
-  # Les deux partagent le volume local /opt/veridian-prod/crm/storage, donc ovh-prod seul (pas de zone seconde possible).
+  # Une instance (parente, 27/11/2026 19:55Z) : deux copies sur le même nœud ne tenaient aucune zone et bloquaient le canari du
+  # Hub. Seconde copie sur app-01 au lot D (stockage objet Garage) ; dérogation CIBLE-INSTANCE : LINT-JOB-EXCEPTIONS.tsv.
   # Sessions JWT, caches workspace et verrous en Redis : rien ne vit en mémoire d'un process. Crons : worker seul.
   # Migrations : au démarrage du serveur, mais la mise à jour roulante ne démarre qu'un exemplaire à la fois.
   group "stack" {
-    count          = 2
+    count          = 1
     # Annonce du changement de tags Traefik (fiche 34, déploiement 1 sur 2), au groupe seul : une meta de job
     # entrerait dans l'environnement de redis et du worker et les recréerait.
     meta {
