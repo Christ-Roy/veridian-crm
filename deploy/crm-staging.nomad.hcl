@@ -24,7 +24,7 @@
 
 variable "image_tag" {
   type    = string
-  default = "staging-0d381f9" # 24/11/2026 : jeton d'action à act borné, couples liaisons (VER-246)
+  default = "staging-e065196" # 27/11/2026 : administrateur de plateforme (VER-263, §5.23)
 }
 
 variable "redis_port" {
